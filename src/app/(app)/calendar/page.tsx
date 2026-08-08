@@ -38,7 +38,7 @@ const sourceLabels: Record<CalendarItem["sourceType"], string> = {
   task_due: "Deadline",
   task_start: "Start task",
   milestone: "Milestone",
-  wedding_event: "Eveniment nuntă",
+  wedding_event: "Eveniment principal",
   contract: "Contract",
   payment_schedule: "Plată programată",
   booking: "Rezervare",
@@ -373,6 +373,7 @@ export default function CalendarPage() {
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Perioada anterioară"
             onClick={() => changePeriod(-1)}
           >
             <ChevronLeft className="size-4" />
@@ -380,6 +381,7 @@ export default function CalendarPage() {
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Perioada următoare"
             onClick={() => changePeriod(1)}
           >
             <ChevronRight className="size-4" />
@@ -394,6 +396,7 @@ export default function CalendarPage() {
         <span className="flex-1" />
         <Filter className="size-4 text-faint" />
         <Select
+          aria-label="Filtrează calendarul după sursă"
           value={source}
           onChange={(e) => setSource(e.target.value as typeof source)}
           className="w-48"
@@ -517,58 +520,84 @@ function MonthGrid({
   const offset = (first.getDay() + 6) % 7;
   const days = new Date(year, month + 1, 0).getDate();
   const cells = Array.from({ length: 42 }, (_, index) => index - offset + 1);
+  const monthItems = items.filter((item) => {
+    const date = new Date(item.startAt);
+    return date.getFullYear() === year && date.getMonth() === month;
+  });
   return (
-    <Card className="overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-line bg-subtle/60">
-        {["Lun", "Mar", "Mie", "Joi", "Vin", "Sâm", "Dum"].map((day) => (
-          <div
-            key={day}
-            className="px-2 py-2 text-center text-xs font-semibold text-faint"
-          >
-            {day}
-          </div>
-        ))}
+    <>
+      <div className="sm:hidden">
+        <p className="mb-3 text-sm leading-6 text-muted">
+          Pe ecrane mici, luna este afișată ca agendă pentru a păstra datele
+          lizibile și ușor de atins.
+        </p>
+        {monthItems.length ? (
+          <Agenda
+            items={monthItems}
+            compact={false}
+            anchorTime={cursorDate.getTime()}
+            onOpen={onOpen}
+          />
+        ) : (
+          <EmptyState
+            icon={CalendarDays}
+            title="Luna aceasta nu are evenimente"
+            description="Adaugă un eveniment sau schimbă luna pentru a continua planificarea."
+          />
+        )}
       </div>
-      <div className="grid grid-cols-7">
-        {cells.map((day, index) => {
-          const inMonth = day >= 1 && day <= days;
-          const dayItems = inMonth
-            ? items.filter((item) => {
-                const date = new Date(item.startAt);
-                return (
-                  date.getFullYear() === year &&
-                  date.getMonth() === month &&
-                  date.getDate() === day
-                );
-              })
-            : [];
-          return (
+      <Card className="hidden overflow-hidden sm:block">
+        <div className="grid grid-cols-7 border-b border-line bg-subtle/60">
+          {["Lun", "Mar", "Mie", "Joi", "Vin", "Sâm", "Dum"].map((day) => (
             <div
-              key={index}
-              className={cn(
-                "min-h-28 border-b border-r border-line p-1.5",
-                !inMonth && "bg-subtle/30",
-              )}
+              key={day}
+              className="px-2 py-2 text-center text-xs font-semibold text-faint"
             >
-              <span className="text-xs font-medium text-muted">
-                {inMonth ? day : ""}
-              </span>
-              <div className="mt-1 space-y-1">
-                {dayItems.slice(0, 3).map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => onOpen(item)}
-                    className="block w-full truncate rounded bg-brand-soft px-1.5 py-1 text-left text-[11px] font-medium text-brand-strong"
-                  >
-                    {item.title}
-                  </button>
-                ))}
-              </div>
+              {day}
             </div>
-          );
-        })}
-      </div>
-    </Card>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {cells.map((day, index) => {
+            const inMonth = day >= 1 && day <= days;
+            const dayItems = inMonth
+              ? items.filter((item) => {
+                  const date = new Date(item.startAt);
+                  return (
+                    date.getFullYear() === year &&
+                    date.getMonth() === month &&
+                    date.getDate() === day
+                  );
+                })
+              : [];
+            return (
+              <div
+                key={index}
+                className={cn(
+                  "min-h-28 border-b border-r border-line p-1.5",
+                  !inMonth && "bg-subtle/30",
+                )}
+              >
+                <span className="text-xs font-medium text-muted">
+                  {inMonth ? day : ""}
+                </span>
+                <div className="mt-1 space-y-1">
+                  {dayItems.slice(0, 3).map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => onOpen(item)}
+                      className="block min-h-11 w-full truncate rounded-lg bg-brand-soft px-2 py-1 text-left text-[11px] font-medium text-brand-strong"
+                    >
+                      {item.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </>
   );
 }
 
@@ -596,9 +625,9 @@ function Agenda({
         <button
           key={item.id}
           onClick={() => onOpen(item)}
-          className="flex w-full items-start gap-4 rounded-xl border border-line bg-elevated p-4 text-left hover:border-brand/40"
+          className="flex min-h-11 w-full flex-col items-start gap-2 rounded-xl border border-line bg-elevated p-4 text-left transition-colors hover:border-brand/40 sm:flex-row sm:gap-4"
         >
-          <div className="w-28 shrink-0">
+          <div className="shrink-0 sm:w-28">
             <p className="text-sm font-semibold text-ink">
               {formatDateLong(item.startAt)}
             </p>

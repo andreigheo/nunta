@@ -90,7 +90,7 @@ export default function VendorProfilePage() {
     <div className="mx-auto max-w-7xl space-y-4 pb-20">
       <Button variant="ghost" size="sm" onClick={() => router.push("/marketplace")}><ArrowLeft className="size-4" />Marketplace</Button>
       <div className="relative h-48 overflow-hidden rounded-xl bg-gradient-to-br from-brand to-sage sm:h-60">
-        {vendor.coverImageUrl ? <Image src={String(vendor.coverImageUrl)} alt="" fill unoptimized sizes="(max-width: 1280px) 100vw, 1280px" className="object-cover" /> : <span className="flex h-full items-center justify-center font-brand text-6xl font-semibold text-white/60">{String(vendor.headline).split(" ").map((word) => word[0]).slice(0, 2).join("")}</span>}
+        {vendor.coverImageUrl ? <Image src={String(vendor.coverImageUrl)} alt="" fill unoptimized sizes="(max-width: 1280px) 100vw, 1280px" className="object-cover" /> : <span className="flex h-full items-center justify-center font-display text-6xl font-semibold text-white/60">{String(vendor.headline).split(" ").map((word) => word[0]).slice(0, 2).join("")}</span>}
       </div>
       <PageHeader title={String(vendor.headline)} description={String(vendor.shortDescription ?? "Profil public Sarbato")} actions={<><Button variant={saved ? "secondary" : "outline"} size="sm" onClick={() => void toggleFavorite()}><Heart className={saved ? "size-4 fill-current text-danger" : "size-4"} />{saved ? "Salvat" : "Salvează"}</Button><Button size="sm" onClick={() => router.push(`/requests?vendor=${encodeURIComponent(String(vendor.vendorOrganizationId))}`)}>Cere ofertă</Button></>} />
       <div className="flex flex-wrap gap-2 text-sm text-muted">

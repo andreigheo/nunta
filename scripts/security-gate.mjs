@@ -29,6 +29,12 @@ async function capture(args, allowAuditExit = false) {
   });
 }
 
+async function checksum(path) {
+  return createHash("sha256")
+    .update(await readFile(path))
+    .digest("hex");
+}
+
 const auditBody = await capture(["audit", "--json"], true);
 const audit = JSON.parse(auditBody);
 await writeFile(
@@ -62,7 +68,7 @@ const sbom = {
   version: 1,
   metadata: {
     timestamp: new Date().toISOString(),
-    component: { type: "application", name: "WeddingOS", version: "10c" },
+    component: { type: "application", name: "Sarbato", version: "10c" },
   },
   components: [...components.values()].sort((a, b) =>
     a.purl.localeCompare(b.purl),
@@ -75,6 +81,20 @@ await writeFile(
 
 const licenses = await capture(["licenses", "list", "--json"]);
 await writeFile(resolve(output, "licenses.json"), licenses);
+
+await writeFile(
+  resolve(output, "weddingos.cdx.sha256"),
+  `${await checksum(resolve(output, "weddingos.cdx.json"))}  ops/release-evidence/current/weddingos.cdx.json\n`,
+);
+await writeFile(
+  resolve(output, "supply-chain.sha256"),
+  [
+    `${await checksum(resolve(root, "pnpm-lock.yaml"))}  pnpm-lock.yaml`,
+    `${await checksum(resolve(output, "pnpm-audit.json"))}  ops/release-evidence/current/pnpm-audit.json`,
+    `${await checksum(resolve(output, "licenses.json"))}  ops/release-evidence/current/licenses.json`,
+    "",
+  ].join("\n"),
+);
 
 const excluded = [
   "node_modules",
@@ -143,6 +163,8 @@ const gate = {
     "gitleaks.json",
     "licenses.json",
     "weddingos.cdx.json",
+    "weddingos.cdx.sha256",
+    "supply-chain.sha256",
   ],
 };
 await writeFile(

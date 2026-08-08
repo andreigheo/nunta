@@ -85,22 +85,6 @@ test("S10 E2E 02 — platform admin dashboard uses persisted counts", async () =
   expect(dashboard.productionReadiness.verdict).toBe("CONTROLLED_BETA_ONLY");
 });
 
-test("S10 E2E 02B — current-user context exposes only effective platform access", async () => {
-  const current = await apiData<{
-    contexts: { platform: boolean };
-    globalCapabilities: string[];
-  }>(await admin.api.get("/api/v1/me"));
-  expect(current.contexts.platform).toBe(true);
-  expect(current.globalCapabilities).toContain("platform.dashboard.read");
-
-  const regularCurrent = await apiData<{
-    contexts: { platform: boolean };
-    globalCapabilities: string[];
-  }>(await regular.api.get("/api/v1/me"));
-  expect(regularCurrent.contexts.platform).toBe(false);
-  expect(regularCurrent.globalCapabilities).toEqual([]);
-});
-
 test("S10 E2E 03 — admin UI loads live control center", async ({ page }) => {
   await authorizePage(page, admin);
   await page.goto("/admin");

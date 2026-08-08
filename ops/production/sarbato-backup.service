@@ -1,0 +1,13 @@
+[Unit]
+Description=Sarbato encrypted production backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=SARBATO_RELEASE_ROOT=/opt/sarbato/current
+ExecStart=/opt/sarbato/current/ops/production/run-vps-backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+

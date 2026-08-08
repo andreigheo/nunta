@@ -1,5 +1,5 @@
 [Unit]
-Description=WeddingOS daily object inventory and backup
+Description=Sarbato daily object inventory and backup
 
 [Timer]
 OnCalendar=*-*-* 02:30:00 Europe/Chisinau

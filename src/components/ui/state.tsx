@@ -42,6 +42,7 @@ export function EmptyState({
   description,
   action,
   secondaryAction,
+  headingLevel = 2,
   className,
 }: {
   icon: LucideIcon;
@@ -49,8 +50,12 @@ export function EmptyState({
   description?: string;
   action?: { label: string; onClick: () => void; icon?: React.ReactNode };
   secondaryAction?: { label: string; onClick: () => void };
+  headingLevel?: 2 | 3 | 4 | 5 | 6;
   className?: string;
 }) {
+  const headings = { 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;
+  const Heading = headings[headingLevel];
+
   return (
     <div
       className={cn(
@@ -61,7 +66,7 @@ export function EmptyState({
       <div className="flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand-strong dark:text-brand">
         <Icon className="size-6" aria-hidden />
       </div>
-      <h3 className="mt-4 font-brand text-lg font-semibold tracking-tight text-ink">{title}</h3>
+      <Heading className="mt-4 font-brand text-lg font-semibold tracking-tight text-ink">{title}</Heading>
       {description && <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">{description}</p>}
       {(action || secondaryAction) && (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">

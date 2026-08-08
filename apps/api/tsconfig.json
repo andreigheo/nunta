@@ -15,5 +15,11 @@
     "noUncheckedIndexedAccess": false
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "test"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "src/platform/beta.controller.ts",
+    "src/platform/beta.service.ts"
+  ]
 }

@@ -37,6 +37,7 @@ import {
   Input,
   Modal,
   OfflineBanner,
+  PageHeader,
   SegmentedControl,
   Select,
   Skeleton,
@@ -360,17 +361,27 @@ export default function WeddingDayPage() {
     if (!currentWorkspace || !data?.plan || demoMode) return;
     setExporting(true);
     try {
-      const needsSession = ["CHECK_IN_MANIFEST", "ATTENDANCE"].includes(exportType);
+      const needsSession = ["CHECK_IN_MANIFEST", "ATTENDANCE"].includes(
+        exportType,
+      );
       if (needsSession && !data.checkInSession)
         throw new Error("Creează mai întâi o sesiune de check-in.");
-      const requested = await weddingOsApi.weddingDayExport(currentWorkspace.id, {
-        type: exportType,
-        format: exportFormat,
-        planId: needsSession ? null : data.plan.id,
-        sessionId: needsSession ? data.checkInSession?.id : null,
-      });
+      const requested = await weddingOsApi.weddingDayExport(
+        currentWorkspace.id,
+        {
+          type: exportType,
+          format: exportFormat,
+          planId: needsSession ? null : data.plan.id,
+          sessionId: needsSession ? data.checkInSession?.id : null,
+        },
+      );
       let job = requested.job;
-      for (let attempt = 0; attempt < 80 && !["completed", "failed", "dead_letter"].includes(job.status); attempt += 1) {
+      for (
+        let attempt = 0;
+        attempt < 80 &&
+        !["completed", "failed", "dead_letter"].includes(job.status);
+        attempt += 1
+      ) {
         await new Promise((resolve) => window.setTimeout(resolve, 750));
         job = await weddingOsApi.job(job.id);
       }
@@ -386,7 +397,11 @@ export default function WeddingDayPage() {
       setExportOpen(false);
       toast({ title: "Export operațional pregătit", variant: "success" });
     } catch (caught) {
-      toast({ title: "Exportul nu a putut fi creat", description: apiErrorMessage(caught), variant: "error" });
+      toast({
+        title: "Exportul nu a putut fi creat",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
     } finally {
       setExporting(false);
     }
@@ -406,10 +421,14 @@ export default function WeddingDayPage() {
     return (
       <div className="mx-auto max-w-5xl space-y-4 pb-24">
         <OfflineBanner className="rounded-xl" />
+        <PageHeader
+          title="Ziua evenimentului"
+          description="Programul, echipa, check-in-ul și incidentele, coordonate într-o singură vedere."
+        />
         <EmptyState
           icon={Radio}
-          title="Command Center este disponibil în spațiul real"
-          description="Modul demo nu trimite mutații către API. Intră într-un cont de test pentru plan live, check-in, incidente și actualizări în timp real."
+          title="Centrul operațional este disponibil în spațiul real"
+          description="Intră în cont pentru planul zilei, check-in, incidente și actualizări în timp real."
         />
       </div>
     );
@@ -418,6 +437,11 @@ export default function WeddingDayPage() {
   if (error)
     return (
       <div className="mx-auto max-w-5xl pb-24">
+        <PageHeader
+          className="mb-4"
+          title="Ziua evenimentului"
+          description="Datele operaționale nu au putut fi încărcate."
+        />
         <ErrorState description={error} onRetry={() => void load()} />
       </div>
     );
@@ -428,10 +452,14 @@ export default function WeddingDayPage() {
     return (
       <div className="mx-auto max-w-5xl space-y-4 pb-24">
         <OfflineBanner className="rounded-xl" />
+        <PageHeader
+          title="Ziua evenimentului"
+          description="Configurează programul operațional înainte de a porni coordonarea live."
+        />
         <EmptyState
           icon={CalendarClock}
           title="Planul operațional nu este configurat"
-          description="Creează planul zilei nunții, apoi adaugă Run of Show, checklist-uri, stații de check-in și responsabili."
+          description="Creează programul zilei, apoi adaugă momente, liste de verificare, stații de check-in și responsabili."
           action={{
             label: "Creează planul operațional",
             onClick: () => setCreatePlanOpen(true),
@@ -450,16 +478,19 @@ export default function WeddingDayPage() {
             if (!event) return;
             setWorking(true);
             try {
-              const created = await weddingOsApi.createWeddingDayPlan(currentWorkspace.id, {
-                weddingEventId: event.id,
-                name: `Plan operațional · ${event.title}`,
-                title: event.title,
-                timezone: "Europe/Bucharest",
-                operationalDate: (
-                  event.startAt ?? new Date().toISOString()
-                ).slice(0, 10),
-                settings: {},
-              });
+              const created = await weddingOsApi.createWeddingDayPlan(
+                currentWorkspace.id,
+                {
+                  weddingEventId: event.id,
+                  name: `Plan operațional · ${event.title}`,
+                  title: event.title,
+                  timezone: "Europe/Bucharest",
+                  operationalDate: (
+                    event.startAt ?? new Date().toISOString()
+                  ).slice(0, 10),
+                  settings: {},
+                },
+              );
               await weddingOsApi.updateWeddingDayPlan(
                 currentWorkspace.id,
                 created.id,
@@ -517,14 +548,15 @@ export default function WeddingDayPage() {
                 />
                 {streamConnected
                   ? "Actualizări live conectate"
-                  : "Reconnecting · fallback polling"}
+                  : "Reconectare în curs"}
               </span>
             </div>
             <h1 className="mt-2 font-brand text-3xl font-semibold tracking-tight">
               {data.plan.title}
             </h1>
             <p className="mt-1 text-sm text-on-brand/75">
-              Command Center · sursă de adevăr PostgreSQL
+              Programul, echipa și incidentele — sincronizate într-o singură
+              vedere
             </p>
           </div>
           <div className="text-right">
@@ -957,7 +989,9 @@ export default function WeddingDayPage() {
         description="Fișierul este generat asincron într-un artifact securizat și limitat."
         footer={
           <>
-            <Button variant="ghost" onClick={() => setExportOpen(false)}>Renunță</Button>
+            <Button variant="ghost" onClick={() => setExportOpen(false)}>
+              Renunță
+            </Button>
             <Button loading={exporting} onClick={() => void exportWeddingDay()}>
               Generează și descarcă
             </Button>
@@ -966,22 +1000,33 @@ export default function WeddingDayPage() {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Raport" required>
-            <Select value={exportType} onChange={(event) => setExportType(event.target.value)}>
+            <Select
+              value={exportType}
+              onChange={(event) => setExportType(event.target.value)}
+            >
               <option value="RUN_SHEET">Wedding Day Run Sheet</option>
               <option value="CONTACT_SHEET">Contact sheet</option>
-              <option value="CHECK_IN_MANIFEST" disabled={!data.checkInSession}>Manifest check-in</option>
-              <option value="ATTENDANCE" disabled={!data.checkInSession}>Raport prezență</option>
+              <option value="CHECK_IN_MANIFEST" disabled={!data.checkInSession}>
+                Manifest check-in
+              </option>
+              <option value="ATTENDANCE" disabled={!data.checkInSession}>
+                Raport prezență
+              </option>
               <option value="INCIDENTS">Raport incidente</option>
             </Select>
           </Field>
           <Field label="Format" required>
-            <Select value={exportFormat} onChange={(event) => setExportFormat(event.target.value)}>
+            <Select
+              value={exportFormat}
+              onChange={(event) => setExportFormat(event.target.value)}
+            >
               <option value="csv">CSV</option>
               <option value="xlsx">XLSX</option>
             </Select>
           </Field>
           <p className="sm:col-span-2 text-xs text-muted">
-            Detaliile medicale și de securitate nu sunt incluse în raportul de incidente.
+            Detaliile medicale și de securitate nu sunt incluse în raportul de
+            incidente.
           </p>
         </div>
       </Modal>

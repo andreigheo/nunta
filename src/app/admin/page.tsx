@@ -19,6 +19,7 @@ import {
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardSkeleton,
   CardTitle,
@@ -33,6 +34,7 @@ import {
   TH,
   THead,
   TR,
+  StatCard,
   useToast,
 } from "@/components/ui";
 import {
@@ -61,9 +63,26 @@ type AdminState = {
 };
 
 const environmentLabel: Record<string, string> = {
-  development: "Development",
-  staging: "Staging",
-  production: "Production",
+  development: "Dezvoltare",
+  staging: "Preproducție",
+  production: "Producție",
+};
+
+const systemStatusLabel: Record<string, string> = {
+  OPERATIONAL: "Operațional",
+  DEGRADED: "Degradat",
+  OUTAGE: "Indisponibil",
+};
+
+const readinessLabel: Record<string, string> = {
+  gitProvenance: "Proveniență Git",
+  stagingConfigured: "Mediu de preproducție",
+  tlsConfigured: "TLS configurat",
+  offHostBackupConfigured: "Backup în afara infrastructurii",
+};
+
+const readinessVerdictLabel: Record<string, string> = {
+  CONTROLLED_BETA_ONLY: "Doar pentru beta controlată",
 };
 
 export default function AdminPage() {
@@ -139,7 +158,7 @@ export default function AdminPage() {
       const result = await weddingOsApi.enrollMfa();
       setEnrollment({ enrollmentId: result.enrollmentId, qrDataUrl: result.qrDataUrl, secret: result.secret });
     } catch (caught) {
-      toast({ title: "Enrollment indisponibil", description: apiErrorMessage(caught), variant: "error" });
+      toast({ title: "Configurarea MFA nu este disponibilă", description: apiErrorMessage(caught), variant: "error" });
     }
   };
 
@@ -158,7 +177,7 @@ export default function AdminPage() {
   };
 
   if (loading && !state) {
-    return <PortalShell role="Platform Admin" title="Control center" subtitle="Date operaționale reale, izolate prin capabilități de platformă." backHref="/sign-in" backLabel="Ieșire"><CardSkeleton lines={8} /></PortalShell>;
+    return <PortalShell role="Platform Admin" title="Centru de control" subtitle="Starea reală a platformei, accesibilă numai prin capabilități administrative." backHref="/sign-in" backLabel="Ieșire"><CardSkeleton lines={8} /></PortalShell>;
   }
 
   if (error || !state) {
@@ -175,64 +194,56 @@ export default function AdminPage() {
   return (
     <PortalShell
       role="Platform Admin"
-      title="Control center"
-      subtitle="Administrare, privacy, securitate și operare pe date persistente."
+      title="Centru de control"
+      subtitle="Administrare, confidențialitate, securitate și operare pe date persistente."
       backHref="/sign-in"
       backLabel="Ieșire"
     >
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2"><Badge variant="info">{environmentLabel[state.dashboard.environment] ?? state.dashboard.environment}</Badge><Badge variant={state.system.status === "OPERATIONAL" ? "success" : "warning"} dot>{state.system.status}</Badge><Badge variant="warning">{readiness.verdict.replaceAll("_", " ")}</Badge></div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2"><Badge variant="info">{environmentLabel[state.dashboard.environment] ?? state.dashboard.environment}</Badge><Badge variant={state.system.status === "OPERATIONAL" ? "success" : "warning"} dot>{systemStatusLabel[state.system.status] ?? state.system.status}</Badge><Badge variant="warning">{readinessVerdictLabel[readiness.verdict] ?? readiness.verdict.replaceAll("_", " ")}</Badge></div>
         <Button variant="outline" size="sm" loading={loading} onClick={() => void load()}><RefreshCw className="size-4" />Actualizează</Button>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "Utilizatori", value: state.dashboard.counts.users, Icon: Users, tone: "bg-info-soft text-info" },
-          { label: "Workspaces", value: state.dashboard.counts.workspaces, Icon: Activity, tone: "bg-brand-soft text-brand" },
-          { label: "Organizații vendor", value: state.dashboard.counts.vendors, Icon: Building2, tone: "bg-warning-soft text-warning" },
-          { label: "Alerte deschise", value: state.dashboard.counts.alertsOpen, Icon: ShieldCheck, tone: "bg-danger-soft text-danger" },
-        ].map(({ label, value, Icon, tone }) => (
-          <Card key={label}><CardContent className="flex items-center gap-3 p-4.5"><span className={`flex size-10 items-center justify-center rounded-lg ${tone}`}><Icon className="size-5" /></span><div><p className="text-xs text-muted">{label}</p><p className="text-xl font-semibold tabular-nums text-ink">{value}</p></div></CardContent></Card>
-        ))}
+      <section aria-label="Rezumat platformă" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Utilizatori" value={state.dashboard.counts.users} hint="Conturi înregistrate" icon={Users} />
+        <StatCard label="Spații de lucru" value={state.dashboard.counts.workspaces} hint="Spații create în platformă" icon={Activity} />
+        <StatCard label="Organizații de furnizori" value={state.dashboard.counts.vendors} hint="Conturi comerciale" icon={Building2} />
+        <StatCard label="Alerte deschise" value={state.dashboard.counts.alertsOpen} hint="Semnale care necesită verificare" icon={AlertTriangle} tone={state.dashboard.counts.alertsOpen ? "danger" : "default"} />
       </section>
 
-      {state.mfa.required && !state.mfa.enrolled ? <Card className="mt-5 border-warning/30"><CardContent className="flex flex-wrap items-center justify-between gap-4 p-4.5"><div><p className="font-semibold text-ink">MFA este obligatoriu pentru rolul tău</p><p className="mt-1 text-sm text-muted">Operațiile critice rămân blocate până confirmi TOTP și salvezi recovery codes.</p></div><Button onClick={() => void startMfaEnrollment()}>Configurează MFA</Button>{enrollment ? <div className="w-full rounded-lg bg-subtle p-4"><div className="flex flex-wrap items-center gap-4"><Image unoptimized width={160} height={160} src={enrollment.qrDataUrl} alt="Cod QR pentru configurarea TOTP" className="size-40 rounded-lg bg-white p-2" /><div><p className="text-xs text-muted">Cheie manuală (afișată numai în enrollment)</p><code className="mt-1 block break-all text-xs text-ink">{enrollment.secret}</code><Button className="mt-3" size="sm" onClick={() => void confirmMfaEnrollment()}>Confirmă codul TOTP</Button></div></div></div> : null}</CardContent></Card> : state.mfa.enrolled ? <div className="mt-5 flex items-center gap-2 rounded-lg border border-success/20 bg-success-soft px-4 py-3 text-sm text-ink"><ShieldCheck className="size-4 text-success" />MFA activ · {state.mfa.recoveryCodesRemaining} recovery codes disponibile</div> : null}
+      {state.mfa.required && !state.mfa.enrolled ? <Card className="mt-6 border-warning/30"><CardContent className="flex flex-wrap items-center justify-between gap-4 p-4.5"><div><p className="font-semibold text-ink">MFA este obligatoriu pentru rolul tău</p><p className="mt-1 text-sm text-muted">Operațiile critice rămân blocate până confirmi TOTP și salvezi codurile de recuperare.</p></div><Button onClick={() => void startMfaEnrollment()}>Configurează MFA</Button>{enrollment ? <div className="w-full rounded-lg bg-subtle p-4"><div className="flex flex-wrap items-center gap-4"><Image unoptimized width={160} height={160} src={enrollment.qrDataUrl} alt="Cod QR pentru configurarea TOTP" className="size-40 rounded-lg bg-white p-2" /><div><p className="text-xs text-muted">Cheie manuală (afișată numai în timpul configurării)</p><code className="mt-1 block break-all text-xs text-ink">{enrollment.secret}</code><Button className="mt-3" size="sm" onClick={() => void confirmMfaEnrollment()}>Confirmă codul TOTP</Button></div></div></div> : null}</CardContent></Card> : state.mfa.enrolled ? <div className="mt-6 flex items-center gap-2 rounded-lg border border-success/20 bg-success-soft px-4 py-3 text-sm text-ink"><ShieldCheck className="size-4 text-success" />MFA activ · {state.mfa.recoveryCodesRemaining} coduri de recuperare disponibile</div> : null}
 
       <Tabs defaultValue="overview" className="mt-6">
         <TabsList>
           <TabsTrigger value="overview">Operațiuni</TabsTrigger>
           <TabsTrigger value="users">Utilizatori</TabsTrigger>
-          <TabsTrigger value="privacy">Privacy</TabsTrigger>
-          <TabsTrigger value="delivery">Backup & release</TabsTrigger>
+          <TabsTrigger value="privacy">Confidențialitate</TabsTrigger>
+          <TabsTrigger value="delivery">Backup și versiuni</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-5 grid gap-5 lg:grid-cols-2">
-          <Card><CardHeader><CardTitle>Starea serviciilor</CardTitle><Gauge className="size-4 text-success" /></CardHeader><CardContent className="space-y-3">{Object.entries(state.system.services).map(([name, service]) => <div key={name} className="flex items-center justify-between rounded-lg bg-subtle px-3 py-2.5"><span className="text-sm font-medium capitalize text-ink">{name}</span><Badge variant={service.status === "UP" ? "success" : "warning"} dot>{service.status}</Badge></div>)}</CardContent></Card>
-          <Card><CardHeader><CardTitle>Providers configurați</CardTitle><Database className="size-4 text-faint" /></CardHeader><CardContent className="space-y-3">{Object.entries(state.system.providers).map(([name, value]) => <div key={name} className="flex items-center justify-between border-b border-line pb-2.5 last:border-0"><span className="text-sm capitalize text-muted">{name}</span><Badge variant={value === "fake" ? "warning" : "neutral"}>{value}</Badge></div>)}</CardContent></Card>
-          <Card className="lg:col-span-2"><CardHeader><CardTitle>Launch gate factual</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(readiness).filter(([key]) => key !== "verdict").map(([key, value]) => <div key={key} className="rounded-lg bg-subtle p-3"><p className="text-xs text-muted">{key.replaceAll(/([A-Z])/g, " $1")}</p><Badge className="mt-2" variant={value ? "success" : "warning"}>{value ? "Confirmat" : "Lipsește"}</Badge></div>)}</CardContent></Card>
+          <Card><CardHeader><CardTitle>Starea serviciilor</CardTitle><Gauge className="size-4 text-success" /></CardHeader><CardContent>{Object.entries(state.system.services).map(([name, service]) => <div key={name} className="flex items-center justify-between gap-3 border-t border-line py-3 first:border-t-0 first:pt-0 last:pb-0"><span className="text-sm font-medium capitalize text-ink">{name}</span><Badge variant={service.status === "UP" ? "success" : "warning"} dot>{service.status}</Badge></div>)}</CardContent></Card>
+          <Card><CardHeader><CardTitle>Furnizori configurați</CardTitle><Database className="size-4 text-faint" /></CardHeader><CardContent>{Object.entries(state.system.providers).map(([name, value]) => <div key={name} className="flex items-center justify-between gap-3 border-t border-line py-3 first:border-t-0 first:pt-0 last:pb-0"><span className="text-sm capitalize text-muted">{name}</span><Badge variant={value === "fake" ? "warning" : "neutral"}>{value}</Badge></div>)}</CardContent></Card>
+          <Card className="lg:col-span-2"><CardHeader><div><CardTitle>Pregătire pentru lansare</CardTitle><CardDescription>Condițiile tehnice verificate pentru mediul curent.</CardDescription></div></CardHeader><CardContent className="grid gap-x-6 sm:grid-cols-2 xl:grid-cols-4">{Object.entries(readiness).filter(([key]) => key !== "verdict").map(([key, value]) => <div key={key} className="flex items-center justify-between gap-3 border-t border-line py-3"><p className="text-[13px] text-muted">{readinessLabel[key] ?? key.replaceAll(/([A-Z])/g, " $1")}</p><Badge variant={value ? "success" : "warning"}>{value ? "Confirmat" : "Lipsește"}</Badge></div>)}</CardContent></Card>
         </TabsContent>
 
         <TabsContent value="users" className="mt-5">
           <div className="mb-4 max-w-sm"><Input value={query} onChange={(event) => setQuery(event.target.value)} icon={<Search className="size-4" />} placeholder="Caută utilizator…" /></div>
-          <Table minWidth="760px"><THead><TR><TH>Utilizator</TH><TH>Stare</TH><TH>Workspaces</TH><TH>Sesiuni</TH><TH align="right">Acțiune</TH></TR></THead><TBody>{users.map((user) => <TR key={user.id}><TD><p className="font-medium">{[user.profile?.firstName, user.profile?.lastName].filter(Boolean).join(" ") || "Fără nume"}</p><p className="text-xs text-muted">{user.email}</p></TD><TD><Badge variant={user.status === "ACTIVE" ? "success" : "danger"}>{user.status}</Badge></TD><TD>{user.membershipCount}</TD><TD>{user.sessionCount}</TD><TD align="right"><Button size="sm" variant={user.status === "ACTIVE" ? "destructive-outline" : "outline"} loading={busyId === user.id} onClick={() => void changeUser(user)}>{user.status === "ACTIVE" ? "Suspendă" : "Reactivează"}</Button></TD></TR>)}</TBody></Table>
+          <Table minWidth="760px"><THead><TR><TH>Utilizator</TH><TH>Stare</TH><TH>Spații de lucru</TH><TH>Sesiuni</TH><TH align="right">Acțiune</TH></TR></THead><TBody>{users.map((user) => <TR key={user.id}><TD><p className="font-medium">{[user.profile?.firstName, user.profile?.lastName].filter(Boolean).join(" ") || "Fără nume"}</p><p className="text-xs text-muted">{user.email}</p></TD><TD><Badge variant={user.status === "ACTIVE" ? "success" : "danger"}>{user.status === "ACTIVE" ? "Activ" : user.status === "SUSPENDED" ? "Suspendat" : user.status}</Badge></TD><TD>{user.membershipCount}</TD><TD>{user.sessionCount}</TD><TD align="right"><Button size="sm" variant={user.status === "ACTIVE" ? "destructive-outline" : "outline"} loading={busyId === user.id} onClick={() => void changeUser(user)}>{user.status === "ACTIVE" ? "Suspendă" : "Reactivează"}</Button></TD></TR>)}</TBody></Table>
         </TabsContent>
 
         <TabsContent value="privacy" className="mt-5 grid gap-4 sm:grid-cols-3">
-          <SummaryCard title="Cereri active" value={state.support.length} detail="Support și privacy sunt procesate separat, cu audit." />
-          <SummaryCard title="Incidente" value={state.incidents.length} detail="Evenimente operaționale persistente, fără payload-uri brute." />
-          <SummaryCard title="Alerte securitate" value={state.alerts.length} detail="Alertele sunt deduplicate și vizibile numai rolurilor autorizate." />
+          <StatCard label="Cereri active" value={state.support.length} hint="Asistența și confidențialitatea au fluxuri auditate separat." />
+          <StatCard label="Incidente" value={state.incidents.length} hint="Evenimente persistente, fără conținut brut în această vedere." tone={state.incidents.length ? "warning" : "default"} />
+          <StatCard label="Alerte de securitate" value={state.alerts.length} hint="Deduplicate și vizibile numai rolurilor autorizate." tone={state.alerts.length ? "danger" : "default"} />
         </TabsContent>
 
         <TabsContent value="delivery" className="mt-5 grid gap-4 sm:grid-cols-3">
-          <SummaryCard title="Backup-uri" value={state.backups.length} detail={state.backups.length ? "Există evidențe persistente." : "Niciun backup verificat încă."} />
-          <SummaryCard title="Restore-uri" value={state.restores.length} detail={state.restores.length ? "Există validări de restore." : "Restore-ul nu a fost demonstrat încă."} />
-          <SummaryCard title="Release candidates" value={state.releases.length} detail={readiness.verdict.replaceAll("_", " ")} />
+          <StatCard label="Copii de siguranță" value={state.backups.length} hint={state.backups.length ? "Există evidențe persistente." : "Nicio copie verificată încă."} tone={state.backups.length ? "default" : "warning"} />
+          <StatCard label="Restaurări" value={state.restores.length} hint={state.restores.length ? "Există restaurări validate." : "Restaurarea nu a fost demonstrată încă."} tone={state.restores.length ? "default" : "warning"} />
+          <StatCard label="Versiuni candidate" value={state.releases.length} hint={readinessVerdictLabel[readiness.verdict] ?? readiness.verdict.replaceAll("_", " ")} />
         </TabsContent>
       </Tabs>
     </PortalShell>
   );
-}
-
-function SummaryCard({ title, value, detail }: { title: string; value: number; detail: string }) {
-  return <Card><CardContent className="p-4.5"><p className="text-xs text-muted">{title}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{value}</p><p className="mt-2 text-xs leading-relaxed text-faint">{detail}</p></CardContent></Card>;
 }

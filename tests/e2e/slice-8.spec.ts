@@ -88,7 +88,7 @@ test("E2E 1 — Create Wedding Day Plan and persist Run of Show", async ({
   await authorizePage(page, owner);
   await page.goto("/wedding-day");
   await expect(
-    page.getByRole("heading", { name: "Ziua evenimentului", exact: true }),
+    page.getByRole("heading", { name: "Ziua nunții", exact: true }),
   ).toBeVisible();
   plan = await createPlan();
   itemA = await createRunItem(

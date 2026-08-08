@@ -4,7 +4,7 @@ import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { PublicCookiePreferences } from "@/components/marketing/cookie-preferences";
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f7f7f3" }],
+  themeColor: "#f7f7f3",
 };
 
 /**

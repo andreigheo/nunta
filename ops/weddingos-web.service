@@ -1,5 +1,5 @@
 [Unit]
-Description=WeddingOS local web application
+Description=Sarbato local web application
 After=network-online.target weddingos-api.service
 Wants=network-online.target weddingos-api.service
 
@@ -8,7 +8,7 @@ Type=simple
 WorkingDirectory=/home/andrei/weddingos-runtime
 Environment=NODE_ENV=production
 Environment=API_INTERNAL_URL=http://127.0.0.1:4000
-Environment=NEXT_DIST_DIR=.next-slice10b-final
+Environment=NEXT_DIST_DIR=.next-sarbato-dashboard-aligned
 Environment=PATH=/home/andrei/.nvm/versions/node/v22.22.3/bin:/usr/local/bin:/usr/bin:/bin
 Environment=TMPDIR=/tmp
 Environment=TEMP=/tmp

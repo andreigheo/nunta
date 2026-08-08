@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import type { CapabilityKey, PlanningDashboard } from "@weddingos/contracts";
+import type { PlanningDashboard } from "@weddingos/contracts";
 import {
   AlertTriangle,
   Armchair,
   ArrowRight,
+  CalendarCheck2,
   CalendarDays,
   CheckCircle2,
   BedDouble,
@@ -16,11 +17,14 @@ import {
   FileText,
   ListChecks,
   MapPin,
+  Mail,
   MailOpen,
   Plus,
   Sparkles,
+  Store,
   Users,
   Utensils,
+  Wallet,
 } from "lucide-react";
 import { weddingOsApi, apiErrorMessage } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
@@ -28,6 +32,7 @@ import { tasks as demoTasks } from "@/lib/data/tasks";
 import { upcomingEvents } from "@/lib/data/wedding";
 import { daysUntil, formatDateLong, formatDateShort } from "@/lib/utils";
 import { useShell } from "@/components/shell/shell-context";
+import { EventThread } from "@/components/shell/event-thread";
 import {
   Badge,
   Button,
@@ -258,7 +263,7 @@ function demoDashboard(
 export default function OverviewPage() {
   const router = useRouter();
   const shell = useShell();
-  const { currentWorkspace, demoMode, bootstrap } = useWorkspace();
+  const { currentWorkspace, demoMode } = useWorkspace();
   const [dashboard, setDashboard] = React.useState<OverviewDashboard | null>(
     null,
   );
@@ -309,8 +314,10 @@ export default function OverviewPage() {
   if (error || !dashboard)
     return (
       <ErrorState
-        title="Overview nu este disponibil"
-        description={error || "Read model-ul nu a răspuns."}
+        title="Prezentarea generală nu este disponibilă"
+        description={
+          error || "Datele tabloului de bord nu au putut fi încărcate."
+        }
         onRetry={() => void load()}
       />
     );
@@ -324,22 +331,9 @@ export default function OverviewPage() {
     }).format(minor / 100);
   const countStatuses = (statuses: Record<string, number>) =>
     Object.values(statuses).reduce((total, count) => total + count, 0);
-  const capabilities = new Set(bootstrap?.membership.capabilities ?? []);
-  const can = (capability: CapabilityKey) =>
-    demoMode || capabilities.has(capability);
-  const roleLabels = {
-    couple_owner: "Organizator principal",
-    couple_partner: "Co-organizator",
-    wedding_planner: "Planner de eveniment",
-    family_collaborator: "Colaborator invitat",
-    viewer: "Invitat cu acces",
-  } as const;
-  const roleLabel = bootstrap?.membership.roleTemplate
-    ? roleLabels[bootstrap.membership.roleTemplate]
-    : "Membru";
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
       <PageHeader
         title={wedding.title}
         description={
@@ -359,51 +353,98 @@ export default function OverviewPage() {
           </span>
         }
         meta={
-          <span className="flex flex-wrap items-center gap-2">
-            <Badge variant="neutral">{roleLabel}</Badge>
-            {wedding.countdownDays !== null &&
-            wedding.countdownDays !== undefined ? (
-              <Badge variant="brand" dot>
-                {wedding.countdownDays} zile până la eveniment
-              </Badge>
-            ) : (
-              <Badge variant="warning">Dată flexibilă</Badge>
-            )}
-          </span>
+          wedding.countdownDays !== null &&
+          wedding.countdownDays !== undefined ? (
+            <Badge variant="brand" dot>
+              {wedding.countdownDays} zile până la eveniment
+            </Badge>
+          ) : (
+            <Badge variant="warning">Dată flexibilă</Badge>
+          )
         }
         actions={
-          can("calendar.write") || can("planning.write") ? (
-            <>
-              {can("calendar.write") ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => shell.setQuickCreate("event")}
-                >
-                  <CalendarDays className="size-4" />
-                  Eveniment
-                </Button>
-              ) : null}
-              {can("planning.write") ? (
-                <Button size="sm" onClick={() => shell.setQuickCreate("task")}>
-                  <Plus className="size-4" />
-                  Sarcină
-                </Button>
-              ) : null}
-            </>
-          ) : undefined
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => shell.setQuickCreate("event")}
+            >
+              <CalendarDays className="size-4" />
+              Eveniment
+            </Button>
+            <Button size="sm" onClick={() => shell.setQuickCreate("task")}>
+              <Plus className="size-4" />
+              Sarcină
+            </Button>
+          </>
         }
       />
 
+      <EventThread
+        items={[
+          {
+            label: "Plan",
+            value: `${Math.round(planning.progressPercent)}% finalizat`,
+            href: "/plan",
+            icon: ListChecks,
+            tone: "brand",
+          },
+          {
+            label: "Invitație",
+            value: `${dashboard.guestCrm.invited} trimise`,
+            href: "/invitations",
+            icon: Mail,
+            tone: "accent",
+          },
+          {
+            label: "RSVP",
+            value: `${dashboard.guestCrm.confirmed} confirmate`,
+            href: "/rsvp",
+            icon: Users,
+            tone: "sun",
+          },
+          {
+            label: "Logistică",
+            value: `${dashboard.operations.seating.assignedGuests}/${dashboard.operations.seating.eligibleGuests} locuri`,
+            href: "/seating",
+            icon: Bus,
+            tone: "success",
+          },
+          {
+            label: "Furnizori",
+            value: `${countStatuses(dashboard.commercial.procurement.offers)} oferte`,
+            href: "/offers",
+            icon: Store,
+            tone: "brand",
+          },
+          {
+            label: "Buget",
+            value: `${money(dashboard.commercial.budget.committedMinor)} angajat`,
+            href: "/budget",
+            icon: Wallet,
+            tone: "accent",
+          },
+          {
+            label: "Ziua evenimentului",
+            value: weddingDay?.status
+              ? weddingDay.status.toLowerCase().replaceAll("_", " ")
+              : "De configurat",
+            href: "/wedding-day",
+            icon: CalendarCheck2,
+            tone: "success",
+          },
+        ]}
+      />
+
       {nextBestAction ? (
-        <Card className="overflow-hidden border-accent/50">
-          <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-strong">
+        <section className="overflow-hidden rounded-2xl bg-brand text-on-brand shadow-pop" aria-labelledby="next-action-title">
+          <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:p-7">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
               <Sparkles className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-brand text-lg font-semibold text-ink">
+                <h2 id="next-action-title" className="font-brand text-2xl font-semibold leading-tight tracking-[-0.02em] text-on-brand">
                   {nextBestAction.title}
                 </h2>
                 <Badge
@@ -414,27 +455,29 @@ export default function OverviewPage() {
                   Acțiunea recomandată
                 </Badge>
               </div>
-              <p className="mt-1 text-sm leading-relaxed text-muted">
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-on-brand/80">
                 {nextBestAction.reason}
               </p>
-              <div className="mt-2 flex flex-wrap gap-3 text-xs text-faint">
+              <div className="mt-3 flex flex-wrap gap-3 text-xs text-on-brand/65">
                 {nextBestAction.dueAt && (
                   <span>
                     Termen:{" "}
-                    <strong className="text-muted">
+                    <strong className="text-on-brand">
                       {formatDateShort(nextBestAction.dueAt)}
                     </strong>
                   </span>
                 )}
                 <span>
                   Impact:{" "}
-                  <strong className="text-muted">
+                  <strong className="text-on-brand">
                     {nextBestAction.impact}
                   </strong>
                 </span>
               </div>
             </div>
             <Button
+              variant="outline"
+              className="border-white/20 bg-white text-brand hover:border-white hover:bg-brand-soft"
               onClick={() =>
                 router.push(
                   nextBestAction.href ??
@@ -445,13 +488,13 @@ export default function OverviewPage() {
               Deschide
               <ArrowRight className="size-4" />
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       ) : (
         <EmptyState
           icon={Sparkles}
           title="Nu există încă o acțiune recomandată"
-          description="Generează planul sau adaugă o sarcină pentru a activa motorul rule-based."
+          description="Generează planul sau adaugă o sarcină pentru a activa recomandările."
           action={{
             label: "Deschide planul",
             onClick: () => router.push("/plan"),
@@ -459,7 +502,7 @@ export default function OverviewPage() {
         />
       )}
 
-      {weddingDay && can("wedding_day.read") ? (
+      {weddingDay ? (
         <Card
           className={
             weddingDay.criticalIncidents || weddingDay.criticalBlockedMoments
@@ -469,7 +512,7 @@ export default function OverviewPage() {
         >
           <CardHeader>
             <div>
-              <CardTitle>Wedding Day Command Center</CardTitle>
+              <CardTitle>Centrul operațional al evenimentului</CardTitle>
               <p className="mt-0.5 text-[13px] text-muted">
                 Stare operațională reală · plan{" "}
                 {weddingDay.status?.toLowerCase().replaceAll("_", " ") ??
@@ -481,7 +524,7 @@ export default function OverviewPage() {
               size="sm"
               onClick={() => router.push("/wedding-day")}
             >
-              Deschide live
+              Deschide centrul
               <ArrowRight className="size-3.5" />
             </Button>
           </CardHeader>
@@ -535,7 +578,11 @@ export default function OverviewPage() {
           icon={CheckCircle2}
           href="/plan"
           footer={
-            <Progress value={planning.progressPercent} className="mt-3" />
+            <Progress
+              value={planning.progressPercent}
+              className="mt-3"
+              aria-label="Progresul planului"
+            />
           }
         />
         <StatCard
@@ -563,7 +610,7 @@ export default function OverviewPage() {
         />
       </div>
 
-      {dashboard.risks && can("risk.read") ? (
+      {dashboard.risks ? (
         <Card
           className={
             dashboard.risks.critical ? "border-danger/35" : "border-line"
@@ -625,7 +672,7 @@ export default function OverviewPage() {
         </Card>
       ) : null}
 
-      {can("budget.read") || can("payment.read") || can("offer.read") || can("contract.read") ? <Card>
+      <Card>
         <CardHeader>
           <div>
             <CardTitle>Achiziții și buget</CardTitle>
@@ -633,50 +680,50 @@ export default function OverviewPage() {
               Situația reală a angajamentelor, plăților externe și furnizorilor
             </p>
           </div>
-          {can("budget.read") ? <Button
+          <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/budget")}
           >
             Deschide bugetul
             <ArrowRight className="size-3.5" />
-          </Button> : null}
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {can("budget.read") ? <StatCard
+            <StatCard
               label="Buget angajat"
               value={money(dashboard.commercial.budget.committedMinor)}
               hint={`din ${money(dashboard.commercial.budget.targetTotalMinor)}`}
               icon={ListChecks}
               href="/budget"
-            /> : null}
-            {can("payment.read") ? <StatCard
+            />
+            <StatCard
               label="Plăți confirmate"
               value={money(dashboard.commercial.budget.paidMinor)}
               hint={`${dashboard.commercial.payments.scheduled} scadențe programate`}
               icon={CheckCircle2}
               href="/payments"
-            /> : null}
-            {can("offer.read") ? <StatCard
+            />
+            <StatCard
               label="Oferte primite"
               value={countStatuses(dashboard.commercial.procurement.offers)}
               hint={`${countStatuses(dashboard.commercial.procurement.rfqs)} cereri de ofertă`}
               icon={MailOpen}
               href="/offers"
-            /> : null}
-            {can("contract.read") ? <StatCard
+            />
+            <StatCard
               label="Contracte"
               value={countStatuses(dashboard.commercial.procurement.contracts)}
               hint={`${countStatuses(dashboard.commercial.procurement.bookings)} rezervări`}
               icon={CalendarDays}
               href="/contracts"
-            /> : null}
+            />
           </div>
         </CardContent>
-      </Card> : null}
+      </Card>
 
-      {can("document.read") || can("signature.read") || can("online_payment.read") ? <Card>
+      <Card>
         <CardHeader>
           <div>
             <CardTitle>Documente și plăți online</CardTitle>
@@ -687,15 +734,15 @@ export default function OverviewPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {can("document.read") ? <StatCard
+            <StatCard
               label="Documente în verificare"
               value={dashboard.documents.processing}
               hint={`${dashboard.documents.quarantined} în carantină`}
               icon={FileText}
               tone={dashboard.documents.quarantined ? "danger" : "default"}
               href="/documents"
-            /> : null}
-            {can("signature.read") ? <StatCard
+            />
+            <StatCard
               label="Semnături în curs"
               value={dashboard.documents.signatureEnvelopesInProgress}
               hint={`${dashboard.documents.signatureEnvelopesFailed} eșuate sau refuzate`}
@@ -706,8 +753,8 @@ export default function OverviewPage() {
                   : "default"
               }
               href="/contracts"
-            /> : null}
-            {can("online_payment.read") ? <StatCard
+            />
+            <StatCard
               label="Checkout-uri deschise"
               value={dashboard.onlinePayments.openCheckouts}
               hint={`${dashboard.onlinePayments.failedPayments} plăți eșuate`}
@@ -716,8 +763,8 @@ export default function OverviewPage() {
                 dashboard.onlinePayments.failedPayments ? "warning" : "default"
               }
               href="/payments"
-            /> : null}
-            {can("online_payment.read") ? <StatCard
+            />
+            <StatCard
               label="Capturat luna aceasta"
               value={money(dashboard.onlinePayments.capturedThisMonthMinor)}
               hint={`${dashboard.onlinePayments.disputedPayments} plăți contestate`}
@@ -726,31 +773,31 @@ export default function OverviewPage() {
                 dashboard.onlinePayments.disputedPayments ? "danger" : "default"
               }
               href="/payments"
-            /> : null}
+            />
           </div>
         </CardContent>
-      </Card> : null}
+      </Card>
 
-      {can("guest.read") || can("invitation.read") || can("rsvp.read") || can("menu.read") ? <Card>
+      <Card>
         <CardHeader>
           <div>
             <CardTitle>Invitați și RSVP</CardTitle>
             <p className="mt-0.5 text-[13px] text-muted">
-              Date reale din Guest CRM, invitații și meniuri
+              Date reale din CRM-ul invitaților, invitații și meniuri
             </p>
           </div>
-          {can("guest.read") ? <Button
+          <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/guests")}
           >
-            Guest CRM
+            CRM invitați
             <ArrowRight className="size-3.5" />
-          </Button> : null}
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {can("guest.read") ? <StatCard
+            <StatCard
               label="Invitați activi"
               value={dashboard.guestCrm.activeGuests}
               hint={
@@ -760,40 +807,40 @@ export default function OverviewPage() {
               }
               icon={Users}
               href="/guests"
-            /> : null}
-            {can("invitation.read") ? <StatCard
+            />
+            <StatCard
               label="Invitații deschise"
               value={`${dashboard.guestCrm.opened}/${dashboard.guestCrm.invited}`}
               hint="Deschise din cele trimise"
               icon={MailOpen}
               href="/invitations"
-            /> : null}
-            {can("rsvp.read") ? <StatCard
+            />
+            <StatCard
               label="RSVP confirmate"
               value={dashboard.guestCrm.confirmed}
               hint={`${dashboard.guestCrm.declined} refuzuri · ${dashboard.guestCrm.noResponse} fără răspuns`}
               icon={CheckCircle2}
               href="/rsvp"
-            /> : null}
-            {can("menu.read") ? <StatCard
+            />
+            <StatCard
               label="Meniuri incomplete"
               value={dashboard.guestCrm.menuIncomplete}
               hint={`Alergii de verificat: ${dashboard.guestCrm.allergyIssues}`}
               icon={Utensils}
               tone={dashboard.guestCrm.allergyIssues ? "danger" : "default"}
               href="/menus"
-            /> : null}
+            />
           </div>
-          {can("transport.read") || can("accommodation.read") ? <p className="mt-3 text-xs text-faint">
+          <p className="mt-3 text-xs text-faint">
             Logistică declarată: {dashboard.guestCrm.transportRequests}{" "}
             solicitări transport · {dashboard.guestCrm.accommodationRequests}{" "}
             solicitări cazare. Alocările sunt gestionate în modulele
             operaționale de mai jos.
-          </p> : null}
+          </p>
         </CardContent>
-      </Card> : null}
+      </Card>
 
-      {can("seating.read") || can("transport.read") || can("accommodation.read") ? <Card>
+      <Card>
         <CardHeader>
           <div>
             <CardTitle>Operațiuni invitați</CardTitle>
@@ -805,7 +852,7 @@ export default function OverviewPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 md:grid-cols-3">
-            {can("seating.read") ? <StatCard
+            <StatCard
               label="Locuri la masă"
               value={`${dashboard.operations.seating.assignedGuests}/${dashboard.operations.seating.eligibleGuests}`}
               hint={`${dashboard.operations.seating.unassignedGuests} nealocați · ${dashboard.operations.seating.openIssues} probleme`}
@@ -814,8 +861,8 @@ export default function OverviewPage() {
                 dashboard.operations.seating.openIssues ? "warning" : "default"
               }
               href="/seating"
-            /> : null}
-            {can("transport.read") ? <StatCard
+            />
+            <StatCard
               label="Transport alocat"
               value={`${dashboard.operations.transport.assignedGuests}/${dashboard.operations.transport.requests}`}
               hint={`${dashboard.operations.transport.routes} rute · ${dashboard.operations.transport.seatsAvailable} locuri disponibile`}
@@ -826,8 +873,8 @@ export default function OverviewPage() {
                   : "default"
               }
               href="/transport"
-            /> : null}
-            {can("accommodation.read") ? <StatCard
+            />
+            <StatCard
               label="Cazare alocată"
               value={`${dashboard.operations.accommodation.assignedGuests}/${dashboard.operations.accommodation.requests}`}
               hint={`${dashboard.operations.accommodation.rooms} camere · ${dashboard.operations.accommodation.bedsAvailable} locuri disponibile`}
@@ -838,13 +885,13 @@ export default function OverviewPage() {
                   : "default"
               }
               href="/accommodation"
-            /> : null}
+            />
           </div>
         </CardContent>
-      </Card> : null}
+      </Card>
 
-      {can("task.read") || can("calendar.read") ? <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
-        {can("task.read") ? <Card>
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <Card className="min-w-0">
           <CardHeader>
             <div>
               <CardTitle>Sarcini urgente</CardTitle>
@@ -868,9 +915,9 @@ export default function OverviewPage() {
                   <li key={task.id}>
                     <button
                       onClick={() => router.push("/plan")}
-                      className="flex w-full items-center gap-3 rounded-lg border border-line p-3 text-left hover:border-brand/40"
+                      className="flex w-full min-w-0 flex-col items-start gap-2 rounded-lg border border-line p-3 text-left transition-colors hover:border-brand/40 sm:flex-row sm:items-center sm:gap-3"
                     >
-                      <span className="min-w-0 flex-1">
+                      <span className="w-full min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-ink">
                           {task.title}
                         </span>
@@ -878,18 +925,20 @@ export default function OverviewPage() {
                           {task.assigneeName ?? "Nealocat"} · {task.category}
                         </span>
                       </span>
-                      <Badge
-                        variant={
-                          task.priority === "urgent" ? "danger" : "warning"
-                        }
-                      >
-                        {task.priority}
-                      </Badge>
-                      {task.dueAt && (
-                        <span className="text-xs text-faint">
-                          {formatDateShort(task.dueAt)}
-                        </span>
-                      )}
+                      <span className="flex shrink-0 items-center gap-2">
+                        <Badge
+                          variant={
+                            task.priority === "urgent" ? "danger" : "warning"
+                          }
+                        >
+                          {task.priority}
+                        </Badge>
+                        {task.dueAt && (
+                          <span className="text-xs text-faint">
+                            {formatDateShort(task.dueAt)}
+                          </span>
+                        )}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -900,8 +949,8 @@ export default function OverviewPage() {
               </p>
             )}
           </CardContent>
-        </Card> : null}
-        {can("calendar.read") ? <Card>
+        </Card>
+        <Card className="min-w-0">
           <CardHeader>
             <div>
               <CardTitle>Următoarele date</CardTitle>
@@ -928,7 +977,7 @@ export default function OverviewPage() {
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
                         <CalendarDays className="size-4" />
                       </span>
-                      <span className="min-w-0">
+                      <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-ink">
                           {item.title}
                         </span>
@@ -947,10 +996,10 @@ export default function OverviewPage() {
               </p>
             )}
           </CardContent>
-        </Card> : null}
-      </div> : null}
+        </Card>
+      </div>
 
-      {can("timeline.read") && dashboard.phases.length > 0 && (
+      {dashboard.phases.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Fazele organizării</CardTitle>
@@ -992,12 +1041,12 @@ export default function OverviewPage() {
         </Card>
       )}
 
-      {can("settings.read") ? <Card>
+      <Card>
         <CardHeader>
           <div>
             <CardTitle>Module încă indisponibile</CardTitle>
             <p className="mt-0.5 text-[13px] text-muted">
-              Nu afișăm date mock pentru domenii neimplementate.
+              Nu afișăm date simulate pentru modulele indisponibile.
             </p>
           </div>
         </CardHeader>
@@ -1010,7 +1059,7 @@ export default function OverviewPage() {
             ))}
           </div>
         </CardContent>
-      </Card> : null}
+      </Card>
     </div>
   );
 }

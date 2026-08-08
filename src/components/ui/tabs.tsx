@@ -6,9 +6,18 @@ import { cn } from "@/lib/utils";
 interface TabsContextValue {
   value: string;
   setValue: (v: string) => void;
+  baseId: string;
 }
 
-const TabsContext = React.createContext<TabsContextValue>({ value: "", setValue: () => undefined });
+const TabsContext = React.createContext<TabsContextValue>({
+  value: "",
+  setValue: () => undefined,
+  baseId: "tabs",
+});
+
+function tabDomId(baseId: string, kind: "tab" | "panel", value: string) {
+  return [baseId, kind, encodeURIComponent(value)].join("-");
+}
 
 export function Tabs({
   value,
@@ -24,6 +33,7 @@ export function Tabs({
   className?: string;
 }) {
   const [internal, setInternal] = React.useState(defaultValue ?? "");
+  const generatedId = React.useId();
   const current = value ?? internal;
   const setValue = React.useCallback(
     (v: string) => {
@@ -33,16 +43,49 @@ export function Tabs({
     [onValueChange],
   );
   return (
-    <TabsContext.Provider value={{ value: current, setValue }}>
+    <TabsContext.Provider value={{ value: current, setValue, baseId: generatedId }}>
       <div className={className}>{children}</div>
     </TabsContext.Provider>
   );
 }
 
-export function TabsList({ children, className }: { children: React.ReactNode; className?: string }) {
+export function TabsList({
+  children,
+  className,
+  onKeyDown,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented) return;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+
+    const tabs = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'),
+    );
+    if (tabs.length === 0) return;
+    const focusedTab = (event.target as HTMLElement).closest<HTMLButtonElement>('[role="tab"]');
+    const selectedIndex = tabs.findIndex((tab) => tab.getAttribute("aria-selected") === "true");
+    const currentIndex = Math.max(0, focusedTab ? tabs.indexOf(focusedTab) : selectedIndex);
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? tabs.length - 1
+          : event.key === "ArrowRight"
+            ? (currentIndex + 1) % tabs.length
+            : (currentIndex - 1 + tabs.length) % tabs.length;
+    event.preventDefault();
+    tabs[nextIndex].focus();
+    tabs[nextIndex].click();
+  };
+
   return (
     <div
+      {...props}
       role="tablist"
+      aria-orientation="horizontal"
+      onKeyDown={handleKeyDown}
       className={cn(
         "inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-line bg-subtle p-1 scrollbar-none",
         className,
@@ -53,29 +96,44 @@ export function TabsList({ children, className }: { children: React.ReactNode; c
   );
 }
 
+export interface TabsTriggerProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value"> {
+  value: string;
+  badge?: React.ReactNode;
+}
+
 export function TabsTrigger({
   value,
   children,
   badge,
   className,
   disabled = false,
-}: {
-  value: string;
-  children: React.ReactNode;
-  badge?: React.ReactNode;
-  className?: string;
-  disabled?: boolean;
-}) {
-  const { value: current, setValue } = React.useContext(TabsContext);
+  id,
+  tabIndex,
+  onClick,
+  type,
+  "aria-controls": ariaControls,
+  ...props
+}: TabsTriggerProps) {
+  const { value: current, setValue, baseId } = React.useContext(TabsContext);
   const active = current === value;
   return (
     <button
+      {...props}
+      id={id ?? tabDomId(baseId, "tab", value)}
+      type={type ?? "button"}
       role="tab"
       aria-selected={active}
+      aria-controls={ariaControls ?? tabDomId(baseId, "panel", value)}
+      tabIndex={tabIndex ?? (active ? 0 : -1)}
+      data-tabs-trigger=""
       disabled={disabled}
-      onClick={() => setValue(value)}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) setValue(value);
+      }}
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px] font-medium transition-colors",
+        "inline-flex h-11 min-h-11 min-w-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         active ? "bg-elevated text-ink shadow-card" : "text-muted hover:text-ink",
         disabled && "cursor-not-allowed opacity-50",
         className,
@@ -91,15 +149,22 @@ export function TabsContent({
   value,
   children,
   className,
-}: {
-  value: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const { value: current } = React.useContext(TabsContext);
+  id,
+  tabIndex,
+  "aria-labelledby": ariaLabelledBy,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { value: string }) {
+  const { value: current, baseId } = React.useContext(TabsContext);
   if (current !== value) return null;
   return (
-    <div role="tabpanel" className={cn("animate-fade-in", className)}>
+    <div
+      {...props}
+      id={id ?? tabDomId(baseId, "panel", value)}
+      role="tabpanel"
+      aria-labelledby={ariaLabelledBy ?? tabDomId(baseId, "tab", value)}
+      tabIndex={tabIndex ?? 0}
+      className={cn("animate-fade-in", className)}
+    >
       {children}
     </div>
   );
@@ -124,7 +189,7 @@ export function Progress({
   barClassName?: string;
   "aria-label"?: string;
 }) {
-  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   const tones = {
     brand: "bg-brand",
     accent: "bg-accent",
@@ -138,7 +203,8 @@ export function Progress({
       aria-valuenow={Math.round(pct)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? "Progres"}
+      aria-valuetext={`${Math.round(pct)}%`}
       className={cn("h-1.5 w-full overflow-hidden rounded-full bg-subtle", className)}
     >
       <div

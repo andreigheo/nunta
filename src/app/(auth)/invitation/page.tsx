@@ -10,11 +10,11 @@ import { ApiClientError, apiErrorMessage, weddingOsApi } from "@/lib/api/client"
 import { formatDateLong } from "@/lib/utils";
 
 const roleLabels: Record<string, string> = {
-  couple_owner: "Organizator principal",
-  couple_partner: "Co-organizator",
-  wedding_planner: "Planner de eveniment",
-  family_collaborator: "Colaborator invitat",
-  viewer: "Invitat cu acces de vizualizare",
+  couple_owner: "Proprietar",
+  couple_partner: "Partener",
+  wedding_planner: "Wedding planner",
+  family_collaborator: "Familie — acces limitat",
+  viewer: "Doar vizualizare",
 };
 
 export default function InvitationAcceptPage() {
@@ -113,12 +113,12 @@ export default function InvitationAcceptPage() {
             <Avatar name={invitation.invitedByName} size="lg" />
             <div>
               <p className="text-sm font-semibold text-ink">{invitation.invitedByName}</p>
-              <p className="text-xs text-faint">Organizatorul evenimentului</p>
+              <p className="text-xs text-faint">Proprietar spațiu de lucru</p>
             </div>
           </div>
           <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
             <div className="flex justify-between">
-              <dt className="text-faint">Eveniment</dt>
+              <dt className="text-faint">Nuntă</dt>
               <dd className="font-medium text-ink">{invitation.workspaceTitle}</dd>
             </div>
             <div className="flex justify-between">

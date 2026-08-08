@@ -6,22 +6,62 @@ import { cn } from "@/lib/utils";
 
 interface DropdownContextValue {
   open: boolean;
-  setOpen: (open: boolean) => void;
+  openWithFocus: (intent: "first" | "last") => void;
+  close: (restoreFocus?: boolean) => void;
+  focusIntent: "first" | "last";
+  contentId: string;
+  triggerId: string;
+  rootRef: React.RefObject<HTMLDivElement | null>;
 }
 
-const DropdownContext = React.createContext<DropdownContextValue>({ open: false, setOpen: () => undefined });
+const DropdownContext = React.createContext<DropdownContextValue>({
+  open: false,
+  openWithFocus: () => undefined,
+  close: () => undefined,
+  focusIntent: "first",
+  contentId: "dropdown-menu",
+  triggerId: "dropdown-trigger",
+  rootRef: { current: null },
+});
 
-export function Dropdown({ children }: { children: React.ReactNode }) {
+export function Dropdown({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   const [open, setOpen] = React.useState(false);
+  const [focusIntent, setFocusIntent] = React.useState<"first" | "last">("first");
   const ref = React.useRef<HTMLDivElement>(null);
+  const generatedId = React.useId();
+  const contentId = `dropdown-${generatedId}-menu`;
+  const triggerId = `dropdown-${generatedId}-trigger`;
+
+  const close = React.useCallback((restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) {
+      requestAnimationFrame(() => {
+        ref.current?.querySelector<HTMLElement>("[data-dropdown-trigger]")?.focus();
+      });
+    }
+  }, []);
+
+  const openWithFocus = React.useCallback((intent: "first" | "last") => {
+    setFocusIntent(intent);
+    setOpen(true);
+  }, []);
 
   React.useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) close(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close(true);
+      }
     };
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
@@ -29,11 +69,29 @@ export function Dropdown({ children }: { children: React.ReactNode }) {
       document.removeEventListener("mousedown", onClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [close, open]);
 
   return (
-    <DropdownContext.Provider value={{ open, setOpen }}>
-      <div ref={ref} className="relative inline-block">
+    <DropdownContext.Provider
+      value={{
+        open,
+        openWithFocus,
+        close,
+        focusIntent,
+        contentId,
+        triggerId,
+        rootRef: ref,
+      }}
+    >
+      <div
+        ref={ref}
+        className={cn("relative inline-block", className)}
+        onBlur={(event) => {
+          if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            close(false);
+          }
+        }}
+      >
         {children}
       </div>
     </DropdownContext.Provider>
@@ -44,18 +102,47 @@ export function DropdownTrigger({
   children,
   className,
 }: {
-  children: React.ReactElement<{ className?: string }>;
+  children: React.ReactElement;
   className?: string;
 }) {
-  const { open, setOpen } = React.useContext(DropdownContext);
-  return React.cloneElement(children, {
+  const child = children as React.ReactElement<
+    React.HTMLAttributes<HTMLElement> & { disabled?: boolean; id?: string }
+  >;
+  const { open, openWithFocus, close, contentId, triggerId, rootRef } = React.useContext(DropdownContext);
+  return React.cloneElement(child, {
+    id: child.props.id ?? triggerId,
     onClick: (e: React.MouseEvent) => {
+      child.props.onClick?.(e as React.MouseEvent<HTMLElement>);
+      if (e.defaultPrevented || child.props.disabled) return;
       e.stopPropagation();
-      setOpen(!open);
+      if (open) close(false);
+      else openWithFocus("first");
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
+      child.props.onKeyDown?.(e);
+      if (e.defaultPrevented || child.props.disabled) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (open) {
+          const items = getMenuItems(
+            rootRef.current?.querySelector<HTMLElement>('[role="menu"]') ?? null,
+          );
+          const item = e.key === "ArrowUp" ? items.at(-1) : items[0];
+          item?.focus();
+        } else {
+          openWithFocus(e.key === "ArrowUp" ? "last" : "first");
+        }
+      } else if (e.key === "Escape" && open) {
+        e.preventDefault();
+        close(true);
+      }
     },
     "aria-expanded": open,
     "aria-haspopup": "menu",
-    className: cn(children.props.className, className),
+    "aria-controls": contentId,
+    "data-dropdown-trigger": "",
+    className: cn("min-h-11 min-w-11", child.props.className, className),
   } as Partial<React.HTMLAttributes<HTMLElement>>);
 }
 
@@ -64,17 +151,82 @@ export function DropdownContent({
   align = "end",
   className,
   widthClass = "w-56",
-}: {
+  onKeyDown,
+  ...props
+}: Omit<React.HTMLAttributes<HTMLDivElement>, "children"> & {
   children: React.ReactNode;
   align?: "start" | "end" | "center";
-  className?: string;
   widthClass?: string;
 }) {
-  const { open } = React.useContext(DropdownContext);
+  const { open, close, focusIntent, contentId, triggerId } = React.useContext(DropdownContext);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      const items = getMenuItems(ref.current);
+      const item = focusIntent === "last" ? items.at(-1) : items[0];
+      (item ?? ref.current)?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusIntent, open]);
+
   if (!open) return null;
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented) return;
+
+    const items = getMenuItems(event.currentTarget);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
+      return;
+    }
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && items.length > 0) {
+      const currentIndex = Math.max(0, items.indexOf(document.activeElement as HTMLButtonElement));
+      const nextIndex =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? items.length - 1
+            : event.key === "ArrowDown"
+              ? (currentIndex + 1) % items.length
+              : (currentIndex - 1 + items.length) % items.length;
+      event.preventDefault();
+      items[nextIndex].focus();
+      return;
+    }
+    if (
+      event.key.length === 1 &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      items.length > 0
+    ) {
+      const query = event.key.toLocaleLowerCase("ro-RO");
+      const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+      const orderedItems = [...items.slice(currentIndex + 1), ...items.slice(0, currentIndex + 1)];
+      const match = orderedItems.find((item) =>
+        item.textContent?.trim().toLocaleLowerCase("ro-RO").startsWith(query),
+      );
+      if (match) {
+        event.preventDefault();
+        match.focus();
+      }
+    }
+  };
+
   return (
     <div
+      {...props}
+      ref={ref}
+      id={contentId}
       role="menu"
+      aria-labelledby={triggerId}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
       className={cn(
         "absolute z-40 mt-1.5 max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-elevated p-1.5 shadow-pop animate-scale-in",
         widthClass,
@@ -108,18 +260,21 @@ export function DropdownItem({
   trailing?: React.ReactNode;
   className?: string;
 }) {
-  const { setOpen } = React.useContext(DropdownContext);
+  const { close } = React.useContext(DropdownContext);
   return (
     <button
+      type="button"
       role="menuitem"
+      tabIndex={-1}
       disabled={disabled}
       onClick={() => {
         if (disabled) return;
         onSelect?.();
-        setOpen(false);
+        close(true);
       }}
+      onPointerMove={(event) => event.currentTarget.focus({ preventScroll: true })}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] transition-colors",
+        "flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
         destructive
           ? "text-danger hover:bg-danger-soft"
           : "text-ink hover:bg-subtle",
@@ -143,6 +298,13 @@ export function DropdownLabel({ children }: { children: React.ReactNode }) {
 
 export function DropdownSeparator() {
   return <div className="mx-1 my-1 h-px bg-line" role="separator" />;
+}
+
+function getMenuItems(container: HTMLElement | null): HTMLButtonElement[] {
+  if (!container) return [];
+  return Array.from(
+    container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'),
+  );
 }
 
 /* ------------------------------------------------------------------ */

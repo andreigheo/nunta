@@ -1,16 +1,14 @@
-# WeddingOS agent guide
+# Sarbato agent guide
 
 ## Product scope
 
-WeddingOS is a Romanian-language, interactive Next.js prototype for couples, guests, vendors, and platform operators. It currently uses local typed data and client state; success toasts simulate persistence and integrations. Preserve that prototype boundary unless a task explicitly introduces a backend, authentication provider, or durable storage.
+Sarbato is a Romanian-language, full-stack Next.js product for couples, guests, vendors, and platform operators. The canonical local checkout is `/home/andrei/weddingos-beta-operations`; the API, PostgreSQL database, worker and object-storage flows are real local services. Preserve those integrations and never replace a working backend flow with local demo state. Internal package, cookie and service identifiers may still use `weddingos`; do not rename technical contracts as part of visual-brand work.
 
-**Product brand: Sarbato.** Marketing, auth, the authenticated shell, portals and onboarding share the Sarbato identity. Internal packages, API contracts, cookies and technical identifiers may keep the WeddingOS codename until a dedicated technical rename migration. The landing is honest about availability: currently available for wedding planning only.
-
-The visual direction is already established. Reuse the design tokens in `src/app/globals.css`, the primitives exported from `src/components/ui/index.ts`, and the existing Romanian copy register. Do not introduce a parallel component system, new palette, or new dependency for a component already available locally.
+The visual direction is established in `DESIGN.md`. Reuse the Sarbato tokens in `src/app/globals.css`, the primitives exported from `src/components/ui/index.ts`, and the existing Romanian copy register. Marketing and product share one identity at different intensities: Afacad Flux for brand/system headings, Inter for operational UI, and Fraunces only inside user-controlled creative invitation content. Do not introduce a parallel component system, palette, or dependency for a component already available locally.
 
 ## Next.js version rule
 
-This project runs Next.js 16.2.10. APIs, conventions, and file structure may differ from prior versions. Before writing framework-specific code, read the relevant local guide in `node_modules/next/dist/docs/` and follow its deprecation notices. Routes use the App Router and route groups.
+This project runs Next.js 16.2.12. APIs, conventions, and file structure may differ from prior versions. Before writing framework-specific code, read the relevant local guide in `node_modules/next/dist/docs/` and follow its deprecation notices. Routes use the App Router and route groups.
 
 ## Main surfaces
 
@@ -38,13 +36,11 @@ Every literal route advertised by the sidebar, command palette, notifications, o
 
 ## Public landing guardrails
 
-- Keep Romanian Sarbato marketing copy in `src/content/marketing/sarbato.ts`; do not scatter competing copy through the section components. Every public claim is registered in `src/content/marketing/claims-registry.ts` with its supporting route and status; keep the registry in sync with any copy change.
-- Marketing and product share the Sarbato palette (deep plum, coral, warm yellow, green on clean neutrals). Afacad Flux is reserved for the Sarbato mark and system headings; Inter remains the operational UI font. Fraunces is limited to user-created or deliberately editorial surfaces such as invitation previews. `.marketing-light` keeps the public site light-only, while the authenticated product uses the matching light tokens plus a dedicated Sarbato dark palette.
-- The page tells one event story (Plan → Invitație → RSVP → Logistică → Furnizori → Buget → Ziua evenimentului). Product surfaces are semantic, read-only and always labelled `Exemplu de produs — nu reprezintă datele unui client.`
+- Keep Romanian marketing copy and capability status labels in `src/content/marketing/sarbato.ts`; keep claim evidence in `src/content/marketing/claims-registry.ts`; do not scatter competing copy through the section components.
+- Preserve the established light editorial/product direction, existing tokens, semantic read-only product surfaces, varied spacing rhythm and restrained entrance motion. The public site must not inherit the authenticated app's dark theme.
 - Marketing claims must remain aligned with the implemented product. Anything partial, in development or planned needs an explicit status; do not turn a preview into an availability claim.
-- Numeric proof may come only from the validated `PublicProductProofV1` aggregate endpoint. When the endpoint is absent, invalid, older than 24 hours, or fewer than three metrics are publishable, the metrics section (`PublicProofSection`) is hidden completely — never zero, dashes or placeholders. A suppressed metric inside a published section stays visible as `Cohortă insuficientă`, never as zero.
-- Never add fictional couples, guests, budgets, wedding dates, locations, testimonials, customer logos, vendor names or usage counts to the landing or the auth shell.
-- Paid plans (Esențial 7 €, Pro 17 €) stay `Disponibil în curând` until Paddle products, webhooks, entitlements, cancellation and billing states exist; only the free plan is actionable. No fake checkout buttons.
+- Numeric proof may come only from the validated `PublicProductProofV1` aggregate endpoint. When the endpoint is absent, invalid or older than 24 hours, keep the product geometry but render no numbers and label it `Previzualizare produs`.
+- Never add fictional couples, budgets, wedding dates, testimonials, customer logos or usage counts to the landing. A suppressed metric stays visible as `Cohortă insuficientă`, never as zero.
 - Header/footer hash links must resolve to real section IDs, and account/legal CTAs must resolve to real routes. Add new concrete public routes to `scripts/smoke.mjs`.
 - Build the public surface into an isolated dist directory, then validate it with `NEXT_DIST_DIR=.next-landing pnpm exec playwright test --config=playwright.landing.config.ts`; the suite covers the API-down fallback, desktop/tablet/mobile rendering, anchor integrity, keyboard interaction, the ordered data flow, FAQ behavior and screenshots without requiring API/worker services.
 

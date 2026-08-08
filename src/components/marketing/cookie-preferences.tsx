@@ -45,7 +45,7 @@ export function PublicCookiePreferences() {
         </p>
         <a
           href="/cookies"
-          className="mt-1 inline-flex text-xs font-medium text-brand hover:underline"
+          className="mt-1 inline-flex min-h-11 items-center text-xs font-medium text-brand hover:underline"
         >
           Detalii despre categorii
         </a>

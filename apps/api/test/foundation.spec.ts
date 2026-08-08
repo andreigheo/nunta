@@ -47,7 +47,7 @@ describe("Slice 0/1 foundation", () => {
         API_URL: "http://api.example.test",
         DATABASE_URL: "postgresql://example",
         SESSION_SECRET: "replace-with-at-least-32-random-characters",
-        EMAIL_FROM: "WeddingOS <hello@example.test>",
+        EMAIL_FROM: "Sarbato <hello@example.test>",
         EMAIL_PROVIDER: "smtp",
         SMTP_HOST: "smtp.example.test",
         SMTP_PORT: "587",
@@ -66,7 +66,7 @@ describe("Slice 0/1 foundation", () => {
       API_URL: "http://127.0.0.1:4000",
       DATABASE_URL: "postgresql://example",
       SESSION_SECRET: "test-session-secret-with-at-least-32-characters",
-      EMAIL_FROM: "WeddingOS <hello@example.test>",
+      EMAIL_FROM: "Sarbato <hello@example.test>",
       EMAIL_PROVIDER: "console",
       SMTP_HOST: "127.0.0.1",
       SMTP_PORT: "1025",
@@ -88,26 +88,14 @@ describe("Slice 0/1 foundation", () => {
       lastName: " Pop ",
       email: " ANA.POP@EXAMPLE.TEST ",
       password: "WeddingOS2026!",
+      registrationIntent: "EVENT_ORGANIZER",
       acceptedTermsVersion: "2026-07-18",
-      registrationIntent: "SERVICE_PROVIDER",
     });
     expect(parsed.email).toBe("ana.pop@example.test");
     expect(parsed.firstName).toBe("Ana");
-    expect(parsed.registrationIntent).toBe("SERVICE_PROVIDER");
     expect(() =>
       registerRequestSchema.parse({ ...parsed, password: "alllowercase" }),
     ).toThrow();
-  });
-
-  it("keeps legacy registration clients on organizer onboarding", () => {
-    const parsed = registerRequestSchema.parse({
-      firstName: "Ana",
-      lastName: "Popescu",
-      email: "ana@example.com",
-      password: "SecurePass1",
-      acceptedTermsVersion: "2026-07-18",
-    });
-    expect(parsed.registrationIntent).toBe("EVENT_ORGANIZER");
   });
 
   it("keeps money integer-only and workspace statuses closed", () => {

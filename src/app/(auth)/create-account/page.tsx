@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BriefcaseBusiness, CalendarHeart, MailCheck } from "lucide-react";
 import type { RegistrationIntent } from "@weddingos/contracts";
 import { Button, Checkbox, Field, Input } from "@/components/ui";
-import { AuthHeading } from "@/components/auth/auth-bits";
+import { AuthHeading, Divider, SocialButtons } from "@/components/auth/auth-bits";
 import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { TERMS_VERSION } from "@weddingos/contracts";
@@ -111,6 +111,9 @@ export default function CreateAccountPage() {
       <AuthHeading title="Creează-ți contul" subtitle="Alege traseul potrivit. Același cont poate avea ulterior mai multe roluri." />
 
       <div className="space-y-4">
+        <SocialButtons mode="signup" />
+        <Divider label="sau cu email" />
+
         {formError && <AuthError message={formError} />}
 
         <form onSubmit={submit} className="space-y-4" noValidate>

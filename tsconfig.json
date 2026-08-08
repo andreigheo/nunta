@@ -46,7 +46,13 @@
     ".next-landing-dev/types/**/*.ts",
     ".next-landing-dev/dev/types/**/*.ts",
     ".next-landing-vB/types/**/*.ts",
-    ".next-landing-vB/dev/types/**/*.ts"
+    ".next-landing-vB/dev/types/**/*.ts",
+    ".next-sarbato-connected/types/**/*.ts",
+    ".next-sarbato-connected/dev/types/**/*.ts",
+    ".next-sarbato-dashboard-aligned/types/**/*.ts",
+    ".next-sarbato-dashboard-aligned/dev/types/**/*.ts",
+    ".next-sarbato-design-unified/types/**/*.ts",
+    ".next-sarbato-design-unified/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

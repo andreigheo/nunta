@@ -12,7 +12,12 @@ export function Table({
   minWidth?: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
+    <div
+      role="region"
+      aria-label="Tabel cu derulare orizontală"
+      tabIndex={0}
+      className="overflow-x-auto rounded-xl border border-line bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
       <table className={cn("w-full text-sm", className)} style={{ minWidth }}>
         {children}
       </table>
@@ -20,7 +25,13 @@ export function Table({
   );
 }
 
-export function THead({ children, className }: { children: React.ReactNode; className?: string }) {
+export function THead({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <thead className={cn("border-b border-line bg-subtle/60", className)}>
       {children}
@@ -28,27 +39,52 @@ export function THead({ children, className }: { children: React.ReactNode; clas
   );
 }
 
-export function TBody({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <tbody className={cn("divide-y divide-line", className)}>{children}</tbody>;
+export function TBody({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <tbody className={cn("divide-y divide-line", className)}>{children}</tbody>
+  );
 }
 
 export function TR({
   children,
   className,
   onClick,
+  onKeyDown,
   selected,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  onClick?: () => void;
+  role,
+  tabIndex,
+  ...props
+}: React.HTMLAttributes<HTMLTableRowElement> & {
   selected?: boolean;
 }) {
+  const handleKeyDown: React.KeyboardEventHandler<HTMLTableRowElement> = (
+    event,
+  ) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || event.target !== event.currentTarget) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.currentTarget.click();
+    }
+  };
+
   return (
     <tr
+      {...props}
+      role={role}
+      tabIndex={tabIndex ?? (onClick ? 0 : undefined)}
       onClick={onClick}
+      onKeyDown={onClick ? handleKeyDown : onKeyDown}
       className={cn(
         "transition-colors",
-        onClick && "cursor-pointer hover:bg-subtle/70",
+        onClick &&
+          "cursor-pointer hover:bg-subtle/70 focus-visible:bg-brand-softer/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
         selected && "bg-brand-softer",
         className,
       )}
@@ -73,10 +109,21 @@ export function TH({
   onSort?: () => void;
   align?: "left" | "right" | "center";
 }) {
-  const alignClass = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
+  const alignClass =
+    align === "right"
+      ? "text-right"
+      : align === "center"
+        ? "text-center"
+        : "text-left";
   return (
     <th
-      aria-sort={sortDirection === "asc" ? "ascending" : sortDirection === "desc" ? "descending" : undefined}
+      aria-sort={
+        sortDirection === "asc"
+          ? "ascending"
+          : sortDirection === "desc"
+            ? "descending"
+            : undefined
+      }
       className={cn(
         "whitespace-nowrap px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-faint",
         alignClass,
@@ -85,9 +132,10 @@ export function TH({
     >
       {sortable ? (
         <button
+          type="button"
           onClick={onSort}
           className={cn(
-            "inline-flex cursor-pointer items-center gap-1 uppercase transition-colors hover:text-ink",
+            "inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-1 uppercase transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
             align === "right" && "flex-row-reverse",
           )}
         >
@@ -113,19 +161,36 @@ export function TD({
   align = "left",
   colSpan,
   onClick,
-}: {
-  children?: React.ReactNode;
-  className?: string;
+  onKeyDown,
+  role,
+  tabIndex,
+  ...props
+}: Omit<React.TdHTMLAttributes<HTMLTableCellElement>, "align"> & {
   align?: "left" | "right" | "center";
-  colSpan?: number;
-  onClick?: React.MouseEventHandler<HTMLTableCellElement>;
 }) {
+  const handleKeyDown: React.KeyboardEventHandler<HTMLTableCellElement> = (
+    event,
+  ) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || event.target !== event.currentTarget) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.currentTarget.click();
+    }
+  };
+
   return (
     <td
+      {...props}
       colSpan={colSpan}
+      role={role}
+      tabIndex={tabIndex ?? (onClick ? 0 : undefined)}
       onClick={onClick}
+      onKeyDown={onClick ? handleKeyDown : onKeyDown}
       className={cn(
         "px-4 py-3 align-middle text-ink",
+        onClick &&
+          "h-11 min-w-11 cursor-pointer transition-colors hover:bg-subtle/70 focus-visible:bg-brand-softer/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
         align === "right" && "text-right",
         align === "center" && "text-center",
         className,
@@ -154,15 +219,32 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", className)}>
+    <header
+      className={cn(
+        "flex flex-col gap-4 border-b border-line pb-5 sm:pb-6 lg:flex-row lg:items-start lg:justify-between",
+        className,
+      )}
+    >
       <div className="min-w-0">
-        <h1 className="font-brand text-[26px] font-semibold leading-tight tracking-tight text-ink text-balance">
+        <h1 className="font-brand text-[30px] font-semibold leading-[1.08] tracking-[-0.025em] text-brand text-balance sm:text-[34px]">
           {title}
         </h1>
-        {description && <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">{description}</p>}
-        {meta && <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">{meta}</div>}
+        {description && (
+          <p className="mt-2 max-w-3xl text-[15px] leading-6 text-muted">
+            {description}
+          </p>
+        )}
+        {meta && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            {meta}
+          </div>
+        )}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
-    </div>
+      {actions && (
+        <div className="flex max-w-full flex-wrap items-center gap-2 lg:shrink-0">
+          {actions}
+        </div>
+      )}
+    </header>
   );
 }

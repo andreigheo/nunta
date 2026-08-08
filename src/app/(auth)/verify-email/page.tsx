@@ -8,12 +8,8 @@ import { Button, Input } from "@/components/ui";
 import { AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
 import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
+import { destinationForRegistration, safeInternalPath } from "@/lib/account-routing";
 import type { RegistrationIntent } from "@weddingos/contracts";
-import {
-  destinationForRegistration,
-  inferredRegistrationIntent,
-  safeInternalPath,
-} from "@/lib/account-routing";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -22,40 +18,34 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState("");
-  const [destination, setDestination] = React.useState("/onboarding");
-  const [changeEmailHref, setChangeEmailHref] = React.useState("/create-account");
+  const [intent, setIntent] = React.useState<RegistrationIntent>("EVENT_ORGANIZER");
+  const [returnTo, setReturnTo] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       const params = new URLSearchParams(window.location.search);
       const nextEmail = params.get("email") ?? sessionStorage.getItem("weddingos.pendingVerificationEmail") ?? "";
       const token = params.get("token");
-      const returnTo = safeInternalPath(
-        params.get("returnTo") ?? sessionStorage.getItem("sarbato.returnTo"),
-      );
       const storedIntent =
         params.get("intent") ?? sessionStorage.getItem("sarbato.registrationIntent");
-      const intent =
-        storedIntent === "SERVICE_PROVIDER" ||
-        storedIntent === "INVITED_MEMBER" ||
-        storedIntent === "EVENT_ORGANIZER"
-          ? (storedIntent as RegistrationIntent)
-          : inferredRegistrationIntent(returnTo) ?? "EVENT_ORGANIZER";
-      const nextDestination = destinationForRegistration(intent, returnTo);
-      setDestination(nextDestination);
-      const createParams = new URLSearchParams({ intent });
-      if (returnTo) createParams.set("returnTo", returnTo);
-      setChangeEmailHref(`/create-account?${createParams.toString()}`);
+      const nextIntent =
+        storedIntent === "SERVICE_PROVIDER" || storedIntent === "INVITED_MEMBER"
+          ? storedIntent
+          : "EVENT_ORGANIZER";
+      const nextReturnTo = safeInternalPath(
+        params.get("returnTo") ?? sessionStorage.getItem("sarbato.registrationReturnTo"),
+      );
+      setIntent(nextIntent);
+      setReturnTo(nextReturnTo);
       setEmail(nextEmail);
       if (token) {
         setLoading(true);
         weddingOsApi
           .verifyEmail({ token })
-          .then(() =>
-            router.replace(
-              `/sign-in?verified=1&returnTo=${encodeURIComponent(nextDestination)}`,
-            ),
-          )
+          .then(() => {
+            const destination = destinationForRegistration(nextIntent, nextReturnTo);
+            router.replace(`/sign-in?verified=1&returnTo=${encodeURIComponent(destination)}`);
+          })
           .catch((cause) => setError(apiErrorMessage(cause)))
           .finally(() => setLoading(false));
       }
@@ -83,9 +73,8 @@ export default function VerifyEmailPage() {
           setLoading(true);
           try {
             await weddingOsApi.verifyEmail({ email, code });
-            router.push(
-              `/sign-in?verified=1&returnTo=${encodeURIComponent(destination)}`,
-            );
+            const destination = destinationForRegistration(intent, returnTo);
+            router.push(`/sign-in?verified=1&returnTo=${encodeURIComponent(destination)}`);
           } catch (cause) {
             setError(apiErrorMessage(cause));
           } finally {
@@ -110,6 +99,7 @@ export default function VerifyEmailPage() {
 
       <div className="mt-5 space-y-2 text-sm">
         <button
+          type="button"
           onClick={async () => {
             setError("");
             try {
@@ -119,13 +109,13 @@ export default function VerifyEmailPage() {
               setError(apiErrorMessage(cause));
             }
           }}
-          className="cursor-pointer font-medium text-brand hover:underline"
+          className="inline-flex min-h-11 cursor-pointer items-center px-2 font-medium text-brand hover:underline"
         >
           Retrimite emailul
         </button>
         <p className="text-muted">
           Adresă greșită?{" "}
-          <Link href={changeEmailHref} className="font-medium text-brand hover:underline">
+          <Link href="/create-account" className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
             Schimbă emailul
           </Link>
         </p>

@@ -18,7 +18,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = React.createContext<ThemeContextValue>({
-  theme: "system",
+  theme: "light",
   resolvedTheme: "light",
   setTheme: () => undefined,
 });
@@ -29,12 +29,12 @@ function getSystemTheme(): "light" | "dark" {
 }
 
 function getStoredTheme(): ThemePreference {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "light";
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+  return stored === "light" || stored === "dark" || stored === "system" ? stored : "light";
 }
 
-const getServerTheme = (): ThemePreference => "system";
+const getServerTheme = (): ThemePreference => "light";
 const getServerSystemTheme = (): "light" | "dark" => "light";
 
 function subscribeToTheme(onStoreChange: () => void) {
@@ -98,10 +98,33 @@ const options: Array<{ value: ThemePreference; label: string; icon: React.Elemen
 /** Segmented theme selector used in Settings → Appearance and auth screens. */
 export function ThemeSegmentedControl({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
+  const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+      return;
+    }
+    const buttons = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+    );
+    if (buttons.length === 0) return;
+    const currentIndex = Math.max(0, buttons.indexOf(document.activeElement as HTMLButtonElement));
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? buttons.length - 1
+          : event.key === "ArrowRight" || event.key === "ArrowDown"
+            ? (currentIndex + 1) % buttons.length
+            : (currentIndex - 1 + buttons.length) % buttons.length;
+    event.preventDefault();
+    setTheme(options[nextIndex].value);
+    buttons[nextIndex].focus();
+  };
+
   return (
     <div
       role="radiogroup"
       aria-label="Temă vizuală"
+      onKeyDown={onKeyDown}
       className={cn("inline-flex items-center gap-1 rounded-xl border border-line bg-subtle p-1", className)}
     >
       {options.map(({ value, label, icon: Icon }) => {
@@ -109,11 +132,13 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
         return (
           <button
             key={value}
+            type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => setTheme(value)}
             className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
+              "inline-flex h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               active
                 ? "bg-elevated text-ink shadow-card"
                 : "text-muted hover:text-ink",
@@ -142,7 +167,7 @@ export function ThemeCycleButton({ className }: { className?: string }) {
       aria-label={`Temă: ${current.label}. Comută la ${options.find((o) => o.value === next)?.label}.`}
       title={`Temă: ${current.label}`}
       className={cn(
-        "inline-flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink",
+        "inline-flex size-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         className,
       )}
     >

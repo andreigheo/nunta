@@ -1,4 +1,4 @@
-import { ArrowRight, Check, CreditCard, LockKeyhole } from "lucide-react";
+import { ArrowRight, Check, LockKeyhole } from "lucide-react";
 import { pricing } from "@/content/marketing/sarbato";
 import { CtaLink } from "./section";
 
@@ -17,7 +17,7 @@ export function PricingSection() {
             </p>
             <h2
               id="pricing-title"
-              className="marketing-heading mt-4 max-w-[17ch] text-[clamp(2.65rem,4.4vw,4.7rem)] font-semibold leading-[0.99] tracking-[-0.04em] text-brand text-balance"
+              className="marketing-heading mt-4 max-w-[17ch] text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-brand text-balance"
             >
               {pricing.title}
             </h2>
@@ -88,26 +88,48 @@ export function PricingSection() {
                 {plan.description}
               </p>
 
-              <div className="mt-auto pt-10">
-                {"cta" in plan && plan.cta ? (
-                  <CtaLink
-                    cta={plan.cta}
-                    withArrow
-                    className="w-full whitespace-normal px-3 text-center"
-                  />
-                ) : (
-                  <div
-                    className={
-                      plan.featured
-                        ? "flex min-h-11 items-center justify-center gap-2 border border-white/25 px-4 text-sm font-semibold text-white/80"
-                        : "flex min-h-11 items-center justify-center gap-2 bg-subtle px-4 text-sm font-semibold text-muted"
-                    }
-                    aria-label={`${plan.name}: ${plan.status}`}
-                  >
-                    <CreditCard className="size-4" aria-hidden />
-                    {plan.status}
-                  </div>
-                )}
+              <ul
+                className={
+                  plan.featured
+                    ? "mt-7 space-y-3 border-t border-white/15 pt-6 text-sm leading-6 text-white/85"
+                    : "mt-7 space-y-3 border-t border-line pt-6 text-sm leading-6 text-ink"
+                }
+              >
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-3">
+                    <span
+                      className={
+                        plan.featured
+                          ? "mt-1 flex size-4 shrink-0 items-center justify-center rounded-full bg-white/12"
+                          : "mt-1 flex size-4 shrink-0 items-center justify-center rounded-full bg-success-soft"
+                      }
+                    >
+                      <Check
+                        className={
+                          plan.featured
+                            ? "size-2.5 text-white"
+                            : "size-2.5 text-success"
+                        }
+                        strokeWidth={3}
+                        aria-hidden
+                      />
+                    </span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-auto pt-8">
+                <CtaLink
+                  cta={plan.cta}
+                  withArrow
+                  variant={plan.featured ? "outline" : "primary"}
+                  className={
+                    plan.featured
+                      ? "w-full whitespace-normal border-white/20 bg-elevated px-3 text-center text-brand hover:bg-surface"
+                      : "w-full whitespace-normal px-3 text-center"
+                  }
+                />
               </div>
             </article>
           ))}
@@ -116,8 +138,7 @@ export function PricingSection() {
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
           <p className="flex items-center gap-2 text-sm font-medium text-muted">
             <Check className="size-4 text-success" aria-hidden />
-            Planurile plătite nu deschid un checkout până când Paddle este
-            funcțional.
+            {pricing.checkoutNote}
           </p>
           <a
             href="#intrebari"

@@ -1,5 +1,5 @@
 [Unit]
-Description=WeddingOS scheduled backup (%i)
+Description=Sarbato scheduled backup (%i)
 After=docker.service
 
 [Service]

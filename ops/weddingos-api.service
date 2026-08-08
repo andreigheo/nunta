@@ -1,5 +1,5 @@
 [Unit]
-Description=WeddingOS local API
+Description=Sarbato local API
 After=network-online.target
 Wants=network-online.target
 
@@ -15,12 +15,12 @@ Environment=DATABASE_PURPOSE=persistent-runtime
 Environment=SESSION_SECRET=weddingos-local-session-secret-change-before-production
 Environment=MFA_ENCRYPTION_KEY=weddingos-local-mfa-encryption-key-change-production
 Environment=MFA_ENCRYPTION_KEY_ID=local-mfa-v1
-Environment="MFA_TOTP_ISSUER=WeddingOS Local"
+Environment="MFA_TOTP_ISSUER=Sarbato Local"
 Environment=ADMIN_STEP_UP_TTL_SECONDS=600
 Environment=CSRF_ENFORCEMENT=true
 Environment=CSRF_TOKEN_TTL_SECONDS=1800
 Environment=SESSION_COOKIE_NAME=weddingos_session
-Environment="EMAIL_FROM=WeddingOS <no-reply@weddingos.local>"
+Environment="EMAIL_FROM=Sarbato <no-reply@sarbato.local>"
 Environment=EMAIL_PROVIDER=smtp
 Environment=SMTP_HOST=127.0.0.1
 Environment=SMTP_PORT=1025

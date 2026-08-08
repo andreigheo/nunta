@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  PublicProductProofV1,
-  PublicProofMetric,
-} from "@weddingos/contracts";
+import type { PublicProductProofV1, PublicProofMetric } from "@weddingos/contracts";
 import {
   hasPublishablePublicProof,
   normalizePublicProductProof,
@@ -30,9 +27,7 @@ function suppressed(): PublicProofMetric {
   };
 }
 
-function proof(
-  overrides: Partial<PublicProductProofV1> = {},
-): PublicProductProofV1 {
+function proof(overrides: Partial<PublicProductProofV1> = {}): PublicProductProofV1 {
   return {
     schemaVersion: "1.0",
     generatedAt: "2026-07-20T17:30:00.000Z",
@@ -82,20 +77,12 @@ describe("normalizePublicProductProof", () => {
 
     expect(result.state).toBe("fresh");
     expect(result.metrics).toHaveLength(4);
-    expect(result.metrics.map((metric) => metric.value)).toEqual([
-      "80%",
-      "65%",
-      "35%",
-      "70%",
-    ]);
+    expect(result.metrics.map((metric) => metric.value)).toEqual(["80%", "65%", "35%", "70%"]);
     expect(result.capabilities?.weddingDay).toBe("partial");
   });
 
   it("păstrează o dovadă stale verificată în fereastra de 24 de ore", () => {
-    const result = normalizePublicProductProof(
-      proof({ freshness: "stale" }),
-      now,
-    );
+    const result = normalizePublicProductProof(proof({ freshness: "stale" }), now);
 
     expect(result.state).toBe("stale");
     expect(result.generatedAt).toBe("2026-07-20T17:30:00.000Z");
@@ -128,10 +115,7 @@ describe("normalizePublicProductProof", () => {
   });
 
   it("respinge un payload care nu respectă schema", () => {
-    const result = normalizePublicProductProof(
-      { ...proof(), schemaVersion: "2.0" },
-      now,
-    );
+    const result = normalizePublicProductProof({ ...proof(), schemaVersion: "2.0" }, now);
 
     expect(result).toEqual({
       state: "fallback",

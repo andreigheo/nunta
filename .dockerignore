@@ -1,9 +1,9 @@
 .git
 .next
+.next-*
 node_modules
 coverage
 dist
 playwright-report
 test-results
 *.log
-

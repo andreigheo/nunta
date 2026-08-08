@@ -4,6 +4,8 @@ import { HeroDashboard } from "./hero-dashboard";
 import { CtaLink } from "./section";
 
 export function Hero() {
+  const titleStart = hero.title.slice(0, -hero.highlight.length).trim();
+
   return (
     <section
       className="marketing-hero relative overflow-hidden"
@@ -23,11 +25,11 @@ export function Hero() {
 
           <h1
             id="landing-title"
-            className="marketing-heading mkt-rise mkt-rise-1 mt-7 text-[clamp(3.25rem,5.65vw,5.75rem)] font-semibold leading-[0.96] tracking-[-0.04em] text-brand text-balance"
+            className="marketing-heading mkt-rise mkt-rise-1 mt-7 text-[clamp(3rem,4.25vw,3.75rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-brand text-balance"
           >
-            Fiecare eveniment are sute de detalii.{" "}
+            {titleStart}{" "}
             <span className="relative inline">
-              Sarbato le ține împreună.
+              {hero.highlight}
               <span
                 className="absolute -bottom-2 left-0 h-1 w-full rounded-full bg-accent"
                 aria-hidden

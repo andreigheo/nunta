@@ -1,5 +1,5 @@
 [Unit]
-Description=WeddingOS daily database backup
+Description=Sarbato daily database backup
 
 [Timer]
 OnCalendar=*-*-* 02:00:00 Europe/Chisinau

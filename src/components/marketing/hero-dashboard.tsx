@@ -25,30 +25,10 @@ const stageIcons = {
 
 export function HeroDashboard() {
   const [activeId, setActiveId] = React.useState<StageId>(showcaseStages[0].id);
-  const [announceUpdates, setAnnounceUpdates] = React.useState(false);
-  const timersRef = React.useRef<number[]>([]);
   const active =
     showcaseStages.find((stage) => stage.id === activeId) ?? showcaseStages[0];
 
-  React.useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    timersRef.current = showcaseStages
-      .slice(1)
-      .map((stage, index) =>
-        window.setTimeout(() => setActiveId(stage.id), 1050 * (index + 1)),
-      );
-
-    return () => {
-      timersRef.current.forEach((timer) => window.clearTimeout(timer));
-      timersRef.current = [];
-    };
-  }, []);
-
   function selectStage(stageId: StageId) {
-    timersRef.current.forEach((timer) => window.clearTimeout(timer));
-    timersRef.current = [];
-    setAnnounceUpdates(true);
     setActiveId(stageId);
   }
 
@@ -127,7 +107,7 @@ export function HeroDashboard() {
                   <div className="min-w-0">
                     <p
                       className="text-lg font-semibold leading-tight text-ink"
-                      aria-live={announceUpdates ? "polite" : "off"}
+                      aria-live="polite"
                     >
                       {active.action}
                     </p>
@@ -195,27 +175,28 @@ export function HeroDashboard() {
               className="marketing-thread h-1 w-full rounded-full"
               aria-hidden
             />
-            <div className="mt-3 grid grid-cols-4 gap-2">
+            <ol
+              className="mt-3 grid grid-cols-4 gap-2"
+              aria-label="Firul etapelor prezentate"
+            >
               {showcaseStages.map((stage) => {
                 const selected = stage.id === activeId;
                 return (
-                  <button
+                  <li
                     key={stage.id}
-                    type="button"
-                    onClick={() => selectStage(stage.id)}
-                    aria-label={`Arată etapa ${stage.navLabel}`}
+                    aria-current={selected ? "step" : undefined}
                     className={cn(
-                      "min-h-11 rounded-lg px-1 text-xs font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2",
+                      "flex min-h-9 items-center justify-center rounded-lg px-1 text-center text-xs font-semibold",
                       selected
                         ? "bg-brand-softer text-brand"
-                        : "text-muted hover:bg-subtle hover:text-ink",
+                        : "text-muted",
                     )}
                   >
                     {stage.shortLabel}
-                  </button>
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </div>
         </div>
       </div>

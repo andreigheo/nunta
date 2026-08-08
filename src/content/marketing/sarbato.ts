@@ -11,6 +11,8 @@ export const routes = {
   createAccount: "/create-account",
   privacy: "/confidentialitate",
   terms: "/termeni",
+  refunds: "/rambursari",
+  cookies: "/cookies",
 } as const;
 
 export const primaryCta: Cta = {
@@ -30,14 +32,16 @@ export const signInCta: Cta = {
 
 export const headerNav = [
   { label: "Cum funcționează", href: "#flux" },
+  { label: "Planificare", href: "#planificare" },
   { label: "Invitații", href: "#invitatii" },
-  { label: "Organizare", href: "#planificare" },
+  { label: "Furnizori", href: "#furnizori" },
   { label: "Ziua evenimentului", href: "#ziua-evenimentului" },
   { label: "Abonamente", href: "#abonamente" },
 ] as const;
 
 export const hero = {
   title: "Fiecare eveniment are sute de detalii. Sarbato le ține împreună.",
+  highlight: "Sarbato le ține împreună.",
   lead: "Creezi invitația, strângi confirmările, organizezi invitații, compari furnizorii, urmărești bugetul și coordonezi ziua evenimentului din același loc.",
   availability: "Disponibil acum pentru organizarea nunților",
   support:
@@ -89,7 +93,7 @@ export const showcaseStages = [
     shortLabel: "Acum",
     navLabel: "Ziua evenimentului",
     action: "Confirmă următorul moment",
-    detail: "Echipa vede ce se întâmplă acum, ce urmează și cine răspunde.",
+    detail: "Echipa vede ce se întâmplă acum, ce urmează și ce trebuie pregătit.",
     owner: "Coordonator",
     deadline: "Stare: în desfășurare",
     connected: ["Desfășurător", "Echipă", "Incidente"],
@@ -99,29 +103,43 @@ export const showcaseStages = [
 ] as const;
 
 export const flow = {
-  title: "O singură schimbare. Mai puține întrebări.",
-  lead: "Urmărește cum o informație intră o dată și devine utilă în următoarele locuri din produs.",
+  title: "Șapte etape. Un singur fir al deciziilor.",
+  lead: "De la primul plan până la ultimul check-in, fiecare etapă preia contextul celei dinainte. Nu reconstruiești evenimentul în foi, liste și mesaje separate.",
   steps: [
     {
       id: "plan",
-      label: "Planifici",
-      title: "Decizia intră în plan",
+      label: "Plan",
+      title: "Începi cu deciziile care dau direcție",
       description:
-        "Responsabilul, termenul și dependențele rămân în aceeași etapă revizuită.",
-      trigger: "Etapă aprobată",
+        "Prioritățile, responsabilul, termenul și dependențele rămân în aceeași etapă revizuită.",
+      trigger: "Priorități definite",
       results: [
-        "Calendarul primește termenul",
-        "Responsabilul vede acțiunea",
-        "Planul B rămâne atașat",
+        "Calendarul primește termenele",
+        "Echipa vede responsabilitățile",
+        "Riscurile rămân lângă Planul B",
       ],
-      next: "Invitația folosește contextul publicat",
+      next: "Planul aprobat pregătește informația care poate fi publicată",
+    },
+    {
+      id: "invitation",
+      label: "Invitație",
+      title: "Transformi detaliile într-o experiență publică",
+      description:
+        "Alegi blocurile, imaginea, paleta și layoutul, apoi publici numai informația pregătită pentru invitați.",
+      trigger: "Invitație publicată",
+      results: [
+        "Programul este ușor de găsit",
+        "Detaliile logistice au un singur loc",
+        "Formularul RSVP este pregătit",
+      ],
+      next: "Invitatul poate răspunde fără să își creeze cont",
     },
     {
       id: "rsvp",
-      label: "Primești răspunsuri",
+      label: "RSVP",
       title: "Răspunsul devine logistică",
       description:
-        "Confirmarea și preferințele pot fi folosite fără liste paralele.",
+        "Confirmarea și preferințele intră în spațiul evenimentului fără liste paralele.",
       trigger: "RSVP primit",
       results: [
         "Starea invitatului se actualizează",
@@ -132,8 +150,22 @@ export const flow = {
       next: "Următoarea acțiune: alocarea la masă",
     },
     {
+      id: "logistics",
+      label: "Logistică",
+      title: "Cererea este vizibilă acolo unde se rezolvă",
+      description:
+        "Meniul, mesele, transportul și cazarea pornesc din răspunsurile primite, iar alocările rămân decizii explicite ale echipei.",
+      trigger: "Preferințe colectate",
+      results: [
+        "Meniurile pot fi centralizate",
+        "Mesele arată ce mai trebuie alocat",
+        "Transportul și cazarea păstrează cererile",
+      ],
+      next: "Echipa vede excepțiile înainte să confirme furnizorii",
+    },
+    {
       id: "vendors",
-      label: "Alegi furnizorii",
+      label: "Furnizori",
       title: "Oferta păstrează contextul",
       description:
         "Cererea, versiunea ofertei, rezervarea și impactul bugetar rămân legate.",
@@ -143,21 +175,35 @@ export const flow = {
         "Contractul rămâne asociat",
         "Bugetul urmărește angajamentul",
       ],
-      next: "Planul știe ce urmează",
+      next: "Oferta acceptată pregătește angajamentul de buget",
+    },
+    {
+      id: "budget",
+      label: "Buget",
+      title: "Angajamentul rămâne lângă decizia care l-a creat",
+      description:
+        "Bugetul urmărește rezervările și documentele, fără ca Sarbato să încaseze sau să transfere plata către furnizor.",
+      trigger: "Rezervare confirmată",
+      results: [
+        "Categoria păstrează angajamentul",
+        "Documentul rămâne asociat",
+        "Plata directă poate fi urmărită operațional",
+      ],
+      next: "Planul zilei folosește furnizorii și termenele confirmate",
     },
     {
       id: "event-day",
-      label: "Coordonezi ziua",
-      title: "Planul devine comandă",
+      label: "Ziua evenimentului",
+      title: "Planul devine vedere operațională",
       description:
-        "Desfășurătorul, echipa, check-in-ul și incidentele folosesc același context operațional.",
+        "Desfășurătorul, check-in-ul, checklisturile și incidentele folosesc același context operațional.",
       trigger: "Moment confirmat",
       results: [
         "Acum și Urmează sunt clare",
-        "Responsabilul este vizibil",
+        "Echipa vede ce trebuie pregătit",
         "Incidentul păstrează decizia",
       ],
-      next: "Echipa continuă fără reconstrucții",
+      next: "Echipa continuă fără să reconstruiască planul",
     },
   ],
 } as const;
@@ -168,6 +214,11 @@ export type ProductStory = {
   title: string;
   lead: string;
   capabilities: readonly string[];
+  stages: readonly string[];
+  handoff: {
+    input: string;
+    output: string;
+  };
   surface: "planning" | "guests" | "vendors" | "event-day";
   tone: "plain" | "coral" | "sun" | "plum";
 };
@@ -183,19 +234,29 @@ export const productStories: readonly ProductStory[] = [
       "Știi cine răspunde de fiecare acțiune",
       "Păstrezi riscurile și Planul B lângă decizie",
     ],
+    stages: ["Plan", "Calendar", "Responsabili"],
+    handoff: {
+      input: "Priorități, termene și dependențe",
+      output: "O etapă aprobată, gata să fie folosită mai departe",
+    },
     surface: "planning",
     tone: "plain",
   },
   {
     id: "invitatii",
     navLabel: "Invitații și logistică",
-    title: "Prima impresie devine un plan util.",
-    lead: "Publici invitația, colectezi răspunsurile și folosești aceleași informații pentru meniuri, mese, transport și cazare.",
+    title: "Invitația arată ca evenimentul tău și lucrează pentru plan.",
+    lead: "Alegi blocurile, imaginea, paleta și layoutul, apoi publici invitația, colectezi răspunsurile și folosești aceleași informații pentru meniuri, mese, transport și cazare.",
     capabilities: [
-      "Construiești invitația din secțiuni controlabile",
+      "Construiești din blocuri reordonabile și controlezi fiecare secțiune",
+      "Ajustezi imaginea hero, paleta, layoutul și previzualizarea",
       "Colectezi RSVP și preferințe fără cont de invitat",
-      "Transformi răspunsurile în logistică",
     ],
+    stages: ["Invitație", "RSVP", "Logistică"],
+    handoff: {
+      input: "Conținut publicat intenționat",
+      output: "Răspunsuri și cereri pregătite pentru alocare",
+    },
     surface: "guests",
     tone: "coral",
   },
@@ -209,19 +270,29 @@ export const productStories: readonly ProductStory[] = [
       "Păstrezi rezervarea și contractul asociate",
       "Urmărești angajamentele fără să intermediezi plata",
     ],
+    stages: ["Cerere", "Ofertă", "Buget"],
+    handoff: {
+      input: "Cerințe și limite de buget",
+      output: "Decizia păstrată lângă rezervare și contract",
+    },
     surface: "vendors",
     tone: "sun",
   },
   {
     id: "ziua-evenimentului",
     navLabel: "Ziua evenimentului",
-    title: "Când începe evenimentul, planul devine comandă.",
-    lead: "Echipa vede ce se întâmplă, ce urmează și cine trebuie să acționeze, fără să reconstruiască planul din mesaje.",
+    title: "Când începe evenimentul, planul devine vedere operațională.",
+    lead: "Echipa vede ce se întâmplă, ce urmează și ce trebuie pregătit, fără să reconstruiască planul din mesaje.",
     capabilities: [
       "Acum și Urmează într-o vedere comună",
       "Checklisturi și check-in pentru echipă",
       "Incidente cu stări clare și Plan B pregătit",
     ],
+    stages: ["Desfășurător", "Check-in", "Plan B"],
+    handoff: {
+      input: "Planul aprobat și starea operațională",
+      output: "Acum, Urmează și pregătirea următoarei tranziții",
+    },
     surface: "event-day",
     tone: "plum",
   },
@@ -229,23 +300,35 @@ export const productStories: readonly ProductStory[] = [
 
 export const pricing = {
   title: "Începi gratuit. Alegi mai mult când ai nevoie.",
-  lead: "Abonamentele plătite vor fi activate după finalizarea integrării Paddle. Până atunci, creezi contul și pornești gratuit.",
+  lead: "Fiecare plan păstrează planificarea de bază într-un singur loc. Plus adaugă logistica și colaborarea, iar Pro deschide controlul operațional complet.",
   plans: [
     {
       name: "Gratuit",
       price: "0 €",
       cadence: "fără card",
       description: "Pentru primul pas și organizarea de bază a evenimentului.",
+      features: [
+        "Plan, calendar, buget, invitație și RSVP",
+        "Până la 50 de invitați și 2 colaboratori",
+        "5 acțiuni AI și 250 MB de stocare",
+      ],
       status: "Disponibil",
-      cta: primaryCta,
+      cta: { label: "Începe gratuit", href: routes.createAccount },
       featured: false,
     },
     {
-      name: "Esențial",
+      name: "Plus",
       price: "7 €",
       cadence: "pe lună",
-      description: "Pentru organizarea completă și colaborarea în echipă.",
-      status: "Disponibil în curând",
+      description:
+        "Pentru organizarea completă, logistica invitaților și coordonarea furnizorilor.",
+      features: [
+        "Până la 200 de invitați și 5 colaboratori",
+        "Mese, transport, cazare și documente",
+        "5 automatizări, 30 acțiuni AI și 2 GB",
+      ],
+      status: "Disponibil în cont",
+      cta: { label: "Începe cu Plus", href: routes.createAccount },
       featured: true,
     },
     {
@@ -253,37 +336,49 @@ export const pricing = {
       price: "17 €",
       cadence: "pe lună",
       description: "Pentru coordonare operațională avansată.",
-      status: "Disponibil în curând",
+      features: [
+        "Până la 500 de invitați și 15 colaboratori",
+        "Riscuri, Plan B, check-in și ziua evenimentului",
+        "25 automatizări, 150 acțiuni AI și 10 GB",
+      ],
+      status: "Disponibil în cont",
+      cta: { label: "Începe cu Pro", href: routes.createAccount },
       featured: false,
     },
   ],
   boundary:
-    "Abonamentul Sarbato este separat de plățile dintre organizatori și furnizori.",
+    "Paddle procesează abonamentul Sarbato. Plățile dintre organizatori și furnizori rămân directe și separate.",
+  checkoutNote:
+    "Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
 } as const;
 
 export const trust = {
-  title: "Controlul rămâne la oamenii potriviți.",
-  lead: "Produsul arată clar ce este privat, ce necesită confirmare și unde începe responsabilitatea unui furnizor extern.",
+  title: "Fiecare informație are o limită clară.",
+  lead: "Planul de lucru rămâne în echipă, invitații văd numai ce publici, iar serviciile externe sunt delimitate de organizarea evenimentului.",
   principles: [
     {
-      title: "Spațiu privat",
+      audience: "Echipă",
+      title: "Spațiul echipei",
       description:
-        "Datele evenimentului rămân în workspace și în rolurile autorizate.",
+        "Planul, răspunsurile, bugetul și operațiunile rămân în workspace și în rolurile autorizate.",
     },
     {
-      title: "Acțiuni explicite",
+      audience: "Invitat",
+      title: "Vederea invitatului",
       description:
-        "Publicările, aprobările și tranzițiile importante cer o intenție clară.",
+        "Invitații văd numai conținutul publicat pentru ei și pot răspunde fără acces la spațiul intern.",
     },
     {
-      title: "Extern, marcat clar",
+      audience: "Decizie",
+      title: "Decizii explicite",
       description:
-        "Semnătura electronică și plățile online folosesc furnizori externi identificați explicit în produs.",
+        "Publicările, aprobările și tranzițiile importante cer o intenție clară înainte să schimbe starea.",
     },
     {
-      title: "Plăți directe",
+      audience: "Plată",
+      title: "Limita plăților",
       description:
-        "Sarbato păstrează evidența; nu încasează și nu transferă plățile dintre organizatori și furnizori.",
+        "Paddle procesează abonamentul Sarbato; furnizorii evenimentului sunt plătiți direct prin metoda stabilită între părți.",
     },
   ],
 } as const;
@@ -298,8 +393,8 @@ export const faqs = [
     a: "Nu. Invitații folosesc linkul primit pentru confirmare, meniu și informațiile logistice publicate pentru ei.",
   },
   {
-    q: "Cum devin răspunsurile un plan?",
-    a: "Confirmarea și preferințele colectate pot fi folosite în meniuri, planul meselor, transport și cazare, fără liste separate.",
+    q: "Cât de mult pot personaliza invitația?",
+    a: "Poți combina și reordona blocuri, controla vizibilitatea lor, ajusta imaginea hero, paleta și layoutul, verifica versiunea desktop, tabletă și mobil, apoi publica formularul RSVP.",
   },
   {
     q: "Pot lucra împreună cu partenerul sau echipa?",
@@ -315,17 +410,22 @@ export const faqs = [
   },
   {
     q: "Ce va include fiecare abonament?",
-    a: "Gratuit este disponibil acum, pentru pornirea evenimentului. Esențial (7 € pe lună) și Pro (17 € pe lună) sunt marcate «Disponibil în curând» până la finalizarea checkoutului Paddle; beneficiile exacte vor fi publicate la activare.",
+    a: "Gratuit include planificarea de bază, invitația și RSVP pentru maximum 50 de invitați. Plus (7 € pe lună) adaugă logistica, furnizorii, documentele și automatizările pentru maximum 200 de invitați. Pro (17 € pe lună) adaugă riscurile, Plan B, check-inul și operațiunile din ziua evenimentului pentru maximum 500 de invitați.",
   },
   {
     q: "Pot schimba planul după ce am început lucrul?",
-    a: "Da. Modificările importante din plan trec prin revizuire înainte să fie aplicate, iar datele de lucru rămân în spațiul evenimentului. Schimbarea abonamentului va fi disponibilă din cont odată cu planurile plătite.",
+    a: "Da. Schimbarea abonamentului se face din setările evenimentului. La trecerea la un plan inferior, datele existente rămân disponibile pentru citire, iar acțiunile care depășesc noul plan sunt blocate până la reactivare sau upgrade.",
   },
 ] as const;
 
 export const finalCta = {
   title: "Începe cu evenimentul tău. Sarbato leagă restul.",
   text: "Creează spațiul evenimentului, adună informația într-un singur loc și păstrează următorul pas clar.",
+  assurances: [
+    "Plan gratuit, fără card",
+    "Invitații răspund fără cont",
+    "Planul se schimbă din cont",
+  ],
 } as const;
 
 export const footer = {
@@ -361,6 +461,8 @@ export const footer = {
       links: [
         { label: "Confidențialitate", href: routes.privacy },
         { label: "Termeni", href: routes.terms },
+        { label: "Rambursări", href: routes.refunds },
+        { label: "Cookie-uri", href: routes.cookies },
       ],
     },
   ],

@@ -82,20 +82,22 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     {t.description && <p className="mt-0.5 text-[13px] leading-snug text-muted">{t.description}</p>}
                     {t.action && (
                       <button
+                        type="button"
                         onClick={() => {
                           t.action!.onClick();
                           dismiss(t.id);
                         }}
-                        className="mt-1.5 text-[13px] font-semibold text-brand hover:underline"
+                        className="mt-1.5 inline-flex min-h-11 items-center rounded-lg text-[13px] font-semibold text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       >
                         {t.action.label}
                       </button>
                     )}
                   </div>
                   <button
+                    type="button"
                     onClick={() => dismiss(t.id)}
                     aria-label="Închide notificarea"
-                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-faint transition-colors hover:bg-subtle hover:text-ink"
+                    className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-faint transition-colors hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     <X className="size-3.5" aria-hidden />
                   </button>

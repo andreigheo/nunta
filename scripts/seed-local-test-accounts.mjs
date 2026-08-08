@@ -23,7 +23,6 @@ const { PrismaClient } = requireFromApi("@weddingos/database");
 
 const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
 const password = "WeddingOS2026!";
-const platformEnvironment = process.env.WEDDINGOS_PLATFORM_ENV ?? "development";
 const passwordHash = await hash(password, {
   algorithm: Algorithm.Argon2id,
   memoryCost: 19_456,
@@ -170,14 +169,14 @@ try {
   await prisma.workspace.upsert({
     where: { id: workspaceId },
     update: {
-      title: "WeddingOS — Test roluri",
+      title: "Sarbato — Test roluri",
       createdById: owner.id,
       updatedById: owner.id,
       status: "ACTIVE",
     },
     create: {
       id: workspaceId,
-      title: "WeddingOS — Test roluri",
+      title: "Sarbato — Test roluri",
       timezone: "Europe/Chisinau",
       currency: "RON",
       createdById: owner.id,
@@ -209,23 +208,6 @@ try {
       partnerTwoName: "Paul",
       weddingDate: new Date("2027-09-12T00:00:00.000Z"),
       location: "Chișinău",
-      createdById: owner.id,
-      updatedById: owner.id,
-    },
-  });
-  await prisma.workspaceSubscription.upsert({
-    where: { workspaceId },
-    update: {
-      planKey: "PRO",
-      status: "ACTIVE",
-      provider: "local-test",
-      updatedById: owner.id,
-    },
-    create: {
-      workspaceId,
-      planKey: "PRO",
-      status: "ACTIVE",
-      provider: "local-test",
       createdById: owner.id,
       updatedById: owner.id,
     },
@@ -262,8 +244,8 @@ try {
   await prisma.vendorOrganization.upsert({
     where: { id: vendorOrganizationId },
     update: {
-      legalName: "Atelier WeddingOS Test SRL",
-      displayName: "Atelier WeddingOS Test",
+      legalName: "Atelier Sarbato Test SRL",
+      displayName: "Atelier Sarbato Test",
       contactEmail: vendorOwner.email,
       status: "ACTIVE",
       updatedById: vendorOwner.id,
@@ -271,8 +253,8 @@ try {
     },
     create: {
       id: vendorOrganizationId,
-      legalName: "Atelier WeddingOS Test SRL",
-      displayName: "Atelier WeddingOS Test",
+      legalName: "Atelier Sarbato Test SRL",
+      displayName: "Atelier Sarbato Test",
       country: "Moldova",
       contactEmail: vendorOwner.email,
       status: "ACTIVE",
@@ -320,7 +302,7 @@ try {
       userId_roleId_environment: {
         userId: platformAdmin.id,
         roleId: platformRole.id,
-        environment: platformEnvironment,
+        environment: "development",
       },
     },
     update: {
@@ -333,7 +315,7 @@ try {
     create: {
       userId: platformAdmin.id,
       roleId: platformRole.id,
-      environment: platformEnvironment,
+      environment: "development",
       active: true,
       mfaVerifiedAt: new Date(),
       grantedById: platformAdmin.id,
@@ -346,7 +328,6 @@ try {
       {
         workspaceId,
         vendorOrganizationId,
-        platformEnvironment,
         password,
         accounts: [
           ...accountDefinitions,

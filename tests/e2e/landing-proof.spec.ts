@@ -1,18 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { Prisma, PrismaClient } from "@weddingos/database";
-import { loadMarketingProductProof } from "../../src/lib/marketing/product-proof-loader";
-import {
-  hasPublishablePublicProof,
-  normalizePublicProductProof,
-} from "../../src/lib/marketing/product-proof-normalizer";
 
 const apiPort = Number(process.env.WEDDINGOS_LANDING_PROOF_API_PORT ?? 4017);
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const workerId = `landing-proof-e2e:${randomUUID()}`;
 const workerDatabaseUrl =
   process.env.WEDDINGOS_LANDING_PROOF_DATABASE_URL ??
-  "postgresql://weddingos_worker:weddingos_worker@127.0.0.1:54339/weddingos_e2e?schema=public";
+  "postgresql://weddingos_worker:weddingos_worker@127.0.0.1:54339/weddingos?schema=public";
 
 const database = new PrismaClient({ datasourceUrl: workerDatabaseUrl });
 let snapshotId: string | undefined;
@@ -195,21 +190,15 @@ test("landing full-stack — snapshot determinist, ETag și suprimare independen
   );
   expect(notModified.status()).toBe(304);
 
-  const normalizedPayload = normalizePublicProductProof(proof);
-  expect(normalizedPayload.state).toBe("fresh");
-  expect(hasPublishablePublicProof(normalizedPayload)).toBe(true);
-
-  const normalizedProof = await loadMarketingProductProof(apiUrl, {
-    cacheNamespace: workerId,
-  });
-  expect(normalizedProof.state).toBe("fresh");
-  expect(hasPublishablePublicProof(normalizedProof)).toBe(true);
-
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   await expect(page.getByTestId("public-proof-metrics")).toBeVisible();
+  await expect(page.getByTestId("product-proof-fallback")).toHaveCount(0);
+  await expect(
+    page.getByText("Date agregate · actualizare verificată"),
+  ).toBeVisible();
   const aggregateMetrics = page.getByRole("list", {
-    name: "Indicatori publici agregați",
+    name: "Indicatori agregați",
   });
   await expect(
     aggregateMetrics.getByText("75%", { exact: true }),
@@ -223,16 +212,17 @@ test("landing full-stack — snapshot determinist, ETag și suprimare independen
   await expect(
     page.getByText("Cohortă insuficientă", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("Disponibil", { exact: true })).toHaveCount(4);
 
   const screenshotPath = testInfo.outputPath(
-    "sarbato-landing-public-proof.png",
+    "landing-desktop-product-proof.png",
   );
   await page.screenshot({
     path: screenshotPath,
     fullPage: true,
     animations: "disabled",
   });
-  await testInfo.attach("sarbato-landing-public-proof", {
+  await testInfo.attach("landing-desktop-product-proof", {
     path: screenshotPath,
     contentType: "image/png",
   });

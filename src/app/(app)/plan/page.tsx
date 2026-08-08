@@ -500,8 +500,8 @@ export default function PlanPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <PageHeader
-        title="Planul nunții"
-        description="Sarcini persistente, propuneri verificate și progres real."
+        title="Planul evenimentului"
+        description="Sarcinile, termenele și progresul echipei, într-o singură vedere."
         meta={
           <>
             <span className="inline-flex items-center gap-2 text-sm text-muted">

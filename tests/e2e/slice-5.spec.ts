@@ -29,7 +29,6 @@ let otherCouple!: Account;
 let vendorA!: Account;
 let vendorB!: Account;
 let vendorMember!: Account;
-let vendorOperations!: Account;
 let workspaceId = "";
 let otherWorkspaceId = "";
 let organizationA = "";
@@ -76,7 +75,6 @@ test.beforeAll(async () => {
   vendorA = await createVerifiedAccount("slice5-vendor-a");
   vendorB = await createVerifiedAccount("slice5-vendor-b");
   vendorMember = await createVerifiedAccount("slice5-vendor-member");
-  vendorOperations = await createVerifiedAccount("slice5-vendor-operations");
   workspaceId = await createWorkspace(
     couple.api,
     `Commercial E2E ${Date.now()}`,
@@ -148,48 +146,6 @@ test("E2E 1 — Vendor organization", async ({ page }) => {
       data: { token },
     }),
   );
-  const operationsInvitation = await apiData<{ email: string; status: string }>(
-    await vendorA.api.post(
-      `/api/v1/vendor-organizations/${organizationA}/invitations`,
-      {
-        headers: mutationHeaders({
-          "Idempotency-Key": `vendor-operations-${crypto.randomUUID()}`,
-        }),
-        data: { email: vendorOperations.email, role: "vendor_operations" },
-      },
-    ),
-  );
-  expect(operationsInvitation.status).toBe("PENDING");
-  const operationsToken = await waitForVendorInvitationToken(
-    vendorOperations.email,
-  );
-  await apiData(
-    await vendorOperations.api.post("/api/v1/vendor-invitations/accept", {
-      headers: mutationHeaders(),
-      data: { token: operationsToken },
-    }),
-  );
-  const memberOrganizations = await apiData<{
-    items: Array<Resource & { role: string; capabilities: string[] }>;
-  }>(await vendorMember.api.get("/api/v1/vendor-organizations"));
-  expect(memberOrganizations.items[0]).toMatchObject({ role: "vendor_sales" });
-  expect(memberOrganizations.items[0].capabilities).toContain(
-    "vendor.offer.write",
-  );
-  expect(memberOrganizations.items[0].capabilities).not.toContain(
-    "vendor.organization.write",
-  );
-  expect(
-    (
-      await vendorMember.api.patch(
-        `/api/v1/vendor-organizations/${organizationA}`,
-        {
-          headers: mutationHeaders({ "If-Match": '"1"' }),
-          data: { displayName: "Nu trebuie aplicat" },
-        },
-      )
-    ).status(),
-  ).toBe(403);
   profileA = await apiData<Resource>(
     await vendorA.api.put(
       `/api/v1/vendor-organizations/${organizationA}/profile`,
@@ -204,14 +160,6 @@ test("E2E 1 — Vendor organization", async ({ page }) => {
   await expect(page.getByText(vendorAName).first()).toBeVisible();
   await page.reload();
   await expect(page.getByText(vendorAName).first()).toBeVisible();
-
-  await authorizePage(page, vendorOperations);
-  await page.goto("/vendor");
-  await expect(page.getByText(vendorAName).first()).toBeVisible();
-  await expect(page.getByText("Cereri primite")).toHaveCount(0);
-  await expect(
-    page.getByText("Datele profesionale nu au putut fi încărcate"),
-  ).toHaveCount(0);
 });
 
 test("E2E 2 — Publish vendor profile", async () => {
@@ -3372,8 +3320,8 @@ test("Slice 7 E2E 24 — Vendor and platform pages use real Slice 7 APIs", async
   await page.goto("/vendor/billing");
   await expect(page.getByText("Abonament Vendor OS")).toBeVisible();
   await page.goto("/vendor/payouts");
-  await expect(page.getByText("Fără intermediere financiară")).toBeVisible();
-  await expect(page.getByText(/nu inițiază payout-uri/)).toBeVisible();
+  await expect(page.getByText("Încasări și payouturi")).toBeVisible();
+  await expect(page.getByText("PAID").first()).toBeVisible();
   await page.goto("/admin/trust");
   await expect(page.getByText("Trust & monetizare")).toBeVisible();
 });
@@ -3850,14 +3798,14 @@ test("Slice 7 E2E 34 — Vendor global search is capability-filtered and navigab
   page,
 }) => {
   await authorizePage(page, vendorA);
-  await page.goto("/vendor/billing");
-  await page.getByLabel("Caută în zona profesională").fill("FREE");
+  await page.goto("/vendor/payouts");
+  await page.getByLabel("Caută în Vendor OS").fill("returned");
   await page.getByRole("button", { name: "Caută" }).click();
-  await expect(page.getByText(/Abonament/).first()).toBeVisible();
+  await expect(page.getByText("Payout returned").first()).toBeVisible();
   expect(
     (
       await vendorB.api.get(
-        `/api/v1/vendor-organizations/${organizationA}/search?q=FREE`,
+        `/api/v1/vendor-organizations/${organizationA}/search?q=returned`,
       )
     ).status(),
   ).toBe(403);

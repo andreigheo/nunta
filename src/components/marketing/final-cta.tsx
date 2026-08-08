@@ -23,12 +23,20 @@ export function FinalCta() {
           <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-white/10">
             <CheckCircle2 className="size-6 text-warning-soft" aria-hidden />
           </div>
-          <h2 className="marketing-heading mt-6 text-[clamp(2.7rem,5vw,5.4rem)] font-semibold leading-[0.98] tracking-[-0.04em] text-on-brand text-balance">
+          <h2 className="marketing-heading mt-6 text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-on-brand text-balance">
             {finalCta.title}
           </h2>
           <p className="mx-auto mt-6 max-w-[58ch] text-lg leading-8 text-on-brand">
             {finalCta.text}
           </p>
+          <ul className="mt-7 flex flex-col items-center justify-center gap-3 text-sm font-semibold text-white/80 sm:flex-row sm:flex-wrap sm:gap-x-6">
+            {finalCta.assurances.map((assurance) => (
+              <li key={assurance} className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-success-soft" aria-hidden />
+                {assurance}
+              </li>
+            ))}
+          </ul>
           <div className="mt-9 flex flex-col justify-center gap-3 min-[430px]:flex-row min-[430px]:items-center">
             <CtaLink
               cta={primaryCta}

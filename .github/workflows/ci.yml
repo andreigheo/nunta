@@ -1,4 +1,4 @@
-name: WeddingOS CI
+name: Sarbato CI
 
 permissions:
   contents: read

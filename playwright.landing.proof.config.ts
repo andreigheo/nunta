@@ -12,8 +12,7 @@ const apiTestEnvironment = {
   PORT: String(apiPort),
   LOG_LEVEL: "silent",
   DATABASE_URL:
-    "postgresql://weddingos_app:weddingos_app@127.0.0.1:54339/weddingos_e2e?schema=public",
-  DATABASE_PURPOSE: "e2e",
+    "postgresql://weddingos_app:weddingos_app@127.0.0.1:54339/weddingos?schema=public",
   SESSION_SECRET: "landing-proof-test-session-secret-32-characters",
   SESSION_COOKIE_NAME: "weddingos_session",
   FEATURE_MAGIC_LINK_ENABLED: "true",
@@ -68,15 +67,14 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command:
-        "node scripts/prepare-isolated-database.mjs e2e && node apps/api/dist/main.js",
+      command: "node apps/api/dist/main.js",
       url: `${apiUrl}/health`,
       timeout: 120_000,
       reuseExistingServer: false,
       env: apiTestEnvironment,
     },
     {
-      command: `env NEXT_DIST_DIR=.next-landing-proof API_INTERNAL_URL=${apiUrl} WEDDINGOS_PUBLIC_PROOF_CACHE_NAMESPACE=${proofCacheNamespace} NEXT_DISABLE_DEV_INDICATORS=true pnpm exec next dev --webpack --hostname 127.0.0.1 --port ${webPort}`,
+      command: `env NEXT_DIST_DIR=.next-landing-proof API_INTERNAL_URL=${apiUrl} WEDDINGOS_PUBLIC_PROOF_CACHE_NAMESPACE=${proofCacheNamespace} NEXT_PUBLIC_DEMO_MODE_ENABLED=true NEXT_DISABLE_DEV_INDICATORS=true pnpm exec next dev --webpack --hostname 127.0.0.1 --port ${webPort}`,
       // Do not prime the revalidated marketing page before the test fixture
       // creates its deterministic public-product-proof snapshot.
       url: `${webUrl}/sign-in`,

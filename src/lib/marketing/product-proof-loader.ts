@@ -27,21 +27,20 @@ export async function loadMarketingProductProof(
   const {
     fetcher = fetch as ProofFetch,
     nowMs = Date.now(),
-    timeoutMs = 3_000,
+    timeoutMs = 1_200,
     createTimeoutSignal = AbortSignal.timeout,
     cacheNamespace,
   } = options;
 
-  const endpoint = `${apiBase.replace(/\/$/, "")}/api/v1/public/product-proof`;
-  const headers = {
-    Accept: "application/json",
-    ...(cacheNamespace ? { "X-WeddingOS-Proof-Cache": cacheNamespace } : {}),
-  };
+  const endpoint = new URL(
+    `${apiBase.replace(/\/$/, "")}/api/v1/public/product-proof`,
+  );
+  if (cacheNamespace) endpoint.searchParams.set("cache", cacheNamespace);
 
   try {
-    const response = await fetcher(endpoint, {
+    const response = await fetcher(endpoint.toString(), {
       credentials: "omit",
-      headers,
+      headers: { Accept: "application/json" },
       signal: createTimeoutSignal(timeoutMs),
       next: { revalidate: 900 },
     });

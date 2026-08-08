@@ -136,7 +136,7 @@ const quickCreateItems: Array<{
     label: "Adaugă cheltuială",
     icon: <Wallet />,
     active: true,
-    capability: "expense.write",
+    capability: "budget.write",
   },
   {
     kind: "payment",
@@ -217,13 +217,13 @@ export function Topbar() {
   );
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-background/85 backdrop-blur-md">
-      <div className="flex h-16 items-center gap-2 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 border-b border-line bg-background/95 backdrop-blur-md">
+      <div className="flex h-[4.5rem] items-center gap-1 px-3 sm:gap-2 sm:px-8 lg:px-8 xl:px-10">
         {/* Mobile: menu + title */}
         <button
           onClick={() => shell.setMobileNavOpen(true)}
           aria-label="Deschide meniul"
-          className="inline-flex size-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink lg:hidden"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink lg:hidden"
         >
           <Menu className="size-5" aria-hidden />
         </button>
@@ -239,9 +239,9 @@ export function Topbar() {
               <li className="font-medium text-muted">{meta.title}</li>
             </ol>
           </nav>
-          <h1 className="truncate font-brand text-[17px] font-semibold leading-tight tracking-tight text-ink sm:text-[19px]">
+          <p className="truncate font-brand text-[17px] font-semibold leading-tight tracking-[-0.015em] text-brand sm:text-[19px]">
             {meta.title}
-          </h1>
+          </p>
         </div>
 
         {/* Wedding status */}
@@ -250,11 +250,10 @@ export function Topbar() {
             Pe drumul cel bun · {days} zile
           </Badge>
         )}
-
         {/* Search */}
         <button
           onClick={() => shell.setPaletteOpen(true)}
-          className="hidden h-9 w-56 cursor-text items-center gap-2 rounded-lg border border-line bg-surface px-3 text-[13px] text-faint shadow-card transition-colors hover:border-line-strong xl:flex"
+          className="hidden h-11 w-56 cursor-text items-center gap-2 rounded-lg border border-line bg-surface px-3 text-[13px] text-faint transition-colors hover:border-brand xl:flex"
           aria-label="Căutare rapidă"
         >
           <Search className="size-4" aria-hidden />
@@ -266,7 +265,7 @@ export function Topbar() {
         <Button
           variant="ghost"
           size="icon"
-          className="xl:hidden"
+          className="size-11 shrink-0 xl:hidden"
           aria-label="Căutare"
           onClick={() => shell.setPaletteOpen(true)}
         >
@@ -295,7 +294,7 @@ export function Topbar() {
           disabled={!capabilities.has("copilot.use")}
           title="Copilot"
           onClick={shell.openAI}
-          className="sm:hidden"
+          className="hidden size-11 shrink-0 min-[480px]:inline-flex sm:hidden"
           aria-label="Deschide Copilot AI"
         >
           <Sparkles className="size-5 text-accent" aria-hidden />
@@ -307,7 +306,7 @@ export function Topbar() {
           size="icon"
           aria-label={`Notificări — ${unread} necitite`}
           onClick={() => shell.setNotificationsOpen(true)}
-          className="relative"
+          className="relative size-11 shrink-0 sm:size-10"
         >
           <Bell className="size-5" aria-hidden />
           {unread > 0 && (
@@ -324,7 +323,7 @@ export function Topbar() {
             <Button
               size="icon-sm"
               aria-label="Creare rapidă"
-              className="rounded-full"
+              className="size-11 shrink-0 rounded-lg sm:size-9"
             >
               <Plus className="size-4.5" aria-hidden />
             </Button>
@@ -359,7 +358,7 @@ export function Topbar() {
         <Link
           href="/settings"
           aria-label="Profil utilizator"
-          className="lg:hidden"
+          className="inline-flex size-11 shrink-0 items-center justify-center lg:hidden"
         >
           <span className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-[12px] font-semibold text-brand-strong dark:text-brand">
             {initials.toUpperCase()}

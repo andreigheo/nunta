@@ -1,31 +1,30 @@
-# Sarbato public landing page
+# WeddingOS public landing page
 
 Route: `/`  
 Design contract: `DESIGN.md`  
-Source entry: `src/app/(marketing)/page.tsx`  
-Normative copy: `src/content/marketing/sarbato.ts`  
-Claims registry: `src/content/marketing/claims-registry.ts`
+Source entry: `src/app/(marketing)/page.tsx`
 
 ## Outcome
 
-The public landing page is a Romanian-first, product-led explanation of Sarbato under the public brand **Sarbato** (sarbato.space). It is honest about availability: **currently available for wedding planning**. The marketing layer has its own celebratory palette (deep plum, coral, warm yellow, green) and Afacad Flux display type scoped to `.marketing-light`; the authenticated product keeps its operational tokens.
+The public landing page is a Romanian-first, product-led explanation of WeddingOS. It uses the same light palette, Fraunces/Inter typography, controls and operational language as the authenticated dashboard. The visual north star is **Control calm** and the signature interaction is the **live data flow** between Planning, RSVP and logistics, Procurement and budget, and Wedding Day.
 
-The page follows one event story — Plan → Invitație → RSVP → Logistică → Furnizori → Buget → Ziua evenimentului — connected by a continuous thread motif. There are no fictional couples, guests, budgets, dates, locations, testimonials, customer logos, vendor names or product screenshots. Product proof is rendered as semantic, read-only React UI, and every showcase surface is labelled `Exemplu de produs — nu reprezintă datele unui client.` Public percentages appear only when the dedicated aggregate endpoint returns a valid privacy-preserving snapshot.
+There are no fictional couples, budgets, dates, testimonials, customer logos or product screenshots. Product proof is rendered as semantic, read-only React UI. Public percentages appear only when the dedicated aggregate endpoint returns a valid privacy-preserving snapshot.
 
 ## Composition
 
-1. Header with the Sarbato wordmark, compact navigation (Cum funcționează, Invitații, Organizare, Ziua evenimentului, Abonamente) and account CTAs; it becomes slightly more solid on scroll.
-2. Hero with the availability note, the `Creează primul eveniment` and `Vezi cum funcționează` CTAs, and a focused product composition: next action with owner and deadline/state, connected modules, and a mobile invitation preview. A short stage sequence runs once and never loops.
-3. Signature interaction (`#flux`): one change, less rework. Selecting a stage (e.g. `RSVP primit`) visibly updates guest status, menu preference, seating, transport and the suggested next action. Works with mouse, touch and keyboard.
-4. Planning chapter (`#planificare`): proposal review, list/board/timeline/calendar views, responsibility, deadline, warning and Plan B.
-5. Invitations chapter (`#invitatii`): editor with templates, reorderable sections, visibility controls, responsive preview, RSVP section, save and publish; then responses becoming logistics (menus, seating, transport, accommodation).
-6. Vendors and budget chapter (`#furnizori`): Cerere → Ofertă → Comparare → Rezervare → Contract → Buget, with the explicit boundary that Sarbato does not collect or transfer payments between organizers and vendors.
-7. Event day chapter (`#ziua-evenimentului`): Now/Next, run of show, checklists, check-in, incidents and Plan B in a dark command composition.
-8. Trust (`#incredere`): workspace privacy, explicit confirmations, external capabilities identified, no payment intermediation.
-9. Subscriptions (`#abonamente`): Gratuit is the only actionable plan; Esențial (7 €/lună) and Pro (17 €/lună) stay `Disponibil în curând` until Paddle products, webhooks, entitlements, cancellation and billing states exist. No fake checkout buttons.
-10. Public aggregate metrics, only when the proof endpoint is valid and at least three metrics are publishable.
-11. Eight FAQ entries (`#intrebari`), without demo/beta questions.
-12. Final CTA: `Începe cu evenimentul tău. Sarbato leagă restul.`
+The page contains exactly nine top-level sections:
+
+1. Split hero with account/demo CTAs and one dominant product surface.
+2. The ordered WeddingOS data flow.
+3. Planning and next action.
+4. Guest CRM, RSVP and logistics.
+5. Procurement, suppliers and budget.
+6. Wedding Day Command Center.
+7. Trust, privacy and honest platform boundaries.
+8. Five frequently asked questions.
+9. Final CTA.
+
+The header and footer sit outside this count. Pricing, generic audience tabs, standalone AI marketing, Concierge and the old static mockups are intentionally absent. AI may be described only inside a real implemented flow and only with the status supplied by the capability manifest.
 
 ## Public product proof
 
@@ -39,14 +38,12 @@ GET /api/v1/public/product-proof
 
 Rendering states are explicit:
 
-- `fresh`: validated aggregate percentages with `Date agregate · actualizare verificată`;
-- `stale`: the last verified snapshot, no older than 24 hours, with `Date agregate · ultimul snapshot valid`;
-- `suppressed`: inside a published section, a stable metric slot labelled `Cohortă insuficientă` and no value;
-- hidden: when the endpoint is absent, invalid, older than 24 hours, or fewer than three metrics are publishable, the metrics section is not rendered at all — no zero, dashes, placeholders or invented values.
+- `fresh`: validated aggregate percentages and update time;
+- `stale`: the last verified snapshot, no older than 24 hours, with a stale label;
+- `suppressed`: a stable metric slot labelled `Cohortă insuficientă` and no value;
+- `fallback`: the same product geometry without numbers, labelled `Previzualizare produs`.
 
-The product showcase is separate from public metrics: it shows qualitative states from the deterministic fixture in `src/content/marketing/sarbato.ts`, never numbers.
-
-The API skips invalid or future-dated rows and serves the newest valid snapshot inside the 24-hour window. If no valid row remains, it answers `503` with `Cache-Control: no-store`; the web layer then hides the metrics section.
+The API skips invalid or future-dated rows and serves the newest valid snapshot inside the 24-hour window. If no valid row remains, it answers `503` with `Cache-Control: no-store`; the web layer then renders the numberless fallback.
 
 ## Consent and aggregation
 
@@ -78,6 +75,7 @@ The bounded cross-tenant calculation lives in a `SECURITY DEFINER` function owne
 - WCAG 2.2 AA contrast and visible focus are required.
 - The skip link targets `main#continut`.
 - Interactive flow steps are real buttons in an ordered list and expose their selected state.
+- The active description updates only after a manual action.
 - All controls have a 44px minimum touch target.
 - At mobile widths, product surfaces reflow into semantic lists instead of scaling screenshots.
 - Hero motion enhances already-visible content and is removed under `prefers-reduced-motion`.
@@ -99,4 +97,4 @@ pnpm exec playwright test --config=playwright.landing.proof.config.ts
 SMOKE_BASE_URL=http://127.0.0.1:<port> pnpm smoke
 ```
 
-The isolated landing suite starts only the prebuilt Next.js surface and therefore proves the API-down behavior (metrics hidden, showcase labelled). Full-stack tests separately seed a deterministic sanitized snapshot and cover fresh, stale and suppressed states. Browser checks cover 320px, 390px, 768px, 1024px and 1440px, anchor integrity, keyboard behavior, reduced motion, console errors and horizontal overflow.
+The isolated landing suite starts only the prebuilt Next.js surface and therefore proves the API-down fallback. Full-stack tests separately seed a deterministic sanitized snapshot and cover fresh, stale and suppressed states. Browser checks cover 320px, 390px, 768px, 1024px and 1440px, anchor integrity, keyboard behavior, reduced motion, console errors and horizontal overflow.

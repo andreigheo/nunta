@@ -631,7 +631,7 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .expect(202);
     const token = await waitForEmailToken(
       account.email,
-      "Resetează parola WeddingOS",
+      "Resetează parola Sarbato",
     );
     await request(application.getHttpServer())
       .post("/api/v1/auth/password-resets")
@@ -726,7 +726,7 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .expect(201);
     const token = await waitForEmailToken(
       email,
-      "Confirmă adresa de email WeddingOS",
+      "Confirmă adresa de email Sarbato",
     );
     await ownerDatabase.authOneTimeToken.update({
       where: { tokenHash: hashToken(token) },
@@ -1415,7 +1415,7 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .expect(201);
     const token = await waitForEmailToken(
       email,
-      "Confirmă adresa de email WeddingOS",
+      "Confirmă adresa de email Sarbato",
     );
     await request(application.getHttpServer())
       .post("/api/v1/auth/email-verifications")

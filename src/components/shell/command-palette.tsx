@@ -15,12 +15,14 @@ import { navGroups } from "@/lib/navigation";
 import { weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import { useShell } from "./shell-context";
+import type { CapabilityKey } from "@weddingos/contracts";
 
 type Action = {
   id: string;
   label: string;
   hint?: string;
   group: string;
+  capability?: CapabilityKey;
   run: () => void;
 };
 const subscribeToHydration = () => () => undefined;
@@ -38,7 +40,7 @@ export function CommandPalette() {
 
 function CommandPaletteContent() {
   const { setPaletteOpen, setQuickCreate, openAI } = useShell();
-  const { currentWorkspace, demoMode } = useWorkspace();
+  const { currentWorkspace, demoMode, bootstrap } = useWorkspace();
   const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [remote, setRemote] = React.useState<Action[]>([]);
@@ -48,95 +50,114 @@ function CommandPaletteContent() {
     [setPaletteOpen],
   );
   const base = React.useMemo<Action[]>(
-    () => [
-      {
-        id: "ask-copilot",
-        label: "Întreabă Copilot",
-        hint: "Răspuns cu surse și propuneri controlate",
-        group: "Acțiuni",
-        run: openAI,
-      },
-      {
-        id: "create-task",
-        label: "Creează o sarcină",
-        hint: "Salvare reală",
-        group: "Acțiuni",
-        run: () => setQuickCreate("task"),
-      },
-      {
-        id: "create-event",
-        label: "Adaugă eveniment în calendar",
-        hint: "Salvare reală",
-        group: "Acțiuni",
-        run: () => setQuickCreate("event"),
-      },
-      {
-        id: "create-risk",
-        label: "Adaugă un risc",
-        hint: "Registru real",
-        group: "Acțiuni",
-        run: () => setQuickCreate("risk"),
-      },
-      {
-        id: "detect-risks",
-        label: "Rulează detectarea riscurilor",
-        hint: "Job determinist și deduplicat",
-        group: "Acțiuni",
-        run: () => setQuickCreate("risk_detection"),
-      },
-      {
-        id: "create-plan-b",
-        label: "Creează un Plan B",
-        hint: "Draft versionat",
-        group: "Acțiuni",
-        run: () => setQuickCreate("plan_b"),
-      },
-      {
-        id: "create-automation",
-        label: "Creează o automatizare",
-        hint: "Regulă draft controlată",
-        group: "Acțiuni",
-        run: () => setQuickCreate("automation"),
-      },
-      {
-        id: "create-household",
-        label: "Creează o gospodărie",
-        hint: "Guest CRM · salvare reală",
-        group: "Acțiuni",
-        run: () => setQuickCreate("household"),
-      },
-      {
-        id: "create-guest",
-        label: "Adaugă un invitat",
-        hint: "Guest CRM · salvare reală",
-        group: "Acțiuni",
-        run: () => setQuickCreate("guest"),
-      },
-      {
-        id: "send-campaign",
-        label: "Trimite o campanie de invitații",
-        hint: "Livrare asincronă reală",
-        group: "Acțiuni",
-        run: () => setQuickCreate("campaign"),
-      },
-      {
-        id: "view-rsvp",
-        label: "Vezi răspunsurile RSVP",
-        hint: "Date reale",
-        group: "Acțiuni",
-        run: () => router.push("/rsvp"),
-      },
-      ...navGroups.flatMap((group) =>
-        group.items.map((item) => ({
-          id: `nav-${item.href}`,
-          label: item.label,
-          hint: group.label,
-          group: "Navigare",
-          run: () => router.push(item.href),
-        })),
-      ),
-    ],
-    [openAI, router, setQuickCreate],
+    () => {
+      const actions: Action[] = [
+        {
+          id: "ask-copilot",
+          label: "Întreabă Copilot",
+          hint: "Răspuns cu surse și propuneri controlate",
+          group: "Acțiuni",
+          capability: "copilot.use",
+          run: openAI,
+        },
+        {
+          id: "create-task",
+          label: "Creează o sarcină",
+          hint: "Salvare reală",
+          group: "Acțiuni",
+          capability: "task.write",
+          run: () => setQuickCreate("task"),
+        },
+        {
+          id: "create-event",
+          label: "Adaugă eveniment în calendar",
+          hint: "Salvare reală",
+          group: "Acțiuni",
+          capability: "calendar.write",
+          run: () => setQuickCreate("event"),
+        },
+        {
+          id: "create-risk",
+          label: "Adaugă un risc",
+          hint: "Registru real",
+          group: "Acțiuni",
+          capability: "risk.write",
+          run: () => setQuickCreate("risk"),
+        },
+        {
+          id: "detect-risks",
+          label: "Rulează detectarea riscurilor",
+          hint: "Job determinist și deduplicat",
+          group: "Acțiuni",
+          capability: "risk.detect",
+          run: () => setQuickCreate("risk_detection"),
+        },
+        {
+          id: "create-plan-b",
+          label: "Creează un Plan B",
+          hint: "Draft versionat",
+          group: "Acțiuni",
+          capability: "contingency.write",
+          run: () => setQuickCreate("plan_b"),
+        },
+        {
+          id: "create-automation",
+          label: "Creează o automatizare",
+          hint: "Regulă draft controlată",
+          group: "Acțiuni",
+          capability: "automation.write",
+          run: () => setQuickCreate("automation"),
+        },
+        {
+          id: "create-household",
+          label: "Creează o gospodărie",
+          hint: "Guest CRM · salvare reală",
+          group: "Acțiuni",
+          capability: "guest.write",
+          run: () => setQuickCreate("household"),
+        },
+        {
+          id: "create-guest",
+          label: "Adaugă un invitat",
+          hint: "Guest CRM · salvare reală",
+          group: "Acțiuni",
+          capability: "guest.write",
+          run: () => setQuickCreate("guest"),
+        },
+        {
+          id: "send-campaign",
+          label: "Trimite o campanie de invitații",
+          hint: "Livrare asincronă reală",
+          group: "Acțiuni",
+          capability: "campaign.send",
+          run: () => setQuickCreate("campaign"),
+        },
+        {
+          id: "view-rsvp",
+          label: "Vezi răspunsurile RSVP",
+          hint: "Date reale",
+          group: "Acțiuni",
+          capability: "rsvp.read",
+          run: () => router.push("/rsvp"),
+        },
+        ...navGroups.flatMap((group) =>
+          group.items.map<Action>((item) => ({
+            id: `nav-${item.href}`,
+            label: item.label,
+            hint: group.label,
+            group: "Navigare",
+            capability: item.capability,
+            run: () => router.push(item.href),
+          })),
+        ),
+      ];
+      return actions.filter(
+        (item) =>
+          !item.capability ||
+          (bootstrap?.membership.capabilities ?? []).includes(item.capability),
+      );
+    },
+    [bootstrap?.membership, openAI, router, setQuickCreate],
   );
 
   React.useEffect(() => {

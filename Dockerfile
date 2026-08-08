@@ -4,12 +4,17 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.json next.config.ts postcss.config.mjs .npmrc ./
+COPY patches patches
 COPY packages/contracts/package.json packages/contracts/package.json
 RUN pnpm install --frozen-lockfile
 COPY src src
 COPY public public
 COPY packages/contracts packages/contracts
 ARG WEDDINGOS_BUILD_ID=unversioned
+ARG API_INTERNAL_URL=http://127.0.0.1:4000
+ARG NEXT_PUBLIC_DEMO_MODE_ENABLED=false
+ENV API_INTERNAL_URL=$API_INTERNAL_URL
+ENV NEXT_PUBLIC_DEMO_MODE_ENABLED=$NEXT_PUBLIC_DEMO_MODE_ENABLED
 RUN printf '%s\n' "${WEDDINGOS_BUILD_ID}" > /app/.weddingos-build-id
 RUN pnpm --filter @weddingos/contracts build && pnpm build:web --webpack
 FROM node:22.22.0-bookworm-slim AS runtime

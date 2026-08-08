@@ -4,47 +4,66 @@ import { Section } from "@/components/marketing/section";
 export const metadata: Metadata = {
   title: "Confidențialitate",
   description:
-    "Principiile de confidențialitate Sarbato: cine vede datele evenimentului, cum sunt protejate și ce control ai asupra lor.",
+    "Politica de confidențialitate Sarbato și modul în care sunt prelucrate datele personale.",
 };
 
 const sections = [
   {
-    title: "Despre acest document",
+    title: "Cine răspunde pentru date",
     body: [
-      "Acest document descrie felul în care Sarbato tratează datele pe baza implementării curente și necesită revizuire juridică înainte să devină document contractual.",
+      "Sarbato este operat de Andrei Vilcu, vânzător individual, sub brandul Sarbato. Pentru întrebări sau cereri privind datele personale ne poți contacta la andreivilcuro@gmail.com.",
+      "Această politică se aplică site-ului sarbato.space, conturilor Sarbato și funcțiilor platformei.",
     ],
   },
   {
     title: "Ce date prelucrăm",
     body: [
       "Date de cont: adresa de email și parola, stocată numai ca hash securizat. Sesiunile folosesc cookie-uri HttpOnly.",
-      "Datele nunții: informațiile pe care le introduci despre eveniment, buget, furnizori, contracte și documente.",
+      "Date de utilizare și securitate: adrese IP, dispozitiv, autentificări, acțiuni auditate, erori și preferințe tehnice.",
+      "Datele evenimentului: informațiile pe care le introduci despre plan, buget, furnizori, contracte și documente.",
       "Date despre invitați: nume, detalii de contact, preferințe de meniu și alergii. Alergiile și datele sensibile sunt criptate și vizibile doar prin fluxurile autorizate.",
       "Date despre furnizori: profiluri, servicii, oferte, contracte și evidențe comerciale.",
     ],
   },
   {
-    title: "Cine vede datele",
+    title: "De ce și în baza cărui temei le folosim",
     body: [
-      "Accesul se face pe roluri — cuplu, partener, planner, familie, vizualizare — cu permisiuni pe module, verificate pe server.",
-      "Invitații primesc un link securizat sau un cod QR, cu vizibilitate doar asupra propriei familii. Linkul poate fi revocat, iar tokenurile nu sunt stocate în clar.",
-      "Furnizorii văd doar cererile, ofertele, rezervările și contractele care îi privesc.",
-      "Fiecare nuntă și fiecare organizație de furnizor sunt izolate la nivel de bază de date.",
+      "Prelucrăm datele pentru a crea și administra contul, a furniza funcțiile solicitate și a executa contractul cu utilizatorul.",
+      "Folosim datele necesare pentru securitate, prevenirea abuzului, jurnalizare, suport și îmbunătățirea fiabilității pe baza interesului nostru legitim, fără a prevala asupra drepturilor persoanei.",
+      "Prelucrăm date pentru obligații legale, fiscale și de protecție a consumatorilor. Comunicările opționale sunt trimise pe baza consimțământului, care poate fi retras.",
+      "Datele sensibile despre invitați, precum alergiile, trebuie introduse numai cu un temei legal adecvat și sunt folosite exclusiv pentru funcția solicitată.",
     ],
   },
   {
-    title: "Plăți și semnături",
+    title: "Cine poate primi datele",
     body: [
-      "Sarbato nu încasează și nu transferă plățile dintre organizatori și furnizori. Plățile se fac direct prin metoda stabilită între părți.",
-      "Semnătura electronică este realizată prin furnizorul configurat, iar nivelul juridic afișat provine exclusiv din evidența furnizorului respectiv.",
+      "Accesul în workspace este acordat pe roluri și verificat pe server. Invitații, colaboratorii și furnizorii văd numai datele necesare fluxului în care participă.",
+      "Folosim furnizori pentru infrastructură, stocare, email, securitate și funcționarea produsului. Aceștia prelucrează date numai potrivit instrucțiunilor și contractelor aplicabile.",
+      "Paddle este Merchant of Record pentru abonamentele plătite și prelucrează separat datele de checkout, plată, facturare, taxe, anulare și rambursare conform propriei politici de confidențialitate.",
+      "Nu vindem date personale. Putem divulga informații când legea o impune sau pentru protejarea drepturilor, utilizatorilor și securității serviciului.",
     ],
   },
   {
-    title: "Controlul tău",
+    title: "Păstrare, transferuri și securitate",
     body: [
-      "Listele, bugetul, planul de mese, contractele și istoricul activității se pot exporta în formate deschise.",
-      "Operațiunile importante sunt înregistrate într-un jurnal de audit ce nu poate fi rescris.",
-      "Acțiunile sensibile — aplicarea planului, acceptarea unei oferte, publicarea invitației — cer confirmare explicită.",
+      "Păstrăm datele cât timp contul este activ și ulterior atât cât este necesar pentru obligații legale, securitate, soluționarea disputelor și copii de siguranță. Datele care nu mai sunt necesare sunt șterse sau anonimizate.",
+      "Dacă un furnizor prelucrează date în afara Spațiului Economic European, folosim mecanisme legale adecvate, precum decizii de adecvare sau clauze contractuale standard.",
+      "Aplicăm măsuri tehnice și organizatorice precum criptare, control pe roluri, jurnalizare și copii de siguranță. Niciun sistem nu poate garanta securitate absolută.",
+    ],
+  },
+  {
+    title: "Drepturile tale",
+    body: [
+      "Poți solicita accesul, corectarea, ștergerea, restricționarea sau portabilitatea datelor și te poți opune anumitor prelucrări. Atunci când prelucrarea se bazează pe consimțământ, îl poți retrage pentru viitor.",
+      "Pentru o cerere, scrie la andreivilcuro@gmail.com. Este posibil să cerem informații rezonabile pentru verificarea identității și vom răspunde în termenul prevăzut de lege.",
+      "Ai dreptul să depui o plângere la Autoritatea Națională de Supraveghere a Prelucrării Datelor cu Caracter Personal sau la autoritatea competentă din țara ta.",
+    ],
+  },
+  {
+    title: "Cookie-uri și actualizări",
+    body: [
+      "Folosim cookie-uri strict necesare pentru autentificare, securitate și preferințe. Orice cookie opțional va necesita alegerea utilizatorului acolo unde legea o cere.",
+      "Putem actualiza această politică atunci când serviciul sau obligațiile legale se schimbă. Data versiunii curente este afișată mai jos, iar schimbările materiale vor fi comunicate atunci când este necesar.",
     ],
   },
 ];
@@ -57,7 +76,7 @@ export default function PrivacyPage() {
           Confidențialitate
         </h1>
         <p className="mt-3 text-base leading-[1.625] text-muted">
-          Document informativ curent. Actualizat la 20 iulie 2026.
+          În vigoare de la 1 august 2026.
         </p>
 
         <div className="mt-10 space-y-8">

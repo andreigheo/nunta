@@ -12,16 +12,21 @@ import {
   EyeOff,
   FileCheck2,
   GripVertical,
+  ImageIcon,
+  LayoutTemplate,
   ListChecks,
   MailCheck,
   MapPin,
   MessageSquareText,
   Monitor,
+  Palette,
+  Plus,
   ScanLine,
   Send,
   ShieldCheck,
   Smartphone,
   Sparkles,
+  SlidersHorizontal,
   Tablet,
   UsersRound,
   UtensilsCrossed,
@@ -86,18 +91,39 @@ export function DomainStory({
         )}
       >
         <div className={cn("max-w-[36rem]", index % 2 === 1 && "lg:order-2")}>
-          <p
-            className={cn(
-              "text-sm font-semibold",
-              dark ? "text-warning-soft" : "text-accent-strong",
-            )}
-          >
-            {story.navLabel}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <p
+              className={cn(
+                "text-sm font-semibold",
+                dark ? "text-warning-soft" : "text-accent-strong",
+              )}
+            >
+              {story.navLabel}
+            </p>
+            <ol
+              className="flex flex-wrap items-center gap-2"
+              aria-label={`Etapele capitolului ${story.navLabel}`}
+            >
+              {story.stages.map((stage, stageIndex) => (
+                <li
+                  key={stage}
+                  className={cn(
+                    "flex items-center gap-2 text-xs font-semibold",
+                    dark ? "text-white/70" : "text-muted",
+                  )}
+                >
+                  {stageIndex > 0 ? (
+                    <ArrowRight className="size-3" aria-hidden />
+                  ) : null}
+                  <span>{stage}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
           <h2
             id={`${story.id}-title`}
             className={cn(
-              "marketing-heading mt-4 text-[clamp(2.65rem,4.5vw,4.75rem)] font-semibold leading-[0.99] tracking-[-0.04em] text-balance",
+              "marketing-heading mt-4 text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-balance",
               dark ? "text-on-brand" : "text-brand",
             )}
           >
@@ -112,7 +138,58 @@ export function DomainStory({
             {story.lead}
           </p>
 
-          <ul className="mt-8 space-y-4">
+          <dl
+            className={cn(
+              "mt-7 grid gap-3 border-y py-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center",
+              dark ? "border-white/15" : "border-line-strong",
+            )}
+          >
+            <div>
+              <dt
+                className={cn(
+                  "text-xs font-semibold uppercase tracking-[0.08em]",
+                  dark ? "text-white/60" : "text-faint",
+                )}
+              >
+                Intră în etapă
+              </dt>
+              <dd
+                className={cn(
+                  "mt-1 text-sm font-semibold leading-5",
+                  dark ? "text-white" : "text-ink",
+                )}
+              >
+                {story.handoff.input}
+              </dd>
+            </div>
+            <ArrowRight
+              className={cn(
+                "hidden size-5 sm:block",
+                dark ? "text-warning-soft" : "text-accent-strong",
+              )}
+              aria-hidden
+            />
+            <div>
+              <dt
+                className={cn(
+                  "text-xs font-semibold uppercase tracking-[0.08em]",
+                  dark ? "text-white/60" : "text-faint",
+                )}
+              >
+                Continuă ca
+              </dt>
+              <dd
+                className={cn(
+                  "mt-1 text-sm font-semibold leading-5",
+                  dark ? "text-white" : "text-ink",
+                )}
+              >
+                {story.handoff.output}
+              </dd>
+            </div>
+          </dl>
+
+          <ul className="mt-7 space-y-4">
             {story.capabilities.map((capability) => (
               <li key={capability} className="flex items-start gap-3">
                 <span
@@ -254,18 +331,20 @@ function PlanningSurface() {
             </span>
           </div>
 
-          <div className="mt-4 inline-flex rounded-lg bg-subtle p-1">
-            {views.map((view, index) => (
-              <span
-                key={view}
-                className={cn(
-                  "rounded-md px-2.5 py-1.5 text-xs font-semibold",
-                  index === 0 ? "bg-elevated text-brand" : "text-muted",
-                )}
-              >
-                {view}
-              </span>
-            ))}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-faint">
+              Vizualizări:
+            </span>
+            <ul className="flex flex-wrap gap-1.5" aria-label="Vizualizări disponibile">
+              {views.map((view) => (
+                <li
+                  key={view}
+                  className="rounded-full bg-subtle px-2.5 py-1 text-xs font-semibold text-muted"
+                >
+                  {view}
+                </li>
+              ))}
+            </ul>
           </div>
 
           <ul className="mt-4 divide-y divide-line">
@@ -327,6 +406,13 @@ function PlanningSurface() {
 }
 
 function GuestSurface() {
+  const blocks = [
+    [ImageIcon, "Imagine hero", "Adăugat"],
+    [LayoutTemplate, "Text și poveste", "Adăugat"],
+    [CalendarCheck2, "Program", "Adăugat"],
+    [ImageIcon, "Galerie", "Ascuns"],
+    [MailCheck, "RSVP", "Adăugat"],
+  ] as const;
   const logistics = [
     [UtensilsCrossed, "Preferință meniu", "Salvată"],
     [Armchair, "Plan de mese", "De alocat"],
@@ -337,144 +423,186 @@ function GuestSurface() {
   return (
     <SurfaceShell
       title="Invitație și RSVP"
-      description="Editorul publică, răspunsurile alimentează logistica"
+      description="Blocuri, design, previzualizare și răspunsuri conectate"
     >
-      <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.2fr)_minmax(15rem,0.8fr)]">
-        <div className="border-b border-line p-4 sm:p-6 lg:border-r lg:border-b-0">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-base font-semibold text-ink">
-                Editor invitație
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                Șablon „Grădină de seară” · ciornă salvată
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex min-h-9 items-center rounded-lg bg-subtle px-3 text-xs font-semibold text-muted">
-                Salvează
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
+        <div>
+          <p className="text-sm font-semibold text-ink">Editor invitație</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Structură, canvas și inspector vizual
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg bg-subtle p-1" aria-label="Previzualizare responsive">
+            {[
+              { Icon: Monitor, label: "Desktop" },
+              { Icon: Tablet, label: "Tabletă" },
+              { Icon: Smartphone, label: "Mobil" },
+            ].map(({ Icon, label }, index) => (
+              <span
+                key={label}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-md",
+                  index === 0 ? "bg-elevated text-brand" : "text-muted",
+                )}
+                title={label}
+              >
+                <Icon className="size-4" aria-hidden />
+                <span className="sr-only">{label}</span>
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-success-soft px-3 py-1.5 text-xs font-semibold text-success">
-                <MailCheck className="size-3.5" aria-hidden />
-                Publicată
-              </span>
-            </div>
+            ))}
           </div>
+          <span className="inline-flex items-center gap-2 rounded-full bg-success-soft px-3 py-1.5 text-xs font-semibold text-success">
+            <MailCheck className="size-3.5" aria-hidden />
+            Salvată
+          </span>
+        </div>
+      </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5">
-              {["Grădină de seară", "Editorial", "Minimal"].map(
-                (template, index) => (
-                  <span
-                    key={template}
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-xs font-semibold",
-                      index === 0
-                        ? "bg-brand text-on-brand"
-                        : "bg-subtle text-muted",
-                    )}
-                  >
-                    {template}
-                  </span>
-                ),
-              )}
+      <div className="grid min-w-0 lg:grid-cols-[10.5rem_minmax(16rem,1fr)_12rem]">
+        <div className="border-b border-line p-4 lg:border-r lg:border-b-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-ink">Blocuri</p>
+              <span className="text-xs font-semibold text-faint">14 tipuri</span>
+          </div>
+          <ul className="mt-3 space-y-2" aria-label="Exemple de blocuri disponibile">
+            {blocks.map(([Icon, name, status], index) => (
+              <li
+                key={name}
+                className={cn(
+                  "flex min-h-11 items-center gap-2 rounded-lg px-2.5",
+                  index === 0 ? "bg-brand text-on-brand" : "bg-subtle text-muted",
+                )}
+              >
+                <GripVertical className="size-3.5 shrink-0" aria-hidden />
+                <Icon className="size-3.5 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1 text-xs font-semibold leading-4">
+                  {name}
+                </span>
+                {status === "Ascuns" ? (
+                  <EyeOff className="size-3.5 shrink-0" aria-hidden />
+                ) : (
+                  <Eye className="size-3.5 shrink-0" aria-hidden />
+                )}
+              </li>
+            ))}
+          </ul>
+          <span className="mt-3 flex min-h-10 items-center justify-center gap-2 rounded-lg border border-line text-xs font-semibold text-brand">
+            <Plus className="size-3.5" aria-hidden />
+            Adaugă bloc
+          </span>
+        </div>
+
+        <div className="min-w-0 border-b border-line bg-subtle p-4 sm:p-5 lg:border-r lg:border-b-0">
+          <div className="mx-auto max-w-[25rem] overflow-hidden border border-line bg-elevated shadow-card">
+            <div className="relative min-h-36 bg-accent-soft px-5 py-6 text-center">
+              <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-1 text-xs font-semibold text-brand">
+                <ImageIcon className="size-3" aria-hidden />
+                Imagine hero
+              </span>
+              <span className="mx-auto mt-5 flex size-11 items-center justify-center rounded-full bg-brand text-on-brand">
+                <Sparkles className="size-5" aria-hidden />
+              </span>
+              <p className="marketing-heading mt-3 text-xl font-semibold text-brand">
+                Evenimentul nostru
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                Povestea, programul și detaliile importante.
+              </p>
             </div>
-            <div className="inline-flex rounded-lg bg-subtle p-1">
-              {[
-                { Icon: Monitor, label: "Desktop" },
-                { Icon: Tablet, label: "Tabletă" },
-                { Icon: Smartphone, label: "Mobil" },
-              ].map(({ Icon, label }, index) => (
+            <div className="grid gap-2 p-4 sm:grid-cols-3">
+              {["Poveste", "Program", "Locație"].map((item) => (
                 <span
-                  key={label}
-                  className={cn(
-                    "flex size-8 items-center justify-center rounded-md",
-                    index === 2 ? "bg-elevated text-brand" : "text-muted",
-                  )}
-                  title={label}
+                  key={item}
+                  className="flex min-h-10 items-center justify-center bg-subtle px-2 text-xs font-semibold text-muted"
                 >
-                  <Icon className="size-4" aria-hidden />
-                  <span className="sr-only">{label}</span>
+                  {item}
                 </span>
               ))}
             </div>
-          </div>
-
-          <div className="mt-5 grid min-w-0 gap-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
-            <ul className="space-y-2" aria-label="Secțiuni reordonabile">
-              {[
-                { name: "Antet", visible: true },
-                { name: "Program", visible: true },
-                { name: "Galerie", visible: false },
-                { name: "RSVP", visible: true },
-              ].map((section, index) => (
-                <li
-                  key={section.name}
-                  className={cn(
-                    "flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold",
-                    index === 0
-                      ? "bg-brand text-on-brand"
-                      : "bg-subtle text-muted",
-                  )}
-                >
-                  <GripVertical className="size-4 shrink-0" aria-hidden />
-                  <span
-                    className={cn("flex-1", !section.visible && "line-through")}
-                  >
-                    {section.name}
-                  </span>
-                  {section.visible ? (
-                    <Eye className="size-3.5 shrink-0" aria-hidden />
-                  ) : (
-                    <EyeOff className="size-3.5 shrink-0" aria-hidden />
-                  )}
-                </li>
-              ))}
-            </ul>
-
-            <div className="min-w-0 border border-line bg-elevated p-4 text-center">
-              <span className="mx-auto flex size-11 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
-                <Sparkles className="size-5" aria-hidden />
-              </span>
-              <p className="mt-3 text-lg font-semibold text-brand">
-                Evenimentul nostru
+            <div className="border-t border-line p-4 text-center">
+              <p className="text-xs leading-5 text-muted">
+                Confirmarea și preferințele merg direct în RSVP.
               </p>
-              <p className="mt-2 text-xs leading-5 text-muted">
-                Detaliile importante și confirmarea, într-un singur loc.
-              </p>
-              <span className="mt-4 flex min-h-10 items-center justify-center rounded-lg bg-brand px-3 text-sm font-semibold text-on-brand">
+              <span className="mt-3 flex min-h-10 items-center justify-center rounded-lg bg-brand px-3 text-sm font-semibold text-on-brand">
                 Confirmă participarea
               </span>
             </div>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6">
+        <div className="p-4">
           <div className="flex items-center gap-2">
-            <UsersRound className="size-5 text-accent-strong" aria-hidden />
-            <p className="text-base font-semibold text-ink">
-              Răspunsul devine logistică
-            </p>
+            <SlidersHorizontal className="size-4 text-brand" aria-hidden />
+            <p className="text-sm font-semibold text-ink">Inspector</p>
           </div>
-          <ul className="mt-4 divide-y divide-line">
-            {logistics.map(([Icon, title, status]) => (
-              <li
-                key={title}
-                className="flex min-h-14 items-center gap-3 py-2.5"
-              >
-                <Icon className="size-4 shrink-0 text-brand" aria-hidden />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-ink">
-                    {title}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    {status}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4 border-b border-line pb-4">
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted">
+              <Palette className="size-3.5" aria-hidden />
+              Paletă
+            </div>
+            <div
+              className="mt-3 flex gap-2"
+              role="img"
+              aria-label="Paletă configurabilă cu plum, coral, galben și verde"
+            >
+              {["bg-brand", "bg-accent", "bg-sun", "bg-success"].map((tone) => (
+                <span
+                  key={tone}
+                  className={cn("size-7 rounded-full border-2 border-elevated shadow-card", tone)}
+                  aria-hidden
+                />
+              ))}
+            </div>
+          </div>
+          <div className="border-b border-line py-4">
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted">
+              <LayoutTemplate className="size-3.5" aria-hidden />
+              Layout hero
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <span className="flex min-h-9 items-center justify-center rounded-lg bg-brand text-xs font-semibold text-on-brand">
+                Centrat
+              </span>
+              <span className="flex min-h-9 items-center justify-center rounded-lg bg-subtle text-xs font-semibold text-muted">
+                Împărțit
+              </span>
+            </div>
+          </div>
+          <div className="pt-4">
+            <p className="text-xs font-semibold text-muted">Imagine hero</p>
+            <dl className="mt-3 space-y-2 text-xs">
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted">Focalizare</dt>
+                <dd className="font-semibold text-ink">Centru</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted">Overlay</dt>
+                <dd className="font-semibold text-ink">Ușor</dd>
+              </div>
+            </dl>
+          </div>
         </div>
+      </div>
+
+      <div className="border-t border-line bg-subtle p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <UsersRound className="size-5 text-accent-strong" aria-hidden />
+          <p className="text-sm font-semibold text-ink">
+            Răspunsul continuă în logistică
+          </p>
+        </div>
+        <ul className="mt-3 grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">
+          {logistics.map(([Icon, title, status]) => (
+            <li key={title} className="flex min-h-16 items-center gap-3 bg-elevated p-3">
+              <Icon className="size-4 shrink-0 text-brand" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-semibold text-ink">{title}</span>
+                <span className="mt-0.5 block text-xs text-muted">{status}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
     </SurfaceShell>
   );
@@ -503,12 +631,17 @@ function VendorSurface() {
           {steps.map(({ Icon, label }, index) => (
             <li
               key={label}
-              className="flex min-h-20 items-center gap-3 bg-subtle p-3"
+              className={cn(
+                "relative flex min-h-20 items-center gap-3 p-3",
+                index === 1 ? "bg-brand text-on-brand" : "bg-subtle text-ink",
+              )}
             >
               <span
                 className={cn(
                   "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                  index % 4 === 0
+                  index === 1
+                    ? "bg-white/10 text-white"
+                    : index % 4 === 0
                     ? "bg-brand-softer text-brand"
                     : index % 4 === 1
                       ? "bg-accent-soft text-accent-strong"
@@ -519,8 +652,18 @@ function VendorSurface() {
               >
                 <Icon className="size-4" aria-hidden />
               </span>
-              <span className="text-sm font-semibold leading-5 text-ink">
-                {label}
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn(
+                    "block text-xs font-semibold uppercase tracking-[0.08em]",
+                    index === 1 ? "text-white/60" : "text-faint",
+                  )}
+                >
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="mt-1 block text-sm font-semibold leading-5">
+                  {label}
+                </span>
               </span>
             </li>
           ))}

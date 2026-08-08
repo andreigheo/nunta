@@ -56,7 +56,7 @@ READY FOR CONTROLLED BETA
 PRODUCTION READY WITH CONDITIONS
 NOT READY FOR PUBLIC LAUNCH`;
 
-const handoff = `# WeddingOS — Slice 10C handoff
+const handoff = `# Sarbato — Slice 10C handoff
 
 Date: ${new Date().toISOString().slice(0, 10)}  
 Scope: final controlled-beta closure; Slice 11 excluded
@@ -101,14 +101,14 @@ Slice 10C closes the backend and operational gaps required for a controlled beta
 ${statuses}
 `;
 
-const report = `# WeddingOS — final beta readiness report
+const report = `# Sarbato — final beta readiness report
 
 Generated: ${new Date().toISOString()}  
 Decision source: \`pnpm verify:beta\`
 
 ## Executive verdict
 
-WeddingOS is ready for a controlled beta on the validated source snapshot. The full deterministic gate passed with ${e2e.passed} E2E scenarios, zero failures, zero skipped scenarios and zero retries. Security, data lifecycle, restore, tracing, observability, staging deployment and rollback evidence are all green.
+Sarbato is ready for a controlled beta on the validated source snapshot. The full deterministic gate passed with ${e2e.passed} E2E scenarios, zero failures, zero skipped scenarios and zero retries. Security, data lifecycle, restore, tracing, observability, staging deployment and rollback evidence are all green.
 
 This is not approval for a public launch. The evidence deliberately preserves the boundaries \`SOURCE_SNAPSHOT_ONLY\`, \`SEPARATE_LOCAL_BACKUP_DESTINATION\` and \`STAGING_LIKE_LOCAL_ENVIRONMENT\`.
 

@@ -6,7 +6,7 @@ groups:
         for: 1m
         labels: { severity: critical }
         annotations:
-          summary: WeddingOS API is unavailable
+          summary: Sarbato API is unavailable
           runbook_url: docs/runbooks/API_DOWN.md
       - alert: WeddingOsDatabaseDown
         expr: weddingos_up{component="database"} == 0

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowRight, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,25 +28,15 @@ export function StatCard({
   footer?: React.ReactNode;
   className?: string;
 }) {
-  const router = useRouter();
   const clickable = Boolean(href || onClick);
-  const handle = () => {
-    if (onClick) onClick();
-    else if (href) router.push(href);
-  };
-
-  return (
-    <div
-      role={clickable ? "link" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? handle : undefined}
-      onKeyDown={clickable ? (e) => e.key === "Enter" && handle() : undefined}
-      className={cn(
-        "group rounded-xl border border-line bg-surface p-4 shadow-card transition-all",
-        clickable && "cursor-pointer hover:-translate-y-px hover:border-line-strong hover:shadow-pop",
-        className,
-      )}
-    >
+  const classes = cn(
+    "group block w-full rounded-xl bg-subtle/65 p-4 text-left transition-[transform,background-color]",
+    clickable &&
+      "cursor-pointer hover:-translate-y-px hover:bg-brand-softer focus-visible:bg-brand-softer",
+    className,
+  );
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <p className="text-[13px] font-medium text-muted">{label}</p>
         {Icon && (
@@ -62,8 +52,8 @@ export function StatCard({
           </span>
         )}
       </div>
-      <div className="mt-1.5 flex items-baseline gap-2">
-        <p className="text-[26px] font-semibold leading-none tracking-tight text-ink tabular-nums">{value}</p>
+      <div className="mt-2 flex items-baseline gap-2">
+        <p className="text-[26px] font-semibold leading-none tracking-[-0.025em] text-ink tabular-nums">{value}</p>
         {trend && (
           <span
             className={cn(
@@ -83,10 +73,23 @@ export function StatCard({
       {hint && <p className="mt-1.5 text-xs leading-snug text-faint">{hint}</p>}
       {footer}
       {clickable && (
-        <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100">
           Deschide <ArrowRight className="size-3" aria-hidden />
         </span>
       )}
-    </div>
+    </>
   );
+  if (href)
+    return (
+      <Link href={href} className={classes}>
+        {content}
+      </Link>
+    );
+  if (onClick)
+    return (
+      <button type="button" onClick={onClick} className={classes}>
+        {content}
+      </button>
+    );
+  return <div className={classes}>{content}</div>;
 }

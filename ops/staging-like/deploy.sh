@@ -49,32 +49,59 @@ done
 
 certificate="$(mktemp)"
 trap 'rm -f "${certificate}"' EXIT
+staging_ready=false
 for _attempt in $(seq 1 90); do
   if "${compose[@]}" cp proxy:/data/caddy/pki/authorities/local/root.crt "${certificate}" >/dev/null 2>&1 &&
-     curl --connect-timeout 2 --max-time 5 --silent --show-error --fail --cacert "${certificate}" https://weddingos.localhost:58443/ready >/dev/null; then
+     curl --connect-timeout 2 --max-time 5 --silent --fail --cacert "${certificate}" https://weddingos.localhost:58443/ready >/dev/null 2>&1; then
+    staging_ready=true
     break
   fi
   sleep 2
 done
+if [[ "${staging_ready}" != true ]]; then
+  echo "Staging-like readiness did not stabilize within 180 seconds" >&2
+  exit 1
+fi
 
-redirect_status="$(curl --connect-timeout 2 --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://weddingos.localhost:58080/sign-in)"
+redirect_status=""
+for _attempt in $(seq 1 30); do
+  if redirect_status="$(curl --connect-timeout 2 --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://weddingos.localhost:58080/sign-in 2>/dev/null)" &&
+     [[ "${redirect_status}" =~ ^(301|308)$ ]]; then
+    break
+  fi
+  sleep 1
+done
 case "${redirect_status}" in
   301|308) ;;
   *) echo "Expected a permanent HTTPS redirect, received ${redirect_status}" >&2; exit 1 ;;
 esac
-curl --connect-timeout 2 --max-time 5 --silent --show-error --fail --cacert "${certificate}" https://weddingos.localhost:58443/sign-in >/dev/null
-curl --connect-timeout 2 --max-time 5 --silent --show-error --fail --cacert "${certificate}" https://weddingos.localhost:58443/docs-json > "${evidence_root}/openapi.json"
+for route in sign-in docs-json; do
+  route_ready=false
+  for _attempt in $(seq 1 30); do
+    if curl --connect-timeout 2 --max-time 5 --silent --fail --cacert "${certificate}" "https://weddingos.localhost:58443/${route}" > "${evidence_root}/${route}.probe" 2>/dev/null; then
+      route_ready=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ "${route_ready}" != true ]]; then
+    echo "Staging-like route /${route} did not stabilize" >&2
+    exit 1
+  fi
+done
+mv "${evidence_root}/docs-json.probe" "${evidence_root}/openapi.json"
+rm -f "${evidence_root}/sign-in.probe"
 curl --connect-timeout 2 --max-time 5 --silent --show-error --fail http://127.0.0.1:58686/ >/dev/null
 curl --connect-timeout 2 --max-time 5 --silent --show-error --fail http://127.0.0.1:59094/-/ready >/dev/null
 curl --connect-timeout 2 --max-time 5 --silent --show-error --fail http://127.0.0.1:59095/-/ready >/dev/null
 curl --connect-timeout 2 --max-time 5 --silent --show-error --fail http://127.0.0.1:53000/api/health >/dev/null
 for _attempt in $(seq 1 30); do
-  if curl --connect-timeout 2 --max-time 5 --silent --show-error --fail 'http://127.0.0.1:53000/api/search?query=WeddingOS' | node -e 'let b="";process.stdin.on("data",c=>b+=c).on("end",()=>process.exit(JSON.parse(b).some((item)=>item.uid==="weddingos-controlled-beta") ? 0 : 1))'; then
+  if curl --connect-timeout 2 --max-time 5 --silent --show-error --fail 'http://127.0.0.1:53000/api/search?query=Sarbato' | node -e 'let b="";process.stdin.on("data",c=>b+=c).on("end",()=>process.exit(JSON.parse(b).some((item)=>item.uid==="weddingos-controlled-beta") ? 0 : 1))'; then
     break
   fi
   sleep 1
 done
-curl --connect-timeout 2 --max-time 5 --silent --show-error --fail 'http://127.0.0.1:53000/api/search?query=WeddingOS' | node -e 'let b="";process.stdin.on("data",c=>b+=c).on("end",()=>process.exit(JSON.parse(b).some((item)=>item.uid==="weddingos-controlled-beta") ? 0 : 1))'
+curl --connect-timeout 2 --max-time 5 --silent --show-error --fail 'http://127.0.0.1:53000/api/search?query=Sarbato' | node -e 'let b="";process.stdin.on("data",c=>b+=c).on("end",()=>process.exit(JSON.parse(b).some((item)=>item.uid==="weddingos-controlled-beta") ? 0 : 1))'
 
 for _attempt in $(seq 1 30); do
   prometheus_result="$(curl --connect-timeout 2 --max-time 5 --silent --show-error --fail 'http://127.0.0.1:59094/api/v1/query?query=up%7Bjob%3D%22weddingos-api%22%7D')"
@@ -85,7 +112,7 @@ for _attempt in $(seq 1 30); do
 done
 PROMETHEUS_RESULT="${prometheus_result}" node -e 'const r=JSON.parse(process.env.PROMETHEUS_RESULT); process.exit(r.data?.result?.some((item)=>item.value?.[1]==="1") ? 0 : 1)'
 
-alert_name="WeddingOSStagingRouteSmoke${release_id}"
+alert_name="SarbatoStagingRouteSmoke${release_id}"
 curl --connect-timeout 2 --max-time 5 --silent --show-error --fail -H 'Content-Type: application/json' \
   --data "[{\"labels\":{\"alertname\":\"${alert_name}\",\"severity\":\"warning\",\"environment\":\"staging-like\"},\"annotations\":{\"summary\":\"Slice 10C alert routing smoke\"}}]" \
   http://127.0.0.1:59095/api/v2/alerts >/dev/null

@@ -19,7 +19,7 @@ import { assertDestructiveDatabasePurpose } from "./database-identity";
 
 describe("Slice 10B closure security primitives", () => {
   it("round-trips RFC 4648 base32", () => {
-    const input = Buffer.from("WeddingOS MFA");
+    const input = Buffer.from("Sarbato MFA");
     expect(base32Decode(base32Encode(input))).toEqual(input);
   });
 

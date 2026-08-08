@@ -9,7 +9,7 @@ destination_root="${state_root}/destination-${run_stamp}"
 object_source="${state_root}/objects-source-${run_stamp}"
 object_restore="${state_root}/objects-restore-${run_stamp}"
 mkdir -p "${evidence_root}" "${backup_root}" "${destination_root}" "${object_source}" "${object_restore}"
-printf 'WeddingOS Slice 10C object restore proof\n' > "${object_source}/proof.txt"
+printf 'Sarbato Slice 10C object restore proof\n' > "${object_source}/proof.txt"
 
 export DATABASE_OWNER_URL="${BETA_BACKUP_DATABASE_OWNER_URL:-postgresql://weddingos:weddingos@127.0.0.1:54339/weddingos_e2e?schema=public}"
 export POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-weddingos-postgres-1}"

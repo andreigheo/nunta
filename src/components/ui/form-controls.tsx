@@ -32,7 +32,7 @@ export function Checkbox({
       disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
       className={cn(
-        "inline-flex cursor-pointer items-center gap-2.5 text-sm text-ink",
+        "inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-2.5 text-left text-sm text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}
@@ -64,6 +64,7 @@ export function Switch({
   description,
   disabled,
   className,
+  "aria-label": ariaLabel,
 }: {
   checked: boolean;
   onCheckedChange?: (checked: boolean) => void;
@@ -71,40 +72,63 @@ export function Switch({
   description?: string;
   disabled?: boolean;
   className?: string;
+  "aria-label"?: string;
 }) {
-  const toggle = (
+  const generatedId = React.useId();
+  const labelId = label ? `switch-${generatedId}-label` : undefined;
+  const descriptionId = description
+    ? `switch-${generatedId}-description`
+    : undefined;
+
+  return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-label={label}
+      aria-label={label ? undefined : (ariaLabel ?? "Comutator")}
+      aria-labelledby={labelId}
+      aria-describedby={descriptionId}
       disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-brand" : "bg-line-strong",
+        "cursor-pointer rounded-lg text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        label
+          ? "flex min-h-11 w-full items-center justify-between gap-4 py-2"
+          : "inline-flex size-11 items-center justify-center",
         disabled && "cursor-not-allowed opacity-50",
+        className,
       )}
     >
+      {label && (
+        <span className="min-w-0">
+          <span id={labelId} className="block text-sm font-medium text-ink">
+            {label}
+          </span>
+          {description && (
+            <span
+              id={descriptionId}
+              className="mt-0.5 block text-[13px] text-muted"
+            >
+              {description}
+            </span>
+          )}
+        </span>
+      )}
       <span
+        aria-hidden
         className={cn(
-          "inline-block size-[18px] transform rounded-full bg-white shadow-sm transition-transform",
-          checked ? "translate-x-[22px]" : "translate-x-[3px]",
+          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+          checked ? "bg-brand" : "bg-line-strong",
         )}
-      />
+      >
+        <span
+          className={cn(
+            "inline-block size-[18px] transform rounded-full bg-white shadow-sm transition-transform",
+            checked ? "translate-x-[22px]" : "translate-x-[3px]",
+          )}
+        />
+      </span>
     </button>
-  );
-
-  if (!label) return toggle;
-
-  return (
-    <div className={cn("flex items-start justify-between gap-4", className)}>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-ink">{label}</p>
-        {description && <p className="mt-0.5 text-[13px] text-muted">{description}</p>}
-      </div>
-      {toggle}
-    </div>
   );
 }
 
@@ -120,19 +144,56 @@ export function SegmentedControl<T extends string>({
   className,
   ariaLabel,
 }: {
-  options: Array<{ value: T; label: React.ReactNode; icon?: React.ReactNode }>;
+  options: Array<{
+    value: T;
+    label: React.ReactNode;
+    icon?: React.ReactNode;
+    ariaLabel?: string;
+  }>;
   value: T;
   onChange: (value: T) => void;
   size?: "sm" | "md";
   className?: string;
   ariaLabel?: string;
 }) {
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Home",
+      "End",
+    ];
+    if (!keys.includes(event.key)) return;
+    const buttons = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+    );
+    if (buttons.length === 0) return;
+    const currentIndex = Math.max(
+      0,
+      buttons.indexOf(document.activeElement as HTMLButtonElement),
+    );
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? buttons.length - 1
+          : event.key === "ArrowRight" || event.key === "ArrowDown"
+            ? (currentIndex + 1) % buttons.length
+            : (currentIndex - 1 + buttons.length) % buttons.length;
+    event.preventDefault();
+    onChange(options[nextIndex].value);
+    buttons[nextIndex].focus();
+  };
+
   return (
     <div
       role="radiogroup"
       aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-lg border border-line bg-subtle p-0.5",
+        "inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-line bg-subtle p-0.5",
         className,
       )}
     >
@@ -141,13 +202,18 @@ export function SegmentedControl<T extends string>({
         return (
           <button
             key={opt.value}
+            type="button"
             role="radio"
             aria-checked={active}
+            aria-label={opt.ariaLabel}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px] font-medium transition-colors",
-              size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-[13px]",
-              active ? "bg-elevated text-ink shadow-card" : "text-muted hover:text-ink",
+              "inline-flex min-w-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px] font-medium transition-colors",
+              size === "sm" ? "h-11 px-2.5 text-xs" : "h-11 px-3 text-[13px]",
+              active
+                ? "bg-elevated text-ink shadow-card"
+                : "text-muted hover:text-ink",
             )}
           >
             {opt.icon}

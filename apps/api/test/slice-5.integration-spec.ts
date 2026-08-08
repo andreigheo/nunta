@@ -1284,16 +1284,7 @@ describe.sequential("Slice 5 commercial journey integration", () => {
         timezone: "Europe/Chisinau",
       })
       .expect(201);
-    const workspaceId = response.body.data.id as string;
-    await database.workspaceSubscription.update({
-      where: { workspaceId },
-      data: {
-        planKey: "PRO",
-        status: "ACTIVE",
-        provider: "integration-test",
-      },
-    });
-    return workspaceId;
+    return response.body.data.id as string;
   }
 });
 
@@ -1310,7 +1301,7 @@ async function waitForVerificationToken(email: string) {
     };
     for (const summary of list.messages.filter(
       (message) =>
-        message.Subject === "Confirmă adresa de email WeddingOS" &&
+        message.Subject === "Confirmă adresa de email Sarbato" &&
         message.To.some((recipient) => recipient.Address === email),
     )) {
       const message = (await fetch(

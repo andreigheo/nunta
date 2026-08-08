@@ -1,5 +1,5 @@
 [Unit]
-Description=WeddingOS weekly full backup and verification
+Description=Sarbato weekly full backup and verification
 
 [Timer]
 OnCalendar=Sun *-*-* 03:00:00 Europe/Chisinau

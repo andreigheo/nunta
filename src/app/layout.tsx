@@ -41,7 +41,7 @@ export const viewport: Viewport = {
  * Applied before first paint to avoid a light-theme flash when the user
  * prefers (or explicitly selected) the dark theme.
  */
-const themeInitScript = `(function(){try{var t=localStorage.getItem("weddingos-theme")||"system";var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var el=document.documentElement;if(d){el.classList.add("dark")}el.style.colorScheme=d?"dark":"light"}catch(e){}})();`;
+const themeInitScript = `(function(){try{var t=localStorage.getItem("weddingos-theme")||"light";var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var el=document.documentElement;if(d){el.classList.add("dark")}el.style.colorScheme=d?"dark":"light"}catch(e){}})();`;
 
 export default function RootLayout({
   children,

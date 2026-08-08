@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Mail, Wand2 } from "lucide-react";
 import { Button, Checkbox, Field, Input } from "@/components/ui";
-import { AuthError, AuthHeading, AuthInfo, Divider } from "@/components/auth/auth-bits";
+import { AuthError, AuthHeading, AuthInfo, Divider, SocialButtons } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import {
   destinationForRegistration,
@@ -93,6 +93,9 @@ export default function SignInPage() {
       <AuthHeading title="Bine ai revenit" subtitle="Conectează-te la evenimentele, invitațiile sau serviciile tale." />
 
       <div className="space-y-4">
+        <SocialButtons mode="signin" />
+        <Divider label="sau cu email" />
+
         {formError && <AuthError message={formError} />}
         {info && <AuthInfo message={info} />}
 

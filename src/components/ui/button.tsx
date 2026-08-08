@@ -16,9 +16,9 @@ export type ButtonSize = "sm" | "md" | "lg" | "icon" | "icon-sm";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand text-on-brand hover:bg-brand-strong active:bg-brand-strong shadow-card disabled:bg-brand/50",
+    "bg-brand text-on-brand hover:bg-brand-strong active:bg-brand-strong disabled:bg-brand/50",
   accent:
-    "bg-accent text-on-accent hover:bg-accent-strong active:bg-accent-strong shadow-card disabled:bg-accent/50",
+    "bg-accent text-on-accent hover:bg-accent-strong active:bg-accent-strong disabled:bg-accent/50",
   secondary:
     "bg-subtle text-ink hover:bg-sunken active:bg-sunken disabled:text-faint",
   outline:
@@ -26,18 +26,18 @@ const variantClasses: Record<ButtonVariant, string> = {
   ghost:
     "text-muted hover:bg-subtle hover:text-ink active:bg-sunken disabled:text-faint",
   destructive:
-    "bg-danger text-on-danger hover:brightness-110 active:brightness-95 shadow-card disabled:bg-danger/50",
+    "bg-danger text-on-danger hover:brightness-110 active:brightness-95 disabled:bg-danger/50",
   "destructive-outline":
     "border border-danger/40 bg-surface text-danger hover:bg-danger-soft disabled:text-danger/50",
   link: "text-brand underline-offset-4 hover:underline disabled:text-faint",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "h-8 gap-1.5 rounded-lg px-3 text-[13px]",
-  md: "h-10 gap-2 rounded-lg px-4 text-sm",
-  lg: "h-11 gap-2 rounded-xl px-5 text-[15px]",
-  icon: "size-10 rounded-lg",
-  "icon-sm": "size-8 rounded-lg",
+  sm: "h-11 gap-1.5 rounded-lg px-3 text-[13px]",
+  md: "h-11 gap-2 rounded-lg px-4 text-sm",
+  lg: "h-11 gap-2 rounded-lg px-5 text-[15px]",
+  icon: "size-11 rounded-lg",
+  "icon-sm": "size-11 rounded-lg",
 };
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -52,8 +52,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled || loading}
+        aria-busy={loading || undefined}
         className={cn(
-          "inline-flex shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed",
+          "inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed",
           variantClasses[variant],
           sizeClasses[size],
           className,

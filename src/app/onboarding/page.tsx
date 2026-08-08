@@ -12,6 +12,7 @@ import {
   Heart,
   ImagePlus,
   Leaf,
+  LoaderCircle,
   Minus,
   Mountain,
   Palmtree,
@@ -23,9 +24,9 @@ import {
   Tent,
   Users,
 } from "lucide-react";
+import { SarbatoMark } from "@/components/brand/sarbato-mark";
 import { cn, formatRON } from "@/lib/utils";
 import { Button, CurrencyInput, Field, Input, Progress, Select, Switch, useToast } from "@/components/ui";
-import { SarbatoMark } from "@/components/brand/sarbato-mark";
 import { ThemeSegmentedControl } from "@/lib/theme";
 import { apiErrorMessage, hasDemoCookie, weddingOsApi } from "@/lib/api/client";
 
@@ -35,7 +36,7 @@ const steps = [
   { id: 3, title: "Locația", hint: "Unde va avea loc?" },
   { id: 4, title: "Invitații", hint: "Câți oameni așteptați?" },
   { id: 5, title: "Bugetul", hint: "Cu ce resurse lucrați?" },
-  { id: 6, title: "Stilul", hint: "Cum arată nunta voastră visată?" },
+  { id: 6, title: "Stilul", hint: "Cum arată evenimentul vostru?" },
   { id: 7, title: "Progres existent", hint: "Ce ați rezolvat deja?" },
   { id: 8, title: "Preferințe", hint: "Cum vă ajutăm cel mai bine?" },
 ];
@@ -94,6 +95,7 @@ export default function OnboardingPage() {
   const toggle = (key: string) => (c: boolean) => setToggles((t) => ({ ...t, [key]: c }));
 
   const canContinue = step !== 1 || Boolean(values.partnerOne?.trim() && values.partnerTwo?.trim());
+  const canSkip = [4, 5, 6].includes(step);
 
   const hydrateDraft = React.useCallback((draft: import("@weddingos/contracts").OnboardingDraftResource) => {
     const sections = [draft.couple, draft.dateEvents, draft.location, draft.guests, draft.budget, draft.style, draft.planningPreferences];
@@ -221,7 +223,24 @@ export default function OnboardingPage() {
     }
   };
 
-  if (loadingDraft) return <div className="flex min-h-dvh items-center justify-center text-sm text-muted">Se încarcă configurarea salvată…</div>;
+  if (loadingDraft) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-10" aria-busy="true">
+        <div className="w-full max-w-sm text-center">
+          <SarbatoMark href="/" compact className="justify-center" />
+          <div className="mt-8 rounded-2xl bg-surface p-6 shadow-card" role="status" aria-live="polite">
+            <span className="mx-auto flex size-11 items-center justify-center rounded-lg bg-brand-soft text-brand-strong dark:text-brand">
+              <LoaderCircle className="size-5 motion-safe:animate-spin" aria-hidden />
+            </span>
+            <h1 className="mt-5 font-brand text-2xl font-semibold tracking-[-0.02em] text-ink">
+              Pregătim configurarea
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-muted">Se încarcă progresul salvat al evenimentului…</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className="min-h-dvh">
@@ -252,7 +271,7 @@ export default function OnboardingPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-8 pb-32">
+      <main className="mx-auto max-w-3xl px-4 py-8 pb-44 sm:pb-32">
         <h1 className="font-brand text-3xl font-semibold tracking-tight text-ink">{steps[step - 1].title}</h1>
         <p className="mt-1.5 text-[15px] text-muted">{steps[step - 1].hint}</p>
 
@@ -304,7 +323,7 @@ export default function OnboardingPage() {
               </div>
               <Switch checked={toggles.flexibleDate} onCheckedChange={toggle("flexibleDate")} label="Suntem flexibili cu data" description="Copilotul poate propune date cu prețuri mai bune la furnizori." />
               <div>
-                <p className="text-[13px] font-medium text-ink">Ce evenimente include nunta?</p>
+                <p className="text-[13px] font-medium text-ink">Ce momente include evenimentul?</p>
                 <div className="mt-2.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Switch checked={toggles.civil} onCheckedChange={toggle("civil")} label="Cununie civilă" />
                   <Switch checked={toggles.religious} onCheckedChange={toggle("religious")} label="Cununie religioasă" />
@@ -469,7 +488,7 @@ export default function OnboardingPage() {
                       onClick={() => setStyles((prev) => (active ? prev.filter((x) => x !== s.id) : [...prev, s.id]))}
                       aria-pressed={active}
                       className={cn(
-                        "flex cursor-pointer flex-col items-center gap-2 rounded-xl border p-4 transition-all",
+                        "flex cursor-pointer flex-col items-center gap-2 rounded-xl border p-4 transition-[border-color,background-color,box-shadow,color]",
                         active ? "border-brand bg-brand-soft shadow-card dark:bg-brand-softer" : "border-line bg-surface hover:border-line-strong",
                       )}
                     >
@@ -571,28 +590,28 @@ export default function OnboardingPage() {
 
       {/* Footer nav */}
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-elevated/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3.5">
-          <Button variant="ghost" onClick={() => void advance(Math.max(1, step - 1))} disabled={step === 1 || saving}>
+        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:py-3.5">
+          <Button className="w-full sm:w-auto" variant="ghost" onClick={() => void advance(Math.max(1, step - 1))} disabled={step === 1 || saving}>
             <ArrowLeft className="size-4" aria-hidden />
             Înapoi
           </Button>
-          <div className="flex items-center gap-2">
-            {[4, 5, 6].includes(step) && (
-              <Button variant="ghost" onClick={() => void advance()} disabled={saving}>
+          <div className="contents sm:ml-auto sm:flex sm:items-center sm:gap-2">
+            {canSkip && (
+              <Button className="w-full sm:w-auto" variant="ghost" onClick={() => void advance()} disabled={saving}>
                 Omite
               </Button>
             )}
             {step < steps.length ? (
-              <Button onClick={() => void advance()} disabled={!canContinue || saving}>
+              <Button className={cn("w-full sm:w-auto", canSkip && "col-span-2")} onClick={() => void advance()} disabled={!canContinue || saving}>
                 Continuă
                 <ArrowRight className="size-4" aria-hidden />
               </Button>
             ) : (
               <>
-                <Button variant="outline" onClick={() => toast({ title: "Rezumat configurare", description: `${values.partnerOne || "Ana"} & ${values.partnerTwo || "Mihai"} · ${values.date || "12.09.2027"} · ${values.guestCount || 160} invitați · ${formatRON(Number(values.budget) || 180000)}`, variant: "info" })}>
+                <Button className="w-full sm:w-auto" variant="outline" onClick={() => toast({ title: "Rezumat configurare", description: `${values.partnerOne || "Ana"} & ${values.partnerTwo || "Mihai"} · ${values.date || "12.09.2027"} · ${values.guestCount || 160} invitați · ${formatRON(Number(values.budget) || 180000)}`, variant: "info" })}>
                   Verifică detaliile
                 </Button>
-                <Button onClick={() => void complete()} disabled={saving}>
+                <Button className="col-span-2 w-full sm:w-auto" onClick={() => void complete()} disabled={saving}>
                   <Save className="size-4" aria-hidden />
                   {saving ? "Se salvează…" : "Finalizează configurarea"}
                 </Button>

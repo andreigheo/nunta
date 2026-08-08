@@ -10,7 +10,7 @@ describe("Slice 2A OpenAPI contracts", () => {
   it("documents concrete active contracts and validates as OpenAPI", async () => {
     const document = applyOpenApiContracts({
       openapi: "3.0.0",
-      info: { title: "WeddingOS test", version: "2A" },
+      info: { title: "Sarbato test", version: "2A" },
       paths: {
         "/health": { get: { responses: {} } },
         "/api/v1/workspaces": {
@@ -77,7 +77,7 @@ describe("Slice 2B complete OpenAPI surface", () => {
       const document = applyOpenApiContracts(
         SwaggerModule.createDocument(application, {
           openapi: "3.0.0",
-          info: { title: "WeddingOS", version: "2B" },
+          info: { title: "Sarbato", version: "2B" },
         } as never),
       );
       const operations = Object.entries(document.paths).flatMap(
@@ -132,7 +132,7 @@ describe("Slice 4 operations OpenAPI surface", () => {
       const document = applyOpenApiContracts(
         SwaggerModule.createDocument(application, {
           openapi: "3.0.0",
-          info: { title: "WeddingOS", version: "4" },
+          info: { title: "Sarbato", version: "4" },
         } as never),
       );
       const operations = Object.entries(document.paths).flatMap(
@@ -192,7 +192,7 @@ describe("Slice 5 commercial OpenAPI surface", () => {
       const document = applyOpenApiContracts(
         SwaggerModule.createDocument(application, {
           openapi: "3.0.0",
-          info: { title: "WeddingOS", version: "5" },
+          info: { title: "Sarbato", version: "5" },
         } as never),
       );
       const operations = Object.entries(document.paths).flatMap(
@@ -270,7 +270,7 @@ describe("Slice 6 secure commerce OpenAPI surface", () => {
       const document = applyOpenApiContracts(
         SwaggerModule.createDocument(application, {
           openapi: "3.0.0",
-          info: { title: "WeddingOS", version: "6" },
+          info: { title: "Sarbato", version: "6" },
         } as never),
       );
       const paths = document.paths;
@@ -332,7 +332,7 @@ describe("Slice 7 trust and monetization OpenAPI surface", () => {
       const document = applyOpenApiContracts(
         SwaggerModule.createDocument(application, {
           openapi: "3.0.0",
-          info: { title: "WeddingOS", version: "7" },
+          info: { title: "Sarbato", version: "7" },
         } as never),
       );
       const operations = Object.entries(document.paths).flatMap(
@@ -405,7 +405,7 @@ describe("Slice 8 Wedding Day OpenAPI surface", () => {
       const document = applyOpenApiContracts(
         SwaggerModule.createDocument(application, {
           openapi: "3.0.0",
-          info: { title: "WeddingOS", version: "8" },
+          info: { title: "Sarbato", version: "8" },
         } as never),
       );
       const operations = Object.entries(document.paths).flatMap(
@@ -502,7 +502,7 @@ describe("Slice 9 intelligence OpenAPI surface", () => {
       const document = applyOpenApiContracts(
         SwaggerModule.createDocument(application, {
           openapi: "3.0.0",
-          info: { title: "WeddingOS", version: "9" },
+          info: { title: "Sarbato", version: "9" },
         } as never),
       );
       const operations = Object.entries(document.paths).flatMap(
@@ -574,6 +574,40 @@ describe("Slice 9 intelligence OpenAPI surface", () => {
       expect(JSON.stringify(weeklyDigest?.parameters)).toContain(
         "Idempotency-Key",
       );
+      await expect(
+        SwaggerParser.validate(document as never),
+      ).resolves.toBeDefined();
+    } finally {
+      await application.close();
+    }
+  }, 60_000);
+});
+
+describe("Public API launch surface", () => {
+  it("does not expose the retired controlled-beta administration surface", async () => {
+    const testingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const application = testingModule.createNestApplication();
+    await application.init();
+    try {
+      const document = applyOpenApiContracts(
+        SwaggerModule.createDocument(application, {
+          openapi: "3.0.0",
+          info: { title: "Sarbato", version: "Live" },
+        } as never),
+      );
+      const betaOperations = Object.entries(document.paths).flatMap(
+        ([path, item]) =>
+          ["get", "post", "patch"].flatMap((method) => {
+            const operation = (item as Record<string, unknown>)[method] as
+              Record<string, unknown> | undefined;
+            return operation && /\/api\/v1\/(?:platform\/)?beta\//.test(path)
+              ? [{ path, method, operation }]
+              : [];
+          }),
+      );
+      expect(betaOperations).toEqual([]);
       await expect(
         SwaggerParser.validate(document as never),
       ).resolves.toBeDefined();

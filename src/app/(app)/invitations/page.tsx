@@ -92,7 +92,7 @@ export default function InvitationsPage() {
   const delivered = campaigns.reduce((sum, campaign) => sum + (campaign.statistics.byStatus.delivered ?? 0), 0);
   const opened = campaigns.reduce((sum, campaign) => sum + (campaign.statistics.byStatus.opened ?? 0), 0);
   return <div className="mx-auto max-w-7xl space-y-5">
-    <PageHeader title="Invitații digitale" description="Site-ul nunții și campaniile către invitați." actions={<>
+    <PageHeader title="Invitații digitale" description="Creează invitația, publică versiunea potrivită și urmărește răspunsurile." actions={<>
       <Button variant="outline" size="sm" disabled={!site || site.status !== "published"} onClick={() => void copyLink()}><Copy className="size-3.5" />Copiază linkul</Button>
       <Button variant="outline" size="sm" disabled={!site?.published || !capabilities.includes("invitation.manage_recipients") || demoMode || saving} onClick={() => void prepareRecipients()}><MailPlus className="size-3.5" />Pregătește destinatari ({recipientCount})</Button>
       <Button variant="outline" size="sm" disabled={!firstRecipientId || !capabilities.includes("invitation.manage_recipients")} onClick={() => void downloadQr()}><QrCode className="size-3.5" />QR personal</Button>

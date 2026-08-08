@@ -2,50 +2,76 @@ import type { Metadata } from "next";
 import { Section } from "@/components/marketing/section";
 
 export const metadata: Metadata = {
-  title: "Termeni",
+  title: "Termeni de utilizare",
   description:
-    "Termenii de utilizare Sarbato: stadiul produsului, contul, plățile, semnăturile și limitele funcțiilor AI.",
+    "Termenii care guvernează utilizarea platformei Sarbato și a abonamentelor sale.",
 };
 
 const sections = [
   {
-    title: "Despre acest document",
+    title: "Operatorul serviciului",
     body: [
-      "Acești termeni descriu utilizarea Sarbato pe baza implementării curente și necesită revizuire juridică înainte să devină document contractual.",
+      "Sarbato este un serviciu software operat de Andrei Vilcu, vânzător individual, sub brandul Sarbato. Ne poți contacta la andreivilcuro@gmail.com.",
+      "Prin crearea unui cont sau folosirea serviciului accepți acești termeni. Dacă folosești Sarbato în numele altor persoane, confirmi că ai permisiunea necesară.",
     ],
   },
   {
-    title: "Stadiul produsului",
+    title: "Serviciul Sarbato",
     body: [
-      "Capabilitățile marcate în produs și pe site ca „în dezvoltare” sau „planificat” pot fi modificate, amânate sau retrase. Nu prezentăm funcții planificate ca fiind disponibile.",
-      "În această etapă nu oferim garanții de disponibilitate sau termene de răspuns pentru suport.",
+      "Sarbato este o platformă SaaS pentru planificarea nunților și a altor evenimente de familie. Funcțiile disponibile pot include planificare, invitații, RSVP, buget, furnizori, documente și coordonarea zilei evenimentului.",
+      "Funcțiile marcate ca planificate, beta sau în dezvoltare nu fac parte din abonamentul cumpărat până când nu sunt activate explicit.",
     ],
   },
   {
     title: "Contul tău",
     body: [
       "Ești responsabil de păstrarea confidențialității acreditărilor și de activitatea din contul tău.",
-      "Datele pe care le introduci rămân ale tale. Le poți exporta oricând în formate deschise.",
+      "Trebuie să furnizezi informații corecte, să folosești serviciul legal și să ai dreptul de a introduce datele invitaților, colaboratorilor și furnizorilor.",
+      "Nu poți încerca să accesezi alte conturi, să ocolești limitele planului, să încarci conținut ilegal sau să afectezi securitatea și funcționarea platformei.",
     ],
   },
   {
-    title: "Plăți, contracte și semnături",
+    title: "Abonamente și facturare",
     body: [
-      "Sarbato nu încasează și nu transferă plățile dintre organizatori și furnizori. Plata se face direct prin metoda stabilită între părți.",
-      "Confirmările operaționale din platformă nu pretind valoare juridică universală. Pentru semnătura electronică, nivelul juridic este cel raportat de furnizorul configurat.",
+      "Planul gratuit nu necesită card. Planurile Plus și Pro sunt abonamente lunare care se reînnoiesc automat până la anulare. Prețul și taxele aplicabile sunt afișate înainte de confirmarea comenzii.",
+      "Paddle este Merchant of Record și gestionează checkout-ul, încasarea, taxele, documentele de plată, anulările și rambursările pentru abonamentele plătite Sarbato.",
+      "Poți anula abonamentul oricând din portalul clientului. Anularea produce efecte la sfârșitul perioadei de facturare curente și oprește taxările viitoare, fără a șterge automat contul.",
+      "Condițiile privind retragerea și rambursările sunt descrise în Politica de rambursare.",
     ],
   },
   {
-    title: "Funcțiile AI",
+    title: "Plățile către furnizorii evenimentului",
     body: [
-      "AI-ul pregătește propuneri și drafturi explicate. Nicio rezervare, plată sau comunicare externă nu se face fără confirmarea ta.",
-      "Analiza contractuală este informativă și nu constituie consultanță juridică. Estimările financiare sunt orientative.",
+      "Abonamentele Sarbato sunt separate de relațiile comerciale dintre organizatori și furnizorii evenimentului. Sarbato nu încasează, nu păstrează și nu transferă bani între aceste părți.",
+      "Ofertele, confirmările, bugetele și evidențele din platformă au rol operațional. Plata unui furnizor se face direct prin metoda stabilită între părți.",
     ],
   },
   {
-    title: "Furnizori",
+    title: "Funcțiile AI și informațiile profesionale",
     body: [
-      "Conturile de furnizor se activează prin invitație. Profilurile publice apar în marketplace doar după publicare explicită, iar recenziile sunt moderate de echipa platformei.",
+      "Funcțiile AI pot pregăti propuneri, rezumate și estimări. Rezultatele pot conține erori și trebuie verificate înainte de folosire.",
+      "Sarbato nu oferă consultanță juridică, financiară sau fiscală. Deciziile, contractele, mesajele și acțiunile externe rămân responsabilitatea utilizatorului.",
+    ],
+  },
+  {
+    title: "Disponibilitate și modificări",
+    body: [
+      "Depunem eforturi rezonabile pentru disponibilitatea și securitatea serviciului, însă mentenanța, incidentele sau furnizorii externi pot produce întreruperi temporare.",
+      "Putem modifica serviciul și acești termeni pentru motive legale, de securitate sau de produs. Pentru schimbările materiale care afectează un abonament plătit vom furniza o notificare rezonabilă atunci când legea o cere.",
+    ],
+  },
+  {
+    title: "Suspendare, încetare și răspundere",
+    body: [
+      "Putem suspenda sau închide accesul pentru încălcări grave sau repetate, fraudă, abuz ori risc de securitate. Utilizatorul poate înceta folosirea serviciului și poate solicita ștergerea contului conform politicii de confidențialitate.",
+      "În limita permisă de lege, Sarbato nu răspunde pentru pierderi indirecte, decizii luate pe baza estimărilor, neexecutarea obligațiilor unui furnizor sau evenimente aflate în afara controlului rezonabil. Drepturile obligatorii ale consumatorilor nu sunt limitate.",
+    ],
+  },
+  {
+    title: "Legea aplicabilă și contact",
+    body: [
+      "Acești termeni sunt guvernați de legea română, fără a afecta protecțiile obligatorii de care beneficiază consumatorul în țara sa de reședință.",
+      "Pentru întrebări despre serviciu sau acești termeni, scrie la andreivilcuro@gmail.com.",
     ],
   },
 ];
@@ -58,7 +84,7 @@ export default function TermsPage() {
           Termeni de utilizare
         </h1>
         <p className="mt-3 text-base leading-[1.625] text-muted">
-          Document informativ curent. Actualizat la 20 iulie 2026.
+          În vigoare de la 1 august 2026.
         </p>
 
         <div className="mt-10 space-y-8">

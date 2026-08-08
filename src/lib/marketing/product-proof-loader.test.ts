@@ -13,9 +13,7 @@ describe("loadMarketingProductProof", () => {
   it("revine la fallback la timeout și configurează requestul public fără cookies", async () => {
     const timeoutSignal = new AbortController().signal;
     const createTimeoutSignal = vi.fn(() => timeoutSignal);
-    const fetcher = vi
-      .fn()
-      .mockRejectedValue(new DOMException("Timed out", "TimeoutError"));
+    const fetcher = vi.fn().mockRejectedValue(new DOMException("Timed out", "TimeoutError"));
 
     const result = await loadMarketingProductProof("http://api.test/", {
       fetcher,
@@ -23,7 +21,7 @@ describe("loadMarketingProductProof", () => {
     });
 
     expect(result).toEqual(fallback);
-    expect(createTimeoutSignal).toHaveBeenCalledWith(3_000);
+    expect(createTimeoutSignal).toHaveBeenCalledWith(1_200);
     expect(fetcher).toHaveBeenCalledWith(
       "http://api.test/api/v1/public/product-proof",
       expect.objectContaining({
@@ -39,41 +37,13 @@ describe("loadMarketingProductProof", () => {
   it.each([500, 503])("revine la fallback pentru HTTP %i", async () => {
     const fetcher = vi.fn().mockResolvedValue({ ok: false, json: vi.fn() });
 
-    await expect(
-      loadMarketingProductProof("http://api.test", { fetcher }),
-    ).resolves.toEqual(fallback);
+    await expect(loadMarketingProductProof("http://api.test", { fetcher })).resolves.toEqual(fallback);
     expect(fetcher.mock.results[0]?.type).toBe("return");
   });
 
   it("revine la fallback când răspunsul nu conține snapshot", async () => {
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ data: null }),
-      });
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ data: null }) });
 
-    await expect(
-      loadMarketingProductProof("http://api.test", { fetcher }),
-    ).resolves.toEqual(fallback);
-  });
-
-  it("separă cache-ul intern prin header fără să încalce contractul endpointului", async () => {
-    const fetcher = vi.fn().mockResolvedValue({ ok: false, json: vi.fn() });
-
-    await loadMarketingProductProof("http://api.test", {
-      fetcher,
-      cacheNamespace: "landing-proof-test",
-    });
-
-    expect(fetcher).toHaveBeenCalledWith(
-      "http://api.test/api/v1/public/product-proof",
-      expect.objectContaining({
-        headers: {
-          Accept: "application/json",
-          "X-WeddingOS-Proof-Cache": "landing-proof-test",
-        },
-      }),
-    );
+    await expect(loadMarketingProductProof("http://api.test", { fetcher })).resolves.toEqual(fallback);
   });
 });

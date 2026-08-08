@@ -507,7 +507,7 @@ function MessageBubble({
           "max-w-[90%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
           assistant
             ? "border border-line bg-surface text-ink"
-            : "bg-brand text-white",
+            : "bg-brand text-on-brand",
         )}
       >
         <p className="whitespace-pre-wrap">{message.content}</p>

@@ -48,7 +48,7 @@ export function SectionHeading({
 }) {
   return (
     <div className={cn("max-w-[68ch]", className)}>
-      <h2 className="marketing-heading text-[clamp(2.5rem,4vw,4.25rem)] font-semibold leading-[1.01] tracking-[-0.04em] text-brand text-balance">
+      <h2 className="marketing-heading text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-brand text-balance">
         {title}
       </h2>
       {lead ? (

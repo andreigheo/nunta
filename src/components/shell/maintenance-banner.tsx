@@ -11,11 +11,22 @@ type StatusResponse = {
   };
 };
 
+const apiIndependentPublicPaths = new Set([
+  "/",
+  "/confidentialitate",
+  "/privacy",
+  "/termeni",
+  "/terms",
+  "/rambursari",
+  "/cookies",
+]);
+
 export function MaintenanceBanner() {
   const pathname = usePathname();
   const [maintenance, setMaintenance] = React.useState<NonNullable<StatusResponse["data"]>["maintenance"]>(null);
   React.useEffect(() => {
     if (
+      apiIndependentPublicPaths.has(pathname) ||
       isDemoCookieHeader(document.cookie) ||
       (process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true" &&
         pathname === "/sign-in")

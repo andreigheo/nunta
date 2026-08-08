@@ -6,7 +6,6 @@ import {
   BedDouble,
   Bus,
   CalendarDays,
-  CalendarPlus,
   CheckCircle2,
   ImageIcon,
   MapPin,
@@ -18,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import type { GuestCompanionBootstrapResource } from "@weddingos/contracts";
+import { PublishedInvitation } from "@/components/invitations/published-invitation";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { PortalShell } from "@/components/portals/portal-shell";
 import {
@@ -25,6 +25,7 @@ import {
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   Checkbox,
@@ -252,9 +253,9 @@ export default function GuestCompanionPage() {
       "PRODID:-//Sarbato//Guest Companion//RO",
       ...events.flatMap((event) => [
         "BEGIN:VEVENT",
-        `UID:${event.id}@weddingos.local`,
+        `UID:${event.id}@sarbato.space`,
         `DTSTART:${icsDate(event.startAt)}`,
-        `SUMMARY:${icsEscape(event.title ?? "Eveniment nuntă")}`,
+        `SUMMARY:${icsEscape(event.title ?? "Eveniment")}`,
         `LOCATION:${icsEscape(event.locationAddress ?? event.locationName ?? "")}`,
         "END:VEVENT",
       ]),
@@ -266,16 +267,14 @@ export default function GuestCompanionPage() {
     );
   };
 
-  const couple = (data?.couple ?? {}) as Record<string, unknown>;
-  const title = String(couple.displayNames || "Invitația noastră");
   const operations = data?.operations ?? {};
   return (
     <PortalShell
-      role="Companion invitați"
+      role="Spațiul invitaților"
       title={
         data ? `Bine ai venit, ${data.household.name}` : "Invitația Sarbato"
       }
-      subtitle="Invitația, programul și RSVP-ul familiei tale, într-un spațiu privat."
+      subtitle="Invitația, programul și confirmarea familiei tale, într-un singur spațiu privat."
       backHref="/sign-in"
       backLabel="Sarbato"
     >
@@ -293,31 +292,16 @@ export default function GuestCompanionPage() {
         />
       ) : (
         <>
-          <Card className="overflow-hidden border-brand/30">
-            <div className="bg-brand px-5 py-8 text-on-brand sm:px-8 sm:py-10">
-              <Badge variant="accent">
-                {String(couple.weddingDate ?? "Data va fi anunțată")}
-              </Badge>
-              <p className="mt-5 text-sm text-on-brand/75">Cu multă bucurie,</p>
-              <h2 className="mt-1 font-display text-4xl font-semibold sm:text-5xl">
-                {title}
-              </h2>
-              <p className="mt-3 max-w-xl text-sm text-on-brand/80">
-                te invită să le fii alături. Acest link este personal și
-                revocabil.
-              </p>
-              <div className="mt-7">
-                <Button variant="accent" onClick={addCalendar}>
-                  <CalendarPlus className="size-4" />
-                  Adaugă în calendar
-                </Button>
-              </div>
-            </div>
-          </Card>
-          <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
+          <PublishedInvitation invitation={data.invitation} token={token} onAddCalendar={addCalendar} />
+          <section id="confirmare-rsvp" className="mt-8 grid scroll-mt-6 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
             <Card>
               <CardHeader>
-                <CardTitle>Confirmarea familiei</CardTitle>
+                <div>
+                  <CardTitle>Confirmarea familiei</CardTitle>
+                  <CardDescription>
+                    Răspunde pentru fiecare persoană și fiecare moment din program.
+                  </CardDescription>
+                </div>
                 {saved ? (
                   <Badge variant="success" dot>
                     Salvat
@@ -333,11 +317,11 @@ export default function GuestCompanionPage() {
                   value={Object.keys(attendance).length}
                   max={Math.max(1, members.length * events.length)}
                 />
-                <div className="mt-6 space-y-6">
+                <div className="mt-7 space-y-7">
                   {members.map((member) => (
                     <div
                       key={member.id}
-                      className="rounded-xl border border-line p-4"
+                      className="border-t border-line pt-6 first:border-t-0 first:pt-0"
                     >
                       <h3 className="font-semibold text-ink">
                         {member.displayName ??
@@ -440,11 +424,12 @@ export default function GuestCompanionPage() {
                     />
                   </Field>
                   {!data.allowEdits && (
-                    <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning-strong">
+                    <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning">
                       {data.closedMessage}
                     </p>
                   )}
                   <Button
+                    className="w-full sm:w-auto"
                     disabled={!data.allowEdits || saving}
                     onClick={() => void submit()}
                   >
@@ -461,12 +446,15 @@ export default function GuestCompanionPage() {
             <div className="space-y-5">
               <Card>
                 <CardHeader>
-                  <CardTitle>Program</CardTitle>
+                  <div>
+                    <CardTitle>Programul evenimentului</CardTitle>
+                    <CardDescription>Orele, locațiile și traseele publicate de organizatori.</CardDescription>
+                  </div>
                   <CalendarDays className="size-4 text-faint" />
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent>
                   {events.map((event) => (
-                    <div key={event.id} className="rounded-lg bg-subtle p-3">
+                    <div key={event.id} className="border-t border-line py-4 first:border-t-0 first:pt-0 last:pb-0">
                       <p className="text-sm font-semibold">{event.title}</p>
                       <p className="mt-1 text-xs text-muted">
                         {event.startAt
@@ -482,8 +470,8 @@ export default function GuestCompanionPage() {
                       {event.directions?.googleMaps && (
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="mt-2"
+                          variant="link"
+                          className="mt-2 h-auto px-0 py-1"
                           onClick={() =>
                             window.open(
                               event.directions?.googleMaps,
@@ -493,7 +481,7 @@ export default function GuestCompanionPage() {
                           }
                         >
                           <Navigation className="size-3" />
-                          Traseu
+                          Deschide traseul
                         </Button>
                       )}
                     </div>
@@ -504,7 +492,10 @@ export default function GuestCompanionPage() {
               {plusOneAllowed && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Însoțitor plus-one</CardTitle>
+                    <div>
+                      <CardTitle>Însoțitorul tău</CardTitle>
+                      <CardDescription>Adaugă detaliile persoanei care vine cu tine.</CardDescription>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <Checkbox
@@ -679,7 +670,7 @@ function GuestWeddingDayPanel({
 
   if (loading)
     return (
-      <Card className="mt-5">
+      <Card className="mt-8">
         <CardContent className="p-6 text-sm text-muted">
           Se încarcă experiența live…
         </CardContent>
@@ -695,9 +686,17 @@ function GuestWeddingDayPanel({
 
   return (
     <section
-      className="mt-5 grid gap-5 lg:grid-cols-3"
+      className="mt-10 grid gap-5 lg:grid-cols-3"
       data-testid="guest-wedding-day-live"
     >
+      <header className="lg:col-span-3">
+        <h2 className="font-brand text-2xl font-semibold leading-tight tracking-[-0.02em] text-ink">
+          În ziua evenimentului
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+          Aici găsești accesul la check-in, anunțurile organizatorilor și momentele împărtășite de invitați.
+        </p>
+      </header>
       <Card>
         <CardHeader>
           <CardTitle>Check-in rapid</CardTitle>
@@ -740,7 +739,7 @@ function GuestWeddingDayPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>Anunțuri live</CardTitle>
+          <CardTitle>Anunțuri în timp real</CardTitle>
           <Radio className="size-4 text-brand" />
         </CardHeader>
         <CardContent className="space-y-3">
@@ -775,7 +774,7 @@ function GuestWeddingDayPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>Guest Moments</CardTitle>
+          <CardTitle>Momentele invitaților</CardTitle>
           <ImageIcon className="size-4 text-brand" />
         </CardHeader>
         <CardContent>
@@ -783,7 +782,7 @@ function GuestWeddingDayPanel({
             <Upload className="size-4" />
             {uploading
               ? "Se încarcă și se verifică…"
-              : "Adaugă o fotografie sau un video"}
+              : "Adaugă o fotografie sau un videoclip"}
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
@@ -843,12 +842,15 @@ function GuestOperationsCards({ operations }: { operations: GuestOperations }) {
   return (
     <Card data-testid="guest-operations">
       <CardHeader>
-        <CardTitle>Detaliile familiei tale</CardTitle>
+        <div>
+          <CardTitle>Detaliile familiei tale</CardTitle>
+          <CardDescription>Locurile, transportul și cazarea publicate pentru grupul tău.</CardDescription>
+        </div>
         <Badge variant="success">Publicate</Badge>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {seating.length > 0 && (
-          <div className="rounded-lg border border-line p-3">
+          <section className="border-t border-line py-4 first:border-t-0 first:pt-0 last:pb-0">
             <p className="flex items-center gap-2 text-sm font-semibold text-ink">
               <Armchair className="size-4 text-brand" />
               Locuri la masă
@@ -868,10 +870,10 @@ function GuestOperationsCards({ operations }: { operations: GuestOperations }) {
                 · {String(item.eventTitle)}
               </p>
             ))}
-          </div>
+          </section>
         )}
         {transport.length > 0 && (
-          <div className="rounded-lg border border-line p-3">
+          <section className="border-t border-line py-4 first:border-t-0 first:pt-0 last:pb-0">
             <p className="flex items-center gap-2 text-sm font-semibold text-ink">
               <Bus className="size-4 text-brand" />
               Transport
@@ -896,10 +898,10 @@ function GuestOperationsCards({ operations }: { operations: GuestOperations }) {
                 )}
               </div>
             ))}
-          </div>
+          </section>
         )}
         {accommodation.length > 0 && (
-          <div className="rounded-lg border border-line p-3">
+          <section className="border-t border-line py-4 first:border-t-0 first:pt-0 last:pb-0">
             <p className="flex items-center gap-2 text-sm font-semibold text-ink">
               <BedDouble className="size-4 text-brand" />
               Cazare
@@ -922,7 +924,7 @@ function GuestOperationsCards({ operations }: { operations: GuestOperations }) {
                 </p>
               </div>
             ))}
-          </div>
+          </section>
         )}
       </CardContent>
     </Card>

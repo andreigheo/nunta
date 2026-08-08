@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Wand2 } from "lucide-react";
-import { Button } from "@/components/ui";
-import { AuthError, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
+import { AuthActionLink, AuthError, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 
 export default function MagicLinkPage() {
@@ -44,9 +42,7 @@ export default function MagicLinkPage() {
       {loading && <div className="mb-4 text-left"><AuthInfo message="Conectarea este în curs…" /></div>}
       {error && <div className="mb-4 text-left"><AuthError message={error} /></div>}
       <div className="space-y-2.5">
-        <Link href="/sign-in" className="block">
-          <Button variant="ghost" size="lg" className="w-full">Înapoi la conectare</Button>
-        </Link>
+        <AuthActionLink href="/sign-in" variant="ghost">Înapoi la conectare</AuthActionLink>
       </div>
       <p className="mt-4 text-xs text-faint">Nu găsești emailul? Verifică Spam sau Promoții.</p>
     </div>

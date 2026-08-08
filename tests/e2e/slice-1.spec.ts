@@ -38,9 +38,6 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   });
   const email = uniqueEmail("owner-onboarding");
   await page.goto("/create-account");
-  await page
-    .getByRole("button", { name: /Organizez un eveniment/ })
-    .click();
   await page.locator('input[autocomplete="given-name"]').fill("Ana");
   await page.locator('input[autocomplete="family-name"]').fill("Pop");
   await page.locator('input[type="email"]').fill(email);

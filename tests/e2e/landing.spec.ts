@@ -144,7 +144,7 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
 
   // Niciun rest de brand vechi sau limbaj de stadiu pe suprafața publică.
   const bodyText = await page.locator("main#continut").innerText();
-  expect(bodyText).not.toMatch(/WeddingOS|Nunta Space/i);
+  expect(bodyText).not.toMatch(/WeddingOS/i);
   expect(bodyText).not.toMatch(/\bdemo\b/i);
   expect(bodyText).not.toMatch(/\bbeta\b|acces timpuriu/i);
   expect(bodyText).not.toMatch(
@@ -159,13 +159,13 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await expect(showcaseLabels.first()).toBeVisible();
   expect(await showcaseLabels.count()).toBeGreaterThanOrEqual(4);
   await expect(
-    page.getByText("Exemplu de produs — nu reprezintă datele unui client.").first(),
+    page
+      .getByText("Exemplu de produs — nu reprezintă datele unui client.")
+      .first(),
   ).toBeVisible();
 
   // Suprafețele vitrină nu conțin sume, nume fictive sau cuvântul „live”.
-  const showcaseText = await page
-    .getByTestId("product-showcase")
-    .innerText();
+  const showcaseText = await page.getByTestId("product-showcase").innerText();
   expect(showcaseText).not.toMatch(
     /(?:\bRON\b|\bUSD\b|\$|\b\d+[.,]?\d*\s*(?:lei|ron|eur)\b)/i,
   );
@@ -218,7 +218,7 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   ).toHaveAttribute("href", "/confidentialitate");
 
   // Interacțiunea semnătură: un RSVP schimbă vizibil conținutul conectat.
-  const rsvpStep = page.getByRole("button", { name: /Primești răspunsuri/ });
+  const rsvpStep = page.locator("#flux").getByRole("button", { name: /RSVP/ });
   await rsvpStep.click();
   await expect(rsvpStep).toHaveAttribute("aria-pressed", "true");
   const flux = page.locator("#flux");
@@ -229,9 +229,14 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await expect(flux).toContainText("Meniul primește preferința");
   await expect(flux).toContainText("Planul meselor cere alocarea");
   await expect(flux).toContainText("Transportul primește cererea");
-  await expect(flux).toContainText(
-    "Următoarea acțiune: alocarea la masă",
-  );
+  await expect(flux).toContainText("Următoarea acțiune: alocarea la masă");
+
+  // Editorul de invitații este prezentat la nivelul capabilității reale.
+  const invitations = page.locator("#invitatii");
+  await expect(invitations).toContainText("14 tipuri");
+  await expect(invitations).toContainText("Imagine hero");
+  await expect(invitations).toContainText("Inspector");
+  await expect(invitations).toContainText("Paletă");
 
   // Lanțul comercial complet și limita de plăți sunt vizibile.
   await expect(fluxLocator(page, "#furnizori")).toContainText("Comparare");
@@ -243,17 +248,24 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
     "Sarbato nu colectează și nu transferă plățile dintre organizatori și furnizori",
   );
 
-  // Abonamentele: doar planul gratuit este acționabil.
+  // Abonamentele au acțiuni oneste; alegerea și checkout-ul continuă în cont.
   const pricing = page.locator("#abonamente");
   await expect(pricing.getByText("Gratuit").first()).toBeVisible();
   await expect(pricing.getByText("7 €", { exact: true })).toBeVisible();
   await expect(pricing.getByText("17 €", { exact: true })).toBeVisible();
   await expect(
-    pricing.getByText("Disponibil în curând").first(),
+    pricing.getByRole("heading", { name: "Plus", exact: true }),
   ).toBeVisible();
-  await expect(pricing.getByRole("link")).toHaveCount(2);
   await expect(
-    pricing.getByRole("link", { name: "Creează primul eveniment" }),
+    pricing.getByText("Până la 200 de invitați și 5 colaboratori"),
+  ).toBeVisible();
+  await expect(pricing.getByText("Disponibil în cont").first()).toBeVisible();
+  await expect(pricing.getByRole("link")).toHaveCount(4);
+  await expect(
+    pricing.getByRole("link", { name: "Începe gratuit" }),
+  ).toHaveAttribute("href", "/create-account");
+  await expect(
+    pricing.getByRole("link", { name: "Începe cu Plus" }),
   ).toHaveAttribute("href", "/create-account");
 
   // FAQ: opt întrebări, prima deschidere funcționează.
@@ -265,9 +277,7 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await expect(faq).not.toHaveAttribute("open", "");
   await faq.locator("summary").click();
   await expect(faq).toHaveAttribute("open", "");
-  await expect(
-    faq.getByText(/Invitații folosesc linkul primit/),
-  ).toBeVisible();
+  await expect(faq.getByText(/Invitații folosesc linkul primit/)).toBeVisible();
 
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
@@ -313,15 +323,19 @@ test("landing mobil — meniu, ordine semantică și reduced motion", async ({
   await expect(page).toHaveURL(/#flux$/);
 
   const flowSteps = page.locator("#flux ol > li");
-  await expect(flowSteps).toHaveCount(4);
-  await expect(flowSteps.first()).toContainText("Planifici");
-  await expect(flowSteps.last()).toContainText("Coordonezi ziua");
+  await expect(flowSteps).toHaveCount(7);
+  await expect(flowSteps.first()).toContainText("Plan");
+  await expect(flowSteps.last()).toContainText("Ziua evenimentului");
 
   // Interacțiunea semnătură funcționează și tactil.
-  const eventDayStep = page.getByRole("button", { name: /Coordonezi ziua/ });
+  const eventDayStep = page
+    .locator("#flux")
+    .getByRole("button", { name: /Ziua evenimentului/ });
   await eventDayStep.click();
   await expect(eventDayStep).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#flux")).toContainText("Planul devine comandă");
+  await expect(page.locator("#flux")).toContainText(
+    "Planul devine vedere operațională",
+  );
 
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);

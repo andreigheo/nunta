@@ -248,7 +248,7 @@ export function QuickCreateModal() {
           );
         }
         if (quickCreate === "gallery" && !eventId)
-          throw new Error("Creează mai întâi un eveniment de nuntă.");
+          throw new Error("Creează mai întâi evenimentul principal.");
       } catch (caught) {
         setError(apiErrorMessage(caught));
       }

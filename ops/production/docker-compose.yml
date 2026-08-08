@@ -1,0 +1,302 @@
+name: sarbato-production
+
+x-api-environment: &api-environment
+  NODE_ENV: production
+  WEB_URL: https://sarbato.space
+  API_URL: https://sarbato.space/api
+  PORT: 4000
+  BIND_HOST: 0.0.0.0
+  TRUST_PROXY_HOPS: 1
+  DATABASE_PURPOSE: production
+  STORAGE_PURPOSE: production
+  SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+  MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?MFA_ENCRYPTION_KEY is required}
+  MFA_ENCRYPTION_KEY_ID: production-v1
+  MFA_TOTP_ISSUER: Sarbato
+  ADMIN_STEP_UP_TTL_SECONDS: 600
+  CSRF_ENFORCEMENT: "true"
+  CSRF_TOKEN_TTL_SECONDS: 1800
+  COOKIE_DOMAIN: sarbato.space
+  SESSION_COOKIE_NAME: sarbato_session
+  EMAIL_FROM: Sarbato <no-reply@sarbato.space>
+  EMAIL_PROVIDER: smtp
+  SMTP_HOST: smtp.resend.com
+  SMTP_PORT: 587
+  SMTP_USER: resend
+  SMTP_PASSWORD: ${RESEND_SMTP_PASSWORD:?RESEND_SMTP_PASSWORD is required}
+  REDIS_URL: rediss://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+  NODE_EXTRA_CA_CERTS: /etc/ssl/certs/sarbato-redis-ca.crt
+  OUTBOX_ENCRYPTION_KEY: ${OUTBOX_ENCRYPTION_KEY:?OUTBOX_ENCRYPTION_KEY is required}
+  OUTBOX_ENCRYPTION_KEY_ID: production-v1
+  OUTBOX_DECRYPTION_KEYS: "{}"
+  OUTBOX_COMMAND_TTL_SECONDS: 604800
+  ARTIFACT_ROOT: /var/lib/sarbato/activity-exports
+  ARTIFACT_RETENTION_HOURS: 24
+  ARTIFACT_MAX_BYTES: 5242880
+  ARTIFACT_MAX_ROWS: 10000
+  OBJECT_STORAGE_PROVIDER: minio
+  OBJECT_STORAGE_ENDPOINT: http://storage:9000
+  OBJECT_STORAGE_PUBLIC_ENDPOINT: https://sarbato.space
+  OBJECT_STORAGE_REGION: eu-west-1
+  OBJECT_STORAGE_BUCKET: sarbato-production-private
+  OBJECT_STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+  OBJECT_STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+  OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+  CLAMAV_HOST: clamav
+  CLAMAV_PORT: 3310
+  SIGNATURE_PROVIDER: disabled
+  PAYMENT_PROVIDER: disabled
+  SUBSCRIPTION_PROVIDER: disabled
+  WORKSPACE_BILLING_PROVIDER: paddle
+  PADDLE_ENVIRONMENT: production
+  PADDLE_CHECKOUT_URL: https://sarbato.space/checkout
+  PADDLE_API_KEY: ${PADDLE_API_KEY:?PADDLE_API_KEY is required}
+  PADDLE_CLIENT_TOKEN: ${PADDLE_CLIENT_TOKEN:?PADDLE_CLIENT_TOKEN is required}
+  PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:?PADDLE_WEBHOOK_SECRET is required}
+  PADDLE_PLUS_PRICE_ID: ${PADDLE_PLUS_PRICE_ID:?PADDLE_PLUS_PRICE_ID is required}
+  PADDLE_PRO_PRICE_ID: ${PADDLE_PRO_PRICE_ID:?PADDLE_PRO_PRICE_ID is required}
+  PADDLE_WEBHOOK_TOLERANCE_SECONDS: 300
+  PAYOUT_PROVIDER: disabled
+  REVIEW_EDIT_WINDOW_DAYS: 30
+  SUBSCRIPTION_GRACE_PERIOD_DAYS: 7
+  PAYOUT_HOLD_DAYS: 7
+  PAYOUT_MINIMUM_MINOR: 10000
+  WORKER_STALE_AFTER_SECONDS: 45
+  MARKETING_SNAPSHOT_INTERVAL_SECONDS: 900
+  MARKETING_SNAPSHOT_WINDOW_DAYS: 365
+  MARKETING_SNAPSHOT_MIN_COHORT: 20
+  MARKETING_SNAPSHOT_MAX_STALE_SECONDS: 86400
+  LOG_LEVEL: info
+  METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN is required}
+  FEATURE_MAGIC_LINK_ENABLED: "true"
+  FEATURE_MFA_ENABLED: "true"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: weddingos
+      POSTGRES_USER: sarbato_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?POSTGRES_ADMIN_PASSWORD is required}
+      SARBATO_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD is required}
+      SARBATO_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?POSTGRES_WORKER_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-roles.sh:/docker-entrypoint-initdb.d/010-init-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sarbato_admin -d weddingos"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --port
+      - "0"
+      - --tls-port
+      - "6379"
+      - --tls-cert-file
+      - /tls/server.crt
+      - --tls-key-file
+      - /tls/server.key
+      - --tls-ca-cert-file
+      - /tls/ca.crt
+      - --tls-auth-clients
+      - "no"
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - --appendonly
+      - "yes"
+    volumes:
+      - redis-data:/data
+      - /etc/sarbato/redis-tls:/tls:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli --tls --cacert /tls/ca.crt -a \"$$REDISCLI_AUTH\" ping",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+
+  storage:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+    volumes:
+      - storage-data:/data
+    ports:
+      - "127.0.0.1:43223:9000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  storage-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      storage:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set production http://storage:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing production/sarbato-production-private &&
+        mc anonymous set none production/sarbato-production-private
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+
+  clamav:
+    image: clamav/clamav:1.5.3
+    restart: unless-stopped
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 20s
+      timeout: 10s
+      retries: 45
+      start_period: 120s
+
+  migrate:
+    image: sarbato-api:${SARBATO_RELEASE_ID:-current}
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      args:
+        WEDDINGOS_BUILD_ID: ${SARBATO_RELEASE_ID:-current}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        /app/packages/database/node_modules/.bin/prisma migrate deploy
+        --schema /app/packages/database/prisma/schema.prisma
+    environment:
+      DATABASE_URL: postgresql://sarbato_admin:${POSTGRES_ADMIN_PASSWORD:?POSTGRES_ADMIN_PASSWORD is required}@postgres:5432/weddingos?schema=public
+      DATABASE_OWNER_URL: postgresql://sarbato_admin:${POSTGRES_ADMIN_PASSWORD:?POSTGRES_ADMIN_PASSWORD is required}@postgres:5432/weddingos?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: sarbato-api:${SARBATO_RELEASE_ID:-current}
+    restart: unless-stopped
+    environment:
+      <<: *api-environment
+      DATABASE_URL: postgresql://weddingos_app:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD is required}@postgres:5432/weddingos?schema=public
+    volumes:
+      - activity-exports:/var/lib/sarbato/activity-exports
+      - /etc/sarbato/redis-tls/ca.crt:/etc/ssl/certs/sarbato-redis-ca.crt:ro
+    ports:
+      - "127.0.0.1:43222:4000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
+
+  worker:
+    image: sarbato-worker:${SARBATO_RELEASE_ID:-current}
+    restart: unless-stopped
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+      args:
+        WEDDINGOS_BUILD_ID: ${SARBATO_RELEASE_ID:-current}
+    environment:
+      <<: *api-environment
+      DATABASE_URL: postgresql://weddingos_worker:${POSTGRES_WORKER_PASSWORD:?POSTGRES_WORKER_PASSWORD is required}@postgres:5432/weddingos?schema=public
+    volumes:
+      - activity-exports:/var/lib/sarbato/activity-exports
+      - /etc/sarbato/redis-tls/ca.crt:/etc/ssl/certs/sarbato-redis-ca.crt:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
+
+  web:
+    image: sarbato-web:${SARBATO_RELEASE_ID:-current}
+    restart: unless-stopped
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        WEDDINGOS_BUILD_ID: ${SARBATO_RELEASE_ID:-current}
+        API_INTERNAL_URL: http://api:4000
+        NEXT_PUBLIC_DEMO_MODE_ENABLED: "false"
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:4000
+      NEXT_PUBLIC_DEMO_MODE_ENABLED: "false"
+    ports:
+      - "127.0.0.1:43221:3000"
+    depends_on:
+      api:
+        condition: service_started
+
+  resend-relay:
+    image: sarbato-resend-relay:${SARBATO_RELEASE_ID:-current}
+    restart: unless-stopped
+    build:
+      context: ../resend-relay
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      BIND_HOST: 0.0.0.0
+      PORT: 43211
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY is required}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:?RESEND_WEBHOOK_SECRET is required}
+      FORWARD_TO_EMAIL: ${FORWARD_TO_EMAIL:?FORWARD_TO_EMAIL is required}
+      FORWARD_FROM_EMAIL: Sarbato Mail <forward@sarbato.space>
+      ALLOWED_RECIPIENTS: billing@sarbato.space,legal@sarbato.space,support@sarbato.space
+      EVENT_STORE_DIRECTORY: /var/lib/sarbato-resend-relay/events
+    ports:
+      - "127.0.0.1:43211:43211"
+    volumes:
+      - resend-relay-events:/var/lib/sarbato-resend-relay/events
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:43211/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  postgres-data:
+  redis-data:
+  storage-data:
+  clamav-data:
+  activity-exports:
+  resend-relay-events:

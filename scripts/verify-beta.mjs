@@ -38,6 +38,7 @@ if (!pnpm) throw new Error("pnpm execution path is unavailable");
 const pnpmRun = (name, script) => run(name, process.execPath, [pnpm, script]);
 await pnpmRun("format", "format:check");
 await pnpmRun("lint", "lint");
+await pnpmRun("build-packages-preflight", "build:packages");
 await pnpmRun("typecheck", "typecheck");
 await run(
   "migrate-persistent-runtime",
@@ -76,11 +77,18 @@ const stagingEnvironment = {
 };
 const releaseBase = `beta-${Date.now()}`;
 const firstStagingRelease = `${releaseBase}-a`;
+const reusableStagingRelease = process.env.WEDDINGOS_REUSE_STAGING_IMAGE_FROM;
 await run(
   "staging-deploy-a",
   "bash",
   [resolve(root, "ops/staging-like/deploy.sh")],
-  { ...stagingEnvironment, WEDDINGOS_RELEASE_ID: firstStagingRelease },
+  {
+    ...stagingEnvironment,
+    WEDDINGOS_RELEASE_ID: firstStagingRelease,
+    ...(reusableStagingRelease
+      ? { WEDDINGOS_REUSE_IMAGE_FROM: reusableStagingRelease }
+      : {}),
+  },
 );
 await run(
   "staging-deploy-b",
@@ -162,6 +170,14 @@ await run("tracing", process.execPath, [
 ]);
 await run("final-beta-docs", process.execPath, [
   resolve(root, "scripts/write-final-beta-docs.mjs"),
+]);
+await run("format-final-beta-docs", process.execPath, [
+  pnpm,
+  "exec",
+  "prettier",
+  "--write",
+  "docs/SLICE_10C_HANDOFF.md",
+  "docs/FINAL_BETA_READINESS_REPORT.md",
 ]);
 await run("source-evidence", process.execPath, [
   resolve(root, "scripts/create-release-evidence.mjs"),

@@ -28,7 +28,7 @@ export function PublicProofSection({
           </p>
           <h2
             id="public-proof-title"
-            className="marketing-heading mt-4 text-[clamp(2.35rem,3.7vw,4rem)] font-semibold leading-[1.01] tracking-[-0.04em] text-white text-balance"
+            className="marketing-heading mt-4 text-[clamp(2.35rem,3.7vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-white text-balance"
           >
             Produsul poate fi măsurat fără să expună evenimentele.
           </h2>

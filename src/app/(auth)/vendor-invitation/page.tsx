@@ -5,38 +5,52 @@ import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui";
 import { AuthError, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
-import { ApiClientError, apiErrorMessage, weddingOsApi } from "@/lib/api/client";
+import {
+  ApiClientError,
+  apiErrorMessage,
+  weddingOsApi,
+} from "@/lib/api/client";
 import { formatDateLong } from "@/lib/utils";
 
-type VendorInvitationPreview = Awaited<ReturnType<typeof weddingOsApi.vendorInvitationPreview>>;
+type VendorInvitationPreview = Awaited<
+  ReturnType<typeof weddingOsApi.vendorInvitationPreview>
+>;
 
 export default function VendorInvitationPage() {
   const router = useRouter();
   const [token, setToken] = React.useState("");
-  const [invitation, setInvitation] = React.useState<VendorInvitationPreview | null>(null);
+  const [invitation, setInvitation] =
+    React.useState<VendorInvitationPreview | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
 
-  const signIn = React.useCallback((value: string) => {
-    const returnTo = `/vendor-invitation?token=${encodeURIComponent(value)}`;
-    router.push(`/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
-  }, [router]);
+  const signIn = React.useCallback(
+    (value: string) => {
+      const returnTo = `/vendor-invitation?token=${encodeURIComponent(value)}`;
+      router.push(`/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
+    },
+    [router],
+  );
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      const value = new URLSearchParams(window.location.search).get("token") ?? "";
+      const value =
+        new URLSearchParams(window.location.search).get("token") ?? "";
       setToken(value);
       if (!value) {
         setError("Linkul invitației este incomplet.");
         return;
       }
-      weddingOsApi.vendorInvitationPreview(value).then(setInvitation).catch((cause) => {
-        if (cause instanceof ApiClientError && cause.status === 401) {
-          signIn(value);
-          return;
-        }
-        setError(apiErrorMessage(cause));
-      });
+      weddingOsApi
+        .vendorInvitationPreview(value)
+        .then(setInvitation)
+        .catch((cause) => {
+          if (cause instanceof ApiClientError && cause.status === 401) {
+            signIn(value);
+            return;
+          }
+          setError(apiErrorMessage(cause));
+        });
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [signIn]);
@@ -47,7 +61,9 @@ export default function VendorInvitationPage() {
     try {
       if (action === "accept") {
         const result = await weddingOsApi.acceptVendorInvitation(token);
-        router.push(`/vendor?organization=${encodeURIComponent(result.vendorOrganizationId)}`);
+        router.push(
+          `/vendor?organization=${encodeURIComponent(result.vendorOrganizationId)}`,
+        );
       } else {
         await weddingOsApi.declineVendorInvitation(token);
         router.push("/sign-in?vendorInvitationDeclined=1");
@@ -70,18 +86,32 @@ export default function VendorInvitationPage() {
         <Building2 className="size-7" aria-hidden />
       </span>
       <AuthHeading
-        title="Invitație în Vendor OS"
-        subtitle={invitation ? `Ai fost invitat să colaborezi în organizația „${invitation.organizationName}”.` : "Verificăm invitația securizată."}
+        title="Invitație în spațiul furnizorului"
+        subtitle={
+          invitation
+            ? `Ai fost invitat să colaborezi în organizația „${invitation.organizationName}”.`
+            : "Verificăm invitația securizată."
+        }
       />
 
-      {error ? <div className="mb-4 text-left"><AuthError message={error} /></div> : null}
-      {!invitation && !error ? <div className="mb-4 text-left"><AuthInfo message="Se încarcă detaliile invitației…" /></div> : null}
+      {error ? (
+        <div className="mb-4 text-left">
+          <AuthError message={error} />
+        </div>
+      ) : null}
+      {!invitation && !error ? (
+        <div className="mb-4 text-left">
+          <AuthInfo message="Se încarcă detaliile invitației…" />
+        </div>
+      ) : null}
 
       {invitation ? (
         <dl className="rounded-2xl border border-line bg-surface p-5 text-left text-sm shadow-card">
           <div className="flex justify-between gap-4">
             <dt className="text-faint">Organizație</dt>
-            <dd className="font-medium text-ink">{invitation.organizationName}</dd>
+            <dd className="font-medium text-ink">
+              {invitation.organizationName}
+            </dd>
           </div>
           <div className="mt-3 flex justify-between gap-4 border-t border-line pt-3">
             <dt className="text-faint">Rol</dt>
@@ -89,14 +119,32 @@ export default function VendorInvitationPage() {
           </div>
           <div className="mt-3 flex justify-between gap-4 border-t border-line pt-3">
             <dt className="text-faint">Expiră</dt>
-            <dd className="font-medium text-ink">{formatDateLong(invitation.expiresAt)}</dd>
+            <dd className="font-medium text-ink">
+              {formatDateLong(invitation.expiresAt)}
+            </dd>
           </div>
         </dl>
       ) : null}
 
       <div className="mt-4 space-y-2.5">
-        <Button size="lg" className="w-full" loading={loading} disabled={!invitation} onClick={() => void act("accept")}>Acceptă invitația</Button>
-        <Button variant="ghost" size="lg" className="w-full" disabled={!invitation || loading} onClick={() => void act("decline")}>Refuză</Button>
+        <Button
+          size="lg"
+          className="w-full"
+          loading={loading}
+          disabled={!invitation}
+          onClick={() => void act("accept")}
+        >
+          Acceptă invitația
+        </Button>
+        <Button
+          variant="ghost"
+          size="lg"
+          className="w-full"
+          disabled={!invitation || loading}
+          onClick={() => void act("decline")}
+        >
+          Refuză
+        </Button>
       </div>
     </div>
   );

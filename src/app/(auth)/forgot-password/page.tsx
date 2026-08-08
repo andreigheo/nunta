@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { Button, Field, Input } from "@/components/ui";
-import { AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
+import { AuthActionLink, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
 import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 
@@ -44,11 +44,9 @@ export default function ForgotPasswordPage() {
       {sent ? (
         <div className="space-y-4">
           <AuthInfo message={`Dacă există un cont pentru ${email}, cererea de livrare a linkului a fost pusă în coadă.`} />
-          <Link href="/sign-in" className="block">
-            <Button variant="outline" size="lg" className="w-full">
-              Înapoi la conectare
-            </Button>
-          </Link>
+          <AuthActionLink href="/sign-in" variant="outline">
+            Înapoi la conectare
+          </AuthActionLink>
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-4" noValidate>
@@ -64,7 +62,7 @@ export default function ForgotPasswordPage() {
 
       <p className="mt-5 text-center text-sm text-muted">
         Ți-ai amintit parola?{" "}
-        <Link href="/sign-in" className="font-semibold text-brand hover:underline">
+        <Link href="/sign-in" className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline">
           Înapoi la conectare
         </Link>
       </p>

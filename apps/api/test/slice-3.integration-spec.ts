@@ -621,7 +621,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
         channel: "EMAIL",
         invitationVersionId: site.body.data.published.id,
         template: {
-          subject: "Invitație WeddingOS",
+          subject: "Invitație Sarbato",
           body: "Te așteptăm alături de noi.",
         },
         audienceFilter: {},
@@ -748,7 +748,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
         purpose: "INVITATION",
         channel: "EMAIL",
         invitationVersionId: site.body.data.published.id,
-        template: { subject: "Retry WeddingOS", body: "Mesaj cu recuperare." },
+        template: { subject: "Retry Sarbato", body: "Mesaj cu recuperare." },
         audienceFilter: {},
       })
       .expect(201);
@@ -1298,14 +1298,6 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(201);
     const id = workspace.body.data.id as string;
-    await database.workspaceSubscription.update({
-      where: { workspaceId: id },
-      data: {
-        planKey: "PRO",
-        status: "ACTIVE",
-        provider: "integration-test",
-      },
-    });
     const draft = await account.agent
       .get(`/api/v1/workspaces/${id}/onboarding`)
       .expect(200);
@@ -1366,7 +1358,7 @@ async function waitForVerificationToken(email: string) {
     };
     for (const summary of list.messages.filter(
       (message) =>
-        message.Subject === "Confirmă adresa de email WeddingOS" &&
+        message.Subject === "Confirmă adresa de email Sarbato" &&
         message.To.some((recipient) => recipient.Address === email),
     )) {
       const message = (await fetch(

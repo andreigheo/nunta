@@ -10,7 +10,7 @@ process.env["DATABASE_PURPOSE"] ??= "integration";
 process.env["SESSION_SECRET"] ??=
   "test-session-secret-with-at-least-32-characters";
 process.env["SESSION_COOKIE_NAME"] ??= "weddingos_session";
-process.env["EMAIL_FROM"] ??= "WeddingOS <no-reply@weddingos.local>";
+process.env["EMAIL_FROM"] ??= "Sarbato <no-reply@sarbato.local>";
 process.env["EMAIL_PROVIDER"] ??= "smtp";
 process.env["SMTP_HOST"] ??= "127.0.0.1";
 process.env["SMTP_PORT"] ??= "1025";

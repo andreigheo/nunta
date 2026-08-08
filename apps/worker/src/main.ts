@@ -2554,7 +2554,7 @@ async function prepareContractExport(
         "CONTRACT_VERSION_CONTEXT_MISMATCH",
       );
     const document = JSON.stringify(version.document, null, 2);
-    const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Contract WeddingOS</title></head><body><main><h1>Contract operațional WeddingOS</h1><p>${escapeHtml(version.summary)}</p><h2>Domeniul serviciilor</h2><pre>${escapeHtml(JSON.stringify(version.serviceScope, null, 2))}</pre><h2>Conținut</h2><pre>${escapeHtml(document)}</pre><h2>Anulare</h2><p>${escapeHtml(version.cancellationTerms)}</p><p>Hash versiune: ${escapeHtml(version.contentHash)}</p></main></body></html>`;
+    const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Contract Sarbato</title></head><body><main><h1>Contract operațional Sarbato</h1><p>${escapeHtml(version.summary)}</p><h2>Domeniul serviciilor</h2><pre>${escapeHtml(JSON.stringify(version.serviceScope, null, 2))}</pre><h2>Conținut</h2><pre>${escapeHtml(document)}</pre><h2>Anulare</h2><p>${escapeHtml(version.cancellationTerms)}</p><p>Hash versiune: ${escapeHtml(version.contentHash)}</p></main></body></html>`;
     const sizeBytes = Buffer.byteLength(html, "utf8");
     if (sizeBytes > environment.ARTIFACT_MAX_BYTES)
       throw new PermanentJobError(
@@ -3520,7 +3520,7 @@ async function processCampaignDelivery(
   }
   const sent = await sendCampaignEmail(
     prepared.recipient.address,
-    String(prepared.template.subject ?? "Invitația voastră WeddingOS"),
+    String(prepared.template.subject ?? "Invitația voastră Sarbato"),
     String(
       prepared.template.body ??
         "Vă așteptăm cu drag. Confirmați participarea folosind linkul personal.",
@@ -4896,7 +4896,7 @@ async function writeXlsxRows(
   rows: Array<Record<string, string | number | boolean>>,
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("WeddingOS");
+  const sheet = workbook.addWorksheet("Sarbato");
   const headers = rows.length ? Object.keys(rows[0]!) : [];
   sheet.columns = headers.map((header) => ({ header, key: header }));
   for (const row of rows) sheet.addRow(row);
@@ -6393,7 +6393,7 @@ async function processWeeklyDigest(
           recipient: prepared.recipient.email,
           values: {
             firstName: prepared.recipient.first_name,
-            workspaceTitle: prepared.workspace?.title ?? "WeddingOS",
+            workspaceTitle: prepared.workspace?.title ?? "Sarbato",
             metrics: JSON.stringify(prepared.metrics),
           },
         },
@@ -6566,7 +6566,7 @@ async function processAutomationExecution(
           data: {
             workspaceId: snapshot.workspace_id!,
             title: safeAutomationText(configuration.title, rule.name),
-            description: "Creat de o automatizare controlată WeddingOS.",
+            description: "Creat de o automatizare controlată Sarbato.",
             category: "automation",
             priority: "MEDIUM",
             createdById: execution.requestedById,
@@ -6578,7 +6578,7 @@ async function processAutomationExecution(
           data: {
             workspaceId: snapshot.workspace_id!,
             title: safeAutomationText(configuration.title, rule.name),
-            description: "Detectat de o automatizare controlată WeddingOS.",
+            description: "Detectat de o automatizare controlată Sarbato.",
             category: "OTHER",
             probability: 3,
             impact: 3,
@@ -7516,7 +7516,7 @@ async function sendTaskReminderEmail(
       : {}),
   });
   const url = `${environment.WEB_URL}/plan?task=${encodeURIComponent(taskId)}`;
-  const text = `Salut, ${firstName}. Reminder WeddingOS: ${taskTitle}. Deschide sarcina: ${url}`;
+  const text = `Salut, ${firstName}. Reminder Sarbato: ${taskTitle}. Deschide sarcina: ${url}`;
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: recipient,
@@ -7566,26 +7566,26 @@ function renderEmail(command: EmailCommand): {
   if (command.kind === "email-verification") {
     const url = `${environment.WEB_URL}/verify-email?token=${encodeURIComponent(v.token ?? "")}&email=${encodeURIComponent(command.recipient)}`;
     return emailContent(
-      "Confirmă adresa de email WeddingOS",
+      "Confirmă adresa de email Sarbato",
       `Salut, ${firstName}. Codul tău este ${v.code ?? ""}. Confirmă contul: ${url}`,
     );
   }
   if (command.kind === "password-reset") {
     const url = `${environment.WEB_URL}/reset-password?token=${encodeURIComponent(v.token ?? "")}`;
     return emailContent(
-      "Resetează parola WeddingOS",
+      "Resetează parola Sarbato",
       `Salut, ${firstName}. Resetează parola folosind linkul: ${url}`,
     );
   }
   if (command.kind === "password-changed")
     return emailContent(
-      "Parola WeddingOS a fost schimbată",
+      "Parola Sarbato a fost schimbată",
       `Salut, ${firstName}. Parola contului tău a fost schimbată.`,
     );
   if (command.kind === "magic-link") {
     const url = `${environment.WEB_URL}/magic-link?token=${encodeURIComponent(v.token ?? "")}`;
     return emailContent(
-      "Linkul tău magic WeddingOS",
+      "Linkul tău magic Sarbato",
       `Salut, ${firstName}. Conectează-te folosind linkul: ${url}`,
     );
   }
@@ -7612,14 +7612,14 @@ function renderEmail(command: EmailCommand): {
       }
     })();
     return emailContent(
-      `Rezumat săptămânal — ${v.workspaceTitle ?? "WeddingOS"}`,
+      `Rezumat săptămânal — ${v.workspaceTitle ?? "Sarbato"}`,
       `Salut, ${firstName}. Progres: ${metrics.planning?.progressPercent ?? 0}%. Taskuri întârziate: ${metrics.planning?.overdueTasks ?? 0}. Deadline-uri în următoarele 7 zile: ${metrics.planning?.nextDeadlines ?? 0}. Riscuri high/critical: ${metrics.risks?.high ?? 0}/${metrics.risks?.critical ?? 0}.`,
     );
   }
   const url = `${environment.WEB_URL}/invitation?token=${encodeURIComponent(v.token ?? "")}`;
   return emailContent(
-    `Invitație în ${v.workspaceTitle ?? "WeddingOS"}`,
-    `${v.inviterName ?? "Un colaborator"} te-a invitat în ${v.workspaceTitle ?? "WeddingOS"} cu rolul ${v.roleName ?? "colaborator"}. ${url}`,
+    `Invitație în ${v.workspaceTitle ?? "Sarbato"}`,
+    `${v.inviterName ?? "Un colaborator"} te-a invitat în ${v.workspaceTitle ?? "Sarbato"} cu rolul ${v.roleName ?? "colaborator"}. ${url}`,
   );
 }
 

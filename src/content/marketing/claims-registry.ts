@@ -100,11 +100,11 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "invitation-editor",
     statement:
-      "Invitația se construiește din șabloane și secțiuni reordonabile, cu controale de vizibilitate, previzualizare responsive, secțiune RSVP, salvare și publicare.",
+      "Invitația se construiește din blocuri reordonabile, cu imagine hero, paletă, layout, controale de vizibilitate, previzualizare responsive, secțiune RSVP, salvare și publicare.",
     support: "/invitations/editor (toate verificate în cod)",
     status: "implemented",
     limitation:
-      "Scrierea cu AI este dezactivată (planificată); controalele media avansate nu sunt prezentate public.",
+      "Scrierea cu AI este dezactivată (planificată) și nu este prezentată ca funcțională pe landing.",
   },
   {
     id: "guest-no-account",
@@ -141,7 +141,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "event-day-command",
     statement:
-      "Când începe evenimentul, echipa vede ce se întâmplă, ce urmează și cine trebuie să acționeze: Acum/Urmează, desfășurător, checklisturi, check-in și incidente.",
+      "Când începe evenimentul, echipa vede ce se întâmplă, ce urmează și ce trebuie pregătit: Acum/Urmează, desfășurător, checklisturi, check-in și incidente.",
     support: "/wedding-day (command center cu stări, check-in, incidente)",
     status: "partial",
     limitation:
@@ -165,8 +165,9 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "trust-external",
     statement:
-      "Capabilitățile externe (plăți online, semnătură electronică) sunt identificate clar ca furnizori externi.",
-    support: "/contracts (furnizor de semnătură), FAQ + pagini legale",
+      "Paddle procesează abonamentul Sarbato, iar plățile dintre organizatori și furnizorii evenimentului rămân directe și separate.",
+    support:
+      "/settings?tab=billing + catalogul Paddle Live; /payments păstrează numai evidența operațională a plăților externe către furnizori",
     status: "implemented",
   },
   {
@@ -178,11 +179,10 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "pricing-paid",
     statement:
-      "Esențial (7 €/lună) și Pro (17 €/lună) — Disponibil în curând.",
-    support: "Catalog de abonamente în admin; Paddle neimplementat",
-    status: "planned",
-    limitation:
-      "Fără butoane de checkout false; singura acțiune activă este «Creează primul eveniment». Beneficiile exacte se publică la activare.",
+      "Plus (7 €/lună) și Pro (17 €/lună), facturate lunar prin Paddle.",
+    support:
+      "/settings?tab=billing; catalogul Paddle Live și endpoint-urile workspace billing",
+    status: "implemented",
   },
   {
     id: "other-event-types",
