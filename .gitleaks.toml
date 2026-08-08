@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Slice 8 prose uses the literal phrase guest-token security; it is not a credential."
+paths = ['''docs/SLICE_8_HANDOFF\.md''']
+regexes = ['''guest-token security''']
+
+[[allowlists]]
+description = "Generated dependency, build, test and release-evidence trees are not source inputs."
+paths = ['''(^|/)(node_modules|\.next[^/]*|dist|playwright-report|test-results|ops/release-evidence)(/|$)''']

@@ -1,0 +1,33 @@
+{
+  "formatVersion": 2,
+  "runId": "__RUN_ID__",
+  "createdAt": "__CREATED_AT__",
+  "database": {
+    "artifact": "database.dump.enc",
+    "format": "pg_dump-custom+aes-256-cbc-pbkdf2",
+    "checksumSha256": "__DATABASE_CHECKSUM__",
+    "sizeBytes": __DATABASE_SIZE__,
+    "encryptionKeyId": "__KEY_ID__",
+    "toolVersion": "__POSTGRES_VERSION__"
+  },
+  "schema": {
+    "latestMigration": "__LATEST_MIGRATION__",
+    "migrationInventorySha256": "__MIGRATION_CHECKSUM__"
+  },
+  "objectStorage": {
+    "status": "__OBJECT_STATUS__",
+    "artifact": "objects.tar.enc",
+    "format": "tar+aes-256-cbc-pbkdf2",
+    "checksumSha256": "__OBJECT_CHECKSUM__",
+    "sizeBytes": __OBJECT_SIZE__,
+    "inventorySha256": "__OBJECT_INVENTORY_CHECKSUM__",
+    "encryptionKeyId": "__KEY_ID__"
+  },
+  "destination": {
+    "provider": "__DESTINATION_PROVIDER__",
+    "identity": "__DESTINATION_IDENTITY__",
+    "separateCredentials": true,
+    "offHost": false
+  },
+  "containsSecrets": false
+}

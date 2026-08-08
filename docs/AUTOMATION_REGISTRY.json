@@ -1,0 +1,2015 @@
+{
+  "schemaVersion": "1.5.0",
+  "generatedAt": "2026-07-20T22:25:51.467Z",
+  "count": 78,
+  "automations": [
+    {
+      "id": "AUTO-001",
+      "sourceEvent": "workspace.created.v1",
+      "producer": "WorkspacesService transactional outbox",
+      "consumers": ["notification projection", "activity projection"],
+      "synchronousEffects": [
+        "workspace, owner membership, wedding profile, audit, outbox and consumer intents commit atomically"
+      ],
+      "asynchronousEffects": ["owner notification", "workspace activity item"],
+      "idempotencyKey": "outbox dedupe plus deterministic outbox-and-consumer BullMQ job id",
+      "retryPolicy": "bounded exponential backoff; retryable classification; persistent dead-letter",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2A_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "OutboxMessage + OutboxConsumerExecution + weddingos-domain-events worker"
+    },
+    {
+      "id": "AUTO-002",
+      "sourceEvent": "onboarding.ready_for_plan_generation.v1",
+      "producer": "OnboardingService transactional outbox",
+      "consumers": ["notification projection", "activity projection"],
+      "synchronousEffects": [
+        "validate eight confirmed sections and transition draft to ready"
+      ],
+      "asynchronousEffects": ["ready notification", "activity projection"],
+      "idempotencyKey": "outbox dedupe plus deterministic outbox-and-consumer BullMQ job id",
+      "retryPolicy": "bounded exponential backoff; retryable classification; persistent dead-letter",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "does not generate a plan; Slice 2B remains required",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2A_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "OutboxMessage + OutboxConsumerExecution + weddingos-domain-events worker"
+    },
+    {
+      "id": "AUTO-003",
+      "sourceEvent": "Data nunții modificată",
+      "producer": "Data nunții modificată",
+      "consumers": [
+        "relative task/milestone dates",
+        "vendor availability",
+        "RSVP deadline warning",
+        "calendar"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "relative task/milestone dates, vendor availability, RSVP deadline warning, calendar",
+        "preview + explicit confirm; reschedule job; audit"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "explicit user confirmation/impact preview required",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "preview + explicit confirm; reschedule job; audit"
+    },
+    {
+      "id": "AUTO-004",
+      "sourceEvent": "Locația modificată",
+      "producer": "Locația modificată",
+      "consumers": [
+        "invitation",
+        "calendar",
+        "guest directions",
+        "transport",
+        "vendor briefs"
+      ],
+      "synchronousEffects": [
+        "invitation, calendar, guest directions, transport, vendor briefs"
+      ],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "explicit user confirmation/impact preview required",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "impact preview; re-notification flag; audit"
+    },
+    {
+      "id": "AUTO-005",
+      "sourceEvent": "membership.invited.v1",
+      "producer": "TeamService transactional outbox",
+      "consumers": ["SMTP email", "owner notification", "activity projection"],
+      "synchronousEffects": [
+        "pending invitation, audit, outbox and consumer intents commit atomically"
+      ],
+      "asynchronousEffects": [
+        "encrypted email command",
+        "owner notification",
+        "redacted activity item"
+      ],
+      "idempotencyKey": "outbox dedupe plus deterministic outbox-and-consumer BullMQ job id",
+      "retryPolicy": "bounded exponential backoff; retryable classification; persistent dead-letter",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2A_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "OutboxMessage + OutboxConsumerExecution + weddingos-domain-events worker"
+    },
+    {
+      "id": "AUTO-006",
+      "sourceEvent": "Membru eliminat/rol schimbat",
+      "producer": "Membru eliminat/rol schimbat",
+      "consumers": ["permissions", "sessions/search/notifications"],
+      "synchronousEffects": ["permissions, sessions/search/notifications"],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "immediate authorization invalidation; security notice/audit"
+    },
+    {
+      "id": "AUTO-007",
+      "sourceEvent": "Task creat/assigned",
+      "producer": "Task creat/assigned",
+      "consumers": [
+        "plan",
+        "calendar projection",
+        "assignee notification",
+        "overview"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "plan, calendar projection, assignee notification, overview",
+        "outbox; dedupe by task/version"
+      ],
+      "idempotencyKey": "outbox; dedupe by task/version",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "outbox; dedupe by task/version"
+    },
+    {
+      "id": "AUTO-008",
+      "sourceEvent": "Task due/status modificat",
+      "producer": "Task due/status modificat",
+      "consumers": ["calendar", "timeline health", "reminders", "dashboard"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "calendar, timeline health, reminders, dashboard",
+        "cancel/reschedule reminder jobs; audit"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "cancel/reschedule reminder jobs; audit"
+    },
+    {
+      "id": "AUTO-009",
+      "sourceEvent": "Task întârziat",
+      "producer": "Task întârziat",
+      "consumers": ["notifications", "overview next action", "risks optional"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "notifications, overview next action, risks optional",
+        "scheduled evaluator; daily dedupe"
+      ],
+      "idempotencyKey": "scheduled evaluator; daily dedupe",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "scheduled evaluator; daily dedupe"
+    },
+    {
+      "id": "AUTO-010",
+      "sourceEvent": "Milestone/dependency modificat",
+      "producer": "Milestone/dependency modificat",
+      "consumers": ["critical path/timeline/dashboard"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "critical path/timeline/dashboard",
+        "recalc job; versioned graph"
+      ],
+      "idempotencyKey": "recalc job; versioned graph",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "recalc job; versioned graph"
+    },
+    {
+      "id": "AUTO-011",
+      "sourceEvent": "Guest adăugat",
+      "producer": "Guest adăugat",
+      "consumers": ["household counts", "CRM", "campaign eligibility"],
+      "synchronousEffects": ["household counts, CRM, campaign eligibility"],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "activity/audit"
+    },
+    {
+      "id": "AUTO-012",
+      "sourceEvent": "Guest șters/arhivat",
+      "producer": "Guest șters/arhivat",
+      "consumers": [
+        "recipients",
+        "RSVP",
+        "seating",
+        "transport",
+        "accommodation",
+        "menu counts"
+      ],
+      "synchronousEffects": [
+        "recipients, RSVP, seating, transport, accommodation, menu counts"
+      ],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "explicit user confirmation/impact preview required",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "destructive confirm; cancel unsent delivery; retain sent history"
+    },
+    {
+      "id": "AUTO-013",
+      "sourceEvent": "Număr invitați/estimare modificat",
+      "producer": "Număr invitați/estimare modificat",
+      "consumers": ["calculators", "budget/catering forecast", "overview"],
+      "synchronousEffects": ["calculators, budget/catering forecast, overview"],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "recommendation invalidation; audit"
+    },
+    {
+      "id": "AUTO-014",
+      "sourceEvent": "Import guest committed",
+      "producer": "Import guest committed",
+      "consumers": ["guests/households/stats/duplicates/activity"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "guests/households/stats/duplicates/activity",
+        "async job, row idempotency, result notification"
+      ],
+      "idempotencyKey": "async job, row idempotency, result notification",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "async job, row idempotency, result notification"
+    },
+    {
+      "id": "AUTO-015",
+      "sourceEvent": "Campaign programată",
+      "producer": "Campaign programată",
+      "consumers": ["recipient snapshot/deliveries"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "recipient snapshot/deliveries",
+        "queue per recipient, cancellation before send, audit"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "queue per recipient, cancellation before send, audit"
+    },
+    {
+      "id": "AUTO-016",
+      "sourceEvent": "Campaign trimisă",
+      "producer": "Campaign trimisă",
+      "consumers": ["guest invitation=`sent`", "contact log", "campaign stats"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "guest invitation=`sent`, contact log, campaign stats",
+        "provider jobs/idempotent key, sender notification"
+      ],
+      "idempotencyKey": "provider jobs/idempotent key, sender notification",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "provider jobs/idempotent key, sender notification"
+    },
+    {
+      "id": "AUTO-017",
+      "sourceEvent": "Delivery webhook",
+      "producer": "Delivery webhook",
+      "consumers": [
+        "recipient sent/delivered/opened/failed",
+        "guest invitation status"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "recipient sent/delivered/opened/failed, guest invitation status",
+        "signed webhook, provider-id dedupe"
+      ],
+      "idempotencyKey": "signed webhook, provider-id dedupe",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "signed webhook, provider-id dedupe"
+    },
+    {
+      "id": "AUTO-018",
+      "sourceEvent": "RSVP confirmat",
+      "producer": "RSVP confirmat",
+      "consumers": [
+        "guest response/menu/logistics eligibility",
+        "dashboard/events"
+      ],
+      "synchronousEffects": [
+        "guest response/menu/logistics eligibility, dashboard/events"
+      ],
+      "asynchronousEffects": [],
+      "idempotencyKey": "couple notification; idempotent submission version",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "couple notification; idempotent submission version"
+    },
+    {
+      "id": "AUTO-019",
+      "sourceEvent": "RSVP modificat",
+      "producer": "RSVP modificat",
+      "consumers": ["old allocations validated/removed", "summaries"],
+      "synchronousEffects": ["old allocations validated/removed, summaries"],
+      "asynchronousEffects": [],
+      "idempotencyKey": "version conflict protection; change activity",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "version conflict protection; change activity"
+    },
+    {
+      "id": "AUTO-020",
+      "sourceEvent": "RSVP refuzat",
+      "producer": "RSVP refuzat",
+      "consumers": ["unassign table/route/stay/menu; capacity released"],
+      "synchronousEffects": [
+        "unassign table/route/stay/menu; capacity released"
+      ],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "explicit user confirmation/impact preview required",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "explicit side-effect preview for admin override; notify planner"
+    },
+    {
+      "id": "AUTO-021",
+      "sourceEvent": "Meniu selectat",
+      "producer": "Meniu selectat",
+      "consumers": ["menu totals", "table totals", "allergy checks"],
+      "synchronousEffects": ["menu totals, table totals, allergy checks"],
+      "asynchronousEffects": [],
+      "idempotencyKey": "unresolved allergy alert/dedupe",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "unresolved allergy alert/dedupe"
+    },
+    {
+      "id": "AUTO-022",
+      "sourceEvent": "Alergie introdusă",
+      "producer": "Alergie introdusă",
+      "consumers": [
+        "AllergyIssue",
+        "caterer export readiness",
+        "risk notification"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "AllergyIssue, caterer export readiness, risk notification",
+        "high-sensitivity notification; audit redacted"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "high-sensitivity notification; audit redacted"
+    },
+    {
+      "id": "AUTO-023",
+      "sourceEvent": "Seating plan publicat",
+      "producer": "Seating plan publicat",
+      "consumers": ["immutable version", "PDF/export snapshot"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "immutable version, PDF/export snapshot",
+        "async PDF; team notification"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "async PDF; team notification"
+    },
+    {
+      "id": "AUTO-024",
+      "sourceEvent": "Transport route confirmed/changed",
+      "producer": "Transport route confirmed/changed",
+      "consumers": ["passenger notification state", "calendar/run sheet"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "passenger notification state, calendar/run sheet",
+        "send/resend job; changed-recipient diff"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "send/resend job; changed-recipient diff"
+    },
+    {
+      "id": "AUTO-025",
+      "sourceEvent": "Accommodation changed",
+      "producer": "Accommodation changed",
+      "consumers": ["rooming list", "guest details", "budget expense"],
+      "synchronousEffects": ["rooming list, guest details, budget expense"],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "re-notify changed guests; overbooking alert"
+    },
+    {
+      "id": "AUTO-026",
+      "sourceEvent": "Favorite/shortlist updated",
+      "producer": "Favorite/shortlist updated",
+      "consumers": ["collaborative UI/activity"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "collaborative UI/activity",
+        "realtime optional; no vendor notification"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "realtime optional; no vendor notification"
+    },
+    {
+      "id": "AUTO-027",
+      "sourceEvent": "RFQ trimis",
+      "producer": "RFQ trimis",
+      "consumers": [
+        "recipients/vendor inbox",
+        "delivery",
+        "deadline reminders"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "recipients/vendor inbox, delivery, deadline reminders",
+        "fan-out queue; idempotent recipient send"
+      ],
+      "idempotencyKey": "fan-out queue; idempotent recipient send",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "fan-out queue; idempotent recipient send"
+    },
+    {
+      "id": "AUTO-028",
+      "sourceEvent": "Offer received/revised",
+      "producer": "Offer received/revised",
+      "consumers": [
+        "offer status",
+        "comparison",
+        "booking candidate",
+        "couple notification"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "offer status, comparison, booking candidate, couple notification",
+        "normalize/AI analysis job; immutable revision"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "normalize/AI analysis job; immutable revision"
+    },
+    {
+      "id": "AUTO-029",
+      "sourceEvent": "Offer accepted",
+      "producer": "Offer accepted",
+      "consumers": [
+        "booking selected",
+        "contract draft",
+        "expense/payment/task"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "booking selected, contract draft, expense/payment/task",
+        "single transaction + outbox; explicit confirm; audit"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "explicit user confirmation/impact preview required",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "single transaction + outbox; explicit confirm; audit"
+    },
+    {
+      "id": "AUTO-030",
+      "sourceEvent": "Vendor booked",
+      "producer": "Vendor booked",
+      "consumers": [
+        "marketplace availability held/booked",
+        "dashboard progress"
+      ],
+      "synchronousEffects": [
+        "marketplace availability held/booked, dashboard progress"
+      ],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "vendor/couple notifications; conflict check"
+    },
+    {
+      "id": "AUTO-031",
+      "sourceEvent": "Contract uploaded",
+      "producer": "Contract uploaded",
+      "consumers": ["file scan", "contract version", "OCR/extraction"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "file scan, contract version, OCR/extraction",
+        "async chain; hash dedupe; progress/error"
+      ],
+      "idempotencyKey": "async chain; hash dedupe; progress/error",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "async chain; hash dedupe; progress/error"
+    },
+    {
+      "id": "AUTO-032",
+      "sourceEvent": "Contract analyzed",
+      "producer": "Contract analyzed",
+      "consumers": ["obligations", "risks", "suggested tasks/payments"],
+      "synchronousEffects": ["obligations, risks, suggested tasks/payments"],
+      "asynchronousEffects": [],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "AI output remains proposal until approval; cost audit"
+    },
+    {
+      "id": "AUTO-033",
+      "sourceEvent": "Contract signed",
+      "producer": "Contract signed",
+      "consumers": [
+        "booking contracted",
+        "obligations/calendar/payment schedule"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "booking contracted, obligations/calendar/payment schedule",
+        "transaction/outbox; both parties notification"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "transaction/outbox; both parties notification"
+    },
+    {
+      "id": "AUTO-034",
+      "sourceEvent": "Plată adăugată/înregistrată",
+      "producer": "Plată adăugată/înregistrată",
+      "consumers": ["expense/category/cashflow/booking/calendar/dashboard"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "expense/category/cashflow/booking/calendar/dashboard",
+        "transaction idempotency; financial audit; receipt job"
+      ],
+      "idempotencyKey": "transaction idempotency; financial audit; receipt job",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "transaction idempotency; financial audit; receipt job"
+    },
+    {
+      "id": "AUTO-035",
+      "sourceEvent": "Plată due-soon/overdue",
+      "producer": "Plată due-soon/overdue",
+      "consumers": ["notifications", "overview", "risk/next action"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "notifications, overview, risk/next action",
+        "scheduled evaluator with daily dedupe/quiet-hours policy"
+      ],
+      "idempotencyKey": "scheduled evaluator with daily dedupe/quiet-hours policy",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "scheduled evaluator with daily dedupe/quiet-hours policy"
+    },
+    {
+      "id": "AUTO-036",
+      "sourceEvent": "File/media uploaded",
+      "producer": "File/media uploaded",
+      "consumers": ["scan", "preview/transcode/OCR/index", "linked module"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "scan, preview/transcode/OCR/index, linked module",
+        "async progress; quarantine on failure"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "async progress; quarantine on failure"
+    },
+    {
+      "id": "AUTO-037",
+      "sourceEvent": "Risc creat/escalated",
+      "producer": "Risc creat/escalated",
+      "consumers": ["dashboard", "task/Plan B suggestions", "notifications"],
+      "synchronousEffects": [
+        "dashboard, task/Plan B suggestions, notifications"
+      ],
+      "asynchronousEffects": [],
+      "idempotencyKey": "severity routing/dedupe; audit",
+      "retryPolicy": "not applicable to synchronous transaction",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Rollback transaction and return typed error without partial cross-module state.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "severity routing/dedupe; audit"
+    },
+    {
+      "id": "AUTO-038",
+      "sourceEvent": "Plan B activat",
+      "producer": "Plan B activat",
+      "consumers": [
+        "run sheet",
+        "incidents",
+        "team/vendors",
+        "guest comms if affected"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "run sheet, incidents, team/vendors, guest comms if affected",
+        "high-risk confirm; realtime + push/SMS; immutable audit"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "explicit user confirmation/impact preview required",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "high-risk confirm; realtime + push/SMS; immutable audit"
+    },
+    {
+      "id": "AUTO-039",
+      "sourceEvent": "AI proposal aprobat",
+      "producer": "AI proposal aprobat",
+      "consumers": ["one or more domain commands"],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "one or more domain commands",
+        "reauthorize + version check + idempotent transaction/outbox + cost/tool audit"
+      ],
+      "idempotencyKey": "reauthorize + version check + idempotent transaction/outbox + cost/tool audit",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "not required beyond source command",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "reauthorize + version check + idempotent transaction/outbox + cost/tool audit"
+    },
+    {
+      "id": "AUTO-040",
+      "sourceEvent": "Wedding closed",
+      "producer": "Wedding closed",
+      "consumers": [
+        "closure validation",
+        "archived permissions",
+        "archive/export snapshot",
+        "review prompts"
+      ],
+      "synchronousEffects": [
+        "persist source aggregate and transactional outbox event"
+      ],
+      "asynchronousEffects": [
+        "closure validation, archived permissions, archive/export snapshot, review prompts",
+        "owner confirm; async archive; recovery window; notifications"
+      ],
+      "idempotencyKey": "event_id + consumer_name; unique per consumer",
+      "retryPolicy": "exponential backoff with bounded attempts, dead-letter visibility and manual retry",
+      "notifications": [
+        "recipient/channel/template resolved from source event and current preferences"
+      ],
+      "audit": true,
+      "confirmation": "explicit user confirmation/impact preview required",
+      "failureHandling": "Source transaction remains committed; surface failed job, keep idempotent retry, compensate only through explicit domain command.",
+      "currentBackendCoverage": "ABSENT_REPOSITORY",
+      "evidence": "owner confirm; async archive; recovery window; notifications"
+    },
+    {
+      "id": "AUTO-041",
+      "sourceEvent": "user.registered.v1",
+      "producer": "AuthService transactional outbox",
+      "consumers": ["registration verification email", "delivery attempt"],
+      "synchronousEffects": [
+        "domain state, hashed one-time token, outbox and durable job commit atomically"
+      ],
+      "asynchronousEffects": [
+        "worker decrypts minimal command and sends through SMTP"
+      ],
+      "idempotencyKey": "unique outbox dedupe key and deterministic BullMQ job id",
+      "retryPolicy": "bounded exponential backoff; retryable SMTP errors; dead-letter",
+      "notifications": ["security email cannot be disabled"],
+      "audit": true,
+      "confirmation": "request accepted after durable commit, before provider delivery",
+      "failureHandling": "Committed state remains; job becomes retrying or dead_letter and is visible.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2A_INTEGRATION_TESTED",
+      "evidence": "Real Mailpit outage and recovery proof with one delivered message"
+    },
+    {
+      "id": "AUTO-042",
+      "sourceEvent": "password.reset_requested.v1",
+      "producer": "AuthService transactional outbox",
+      "consumers": ["password reset email", "delivery attempt"],
+      "synchronousEffects": [
+        "domain state, hashed one-time token, outbox and durable job commit atomically"
+      ],
+      "asynchronousEffects": [
+        "worker decrypts minimal command and sends through SMTP"
+      ],
+      "idempotencyKey": "unique outbox dedupe key and deterministic BullMQ job id",
+      "retryPolicy": "bounded exponential backoff; retryable SMTP errors; dead-letter",
+      "notifications": ["security email cannot be disabled"],
+      "audit": true,
+      "confirmation": "request accepted after durable commit, before provider delivery",
+      "failureHandling": "Committed state remains; job becomes retrying or dead_letter and is visible.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2A_INTEGRATION_TESTED",
+      "evidence": "Real Mailpit outage and recovery proof with one delivered message"
+    },
+    {
+      "id": "AUTO-043",
+      "sourceEvent": "magic_link.requested.v1",
+      "producer": "AuthService transactional outbox",
+      "consumers": ["magic-link email", "delivery attempt"],
+      "synchronousEffects": [
+        "domain state, hashed one-time token, outbox and durable job commit atomically"
+      ],
+      "asynchronousEffects": [
+        "worker decrypts minimal command and sends through SMTP"
+      ],
+      "idempotencyKey": "unique outbox dedupe key and deterministic BullMQ job id",
+      "retryPolicy": "bounded exponential backoff; retryable SMTP errors; dead-letter",
+      "notifications": ["security email cannot be disabled"],
+      "audit": true,
+      "confirmation": "request accepted after durable commit, before provider delivery",
+      "failureHandling": "Committed state remains; job becomes retrying or dead_letter and is visible.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2A_INTEGRATION_TESTED",
+      "evidence": "Real Mailpit outage and recovery proof with one delivered message"
+    },
+    {
+      "id": "AUTO-044",
+      "sourceEvent": "planning.plan_generation_requested.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["plan_generation"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["user-visible plan generation job"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "user-visible plan generation job"
+    },
+    {
+      "id": "AUTO-045",
+      "sourceEvent": "planning.plan_proposal_ready.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["notification_projection", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["proposal-ready notification and activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [
+        "workspace-scoped recipient-owned planning notification honoring preferences/quiet hours"
+      ],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "proposal-ready notification and activity"
+    },
+    {
+      "id": "AUTO-046",
+      "sourceEvent": "planning.plan_proposal_updated.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["deduped proposal activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "deduped proposal activity"
+    },
+    {
+      "id": "AUTO-047",
+      "sourceEvent": "planning.plan_proposal_rejected.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["deduped rejection activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "deduped rejection activity"
+    },
+    {
+      "id": "AUTO-048",
+      "sourceEvent": "planning.plan_applied.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["notification_projection", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["plan-applied notification and activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [
+        "workspace-scoped recipient-owned planning notification honoring preferences/quiet hours"
+      ],
+      "audit": true,
+      "confirmation": "explicit human review and apply confirmation required",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "plan-applied notification and activity"
+    },
+    {
+      "id": "AUTO-049",
+      "sourceEvent": "planning.export_requested.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["planning_export"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["GeneratedArtifact CSV, no payload bytes"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "GeneratedArtifact CSV, no payload bytes"
+    },
+    {
+      "id": "AUTO-050",
+      "sourceEvent": "task.created.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["task activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "task activity"
+    },
+    {
+      "id": "AUTO-051",
+      "sourceEvent": "task.assigned.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["notification_projection", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["assignee notification and task activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [
+        "workspace-scoped recipient-owned planning notification honoring preferences/quiet hours"
+      ],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "assignee notification and task activity"
+    },
+    {
+      "id": "AUTO-052",
+      "sourceEvent": "task.status_changed.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["notification_projection", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "bounded planning notification and semantic activity"
+      ],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [
+        "workspace-scoped recipient-owned planning notification honoring preferences/quiet hours"
+      ],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "bounded planning notification and semantic activity"
+    },
+    {
+      "id": "AUTO-053",
+      "sourceEvent": "task.due_date_changed.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["due-date activity and reminder staleness"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "due-date activity and reminder staleness"
+    },
+    {
+      "id": "AUTO-054",
+      "sourceEvent": "task.deleted.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["deletion activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "deletion activity"
+    },
+    {
+      "id": "AUTO-055",
+      "sourceEvent": "task.reminder_scheduled.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["task_reminder"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["available_at delayed execution"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "available_at delayed execution"
+    },
+    {
+      "id": "AUTO-056",
+      "sourceEvent": "task.reminder_due.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["notification_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["exactly-once deduped user notification effect"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [
+        "workspace-scoped recipient-owned planning notification honoring preferences/quiet hours"
+      ],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "exactly-once deduped user notification effect"
+    },
+    {
+      "id": "AUTO-057",
+      "sourceEvent": "calendar.event_created.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["calendar activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "calendar activity"
+    },
+    {
+      "id": "AUTO-058",
+      "sourceEvent": "calendar.event_updated.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["calendar activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "calendar activity"
+    },
+    {
+      "id": "AUTO-059",
+      "sourceEvent": "calendar.event_deleted.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["calendar activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "calendar activity"
+    },
+    {
+      "id": "AUTO-060",
+      "sourceEvent": "timeline.milestone_created.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["milestone activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "milestone activity"
+    },
+    {
+      "id": "AUTO-061",
+      "sourceEvent": "timeline.milestone_updated.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["milestone activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "milestone activity"
+    },
+    {
+      "id": "AUTO-062",
+      "sourceEvent": "timeline.milestone_deleted.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["milestone activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "milestone activity"
+    },
+    {
+      "id": "AUTO-063",
+      "sourceEvent": "timeline.recalculated.v1",
+      "producer": "PlanningService transactional outbox or safe worker-derived event",
+      "consumers": ["activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable delivery intent commit atomically"
+      ],
+      "asynchronousEffects": ["recalculation preview/result activity"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry with idempotent effects and dead-letter visibility",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "source command rules apply",
+      "failureHandling": "Authoritative state remains committed; consumer retries independently from durable execution state.",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_2B_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "recalculation preview/result activity"
+    },
+    {
+      "id": "AUTO-S4-01",
+      "sourceEvent": "seating.suggestion_requested.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": ["seating_suggestion", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "seating_suggestion idempotent effect",
+        "activity_projection idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-02",
+      "sourceEvent": "seating.assignment_changed.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": ["seating_issue_projection", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "seating_issue_projection idempotent effect",
+        "activity_projection idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-03",
+      "sourceEvent": "seating.export_requested.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": ["seating_export"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": ["seating_export idempotent effect"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-04",
+      "sourceEvent": "transport.assignment_changed.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": ["transport_issue_projection", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "transport_issue_projection idempotent effect",
+        "activity_projection idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-05",
+      "sourceEvent": "transport.manifest_requested.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": ["transport_manifest"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": ["transport_manifest idempotent effect"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-06",
+      "sourceEvent": "accommodation.allocation_changed.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": ["accommodation_issue_projection", "activity_projection"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "accommodation_issue_projection idempotent effect",
+        "activity_projection idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-07",
+      "sourceEvent": "accommodation.rooming_list_requested.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": ["accommodation_rooming_list"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": ["accommodation_rooming_list idempotent effect"],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-08",
+      "sourceEvent": "rsvp.submitted.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": [
+        "rsvp_projection",
+        "guest_operations_projection",
+        "activity_projection"
+      ],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "rsvp_projection idempotent effect",
+        "guest_operations_projection idempotent effect",
+        "activity_projection idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S4-09",
+      "sourceEvent": "rsvp.updated.v1",
+      "producer": "Slice 4 API transaction or guest RSVP transaction",
+      "consumers": [
+        "rsvp_projection",
+        "guest_operations_projection",
+        "activity_projection"
+      ],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "rsvp_projection idempotent effect",
+        "guest_operations_projection idempotent effect",
+        "activity_projection idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name with durable OutboxConsumerExecution dedupe",
+      "retryPolicy": "at-least-once bounded retry; independently recoverable consumer execution",
+      "notifications": [],
+      "audit": true,
+      "confirmation": "domain command validation and If-Match/Idempotency-Key where required",
+      "failureHandling": "authoritative state remains committed; retry/dead-letter remains visible",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_4_INTEGRATION_AND_E2E_TESTED",
+      "evidence": "Slice 4 worker, outbox consumer tests and Playwright scenarios"
+    },
+    {
+      "id": "AUTO-S9-01",
+      "sourceEvent": "copilot.run_requested.v1",
+      "producer": "Slice 9 canonical API transaction or persisted scheduler",
+      "consumers": [
+        "copilot_run",
+        "notification_projection",
+        "activity_projection",
+        "event_ack"
+      ],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "copilot_run idempotent effect",
+        "notification_projection idempotent effect",
+        "activity_projection idempotent effect",
+        "event_ack idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name; domain effects also have persisted dedupe keys",
+      "retryPolicy": "at-least-once bounded retry with independently recoverable consumer execution",
+      "notifications": [
+        "preference, ownership, quiet-hours and semantic dedupe enforced"
+      ],
+      "audit": true,
+      "confirmation": "If-Match, Idempotency-Key and risk-based approval where required",
+      "failureHandling": "canonical state remains truthful; retry/dead-letter is visible and no approval implies execution",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_9_E2E_TESTED",
+      "evidence": "Slice 9 unit and 30/30 Playwright E2E"
+    },
+    {
+      "id": "AUTO-S9-02",
+      "sourceEvent": "risk.detect_requested.v1",
+      "producer": "Slice 9 canonical API transaction or persisted scheduler",
+      "consumers": [
+        "risk_detection",
+        "notification_projection",
+        "activity_projection",
+        "event_ack"
+      ],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "risk_detection idempotent effect",
+        "notification_projection idempotent effect",
+        "activity_projection idempotent effect",
+        "event_ack idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name; domain effects also have persisted dedupe keys",
+      "retryPolicy": "at-least-once bounded retry with independently recoverable consumer execution",
+      "notifications": [
+        "preference, ownership, quiet-hours and semantic dedupe enforced"
+      ],
+      "audit": true,
+      "confirmation": "If-Match, Idempotency-Key and risk-based approval where required",
+      "failureHandling": "canonical state remains truthful; retry/dead-letter is visible and no approval implies execution",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_9_E2E_TESTED",
+      "evidence": "Slice 9 unit and 30/30 Playwright E2E"
+    },
+    {
+      "id": "AUTO-S9-03",
+      "sourceEvent": "contingency.plan_simulation_requested.v1",
+      "producer": "Slice 9 canonical API transaction or persisted scheduler",
+      "consumers": [
+        "contingency_simulation",
+        "activity_projection",
+        "event_ack"
+      ],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "contingency_simulation idempotent effect",
+        "activity_projection idempotent effect",
+        "event_ack idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name; domain effects also have persisted dedupe keys",
+      "retryPolicy": "at-least-once bounded retry with independently recoverable consumer execution",
+      "notifications": [
+        "preference, ownership, quiet-hours and semantic dedupe enforced"
+      ],
+      "audit": true,
+      "confirmation": "If-Match, Idempotency-Key and risk-based approval where required",
+      "failureHandling": "canonical state remains truthful; retry/dead-letter is visible and no approval implies execution",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_9_E2E_TESTED",
+      "evidence": "Slice 9 unit and 30/30 Playwright E2E"
+    },
+    {
+      "id": "AUTO-S9-04",
+      "sourceEvent": "automation.execution_requested.v1",
+      "producer": "Slice 9 canonical API transaction or persisted scheduler",
+      "consumers": [
+        "automation_execution",
+        "notification_projection",
+        "activity_projection",
+        "event_ack"
+      ],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "automation_execution idempotent effect",
+        "notification_projection idempotent effect",
+        "activity_projection idempotent effect",
+        "event_ack idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name; domain effects also have persisted dedupe keys",
+      "retryPolicy": "at-least-once bounded retry with independently recoverable consumer execution",
+      "notifications": [
+        "preference, ownership, quiet-hours and semantic dedupe enforced"
+      ],
+      "audit": true,
+      "confirmation": "If-Match, Idempotency-Key and risk-based approval where required",
+      "failureHandling": "canonical state remains truthful; retry/dead-letter is visible and no approval implies execution",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_9_E2E_TESTED",
+      "evidence": "Slice 9 unit and 30/30 Playwright E2E"
+    },
+    {
+      "id": "AUTO-S9-05",
+      "sourceEvent": "task.updated.v1",
+      "producer": "Slice 9 canonical API transaction or persisted scheduler",
+      "consumers": ["automation_trigger", "event_ack"],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "automation_trigger idempotent effect",
+        "event_ack idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name; domain effects also have persisted dedupe keys",
+      "retryPolicy": "at-least-once bounded retry with independently recoverable consumer execution",
+      "notifications": [
+        "preference, ownership, quiet-hours and semantic dedupe enforced"
+      ],
+      "audit": true,
+      "confirmation": "If-Match, Idempotency-Key and risk-based approval where required",
+      "failureHandling": "canonical state remains truthful; retry/dead-letter is visible and no approval implies execution",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_9_E2E_TESTED",
+      "evidence": "Slice 9 unit and 30/30 Playwright E2E"
+    },
+    {
+      "id": "AUTO-S9-06",
+      "sourceEvent": "digest.weekly_requested.v1",
+      "producer": "Slice 9 canonical API transaction or persisted scheduler",
+      "consumers": [
+        "weekly_digest",
+        "notification_projection",
+        "activity_projection",
+        "event_ack"
+      ],
+      "synchronousEffects": [
+        "authoritative state and durable outbox intent commit atomically"
+      ],
+      "asynchronousEffects": [
+        "weekly_digest idempotent effect",
+        "notification_projection idempotent effect",
+        "activity_projection idempotent effect",
+        "event_ack idempotent effect"
+      ],
+      "idempotencyKey": "outbox message id + consumer name; domain effects also have persisted dedupe keys",
+      "retryPolicy": "at-least-once bounded retry with independently recoverable consumer execution",
+      "notifications": [
+        "preference, ownership, quiet-hours and semantic dedupe enforced"
+      ],
+      "audit": true,
+      "confirmation": "If-Match, Idempotency-Key and risk-based approval where required",
+      "failureHandling": "canonical state remains truthful; retry/dead-letter is visible and no approval implies execution",
+      "currentBackendCoverage": "IMPLEMENTED_SLICE_9_E2E_TESTED",
+      "evidence": "Slice 9 unit and 30/30 Playwright E2E"
+    }
+  ],
+  "slice3Reconciliation": {
+    "status": "IMPLEMENTED_INTEGRATION_AND_E2E_TESTED",
+    "events": [
+      "guest.household_created.v1",
+      "guest.household_updated.v1",
+      "guest.created.v1",
+      "guest.updated.v1",
+      "guest.archived.v1",
+      "guest.import_requested.v1",
+      "guest.import_completed.v1",
+      "guest.export_requested.v1",
+      "invitation.draft_updated.v1",
+      "invitation.site_published.v1",
+      "invitation.site_unpublished.v1",
+      "invitation.recipients_created.v1",
+      "invitation.opened.v1",
+      "campaign.created.v1",
+      "campaign.scheduled.v1",
+      "campaign.send_requested.v1",
+      "campaign.recipient_delivery_requested.v1",
+      "campaign.completed.v1",
+      "rsvp.form_published.v1",
+      "rsvp.deadline_changed.v1",
+      "rsvp.submitted.v1",
+      "rsvp.updated.v1",
+      "rsvp.declined.v1",
+      "menu.created.v1",
+      "menu.updated.v1",
+      "menu.export_requested.v1",
+      "allergy.issue_resolved.v1"
+    ],
+    "consumers": [
+      "email",
+      "notification_projection",
+      "activity_projection",
+      "guest_import",
+      "guest_export",
+      "campaign_fanout",
+      "campaign_delivery",
+      "campaign_summary",
+      "invitation_open_projection",
+      "rsvp_projection",
+      "rsvp_reminder",
+      "menu_export"
+    ],
+    "userVisibleJobs": [
+      "guest import",
+      "guest export",
+      "campaign send",
+      "catering export"
+    ],
+    "internalExecutions": [
+      "recipient delivery",
+      "notification projection",
+      "activity projection",
+      "invitation open projection",
+      "RSVP projection",
+      "campaign summary"
+    ],
+    "deliveryGuarantee": "at-least-once with independently retryable OutboxConsumerExecution records and idempotent effects where supported",
+    "dedupe": "deterministic BullMQ job ID over outboxMessageId plus consumerName; provider webhooks dedupe by provider event ID",
+    "scheduledExecution": "RSVP reminders use durable available_at timing and revalidate access/state before delivery",
+    "testCoverage": "provider failure, partial success, retry, webhook replay, token isolation, worker workspace isolation and artifact generation"
+  },
+  "slice4Reconciliation": {
+    "status": "IMPLEMENTED",
+    "guarantee": "at-least-once with idempotent effects",
+    "consumers": [
+      "seating_suggestion",
+      "activity_projection",
+      "seating_issue_projection",
+      "seating_export",
+      "transport_issue_projection",
+      "transport_manifest",
+      "accommodation_issue_projection",
+      "accommodation_rooming_list",
+      "rsvp_projection",
+      "guest_operations_projection"
+    ]
+  },
+  "slice5Reconciliation": {
+    "status": "IMPLEMENTED_INTEGRATION_AND_E2E_TESTED",
+    "deliveryGuarantee": "at-least-once with independent durable consumer execution and idempotent effects where supported",
+    "consumers": [
+      "rfq_delivery",
+      "offer_projection",
+      "booking_projection",
+      "contract_projection",
+      "contract_export",
+      "budget_projection",
+      "payment_projection",
+      "payment_reminder",
+      "commercial_export",
+      "vendor_notification_projection",
+      "email",
+      "notification_projection",
+      "activity_projection",
+      "event_ack"
+    ],
+    "userVisibleJobs": [
+      "contract export",
+      "budget export",
+      "payment schedule export",
+      "booking summary export",
+      "offer comparison export"
+    ],
+    "internalExecutions": [
+      "RFQ delivery",
+      "offer/booking/contract/budget/payment projections",
+      "payment reminder",
+      "vendor notification projection",
+      "activity and event acknowledgement"
+    ],
+    "semanticEventFamilies": [
+      "vendor.*.v1",
+      "marketplace.*.v1",
+      "rfq.*.v1",
+      "offer.*.v1",
+      "booking.*.v1",
+      "contract.*.v1",
+      "budget.*.v1",
+      "expense.*.v1",
+      "payment.*.v1"
+    ],
+    "dedupe": "deterministic BullMQ job ID over outboxMessageId plus consumerName; notifications and artifacts carry persistent dedupe keys",
+    "scheduledExecution": "payment reminders use durable available_at timing and revalidate persisted schedule version, status, tenant and recipient access",
+    "workerIsolation": "workspace, vendor organization and aggregate identity are derived from persisted outbox/execution records; forged BullMQ tenant or aggregate payload is rejected",
+    "recursiveProjectionProtection": "projection events do not re-emit their triggering semantic event",
+    "testCoverage": "dispatcher/worker retry, partial consumer independence, RFQ partial delivery, reminder execution, exports and forged dual-tenant aggregate context; Slice 5 integration 6/6"
+  },
+  "slice6Reconciliation": {
+    "status": "IMPLEMENTED_INTEGRATION_AND_E2E_TESTED",
+    "deliveryGuarantee": "at-least-once with independently retryable durable consumers and idempotent internal effects",
+    "consumers": [
+      "document_scan",
+      "document_derivative",
+      "document_cleanup",
+      "document_retention",
+      "document_notification_projection",
+      "signature_envelope_create",
+      "signature_envelope_send",
+      "signature_status_projection",
+      "signature_evidence_download",
+      "payment_checkout_create",
+      "payment_status_projection",
+      "payment_refund",
+      "payment_reconciliation",
+      "notification_projection",
+      "activity_projection",
+      "event_ack"
+    ],
+    "semanticEventFamilies": [
+      "storage.*.v1",
+      "document.*.v1",
+      "signature.*.v1",
+      "payment.checkout_*.v1",
+      "payment.transaction_*.v1",
+      "payment.refund_*.v1",
+      "payment.reconciliation_*.v1"
+    ],
+    "providerSecurity": "raw-body HMAC, timestamp tolerance, immutable payload hash and provider event-id dedupe",
+    "scanFailure": "scanner unavailability retries without making the document downloadable; infected or mismatched objects quarantine",
+    "workerIsolation": "consumer derives object, workspace and vendor context from persisted outbox and rejects forged aggregate identity",
+    "refundRecovery": "durable refund ID is the provider idempotency identity; REQUESTED/PROCESSING replay resumes provider acknowledgement; unique ONLINE_REFUND source binding prevents duplicate ledger effects",
+    "testCoverage": "document scan/quarantine/derivative, materialization, signature completion/decline/stale/isolation, payment replay/failure/refunds/webhook/tenant isolation, dispatcher and worker recovery; zero skipped"
+  },
+  "slice7Reconciliation": {
+    "status": "IMPLEMENTED_INTEGRATION_AND_E2E_TESTED",
+    "deliveryGuarantee": "at-least-once with independently retryable OutboxConsumerExecution records and idempotent effects where supported; external providers are not claimed exactly-once",
+    "consumers": [
+      "review_eligibility_projection",
+      "review_rating_projection",
+      "review_notification_projection",
+      "review_moderation_projection",
+      "subscription_status_projection",
+      "subscription_entitlement_projection",
+      "subscription_usage_projection",
+      "subscription_notification_projection",
+      "payment_allocation_projection",
+      "vendor_payable_projection",
+      "settlement_calculation",
+      "payout_execution",
+      "payout_status_projection",
+      "payout_reconciliation",
+      "notification_projection",
+      "activity_projection",
+      "event_ack"
+    ],
+    "semanticEventFamilies": [
+      "review.*.v1",
+      "subscription.*.v1",
+      "payout.*.v1"
+    ],
+    "internalExecutions": [
+      "eligibility/rating/moderation validation",
+      "subscription status, entitlement and usage projection",
+      "payment allocation and payable ledger validation",
+      "payout status/reconciliation validation",
+      "notification, activity and event acknowledgement"
+    ],
+    "userVisibleJobs": [
+      "settlement calculation when scheduled as a batch",
+      "payout execution/reconciliation when explicitly requested",
+      "rating rebuild and moderation export when exposed"
+    ],
+    "providerSecurity": "raw-body HMAC with timestamp tolerance, immutable payload hash, provider event-id uniqueness and persisted provider-to-tenant resolver",
+    "dedupe": "deterministic BullMQ job ID over outboxMessageId plus consumerName; subscription, payout, allocation, ledger, settlement and notification effects carry persistent unique identities",
+    "monotonicity": "stale subscription events are acknowledged without regressing state; PAID payout accepts only compensating RETURNED transition and RETURNED is terminal",
+    "recovery": "provider success before internal acknowledgement resumes from persisted provider event/payout attempt; partial consumer success remains independently complete",
+    "workerIsolation": "workspace/vendor/aggregate context comes from persisted outbox, provider event and aggregate records; forged tenant or provider identity is rejected",
+    "recursiveProjectionProtection": "review/rating, subscription and payout projections do not re-emit their triggering semantic event",
+    "testCoverage": "dispatcher/worker baseline recovery plus Slice 7 signed webhook replay, stale event, forged provider context, refund/dispute compensation, payout return and failed-attempt retry; zero failed/skipped/retries"
+  },
+  "slice8Reconciliation": {
+    "status": "IMPLEMENTED_INTEGRATION_AND_E2E_TESTED",
+    "deliveryGuarantee": "at-least-once with independently retryable OutboxConsumerExecution records and idempotent effects; no external exactly-once claim",
+    "consumers": [
+      "wedding_day_live_projection",
+      "wedding_day_reminder",
+      "incident_escalation",
+      "announcement_delivery",
+      "announcement_summary",
+      "check_in_projection",
+      "check_in_offline_sync",
+      "attendance_projection",
+      "guest_moment_scan",
+      "guest_moment_derivative",
+      "guest_moment_moderation_projection",
+      "gallery_projection",
+      "wedding_day_export",
+      "notification_projection",
+      "activity_projection",
+      "event_ack"
+    ],
+    "semanticEventFamilies": [
+      "wedding_day.*.v1",
+      "check_in.*.v1",
+      "guest_moment.*.v1",
+      "gallery.*.v1"
+    ],
+    "userVisibleJobs": ["Wedding Day operational exports"],
+    "internalExecutions": [
+      "live projection",
+      "reminders/escalation",
+      "announcement fan-out/summary",
+      "attendance/check-in projection",
+      "media scan/derivative/moderation",
+      "gallery projection"
+    ],
+    "scheduling": "future reminders and scheduled announcements use durable available_at and revalidate canonical status/version/access",
+    "mediaSafety": "checksum/type/size verification and ClamAV fail closed; clean images/video posters receive private managed derivatives",
+    "dedupe": "deterministic BullMQ job ID over outboxMessageId plus consumerName; check-in command, offline sequence, delivery, notification, activity and artifact effects have persisted unique identities",
+    "recovery": "partial consumer success, provider/storage success before acknowledgement and process restart resume from persisted records",
+    "recursiveProjectionProtection": "live, attendance, gallery, notification and activity projections do not re-emit their source semantic event",
+    "testCoverage": "29/29 Slice 8 E2E plus domain/outbox/OpenAPI suites; zero failed/skipped/retries"
+  },
+  "slice9Reconciliation": {
+    "status": "IMPLEMENTED_INTEGRATION_AND_E2E_TESTED",
+    "deliveryGuarantee": "at-least-once with independently retryable OutboxConsumerExecution records and idempotent effects; no universal external exactly-once claim",
+    "consumers": [
+      "copilot_run",
+      "risk_detection",
+      "contingency_simulation",
+      "automation_execution",
+      "automation_trigger",
+      "weekly_digest",
+      "notification_projection",
+      "activity_projection",
+      "event_ack"
+    ],
+    "semanticEventFamilies": [
+      "copilot.*.v1",
+      "risk.*.v1",
+      "contingency.*.v1",
+      "automation.*.v1",
+      "digest.*.v1"
+    ],
+    "allowedActions": [
+      "CREATE_TASK",
+      "UPDATE_TASK",
+      "CREATE_CALENDAR_EVENT",
+      "CREATE_RISK",
+      "CREATE_CONTINGENCY_PLAN",
+      "CREATE_NOTIFICATION"
+    ],
+    "forbiddenActions": [
+      "arbitrary shell",
+      "arbitrary HTTP",
+      "arbitrary SQL",
+      "filesystem access",
+      "secret access",
+      "direct payment/refund/contract/signature execution"
+    ],
+    "scheduling": "durable available_at schedule with canonical state/version/access revalidation",
+    "recovery": "dispatcher crash, worker crash, partial consumer success and provider success before acknowledgement resume from persisted state",
+    "recursionProtection": "bounded depth, source event dedupe and projections that do not re-emit their source mutation",
+    "testCoverage": "28/28 Slice 9 unit and 30/30 E2E; zero failed/skipped/retries"
+  },
+  "slice10Reconciliation": {
+    "status": "DURABLE_INTENT_IMPLEMENTED_EXECUTION_PARTIAL",
+    "semanticEventFamilies": [
+      "platform.*.v1",
+      "support.*.v1",
+      "privacy.*.v1",
+      "retention.*.v1",
+      "legal_hold.*.v1",
+      "security.*.v1",
+      "backup.*.v1",
+      "restore.*.v1",
+      "release.*.v1"
+    ],
+    "consumers": ["event_ack", "activity_projection"],
+    "durableIntent": "Admin/privacy/backup mutations commit authoritative state and outbox delivery intent atomically.",
+    "notYetActivated": [
+      "privacy export artifact generation",
+      "retention scan and purge",
+      "scheduled backup runner",
+      "external alert delivery",
+      "release deployment"
+    ],
+    "deliveryGuarantee": "at-least-once with idempotent records where implemented; no exactly-once provider claim"
+  },
+  "slice10BReconciliation": {
+    "status": "PARTIAL_BETA_CLOSURE",
+    "activated": ["privacy_export worker", "security-event threshold aggregation and alert dedupe"],
+    "localInfrastructure": ["Prometheus rules", "Alertmanager routing", "local HTTP receiver"],
+    "stillBlocked": ["retention scan/purge", "deletion execution", "scheduled off-host backup", "release deployment/rollback"],
+    "deliveryGuarantee": "at-least-once with idempotent effects where implemented"
+  }
+}

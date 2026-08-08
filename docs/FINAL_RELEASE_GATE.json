@@ -1,0 +1,56 @@
+{
+  "status": "READY",
+  "verdict": "READY FOR CONTROLLED BETA",
+  "blockers": [],
+  "evidence": {
+    "directory": "/home/andrei/weddingos-10c-validation/ops/release-evidence/current",
+    "gates": {
+      "sourceProvenance": true,
+      "sourceChecksum": true,
+      "migrations": true,
+      "databaseState": true,
+      "referenceData": true,
+      "unit": true,
+      "integration": true,
+      "e2e": true,
+      "openApi": true,
+      "openApiArtifact": true,
+      "builds": true,
+      "dependencyScan": true,
+      "secretScan": true,
+      "securityGate": true,
+      "sbom": true,
+      "backupFresh": true,
+      "restoreFresh": true,
+      "tracing": true,
+      "metrics": true,
+      "dashboards": true,
+      "alertRoute": true,
+      "stagingDeployment": true,
+      "rollbackProof": true,
+      "mfa": true,
+      "csrf": true,
+      "ssrf": true,
+      "retentionDeletion": true
+    },
+    "sourceSnapshotChecksum": "999f059fd7e99f0271eb16138c2c883654646262d5c314a4866de49c7376df27",
+    "provenanceLimit": "SOURCE_SNAPSHOT_ONLY_NO_GIT_COMMIT",
+    "backupDestination": "SEPARATE_LOCAL_DESTINATION"
+  },
+  "artifact": {
+    "formatVersion": 1,
+    "runId": "2026-07-21T21-23-29-087Z",
+    "command": "pnpm verify:beta",
+    "startedAt": "2026-07-21T21:23:29.087Z",
+    "completedAt": "2026-07-21T21:46:00.864Z",
+    "durationSeconds": 1352,
+    "e2e": {
+      "passed": 253,
+      "failed": 0,
+      "skipped": 0,
+      "retries": 0
+    },
+    "verdict": "READY FOR CONTROLLED BETA",
+    "evidenceDirectory": "artifacts/beta-gate/2026-07-21T21-23-29-087Z"
+  }
+}

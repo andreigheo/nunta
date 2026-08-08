@@ -1,0 +1,24 @@
+groups:
+  - name: weddingos-runtime
+    rules:
+      - alert: WeddingOsApiDown
+        expr: up{job="weddingos-api"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: WeddingOS API is unavailable
+          runbook_url: docs/runbooks/API_DOWN.md
+      - alert: WeddingOsDatabaseDown
+        expr: weddingos_up{component="database"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: PostgreSQL dependency is unavailable
+          runbook_url: docs/DISASTER_RECOVERY_RUNBOOK.md
+      - alert: WeddingOsWorkerStale
+        expr: weddingos_up{component="worker"} == 0
+        for: 2m
+        labels: { severity: high }
+        annotations:
+          summary: Persistent worker heartbeat is stale
+          runbook_url: docs/runbooks/WORKER_STALE.md

@@ -1,0 +1,13 @@
+[Unit]
+Description=WeddingOS scheduled backup (%i)
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/andrei/weddingos-runtime
+EnvironmentFile=%h/.config/weddingos/backup.env
+Environment=BACKUP_SCHEDULE_KEY=%i
+ExecStart=/usr/bin/flock -n %t/weddingos-backup-%i.service.lock /home/andrei/weddingos-runtime/ops/backup/run-scheduled-backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

@@ -1,0 +1,11 @@
+.next
+node_modules
+coverage
+dist
+playwright-report
+test-results
+pnpm-lock.yaml
+/src/**
+docs/API_OPERATION_REGISTRY.json
+docs/BACKEND_ENTITY_CATALOG.json
+docs/FRONTEND_INVENTORY.json

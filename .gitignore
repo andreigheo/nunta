@@ -1,0 +1,17 @@
+node_modules/
+.next/
+.next-*/
+dist/
+coverage/
+.env
+.env.local
+.env.*.local
+playwright-report/
+test-results/
+artifacts/
+**/ops/artifacts/
+**/ops/imports/
+**/ops/release-evidence/
+*.log
+*.tsbuildinfo
+packages/database/generated/

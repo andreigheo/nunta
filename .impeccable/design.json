@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-20T21:00:00+03:00",
+  "title": "Design System: WeddingOS",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas cald",
+        "canonical": "#f7f4ee",
+        "tonalRamp": [
+          "#20211f",
+          "#3d3d39",
+          "#5d5d57",
+          "#7e7d74",
+          "#a09d92",
+          "#c2beb2",
+          "#e1ddd3",
+          "#f7f4ee"
+        ]
+      },
+      "evergreen": {
+        "role": "primary",
+        "displayName": "Evergreen operațional",
+        "canonical": "#21483a",
+        "tonalRamp": [
+          "#10251d",
+          "#183527",
+          "#21483a",
+          "#356050",
+          "#5c7a6b",
+          "#91a899",
+          "#c8d5cc",
+          "#eef3ef"
+        ]
+      },
+      "copper": {
+        "role": "secondary",
+        "displayName": "Copper uman",
+        "canonical": "#b4774b",
+        "tonalRamp": [
+          "#3b2212",
+          "#633b22",
+          "#8b5733",
+          "#b4774b",
+          "#c99a77",
+          "#ddbea8",
+          "#f0ddd0",
+          "#fff8f1"
+        ]
+      },
+      "sage": {
+        "role": "tertiary",
+        "displayName": "Sage de legătură",
+        "canonical": "#91a899",
+        "tonalRamp": [
+          "#1f2b24",
+          "#34453b",
+          "#506457",
+          "#718476",
+          "#91a899",
+          "#b2c1b7",
+          "#d4ded7",
+          "#f1f5f2"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#20211f",
+        "tonalRamp": [
+          "#111210",
+          "#20211f",
+          "#393a36",
+          "#54564f",
+          "#6e7068",
+          "#9a9b94",
+          "#c7c6c0",
+          "#f5f4f1"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display editorial",
+        "purpose": "Unicul H1 și punctele majore de identitate."
+      },
+      "headline": {
+        "displayName": "Headline de capitol",
+        "purpose": "Titlurile secțiunilor majore."
+      },
+      "story": {
+        "displayName": "Story heading",
+        "purpose": "Cele patru momente ale fluxului operațional."
+      },
+      "body": {
+        "displayName": "Body editorial",
+        "purpose": "Copy-ul principal, întotdeauna lizibil la 16px."
+      },
+      "metric": {
+        "displayName": "Metrică agregată",
+        "purpose": "Procente publice sanitizate, cu cifre tabulare."
+      }
+    },
+    "shadows": [
+      {
+        "name": "low",
+        "value": "0 1px 2px rgba(32,33,31,.05)",
+        "purpose": "Separarea discretă a controalelor."
+      },
+      {
+        "name": "medium",
+        "value": "0 4px 14px -2px rgba(32,33,31,.10), 0 2px 4px -1px rgba(32,33,31,.05)",
+        "purpose": "Suprafața dominantă de produs."
+      },
+      {
+        "name": "high",
+        "value": "0 16px 40px -12px rgba(32,33,31,.20)",
+        "purpose": "Meniuri și overlay-uri, niciodată grile de carduri."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "180ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Hover, focus și selectarea unui nod din flux."
+      },
+      {
+        "name": "flow",
+        "value": "260ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Propagarea controlată între module."
+      },
+      {
+        "name": "hero",
+        "value": "600ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Singura intrare orchestrată a paginii."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acțiunea principală, tactilă și directă.",
+      "html": "<button class=\"ds-button-primary\">Creează cont</button>",
+      "css": ".ds-button-primary { min-height: 44px; border: 0; border-radius: 8px; padding: 12px 20px; background: var(--brand, #21483a); color: var(--on-brand, #f6f3ec); font: 500 15px/20px Inter, system-ui, sans-serif; transition: background 180ms cubic-bezier(.22,1,.36,1), transform 180ms cubic-bezier(.22,1,.36,1); } .ds-button-primary:hover { background: var(--brand-strong, #183527); transform: translateY(-1px); } .ds-button-primary:focus-visible { outline: 3px solid rgba(33,72,58,.35); outline-offset: 3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acțiune alternativă pe o suprafață liniștită.",
+      "html": "<button class=\"ds-button-secondary\">Explorează demo</button>",
+      "css": ".ds-button-secondary { min-height: 44px; border: 1px solid var(--line-strong, #d6cdbb); border-radius: 8px; padding: 11px 20px; background: var(--surface, #fffcf7); color: var(--brand, #21483a); font: 500 15px/20px Inter, system-ui, sans-serif; transition: border-color 180ms cubic-bezier(.22,1,.36,1), background 180ms cubic-bezier(.22,1,.36,1); } .ds-button-secondary:hover { border-color: var(--brand, #21483a); background: var(--brand-softer, #eef3ef); } .ds-button-secondary:focus-visible { outline: 3px solid rgba(33,72,58,.35); outline-offset: 3px; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Status compact, niciodată singurul purtător de sens.",
+      "html": "<span class=\"ds-status-chip\"><svg aria-hidden=\"true\" viewBox=\"0 0 12 12\"><circle cx=\"6\" cy=\"6\" r=\"3\" /></svg>Disponibil</span>",
+      "css": ".ds-status-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; background: var(--brand-soft, #e3ece6); color: var(--brand-strong, #183527); font: 600 12px/16px Inter, system-ui, sans-serif; letter-spacing: .02em; } .ds-status-chip svg { width: 12px; height: 12px; fill: currentColor; }"
+    },
+    {
+      "name": "Product Surface",
+      "kind": "card",
+      "refersTo": "product-surface",
+      "description": "Dovada centrală de produs, cu densitate de dashboard și fără date fictive.",
+      "html": "<section class=\"ds-product-surface\"><div class=\"ds-product-label\">Următoarea acțiune</div><h3>Confirmă planul pentru săptămâna aceasta</h3><p>Prioritățile folosesc aceeași stare în plan, invitați și furnizori.</p></section>",
+      "css": ".ds-product-surface { max-width: 440px; border-radius: 18px; padding: 24px; background: var(--elevated, #fff); color: var(--ink, #20211f); box-shadow: 0 4px 14px -2px rgba(32,33,31,.10), 0 2px 4px -1px rgba(32,33,31,.05); font-family: Inter, system-ui, sans-serif; } .ds-product-surface h3 { margin: 8px 0; font: 600 20px/1.3 Inter, system-ui, sans-serif; } .ds-product-surface p { margin: 0; color: var(--muted, #54564f); font-size: 14px; line-height: 21px; } .ds-product-label { color: var(--brand, #21483a); font-size: 12px; font-weight: 600; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Câmp lizibil și funcțional, aliniat controalelor din produs.",
+      "html": "<label class=\"ds-field-label\">Caută în invitați<input class=\"ds-field\" placeholder=\"Nume sau grup\" /></label>",
+      "css": ".ds-field-label { display: grid; gap: 6px; color: var(--ink, #20211f); font: 600 13px/18px Inter, system-ui, sans-serif; } .ds-field { min-height: 44px; border: 1px solid var(--line-strong, #d6cdbb); border-radius: 8px; padding: 10px 12px; background: var(--surface, #fffcf7); color: var(--ink, #20211f); font: 400 16px/24px Inter, system-ui, sans-serif; } .ds-field::placeholder { color: var(--muted, #54564f); } .ds-field:focus-visible { border-color: var(--brand, #21483a); outline: 3px solid rgba(33,72,58,.35); outline-offset: 1px; }"
+    },
+    {
+      "name": "Flow Navigation",
+      "kind": "nav",
+      "refersTo": "product-surface",
+      "description": "Procesul real dintre cele patru module esențiale.",
+      "html": "<nav class=\"ds-flow\" aria-label=\"Flux WeddingOS\"><button aria-current=\"step\">Planificare</button><span aria-hidden=\"true\">→</span><button>RSVP</button><span aria-hidden=\"true\">→</span><button>Furnizori</button><span aria-hidden=\"true\">→</span><button>Wedding Day</button></nav>",
+      "css": ".ds-flow { display: flex; align-items: center; gap: 8px; color: var(--muted, #54564f); font: 500 13px/18px Inter, system-ui, sans-serif; } .ds-flow button { min-height: 44px; border: 0; border-radius: 8px; padding: 8px 12px; background: transparent; color: inherit; font: inherit; } .ds-flow button:hover { background: var(--brand-softer, #eef3ef); color: var(--brand, #21483a); } .ds-flow button[aria-current=\"step\"] { background: var(--brand, #21483a); color: var(--on-brand, #f6f3ec); } .ds-flow button:focus-visible { outline: 3px solid rgba(33,72,58,.35); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Control calm",
+    "overview": "WeddingOS trebuie să transmită senzația unei echipe de coordonare care a pus fiecare decizie la locul ei înainte ca presiunea să apară. Interfața este luminoasă, precisă și caldă, însă produsul — nu decorul — rămâne centrul fiecărei compoziții. Elementul semnătură este fluxul viu de date dintre Planificare, RSVP și logistică, Furnizori și buget și Wedding Day.",
+    "keyCharacteristics": [
+      "calm operațional, nu exuberanță festivă",
+      "produs autentic, nu mockup publicitar",
+      "ierarhie editorială clară, fără metronom de carduri identice",
+      "date reale numai când sunt agregate, proaspete și sigure",
+      "interacțiuni lizibile, tactile și accesibile de la 320px în sus"
+    ],
+    "rules": [
+      {
+        "name": "The Evergreen Action Rule",
+        "body": "O singură acțiune primară per zonă folosește evergreen plin; restul acțiunilor rămân tonale sau textuale.",
+        "section": "colors"
+      },
+      {
+        "name": "The Honest Status Rule",
+        "body": "Culorile semantice se folosesc numai pentru o stare reală a sistemului.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Scales Rule",
+        "body": "Marketingul și produsul au rampe distincte; nicio dimensiune de miniatură nu devine body copy.",
+        "section": "typography"
+      },
+      {
+        "name": "The Quiet Headline Rule",
+        "body": "Titlurile rămân sub 56px și trackingul nu trece sub -0.04em.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal First Rule",
+        "body": "Adâncimea începe cu suprafețe tonale; umbrele apar numai când ordinea de suprapunere o cere.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reutilizează tokenurile și componentele dashboardului.",
+      "Do etichetează clar datele agregate, ultima actualizare și cohortele insuficiente.",
+      "Do păstrează maximum patru agregate vizibile simultan.",
+      "Do oferă o versiune semantică liniară a fluxului."
+    ],
+    "donts": [
+      "Don't inventa nume, bugete, date de eveniment, testimoniale, logo-uri sau cifre.",
+      "Don't afișa prețuri până când există o decizie comercială reală.",
+      "Don't folosi gradient text, glassmorphism, grile decorative sau dungi laterale colorate.",
+      "Don't transforma dashboardul într-un screenshot micșorat.",
+      "Don't numi datele live când snapshotul lipsește sau este expirat."
+    ]
+  }
+}

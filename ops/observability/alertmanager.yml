@@ -1,0 +1,12 @@
+route:
+  receiver: local-webhook
+  group_by: [alertname, severity, environment]
+  group_wait: 2s
+  group_interval: 30s
+  repeat_interval: 4h
+receivers:
+  - name: local-webhook
+    webhook_configs:
+      - url: http://alert-webhook:8080/alerts
+        send_resolved: true
+# Production receivers are intentionally external configuration. No credentials live here.

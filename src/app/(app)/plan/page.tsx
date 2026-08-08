@@ -1,0 +1,1007 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import type {
+  CreateTask,
+  PlanProposalResource,
+  TaskTransitionRequest,
+} from "@weddingos/contracts";
+import {
+  ArrowUpDown,
+  CalendarDays,
+  Download,
+  Filter,
+  GanttChart,
+  Kanban,
+  LayoutList,
+  Plus,
+  Search,
+  Sparkles,
+} from "lucide-react";
+import type { Task, TaskStatus } from "@/lib/types";
+import { tasks as demoTasks, taskCategories } from "@/lib/data/tasks";
+import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
+import { useWorkspace } from "@/lib/api/workspace-context";
+import { taskFromApi, transitionForStatus } from "@/lib/planning-adapter";
+import { cn, daysUntil, formatDateShort, percent } from "@/lib/utils";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Dropdown,
+  DropdownContent,
+  DropdownItem,
+  DropdownLabel,
+  DropdownSeparator,
+  DropdownTrigger,
+  EmptyState,
+  ErrorState,
+  Input,
+  PageHeader,
+  Progress,
+  SegmentedControl,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  useToast,
+} from "@/components/ui";
+import { BoardView, boardColumns } from "@/components/plan/board-view";
+import { ProposalReview } from "@/components/plan/proposal-review";
+import { TaskDrawer } from "@/components/plan/task-drawer";
+import { TaskModal } from "@/components/plan/task-modal";
+
+type View = "list" | "board" | "timeline" | "calendar";
+type SortKey = "deadline" | "priority" | "title";
+const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+const priorityLabels = {
+  low: "Scăzută",
+  medium: "Medie",
+  high: "Ridicată",
+  urgent: "Urgentă",
+} as const;
+const priorityTones = {
+  low: "neutral",
+  medium: "info",
+  high: "warning",
+  urgent: "danger",
+} as const;
+const statusLabels = {
+  "not-started": "Neînceput",
+  "in-progress": "În lucru",
+  waiting: "În așteptare",
+  blocked: "Blocat",
+  completed: "Finalizat",
+} as const;
+const statusTones = {
+  "not-started": "neutral",
+  "in-progress": "info",
+  waiting: "warning",
+  blocked: "danger",
+  completed: "success",
+} as const;
+
+export default function PlanPage() {
+  const router = useRouter();
+  const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
+  const { toast } = useToast();
+  const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [members, setMembers] = React.useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [proposal, setProposal] = React.useState<PlanProposalResource | null>(
+    null,
+  );
+  const [proposalOpen, setProposalOpen] = React.useState(false);
+  const [generation, setGeneration] = React.useState<{
+    status: string;
+    progress: number;
+    jobId: string;
+  } | null>(null);
+  const [view, setView] = React.useState<View>("list");
+  const [query, setQuery] = React.useState("");
+  const [categoryFilter, setCategoryFilter] = React.useState<string | null>(
+    null,
+  );
+  const [statusFilter, setStatusFilter] = React.useState<TaskStatus | null>(
+    null,
+  );
+  const [sortKey, setSortKey] = React.useState<SortKey>("deadline");
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
+  const [modalOpen, setModalOpen] = React.useState(false);
+  const [selected, setSelected] = React.useState<Task | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const load = React.useCallback(async () => {
+    if (!currentWorkspace) return;
+    setLoading(true);
+    setError("");
+    try {
+      if (demoMode) {
+        setTasks(demoTasks);
+        setMembers([
+          { id: "demo-ana", name: "Ana Dumitrescu" },
+          { id: "demo-mihai", name: "Mihai Ionescu" },
+        ]);
+        return;
+      }
+      const [taskList, proposalList] = await Promise.all([
+        weddingOsApi.tasks(currentWorkspace.id, {
+          includeSubtasks: true,
+          sort: "due_at",
+        }),
+        weddingOsApi.planProposals(currentWorkspace.id),
+      ]);
+      const team = bootstrap?.membership.capabilities.includes("team.read")
+        ? await weddingOsApi.team(currentWorkspace.id)
+        : { members: [] };
+      setTasks(taskList.items.map(taskFromApi));
+      setMembers(
+        team.members
+          .filter((item) => item.status === "active")
+          .map((item) => ({ id: item.id, name: item.name })),
+      );
+      const active =
+        proposalList.items.find(
+          (item) =>
+            item.status === "ready_for_review" || item.status === "generating",
+        ) ?? proposalList.items[0];
+      if (active)
+        setProposal(
+          await weddingOsApi.planProposal(currentWorkspace.id, active.id),
+        );
+      else setProposal(null);
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+    } finally {
+      setLoading(false);
+    }
+  }, [bootstrap, currentWorkspace, demoMode]);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  React.useEffect(() => {
+    const refresh = () => {
+      void load();
+    };
+    window.addEventListener("weddingos:planning-changed", refresh);
+    return () =>
+      window.removeEventListener("weddingos:planning-changed", refresh);
+  }, [load]);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const requestedTaskId = new URLSearchParams(window.location.search).get(
+        "task",
+      );
+      if (!requestedTaskId) return;
+      const requestedTask = tasks.find((task) => task.id === requestedTaskId);
+      if (requestedTask) setSelected(requestedTask);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [tasks]);
+
+  const refreshTasks = React.useCallback(async () => {
+    if (!currentWorkspace || demoMode) return;
+    const list = await weddingOsApi.tasks(currentWorkspace.id, {
+      includeSubtasks: true,
+      sort: "due_at",
+    });
+    const next = list.items.map(taskFromApi);
+    setTasks(next);
+    setSelected((current) =>
+      current ? (next.find((item) => item.id === current.id) ?? null) : null,
+    );
+  }, [currentWorkspace, demoMode]);
+
+  const run = async (operation: () => Promise<void>) => {
+    setBusy(true);
+    setError("");
+    try {
+      await operation();
+    } catch (caught) {
+      const message = apiErrorMessage(caught);
+      setError(message);
+      toast({
+        title: "Operația nu a reușit",
+        description: message,
+        variant: "error",
+      });
+      throw caught;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const generatePlan = async (mode: "auto" | "deterministic" = "auto") => {
+    if (!currentWorkspace || demoMode) {
+      toast({
+        title: "Demo izolat",
+        description:
+          "În demo, planul rămâne în memoria locală și nu produce mutații API.",
+        variant: "info",
+      });
+      return;
+    }
+    await run(async () => {
+      const onboarding = await weddingOsApi.onboarding(currentWorkspace.id);
+      if (onboarding.status !== "ready") {
+        toast({
+          title: "Onboarding incomplet",
+          description:
+            "Completează onboardingul înainte de generarea planului.",
+          variant: "warning",
+        });
+        router.push("/onboarding");
+        return;
+      }
+      const result = await weddingOsApi.createPlanGeneration(
+        currentWorkspace.id,
+        onboarding.version,
+        { mode },
+      );
+      setGeneration({
+        status: result.job.status,
+        progress: result.job.progress,
+        jobId: result.job.id,
+      });
+      if (result.existingProposalId) {
+        const existing = await weddingOsApi.planProposal(
+          currentWorkspace.id,
+          result.existingProposalId,
+        );
+        setProposal(existing);
+        setProposalOpen(true);
+        return;
+      }
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+        const job = await weddingOsApi.job(result.job.id);
+        setGeneration({
+          status: job.status,
+          progress: job.progress,
+          jobId: job.id,
+        });
+        if (job.status === "failed" || job.status === "dead_letter")
+          throw new Error(job.error?.message ?? "Generarea planului a eșuat.");
+        if (job.status === "completed") break;
+      }
+      const proposals = await weddingOsApi.planProposals(currentWorkspace.id);
+      const ready = proposals.items.find(
+        (item) => item.status === "ready_for_review",
+      );
+      if (!ready)
+        throw new Error(
+          "Jobul s-a terminat, dar propunerea nu este încă disponibilă.",
+        );
+      const full = await weddingOsApi.planProposal(
+        currentWorkspace.id,
+        ready.id,
+      );
+      setProposal(full);
+      setProposalOpen(true);
+      toast({
+        title: "Propunerea este gata",
+        description: full.fallbackUsed
+          ? "A fost folosit generatorul determinist de rezervă."
+          : "Poți verifica și edita structura înainte de aplicare.",
+        variant: full.fallbackUsed ? "warning" : "success",
+      });
+    });
+  };
+
+  const createTask = async (input: CreateTask, subtasks: string[]) => {
+    if (!currentWorkspace) return;
+    if (demoMode) {
+      const created: Task = {
+        id: `demo-${Date.now()}`,
+        title: input.title,
+        description: input.description,
+        category: input.category,
+        owner:
+          members.find((item) => item.id === input.assigneeMembershipId)
+            ?.name ?? "Nealocat",
+        priority: input.priority,
+        status: "not-started",
+        deadline: input.dueAt ?? new Date().toISOString(),
+        comments: 0,
+        attachments: 0,
+        subtasks: subtasks.map((title, index) => ({
+          id: `demo-sub-${index}`,
+          title,
+          done: false,
+        })),
+      };
+      setTasks((items) => [created, ...items]);
+      toast({ title: "Sarcină demo creată", variant: "success" });
+      return;
+    }
+    await run(async () => {
+      const created = await weddingOsApi.createTask(currentWorkspace.id, input);
+      for (const title of subtasks)
+        await weddingOsApi.createSubtask(currentWorkspace.id, created.id, {
+          title,
+          category: input.category,
+          priority: input.priority,
+          position: 0,
+          isPrivate: input.isPrivate,
+        });
+      await refreshTasks();
+      toast({
+        title: "Sarcină creată",
+        description: input.title,
+        variant: "success",
+      });
+    });
+  };
+
+  const transition = async (
+    task: Task,
+    transitionName: TaskTransitionRequest["transition"],
+  ) => {
+    if (!currentWorkspace) return;
+    if (demoMode) {
+      const next: TaskStatus =
+        transitionName === "COMPLETE"
+          ? "completed"
+          : transitionName === "REOPEN"
+            ? "not-started"
+            : transitionName === "BLOCK"
+              ? "blocked"
+              : transitionName === "UNBLOCK"
+                ? "in-progress"
+                : task.status;
+      setTasks((items) =>
+        items.map((item) =>
+          item.id === task.id ? { ...item, status: next } : item,
+        ),
+      );
+      return;
+    }
+    let reason: string | undefined;
+    let postponeUntil: string | undefined;
+    if (transitionName === "BLOCK") {
+      reason = window.prompt("De ce este blocată sarcina?")?.trim();
+      if (!reason) return;
+    }
+    if (transitionName === "POSTPONE") {
+      const date = new Date(task.deadline);
+      date.setDate(date.getDate() + 7);
+      postponeUntil = date.toISOString();
+      reason = "Amânată cu 7 zile din interfața planului";
+    }
+    const result = await weddingOsApi.transitionTask(
+      currentWorkspace.id,
+      task.id,
+      {
+        transition: transitionName,
+        reason,
+        postponeUntil,
+        version: task.version ?? 1,
+        confirmIncompleteSubtasks: true,
+      },
+    );
+    const adapted = taskFromApi(result);
+    setTasks((items) =>
+      items.map((item) => (item.id === task.id ? adapted : item)),
+    );
+    setSelected(adapted);
+  };
+
+  const boardTransition = async (taskId: string, target: TaskStatus) => {
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task || task.status === target) return;
+    if (target === "not-started" && task.status !== "completed") {
+      toast({
+        title: "Tranziție invalidă",
+        description: "Folosește Redeschide numai pentru o sarcină finalizată.",
+        variant: "warning",
+      });
+      return;
+    }
+    const previous = tasks;
+    setTasks((items) =>
+      items.map((item) =>
+        item.id === taskId ? { ...item, status: target } : item,
+      ),
+    );
+    try {
+      await transition(
+        task,
+        target === "not-started" ? "REOPEN" : transitionForStatus[target],
+      );
+    } catch {
+      setTasks(previous);
+    }
+  };
+
+  const updateTask = async (
+    task: Task,
+    patch: Parameters<React.ComponentProps<typeof TaskDrawer>["onUpdate"]>[1],
+  ) => {
+    if (!currentWorkspace) return;
+    if (demoMode) {
+      setTasks((items) =>
+        items.map((item) =>
+          item.id === task.id
+            ? {
+                ...item,
+                title: patch.title ?? item.title,
+                description: patch.description ?? item.description,
+                priority: patch.priority ?? item.priority,
+                deadline: patch.dueAt ?? item.deadline,
+              }
+            : item,
+        ),
+      );
+      return;
+    }
+    const result = await weddingOsApi.updateTask(
+      currentWorkspace.id,
+      task.id,
+      task.version ?? 1,
+      patch,
+    );
+    const adapted = taskFromApi(result);
+    setTasks((items) =>
+      items.map((item) => (item.id === task.id ? adapted : item)),
+    );
+    setSelected(adapted);
+  };
+
+  const filtered = React.useMemo(() => {
+    let list = [...tasks];
+    const normalized = query.trim().toLowerCase();
+    if (normalized)
+      list = list.filter((task) =>
+        `${task.title} ${task.category} ${task.owner}`
+          .toLowerCase()
+          .includes(normalized),
+      );
+    if (categoryFilter)
+      list = list.filter((task) => task.category === categoryFilter);
+    if (statusFilter)
+      list = list.filter((task) => task.status === statusFilter);
+    list.sort((a, b) => {
+      const comparison =
+        sortKey === "deadline"
+          ? a.deadline.localeCompare(b.deadline)
+          : sortKey === "priority"
+            ? priorityOrder[a.priority] - priorityOrder[b.priority]
+            : a.title.localeCompare(b.title, "ro");
+      return sortDir === "asc" ? comparison : -comparison;
+    });
+    return list;
+  }, [tasks, query, categoryFilter, statusFilter, sortKey, sortDir]);
+
+  const doneCount = tasks.filter((task) => task.status === "completed").length;
+  const overdueCount = tasks.filter(
+    (task) => task.status !== "completed" && daysUntil(task.deadline) < 0,
+  ).length;
+  const activeFilterCount = Number(!!categoryFilter) + Number(!!statusFilter);
+
+  if (!currentWorkspace || loading)
+    return (
+      <div className="mx-auto max-w-7xl">
+        <div className="h-56 animate-pulse rounded-xl bg-subtle" />
+      </div>
+    );
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-4">
+      <PageHeader
+        title="Planul nunții"
+        description="Sarcini persistente, propuneri verificate și progres real."
+        meta={
+          <>
+            <span className="inline-flex items-center gap-2 text-sm text-muted">
+              <Progress
+                value={doneCount}
+                max={Math.max(tasks.length, 1)}
+                className="w-28"
+              />
+              <span className="font-medium text-ink">
+                {percent(doneCount, tasks.length)}%
+              </span>{" "}
+              finalizat
+            </span>
+            {overdueCount > 0 && (
+              <Badge variant="danger" dot>
+                {overdueCount} depășite
+              </Badge>
+            )}
+            <Badge variant="neutral">{tasks.length} sarcini</Badge>
+          </>
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Catalogul de șabloane este planificat"
+            >
+              Import șablon · planificat
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                void run(async () => {
+                  const job = await weddingOsApi.createPlanningExport(
+                    currentWorkspace.id,
+                  );
+                  toast({
+                    title: "Export în coadă",
+                    description: `Job ${job.id.slice(0, 8)} procesează lista de sarcini.`,
+                    variant: "info",
+                  });
+                  for (let attempt = 0; attempt < 60; attempt += 1) {
+                    await new Promise((resolve) =>
+                      window.setTimeout(resolve, 500),
+                    );
+                    const state = await weddingOsApi.job(job.id);
+                    if (
+                      state.status === "failed" ||
+                      state.status === "dead_letter"
+                    )
+                      throw new Error(
+                        state.error?.message ??
+                          "Exportul nu a putut fi generat.",
+                      );
+                    if (state.status !== "completed") continue;
+                    const blob = await weddingOsApi.downloadJobArtifact(job.id);
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "weddingos-planning.csv";
+                    link.click();
+                    URL.revokeObjectURL(url);
+                    toast({
+                      title: "Export CSV descărcat",
+                      variant: "success",
+                    });
+                    return;
+                  }
+                  throw new Error(
+                    "Exportul nu s-a finalizat în intervalul așteptat.",
+                  );
+                })
+              }
+            >
+              <Download className="size-3.5" />
+              Export CSV
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                proposal ? setProposalOpen(true) : void generatePlan("auto")
+              }
+            >
+              <Sparkles className="size-3.5 text-accent" />
+              {proposal?.status === "ready_for_review"
+                ? "Verifică propunerea"
+                : "Generează plan"}
+            </Button>
+            <Button size="sm" onClick={() => setModalOpen(true)}>
+              <Plus className="size-4" />
+              Sarcină
+            </Button>
+          </>
+        }
+      />
+
+      {generation && generation.status !== "completed" && (
+        <div className="rounded-xl border border-brand/20 bg-brand-soft/40 p-4">
+          <div className="flex justify-between text-sm">
+            <span className="font-medium text-ink">
+              Generarea propunerii: {generation.status}
+            </span>
+            <span className="text-muted">{generation.progress}%</span>
+          </div>
+          <Progress value={generation.progress} className="mt-2" />
+        </div>
+      )}
+      {error && (
+        <ErrorState
+          title="Datele de planning nu sunt disponibile"
+          description={error}
+          onRetry={() => void load()}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <SegmentedControl<View>
+          ariaLabel="Schimbă vizualizarea"
+          value={view}
+          onChange={setView}
+          options={[
+            {
+              value: "list",
+              label: "Listă",
+              icon: <LayoutList className="size-4" />,
+            },
+            {
+              value: "board",
+              label: "Panou",
+              icon: <Kanban className="size-4" />,
+            },
+            {
+              value: "timeline",
+              label: "Cronologie",
+              icon: <GanttChart className="size-4" />,
+            },
+            {
+              value: "calendar",
+              label: "Calendar",
+              icon: <CalendarDays className="size-4" />,
+            },
+          ]}
+        />
+        <Input
+          icon={<Search className="size-4" />}
+          placeholder="Caută sarcini…"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="w-full sm:w-64"
+        />
+        <Dropdown>
+          <DropdownTrigger>
+            <Button variant="outline" size="sm">
+              <Filter className="size-3.5" />
+              Filtre{" "}
+              {activeFilterCount > 0 && (
+                <Badge variant="brand">{activeFilterCount}</Badge>
+              )}
+            </Button>
+          </DropdownTrigger>
+          <DropdownContent align="start" widthClass="w-56">
+            <DropdownLabel>Categorie</DropdownLabel>
+            <DropdownItem
+              selected={!categoryFilter}
+              onSelect={() => setCategoryFilter(null)}
+            >
+              Toate
+            </DropdownItem>
+            {taskCategories.slice(0, 8).map((category) => (
+              <DropdownItem
+                key={category}
+                selected={categoryFilter === category}
+                onSelect={() =>
+                  setCategoryFilter(
+                    categoryFilter === category ? null : category,
+                  )
+                }
+              >
+                {category}
+              </DropdownItem>
+            ))}
+            <DropdownSeparator />
+            <DropdownLabel>Stare</DropdownLabel>
+            <DropdownItem
+              selected={!statusFilter}
+              onSelect={() => setStatusFilter(null)}
+            >
+              Toate
+            </DropdownItem>
+            {boardColumns.map((column) => (
+              <DropdownItem
+                key={column.id}
+                selected={statusFilter === column.id}
+                onSelect={() =>
+                  setStatusFilter(statusFilter === column.id ? null : column.id)
+                }
+              >
+                {column.label}
+              </DropdownItem>
+            ))}
+          </DropdownContent>
+        </Dropdown>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setSortKey((current) =>
+              current === "deadline"
+                ? "priority"
+                : current === "priority"
+                  ? "title"
+                  : "deadline",
+            );
+            setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+          }}
+        >
+          <ArrowUpDown className="size-3.5" />
+          Sortare: {sortKey}
+        </Button>
+      </div>
+
+      {tasks.length === 0 ? (
+        <EmptyState
+          icon={Sparkles}
+          title="Planul tău nu a fost generat încă"
+          description="Completează onboardingul și generează prima propunere sau adaugă primul task."
+          action={{
+            label: "Generează planul",
+            onClick: () => void generatePlan("auto"),
+          }}
+          secondaryAction={{
+            label: "Adaugă task",
+            onClick: () => setModalOpen(true),
+          }}
+        />
+      ) : view === "board" ? (
+        <BoardView
+          tasks={filtered}
+          onStatusChange={(id, status) => void boardTransition(id, status)}
+          onOpen={setSelected}
+        />
+      ) : view === "calendar" ? (
+        <div className="grid gap-2 md:grid-cols-2">
+          {filtered
+            .filter((task) => task.deadline)
+            .map((task) => (
+              <button
+                key={task.id}
+                onClick={() => setSelected(task)}
+                className="flex items-center justify-between rounded-xl border border-line bg-elevated p-4 text-left hover:border-brand/40"
+              >
+                <span>
+                  <span className="block text-sm font-semibold text-ink">
+                    {task.title}
+                  </span>
+                  <span className="text-xs text-muted">{task.category}</span>
+                </span>
+                <Badge
+                  variant={daysUntil(task.deadline) < 0 ? "danger" : "neutral"}
+                >
+                  {formatDateShort(task.deadline)}
+                </Badge>
+              </button>
+            ))}
+        </div>
+      ) : view === "timeline" ? (
+        <div className="space-y-2">
+          {filtered.map((task) => (
+            <button
+              key={task.id}
+              onClick={() => setSelected(task)}
+              className="grid w-full grid-cols-[120px_1fr_auto] items-center gap-3 rounded-xl border border-line bg-elevated p-3 text-left"
+            >
+              <span className="text-xs text-muted">
+                {formatDateShort(task.deadline)}
+              </span>
+              <span className="text-sm font-medium text-ink">{task.title}</span>
+              <Badge variant={statusTones[task.status]}>
+                {statusLabels[task.status]}
+              </Badge>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-line bg-elevated">
+          <Table>
+            <THead>
+              <TR>
+                <TH>Sarcină</TH>
+                <TH>Categorie</TH>
+                <TH>Responsabil</TH>
+                <TH>Prioritate</TH>
+                <TH>Stare</TH>
+                <TH>Termen</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {filtered.map((task) => (
+                <TR
+                  key={task.id}
+                  onClick={() => setSelected(task)}
+                  className="cursor-pointer"
+                >
+                  <TD>
+                    <span
+                      className={cn(
+                        "font-medium text-ink",
+                        task.status === "completed" &&
+                          "text-faint line-through",
+                      )}
+                    >
+                      {task.title}
+                    </span>
+                    {task.subtasks?.length ? (
+                      <span className="ml-2 text-xs text-faint">
+                        {task.subtasks.filter((item) => item.done).length}/
+                        {task.subtasks.length}
+                      </span>
+                    ) : null}
+                  </TD>
+                  <TD>
+                    <Badge variant="neutral">{task.category}</Badge>
+                  </TD>
+                  <TD>
+                    <span className="flex items-center gap-2">
+                      <Avatar name={task.owner} size="xs" />
+                      {task.owner}
+                    </span>
+                  </TD>
+                  <TD>
+                    <Badge variant={priorityTones[task.priority]}>
+                      {priorityLabels[task.priority]}
+                    </Badge>
+                  </TD>
+                  <TD>
+                    <Badge variant={statusTones[task.status]}>
+                      {statusLabels[task.status]}
+                    </Badge>
+                  </TD>
+                  <TD>
+                    <span
+                      className={
+                        daysUntil(task.deadline) < 0 &&
+                        task.status !== "completed"
+                          ? "font-semibold text-danger"
+                          : "text-muted"
+                      }
+                    >
+                      {formatDateShort(task.deadline)}
+                    </span>
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </div>
+      )}
+
+      <TaskModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        members={members}
+        onCreate={createTask}
+      />
+      <TaskDrawer
+        task={selected}
+        availableTasks={tasks}
+        members={members}
+        onClose={() => setSelected(null)}
+        onTransition={async (task, name) => run(() => transition(task, name))}
+        onUpdate={async (task, patch) => run(() => updateTask(task, patch))}
+        onDuplicate={async (task) =>
+          run(async () => {
+            if (!demoMode) {
+              await weddingOsApi.copyTask(currentWorkspace.id, task.id);
+              await refreshTasks();
+            } else
+              setTasks((items) => [
+                ...items,
+                {
+                  ...task,
+                  id: `demo-copy-${Date.now()}`,
+                  title: `${task.title} (copie)`,
+                  status: "not-started",
+                },
+              ]);
+            toast({ title: "Sarcină duplicată", variant: "success" });
+          })
+        }
+        onDelete={async (task) =>
+          run(async () => {
+            if (
+              !window.confirm(
+                "Ștergi această sarcină? Impactul asupra dependențelor va fi raportat de server.",
+              )
+            )
+              return;
+            if (!demoMode)
+              await weddingOsApi.deleteTask(
+                currentWorkspace.id,
+                task.id,
+                task.version ?? 1,
+              );
+            setTasks((items) => items.filter((item) => item.id !== task.id));
+            setSelected(null);
+          })
+        }
+        onDependencies={async (task, ids) =>
+          run(async () => {
+            if (!demoMode)
+              await weddingOsApi.replaceTaskDependencies(
+                currentWorkspace.id,
+                task.id,
+                task.version ?? 1,
+                ids,
+              );
+            toast({ title: "Dependențe actualizate", variant: "success" });
+            await refreshTasks();
+          })
+        }
+        loadComments={async (taskId) =>
+          demoMode
+            ? []
+            : (await weddingOsApi.taskComments(currentWorkspace.id, taskId))
+                .items
+        }
+        addComment={async (taskId, body) =>
+          demoMode
+            ? {
+                id: `demo-comment-${Date.now()}`,
+                authorName: "Demo",
+                body,
+                createdAt: new Date().toISOString(),
+              }
+            : weddingOsApi.createTaskComment(currentWorkspace.id, taskId, body)
+        }
+      />
+      <ProposalReview
+        proposal={proposal}
+        open={proposalOpen}
+        busy={busy}
+        onClose={() => setProposalOpen(false)}
+        onUpdate={async (input) =>
+          run(async () => {
+            if (!proposal || demoMode) return;
+            setProposal(
+              await weddingOsApi.updatePlanProposal(
+                currentWorkspace.id,
+                proposal.id,
+                proposal.version,
+                input,
+              ),
+            );
+          })
+        }
+        onReject={async (reason) =>
+          run(async () => {
+            if (!proposal || demoMode) return;
+            setProposal(
+              await weddingOsApi.rejectPlanProposal(
+                currentWorkspace.id,
+                proposal.id,
+                proposal.version,
+                reason,
+              ),
+            );
+            setProposalOpen(false);
+          })
+        }
+        onRegenerate={() => generatePlan("auto")}
+        onApply={async () =>
+          run(async () => {
+            if (!proposal || demoMode) return;
+            const counts = proposal.items.length;
+            if (
+              !window.confirm(
+                `Aplici această propunere? Vor fi create atomic fazele, milestone-urile și sarcinile incluse (${counts} grupuri principale).`,
+              )
+            )
+              return;
+            const result = await weddingOsApi.applyPlanProposal(
+              currentWorkspace.id,
+              proposal.id,
+              proposal.version,
+              proposal.warnings.length > 0,
+            );
+            toast({
+              title: "Plan aplicat",
+              description: `${result.phaseCount} faze, ${result.milestoneCount} milestone-uri și ${result.taskCount} sarcini create.`,
+              variant: "success",
+            });
+            setProposalOpen(false);
+            await load();
+          })
+        }
+      />
+    </div>
+  );
+}

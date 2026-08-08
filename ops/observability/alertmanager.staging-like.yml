@@ -1,0 +1,11 @@
+route:
+  receiver: staging-like-webhook
+  group_by: [alertname, severity, environment]
+  group_wait: 2s
+  group_interval: 30s
+  repeat_interval: 4h
+receivers:
+  - name: staging-like-webhook
+    webhook_configs:
+      - url: http://alert-receiver:8080/alerts
+        send_resolved: true

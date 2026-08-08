@@ -1,0 +1,21 @@
+[Unit]
+Description=WeddingOS local web application
+After=network-online.target weddingos-api.service
+Wants=network-online.target weddingos-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/andrei/weddingos-runtime
+Environment=NODE_ENV=production
+Environment=API_INTERNAL_URL=http://127.0.0.1:4000
+Environment=NEXT_DIST_DIR=.next-slice10b-final
+Environment=PATH=/home/andrei/.nvm/versions/node/v22.22.3/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TMPDIR=/tmp
+Environment=TEMP=/tmp
+Environment=TMP=/tmp
+ExecStart=/home/andrei/.nvm/versions/node/v22.22.3/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 43191
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

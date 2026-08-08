@@ -1,0 +1,11 @@
+[Unit]
+Description=WeddingOS daily object inventory and backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Europe/Chisinau
+Persistent=true
+RandomizedDelaySec=10m
+Unit=weddingos-backup@daily-objects.service
+
+[Install]
+WantedBy=timers.target

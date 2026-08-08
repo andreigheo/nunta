@@ -1,0 +1,29 @@
+http://weddingos.localhost {
+  redir https://weddingos.localhost{uri} permanent
+}
+
+https://weddingos.localhost {
+  tls internal
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+  }
+  handle /api/* {
+    reverse_proxy api:4000
+  }
+  handle /docs* {
+    reverse_proxy api:4000
+  }
+  handle_path /storage/* {
+    reverse_proxy storage:9000
+  }
+  handle /health {
+    reverse_proxy api:4000
+  }
+  handle /ready {
+    reverse_proxy api:4000
+  }
+  reverse_proxy web:3000
+}

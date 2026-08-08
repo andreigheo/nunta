@@ -1,0 +1,11 @@
+[Unit]
+Description=WeddingOS weekly full backup and verification
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00 Europe/Chisinau
+Persistent=true
+RandomizedDelaySec=20m
+Unit=weddingos-backup@weekly-full.service
+
+[Install]
+WantedBy=timers.target

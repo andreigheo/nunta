@@ -1,0 +1,11 @@
+[Unit]
+Description=WeddingOS daily database backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 Europe/Chisinau
+Persistent=true
+RandomizedDelaySec=10m
+Unit=weddingos-backup@daily-database.service
+
+[Install]
+WantedBy=timers.target

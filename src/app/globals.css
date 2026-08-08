@@ -1,0 +1,558 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ */
+/*  Sarbato product design tokens                                      */
+/* ------------------------------------------------------------------ */
+
+:root {
+  /* Surfaces */
+  --bg: #f7f7f3;
+  --surface: #ffffff;
+  --elevated: #ffffff;
+  --subtle: #f1edf2;
+  --sunken: #e7e1e9;
+
+  /* Ink */
+  --ink: #19151d;
+  --muted: #57515b;
+  --faint: #6d6670;
+
+  /* Lines */
+  --line: #ded8df;
+  --line-strong: #c9c0cc;
+
+  /* Brand — Sarbato plum */
+  --brand: #3b183f;
+  --brand-strong: #29102d;
+  --brand-soft: #e8dce9;
+  --brand-softer: #f3ecf4;
+  --on-brand: #fff9ff;
+
+  /* Accent — Sarbato coral */
+  --accent: #f06449;
+  --accent-strong: #9d3021;
+  --accent-soft: #fde9e5;
+  --on-accent: #22110e;
+
+  /* Supporting celebration palette */
+  --sage: #77a991;
+  --sage-soft: #e3f0e9;
+  --sand: #f4e6b8;
+
+  /* Celebration yellow (used by the public marketing layer) */
+  --sun: #f0b735;
+  --sun-soft: #fff0bf;
+  --sun-strong: #765000;
+
+  /* Status */
+  --success: #1f6b53;
+  --success-soft: #dff1e9;
+  --on-success: #ffffff;
+  --warning: #765000;
+  --warning-soft: #fff0bf;
+  --on-warning: #ffffff;
+  --danger: #ad3434;
+  --danger-soft: #f8e3e3;
+  --on-danger: #ffffff;
+  --info: #315f87;
+  --info-soft: #e4edf5;
+  --on-info: #ffffff;
+
+  /* Charts */
+  --chart-1: #3b183f;
+  --chart-2: #f06449;
+  --chart-3: #f0b735;
+  --chart-4: #1f6b53;
+  --chart-5: #315f87;
+
+  /* Overlays & shadows */
+  --overlay: rgba(25, 21, 29, 0.48);
+  --shadow-sm: 0 1px 2px rgba(25, 21, 29, 0.07);
+  --shadow-md: 0 12px 28px -18px rgba(59, 24, 63, 0.32);
+  --shadow-lg: 0 24px 56px -28px rgba(59, 24, 63, 0.38);
+
+  --ring: rgba(59, 24, 63, 0.42);
+}
+
+.dark {
+  --bg: #151116;
+  --surface: #1d171f;
+  --elevated: #251d28;
+  --subtle: #2a212d;
+  --sunken: #100d12;
+
+  --ink: #f4eef5;
+  --muted: #c0b6c3;
+  --faint: #a297a6;
+
+  --line: #352b38;
+  --line-strong: #4b3c50;
+
+  --brand: #d3afd4;
+  --brand-strong: #e0c1e0;
+  --brand-soft: #3a263d;
+  --brand-softer: #2a1d2d;
+  --on-brand: #211023;
+
+  --accent: #f38b74;
+  --accent-strong: #ffad9b;
+  --accent-soft: #42231f;
+  --on-accent: #21100d;
+
+  --sage: #83bba1;
+  --sage-soft: #20332a;
+  --sand: #57451c;
+
+  --sun: #e7bd58;
+  --sun-soft: #372d15;
+  --sun-strong: #f2cf78;
+
+  --success: #7fc9a7;
+  --success-soft: #1c3429;
+  --on-success: #0f2118;
+  --warning: #f1c465;
+  --warning-soft: #382b14;
+  --on-warning: #241805;
+  --danger: #f19591;
+  --danger-soft: #3b2021;
+  --on-danger: #240d0f;
+  --info: #8cbbe1;
+  --info-soft: #1f2d3a;
+  --on-info: #0f1d29;
+
+  --chart-1: #d3afd4;
+  --chart-2: #f38b74;
+  --chart-3: #e7bd58;
+  --chart-4: #7fc9a7;
+  --chart-5: #8cbbe1;
+
+  --overlay: rgba(5, 7, 6, 0.62);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md:
+    0 4px 16px -2px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 18px 48px -12px rgba(0, 0, 0, 0.65);
+
+  --ring: rgba(211, 175, 212, 0.46);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tailwind theme mapping                                             */
+/* ------------------------------------------------------------------ */
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-subtle: var(--subtle);
+  --color-sunken: var(--sunken);
+
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-softer: var(--brand-softer);
+  --color-on-brand: var(--on-brand);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+
+  --color-sun: var(--sun);
+  --color-sun-soft: var(--sun-soft);
+  --color-sun-strong: var(--sun-strong);
+
+  --color-sage: var(--sage);
+  --color-sage-soft: var(--sage-soft);
+  --color-sand: var(--sand);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-on-success: var(--on-success);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-on-warning: var(--on-warning);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-on-danger: var(--on-danger);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-on-info: var(--on-info);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-brand: var(--font-afacad-flux), var(--font-inter), ui-sans-serif,
+    system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --shadow-card: var(--shadow-sm);
+  --shadow-pop: var(--shadow-md);
+  --shadow-overlay: var(--shadow-lg);
+
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
+
+  --animate-fade-in: fade-in 0.18s ease-out;
+  --animate-slide-up: slide-up 0.22s cubic-bezier(0.32, 0.72, 0.24, 1);
+  --animate-slide-in-right: slide-in-right 0.26s
+    cubic-bezier(0.32, 0.72, 0.24, 1);
+  --animate-scale-in: scale-in 0.16s ease-out;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Base                                                               */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+
+  * {
+    border-color: var(--line);
+  }
+
+  ::selection {
+    background: var(--brand-soft);
+    color: var(--brand-strong);
+  }
+  .dark ::selection {
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--faint);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Marketing scope (public landing page)                              */
+/*                                                                     */
+/*  The landing page is light-only by product decision. The wrapper    */
+/*  re-declares the light token values so every token-based utility    */
+/*  (bg-brand, text-ink, shadow-card, ...) resolves to the light       */
+/*  palette inside the marketing subtree, regardless of the `.dark`    */
+/*  class that the app theme may set on <html>.                         */
+/* ------------------------------------------------------------------ */
+
+.marketing-light {
+  color-scheme: light;
+
+  /* Sarbato public palette. These values intentionally match the light
+     product tokens; this scope keeps the public site light-only. */
+  --bg: #f7f7f3;
+  --surface: #ffffff;
+  --elevated: #ffffff;
+  --subtle: #f1edf2;
+  --sunken: #e7e1e9;
+
+  --ink: #19151d;
+  --muted: #57515b;
+  --faint: #6d6670;
+
+  --line: #ded8df;
+  --line-strong: #c9c0cc;
+
+  --brand: #3b183f;
+  --brand-strong: #29102d;
+  --brand-soft: #e8dce9;
+  --brand-softer: #f3ecf4;
+  --on-brand: #fff9ff;
+
+  --accent: #f06449;
+  --accent-strong: #9d3021;
+  --accent-soft: #fde9e5;
+  --on-accent: #22110e;
+
+  --sun: #f0b735;
+  --sun-soft: #fff0bf;
+  --sun-strong: #765000;
+
+  --sage: #77a991;
+  --sage-soft: #e3f0e9;
+  --sand: #f4e6b8;
+
+  --success: #1f6b53;
+  --success-soft: #dff1e9;
+  --on-success: #ffffff;
+  --warning: #765000;
+  --warning-soft: #fff0bf;
+  --on-warning: #ffffff;
+  --danger: #ad3434;
+  --danger-soft: #f8e3e3;
+  --on-danger: #ffffff;
+  --info: #315f87;
+  --info-soft: #e4edf5;
+  --on-info: #ffffff;
+
+  --chart-1: #3b183f;
+  --chart-2: #f06449;
+  --chart-3: #f0b735;
+  --chart-4: #1f6b53;
+  --chart-5: #315f87;
+
+  --overlay: rgba(25, 21, 29, 0.48);
+  --shadow-sm: 0 1px 2px rgba(25, 21, 29, 0.07);
+  --shadow-md: 0 12px 28px -18px rgba(59, 24, 63, 0.32);
+  --shadow-lg: 0 24px 56px -28px rgba(59, 24, 63, 0.38);
+
+  --ring: rgba(59, 24, 63, 0.42);
+
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-kerning: normal;
+  font-optical-sizing: auto;
+}
+
+/* Sarbato marketing primitives, scoped to the public layer. Display type
+   is Afacad Flux; product surfaces stay in Inter for density. */
+.marketing-light .marketing-heading,
+.marketing-light .marketing-wordmark {
+  font-family: var(--font-brand);
+  font-optical-sizing: auto;
+}
+
+.marketing-light .marketing-product-surface,
+.marketing-light .marketing-product-surface-flat {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+.marketing-light .marketing-product-surface {
+  border-radius: 16px;
+  background: var(--elevated);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+}
+
+.marketing-light .marketing-product-surface.marketing-product-surface-dark {
+  background: var(--ink);
+  color: white;
+}
+
+.marketing-light .marketing-product-surface-flat {
+  background: var(--elevated);
+  color: var(--ink);
+}
+
+/* The thread: one segment per stage of the information flow. */
+.marketing-light .marketing-thread {
+  background: linear-gradient(
+    90deg,
+    #3b183f 0%,
+    #3b183f 24%,
+    #f06449 24%,
+    #f06449 49%,
+    #f0b735 49%,
+    #f0b735 74%,
+    #1f6b53 74%,
+    #1f6b53 100%
+  );
+}
+
+.marketing-light .marketing-hero {
+  background:
+    radial-gradient(circle at 74% 18%, #fff0bf 0, transparent 28%),
+    radial-gradient(circle at 8% 76%, #fde9e5 0, transparent 24%), var(--bg);
+}
+
+/* Chapter thread rail: a continuous line that connects the chapters and
+   takes the color of each stage the information passes through. */
+.marketing-light .mkt-thread-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0.35rem;
+  width: 3px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.marketing-light .mkt-thread-node {
+  position: absolute;
+  left: 0;
+  top: 4.5rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  border: 3px solid var(--bg);
+  pointer-events: none;
+  transition:
+    transform 220ms cubic-bezier(0.32, 0.72, 0.24, 1),
+    box-shadow 220ms cubic-bezier(0.32, 0.72, 0.24, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-light .mkt-thread-node {
+    transition: none;
+  }
+}
+
+/* Anchor offset so the sticky header never covers section headings. */
+.marketing-light [id] {
+  scroll-margin-top: 92px;
+}
+
+/* Smooth anchor scrolling, only while a marketing page is mounted. */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.marketing-light) {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Subtle entrance used on the hero; disabled under reduced motion. */
+@keyframes mkt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mkt-product-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    clip-path: inset(0 0 9% 0 round 16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 0 0 0 round 16px);
+  }
+}
+
+.mkt-rise {
+  animation: mkt-rise 0.5s cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+.mkt-rise-1 {
+  animation-delay: 80ms;
+}
+.mkt-rise-2 {
+  animation-delay: 160ms;
+}
+
+.mkt-product-enter {
+  animation: mkt-product-enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mkt-rise,
+  .mkt-product-enter {
+    animation: none;
+  }
+}

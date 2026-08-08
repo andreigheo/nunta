@@ -1,0 +1,11 @@
+[Unit]
+Description=WeddingOS weekly restore verification in disposable target
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00 Europe/Chisinau
+Persistent=true
+RandomizedDelaySec=20m
+Unit=weddingos-backup@weekly-restore-verification.service
+
+[Install]
+WantedBy=timers.target
