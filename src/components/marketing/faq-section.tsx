@@ -10,19 +10,19 @@ export function FaqSection() {
         lead="Răspunsuri directe despre invitați, acces, abonamente, date și plățile către furnizori."
         className="mx-auto text-center"
       />
-      <div className="mx-auto mt-12 max-w-4xl divide-y divide-line border-y border-line">
+      <div className="mx-auto mt-8 max-w-4xl divide-y divide-line border-y border-line sm:mt-12">
         {faqs.map((item) => (
           <details key={item.q} className="group">
-            <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-5 py-5 text-left text-lg font-semibold leading-7 text-ink focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden sm:text-xl">
+            <summary className="flex min-h-16 cursor-pointer touch-manipulation list-none items-center justify-between gap-4 py-4 text-left text-base font-semibold leading-6 text-ink focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden sm:gap-5 sm:py-5 sm:text-xl sm:leading-7">
               <span>{item.q}</span>
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-subtle text-brand transition-colors duration-200 group-open:bg-brand group-open:text-on-brand">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-subtle text-brand transition-colors duration-200 group-open:bg-brand group-open:text-on-brand sm:size-10">
                 <ChevronDown
                   className="size-5 transition-transform duration-200 group-open:rotate-180"
                   aria-hidden
                 />
               </span>
             </summary>
-            <p className="max-w-[68ch] pb-7 pr-12 text-base leading-7 text-muted">
+            <p className="max-w-[68ch] pb-6 pr-3 text-base leading-7 text-muted sm:pb-7 sm:pr-12">
               {item.a}
             </p>
           </details>

@@ -26,7 +26,7 @@ export function CtaLink({
     <Link
       href={cta.href}
       className={cn(
-        "inline-flex min-h-11 shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg px-5 text-base font-semibold transition-[background-color,color,border-color,transform] duration-200 hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2",
+        "inline-flex min-h-11 shrink-0 touch-manipulation select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg px-5 text-base font-semibold transition-[background-color,color,border-color,transform] duration-200 hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2",
         ctaVariants[variant],
         className,
       )}
@@ -48,11 +48,11 @@ export function SectionHeading({
 }) {
   return (
     <div className={cn("max-w-[68ch]", className)}>
-      <h2 className="marketing-heading text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-brand text-balance">
+      <h2 className="marketing-heading text-[clamp(2.25rem,10.5vw,2.75rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-brand text-balance sm:text-[clamp(2.5rem,4vw,3.5rem)] sm:leading-[1.02] sm:tracking-[-0.035em]">
         {title}
       </h2>
       {lead ? (
-        <p className="mt-5 max-w-[62ch] text-lg leading-8 text-muted">{lead}</p>
+        <p className="mt-4 max-w-[62ch] text-[1.0625rem] leading-7 text-muted sm:mt-5 sm:text-lg sm:leading-8">{lead}</p>
       ) : null}
     </div>
   );
@@ -72,15 +72,15 @@ export function Section({
   spacing?: "compact" | "standard" | "major";
 }) {
   const spacingClasses = {
-    compact: "py-14 sm:py-16",
-    standard: "py-20 sm:py-24 lg:py-28",
-    major: "py-20 sm:py-24 lg:py-32",
+    compact: "py-10 sm:py-16",
+    standard: "py-14 sm:py-24 lg:py-28",
+    major: "py-14 sm:py-24 lg:py-32",
   };
   return (
     <section id={id} className={cn(spacingClasses[spacing], className)}>
       <div
         className={cn(
-          "mx-auto w-full max-w-[90rem] px-5 sm:px-8 lg:px-10 xl:px-12",
+          "mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12",
           containerClassName,
         )}
       >

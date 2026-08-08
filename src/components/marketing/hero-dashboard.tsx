@@ -38,7 +38,7 @@ export function HeroDashboard() {
       aria-label="Exemplu de produs Sarbato"
       data-testid="product-showcase"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
+      <div className="flex items-center gap-2.5 border-b border-line px-3 py-2.5 sm:px-5 sm:py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-sm font-bold text-on-brand">
             S
@@ -50,31 +50,25 @@ export function HeroDashboard() {
             <p className="text-xs text-muted">Următorul pas, în context</p>
           </div>
         </div>
-        <span
-          data-testid="showcase-label"
-          className="rounded-full bg-subtle px-3 py-1.5 text-xs font-semibold text-muted"
-        >
-          Exemplu de produs — nu reprezintă datele unui client.
-        </span>
       </div>
 
       <div className="grid min-w-0 lg:grid-cols-[11rem_minmax(0,1fr)]">
         <nav
           aria-label="Etapele exemplului de produs"
-          className="border-b border-line bg-brand lg:border-r lg:border-b-0"
+          className="overflow-hidden border-b border-line bg-brand lg:border-r lg:border-b-0"
         >
-          <ul className="grid grid-cols-2 p-2 sm:grid-cols-4 lg:grid-cols-1 lg:p-3">
+          <ul className="flex snap-x snap-mandatory overflow-x-auto p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-1 lg:overflow-visible lg:p-3">
             {showcaseStages.map((stage) => {
               const selected = stage.id === activeId;
               const Icon = stageIcons[stage.id];
               return (
-                <li key={stage.id}>
+                <li key={stage.id} className="min-w-[7.75rem] snap-start lg:min-w-0">
                   <button
                     type="button"
                     onClick={() => selectStage(stage.id)}
                     aria-pressed={selected}
                     className={cn(
-                      "flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+                      "flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                       selected
                         ? "bg-elevated text-brand"
                         : "text-on-brand hover:bg-brand-strong",
@@ -93,15 +87,15 @@ export function HeroDashboard() {
           </ul>
         </nav>
 
-        <div className="min-w-0 p-4 sm:p-5">
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_11rem]">
+        <div className="min-w-0 p-3.5 sm:p-5">
+          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_11rem] xl:gap-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-muted">
                 Următoarea acțiune
               </p>
-              <div className="mt-2.5 bg-subtle p-4 sm:p-5">
+              <div className="mt-2 bg-subtle p-3 sm:mt-2.5 sm:p-5">
                 <div className="flex items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white sm:size-10">
                     <Check className="size-5" strokeWidth={2.2} aria-hidden />
                   </span>
                   <div className="min-w-0">
@@ -111,12 +105,12 @@ export function HeroDashboard() {
                     >
                       {active.action}
                     </p>
-                    <p className="mt-2 max-w-[48ch] text-sm leading-6 text-muted">
+                    <p className="mt-1.5 max-w-[48ch] text-sm leading-5 text-muted sm:mt-2 sm:leading-6">
                       {active.detail}
                     </p>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-4">
                   <span className="inline-flex min-h-9 items-center rounded-lg bg-brand px-3 text-sm font-semibold text-on-brand">
                     {active.next}
                   </span>
@@ -140,11 +134,11 @@ export function HeroDashboard() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-2.5 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-3">
                 {active.connected.map((item, index) => (
                   <div
                     key={item}
-                    className="flex min-h-14 items-center gap-2.5 border-t border-line pt-3"
+                    className="flex min-h-11 min-w-0 items-center gap-2 border-t border-line pt-2 sm:min-h-14 sm:gap-2.5 sm:pt-3"
                   >
                     <span
                       className={cn(
@@ -157,7 +151,7 @@ export function HeroDashboard() {
                       )}
                       aria-hidden
                     />
-                    <span className="text-sm font-semibold text-ink">
+                    <span className="min-w-0 text-xs font-semibold leading-4 text-ink sm:text-sm sm:leading-5">
                       {item}
                     </span>
                   </div>
@@ -170,13 +164,13 @@ export function HeroDashboard() {
             </div>
           </div>
 
-          <div className="mt-5">
+          <div className="mt-3.5 sm:mt-5">
             <div
               className="marketing-thread h-1 w-full rounded-full"
               aria-hidden
             />
             <ol
-              className="mt-3 grid grid-cols-4 gap-2"
+              className="mt-3 hidden grid-cols-4 gap-2 sm:grid"
               aria-label="Firul etapelor prezentate"
             >
               {showcaseStages.map((stage) => {
@@ -200,6 +194,13 @@ export function HeroDashboard() {
           </div>
         </div>
       </div>
+
+      <p
+        data-testid="showcase-label"
+        className="border-t border-line px-3 py-2 text-[0.6875rem] font-medium leading-4 text-muted sm:px-5 sm:text-xs"
+      >
+        Exemplu de produs — nu reprezintă datele unui client.
+      </p>
     </section>
   );
 }

@@ -27,7 +27,7 @@ export function MarketingHeader() {
           : "border-line/60 bg-background/80 backdrop-blur-md",
       )}
     >
-      <div className="mx-auto flex h-[4.5rem] w-full max-w-[90rem] items-center gap-3 px-5 sm:px-8 lg:px-10 xl:px-12">
+      <div className="mx-auto flex h-16 w-full max-w-[90rem] items-center gap-3 px-4 sm:h-[4.5rem] sm:px-8 lg:px-10 xl:px-12">
         <BrandMark />
 
         <nav

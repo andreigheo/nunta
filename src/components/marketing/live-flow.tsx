@@ -45,29 +45,29 @@ export function LiveFlow() {
   return (
     <section
       id="flux"
-      className="border-y border-line bg-elevated py-20 sm:py-24 lg:py-28"
+      className="scroll-mt-16 border-y border-line bg-elevated py-11 sm:scroll-mt-[4.5rem] sm:py-16 lg:py-20"
       aria-labelledby="flow-title"
     >
-      <div className="mx-auto w-full max-w-[90rem] px-5 sm:px-8 lg:px-10 xl:px-12">
-        <div className="grid gap-7 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(31rem,1.28fr)] lg:items-end lg:gap-16">
+      <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
+        <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(31rem,1.28fr)] lg:items-end lg:gap-12">
           <div>
             <p className="text-sm font-semibold text-accent-strong">
               Cum funcționează Sarbato
             </p>
             <h2
               id="flow-title"
-              className="marketing-heading mt-4 max-w-[18ch] text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-ink text-balance"
+              className="marketing-heading mt-2.5 max-w-[18ch] text-[clamp(2.125rem,9.5vw,2.5rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-ink text-balance sm:mt-3 sm:text-[clamp(2.5rem,4vw,3.5rem)] sm:leading-[1.02] sm:tracking-[-0.035em]"
             >
               {flow.title}
             </h2>
           </div>
-          <p className="max-w-[62ch] text-lg leading-8 text-muted">
+          <p className="max-w-[62ch] text-[1.0625rem] leading-7 text-muted sm:text-lg sm:leading-8">
             {flow.lead}
           </p>
         </div>
 
-        <div className="mt-12 border border-line bg-surface sm:mt-14">
-          <div className="border-b border-line px-4 py-4 sm:px-6">
+        <div className="mt-6 border border-line bg-surface sm:mt-10">
+          <div className="border-b border-line px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-semibold text-ink">
                 Firul complet al evenimentului
@@ -79,7 +79,7 @@ export function LiveFlow() {
           </div>
 
           <ol
-            className="relative grid grid-cols-1 bg-subtle min-[380px]:grid-cols-2 lg:grid-cols-7"
+            className="relative flex snap-x snap-mandatory overflow-x-auto bg-subtle [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-7 lg:overflow-visible"
             aria-label="Etapele informației în Sarbato"
           >
             {flow.steps.map((step, index) => {
@@ -89,14 +89,14 @@ export function LiveFlow() {
               return (
                 <li
                   key={step.id}
-                  className="relative border-b border-line last:border-b-0 min-[380px]:odd:border-r min-[380px]:last:col-span-2 min-[380px]:last:border-r-0 lg:col-span-1 lg:border-r lg:border-b-0 lg:last:col-span-1 lg:last:border-r-0"
+                  className="relative min-w-[9rem] snap-start border-r border-line last:border-r-0 lg:col-span-1 lg:min-w-0 lg:border-r lg:border-b-0 lg:last:border-r-0"
                 >
                   <button
                     type="button"
                     onClick={() => setActiveId(step.id)}
                     aria-pressed={selected}
                     className={cn(
-                      "group flex min-h-20 w-full items-center gap-3 bg-surface px-4 py-3 text-left transition-colors duration-200 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-brand lg:min-h-32 lg:flex-col lg:items-start lg:justify-between lg:px-3 lg:py-4",
+                      "group flex min-h-18 w-full touch-manipulation items-center gap-3 bg-surface px-3 py-2.5 text-left transition-colors duration-200 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-brand lg:min-h-28 lg:flex-col lg:items-start lg:justify-between lg:px-3 lg:py-4",
                       selected ? "bg-brand text-on-brand" : "hover:bg-subtle",
                     )}
                   >
@@ -136,7 +136,7 @@ export function LiveFlow() {
           </ol>
 
           <div className="grid min-w-0 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="border-b border-line p-6 sm:p-8 lg:border-r lg:border-b-0 lg:p-10">
+            <div className="border-b border-line p-4 sm:p-8 lg:border-r lg:border-b-0 lg:p-10">
               <div className="flex items-center gap-3">
                 <span className={cn("h-1 w-12 rounded-full", stageTones[activeIndex].split(" ")[0])} />
                 <p className="text-sm font-semibold text-accent-strong">
@@ -144,21 +144,21 @@ export function LiveFlow() {
                 </p>
               </div>
               <h3
-                className="marketing-heading mt-4 max-w-[20ch] text-[clamp(2rem,3vw,3rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-brand text-balance"
+                className="marketing-heading mt-2.5 max-w-[20ch] text-[clamp(1.75rem,8vw,2.125rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-brand text-balance sm:mt-4 sm:text-[clamp(2rem,3vw,3rem)] sm:leading-[1.04] sm:tracking-[-0.03em]"
                 aria-live="polite"
               >
                 {active.title}
               </h3>
-              <p className="mt-5 max-w-[50ch] text-base leading-7 text-muted">
+              <p className="mt-3 max-w-[50ch] text-base leading-6 text-muted sm:mt-5 sm:leading-7">
                 {active.description}
               </p>
-              <div className="mt-7 flex items-start gap-3 border-t border-line pt-5 text-sm font-semibold leading-6 text-success">
+              <div className="mt-4 flex items-start gap-3 border-t border-line pt-3.5 text-sm font-semibold leading-6 text-success sm:mt-7 sm:pt-5">
                 <ArrowRight className="mt-1 size-4 shrink-0" aria-hidden />
                 <span>{active.next}</span>
               </div>
             </div>
 
-            <div className="marketing-product-surface-flat p-6 sm:p-8 lg:p-10">
+            <div className="marketing-product-surface-flat p-4 sm:p-8 lg:p-10">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-sm font-semibold text-muted">
                   Devine disponibil în produs
@@ -168,13 +168,13 @@ export function LiveFlow() {
                 </span>
               </div>
               <ul
-                className="mt-5 divide-y divide-line border-y border-line"
+                className="mt-3 divide-y divide-line border-y border-line sm:mt-5"
                 aria-label="Rezultatele etapei"
               >
                 {active.results.map((result, index) => (
                   <li
                     key={result}
-                    className="flex min-h-14 items-center gap-4 py-3"
+                    className="flex min-h-12 items-center gap-3 py-2.5 sm:min-h-14 sm:gap-4 sm:py-3"
                   >
                     <span
                       className={cn(
@@ -196,7 +196,7 @@ export function LiveFlow() {
               </ul>
               <p
                 data-testid="showcase-label"
-                className="mt-5 text-xs leading-5 text-muted"
+                className="mt-3 text-xs leading-5 text-muted sm:mt-5"
               >
                 Exemplu de produs — nu reprezintă datele unui client.
               </p>

@@ -5,8 +5,8 @@ import { BrandMark } from "./brand-mark";
 export function MarketingFooter() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto w-full max-w-[90rem] px-5 py-14 sm:px-8 lg:px-10 lg:py-16 xl:px-12">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
+      <div className="mx-auto w-full max-w-[90rem] px-4 py-10 sm:px-8 sm:py-14 lg:px-10 lg:py-16 xl:px-12">
+        <div className="grid gap-9 sm:gap-12 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
           <div>
             <BrandMark />
             <p className="mt-5 max-w-xs text-base leading-7 text-muted">
@@ -18,7 +18,7 @@ export function MarketingFooter() {
           </div>
 
           <nav
-            className="grid grid-cols-2 gap-8 sm:grid-cols-4"
+            className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4 sm:gap-8"
             aria-label="Navigație subsol"
           >
             {footer.columns.map((column) => (
@@ -43,7 +43,7 @@ export function MarketingFooter() {
           </nav>
         </div>
 
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
+        <div className="mt-9 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 sm:mt-12 sm:pt-6">
           <p className="text-xs text-muted">
             © 2026 Sarbato. Toate drepturile rezervate.
           </p>

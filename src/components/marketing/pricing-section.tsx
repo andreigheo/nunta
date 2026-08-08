@@ -6,10 +6,10 @@ export function PricingSection() {
   return (
     <section
       id="abonamente"
-      className="bg-elevated py-20 sm:py-24 lg:py-28"
+      className="scroll-mt-16 bg-elevated py-14 sm:scroll-mt-[4.5rem] sm:py-24 lg:py-28"
       aria-labelledby="pricing-title"
     >
-      <div className="mx-auto w-full max-w-[90rem] px-5 sm:px-8 lg:px-10 xl:px-12">
+      <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(30rem,1.2fr)] lg:items-end lg:gap-16">
           <div>
             <p className="text-sm font-semibold text-accent-strong">
@@ -17,13 +17,13 @@ export function PricingSection() {
             </p>
             <h2
               id="pricing-title"
-              className="marketing-heading mt-4 max-w-[17ch] text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-brand text-balance"
+              className="marketing-heading mt-3 max-w-[17ch] text-[clamp(2.25rem,10.5vw,2.75rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-brand text-balance sm:mt-4 sm:text-[clamp(2.5rem,4vw,3.5rem)] sm:leading-[1.02] sm:tracking-[-0.035em]"
             >
               {pricing.title}
             </h2>
           </div>
           <div>
-            <p className="max-w-[58ch] text-lg leading-8 text-muted">
+            <p className="max-w-[58ch] text-[1.0625rem] leading-7 text-muted sm:text-lg sm:leading-8">
               {pricing.lead}
             </p>
             <p className="mt-4 flex items-start gap-2 text-sm leading-6 text-ink">
@@ -36,14 +36,20 @@ export function PricingSection() {
           </div>
         </div>
 
-        <div className="mt-14 grid gap-4 lg:grid-cols-3">
+        <p className="mt-8 text-sm font-semibold text-brand lg:hidden">
+          Glisează pentru a compara cele trei planuri.
+        </p>
+        <div
+          className="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-14 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pb-0"
+          aria-label="Comparație abonamente Sarbato"
+        >
           {pricing.plans.map((plan) => (
             <article
               key={plan.name}
               className={
                 plan.featured
-                  ? "relative flex min-h-[22rem] min-w-0 flex-col bg-brand p-6 text-on-brand sm:p-8"
-                  : "relative flex min-h-[22rem] min-w-0 flex-col border border-line bg-surface p-6 text-ink sm:p-8"
+                  ? "relative flex w-[calc(100%_-_1rem)] min-w-[calc(100%_-_1rem)] snap-start flex-col bg-brand p-5 text-on-brand sm:w-[22rem] sm:min-w-[22rem] sm:p-8 lg:w-auto lg:min-w-0"
+                  : "relative flex w-[calc(100%_-_1rem)] min-w-[calc(100%_-_1rem)] snap-start flex-col border border-line bg-surface p-5 text-ink sm:w-[22rem] sm:min-w-[22rem] sm:p-8 lg:w-auto lg:min-w-0"
               }
             >
               <div className="flex items-start justify-between gap-4">
@@ -63,8 +69,8 @@ export function PricingSection() {
                 </span>
               </div>
 
-              <div className="mt-8 flex items-end gap-2">
-                <p className="marketing-heading text-[clamp(3rem,4vw,4.5rem)] font-semibold leading-none tracking-[-0.04em]">
+              <div className="mt-6 flex items-end gap-2 sm:mt-8">
+                <p className="marketing-heading text-[clamp(2.75rem,13vw,3.5rem)] font-semibold leading-none tracking-[-0.035em] sm:text-[clamp(3rem,4vw,4.5rem)] sm:tracking-[-0.04em]">
                   {plan.price}
                 </p>
                 <p
@@ -81,8 +87,8 @@ export function PricingSection() {
               <p
                 className={
                   plan.featured
-                    ? "mt-6 max-w-[34ch] text-base leading-7 text-white/80"
-                    : "mt-6 max-w-[34ch] text-base leading-7 text-muted"
+                    ? "mt-5 max-w-[34ch] text-base leading-7 text-white/80 sm:mt-6"
+                    : "mt-5 max-w-[34ch] text-base leading-7 text-muted sm:mt-6"
                 }
               >
                 {plan.description}
@@ -91,8 +97,8 @@ export function PricingSection() {
               <ul
                 className={
                   plan.featured
-                    ? "mt-7 space-y-3 border-t border-white/15 pt-6 text-sm leading-6 text-white/85"
-                    : "mt-7 space-y-3 border-t border-line pt-6 text-sm leading-6 text-ink"
+                    ? "mt-5 space-y-3 border-t border-white/15 pt-5 text-sm leading-6 text-white/85 sm:mt-7 sm:pt-6"
+                    : "mt-5 space-y-3 border-t border-line pt-5 text-sm leading-6 text-ink sm:mt-7 sm:pt-6"
                 }
               >
                 {plan.features.map((feature) => (
@@ -119,7 +125,7 @@ export function PricingSection() {
                 ))}
               </ul>
 
-              <div className="mt-auto pt-8">
+              <div className="mt-auto pt-6 sm:pt-8">
                 <CtaLink
                   cta={plan.cta}
                   withArrow
@@ -135,7 +141,7 @@ export function PricingSection() {
           ))}
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
+        <div className="mt-5 flex flex-col items-start gap-3 border-t border-line pt-5 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4 sm:pt-6">
           <p className="flex items-center gap-2 text-sm font-medium text-muted">
             <Check className="size-4 text-success" aria-hidden />
             {pricing.checkoutNote}
