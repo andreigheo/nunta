@@ -248,6 +248,7 @@ services:
       NODE_ENV: production
       API_INTERNAL_URL: http://api:4000
       NEXT_PUBLIC_DEMO_MODE_ENABLED: "false"
+      SESSION_COOKIE_NAME: sarbato_session
     ports:
       - "127.0.0.1:43221:3000"
     depends_on:

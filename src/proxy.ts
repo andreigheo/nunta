@@ -48,7 +48,7 @@ const realAuthEntryPaths = new Set([
 
 function expireCookie(
   response: NextResponse,
-  name: "weddingos_session" | "weddingos_demo",
+  name: string,
   httpOnly: boolean,
 ) {
   response.cookies.set(name, "", {
@@ -59,8 +59,13 @@ function expireCookie(
   });
 }
 
+function sessionCookieName() {
+  return process.env.SESSION_COOKIE_NAME?.trim() || "weddingos_session";
+}
+
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const authCookie = sessionCookieName();
   const production = process.env.NODE_ENV === "production";
   const demoEnabled =
     !production &&
@@ -80,7 +85,7 @@ export function proxy(request: NextRequest) {
     const signIn = new URL("/sign-in", request.url);
     signIn.searchParams.set("switch", "1");
     const response = NextResponse.redirect(signIn);
-    expireCookie(response, "weddingos_session", true);
+    expireCookie(response, authCookie, true);
     expireCookie(response, "weddingos_demo", false);
     return response;
   }
@@ -93,9 +98,9 @@ export function proxy(request: NextRequest) {
     if (
       pathname === "/sign-in" &&
       request.nextUrl.searchParams.get("switch") === "1" &&
-      request.cookies.has("weddingos_session")
+      request.cookies.has(authCookie)
     ) {
-      expireCookie(response, "weddingos_session", true);
+      expireCookie(response, authCookie, true);
     }
     return response;
   }
@@ -103,7 +108,7 @@ export function proxy(request: NextRequest) {
   const segment = pathname.split("/")[1] ?? "";
   if (!protectedSegments.has(segment)) return NextResponse.next();
 
-  const session = request.cookies.get("weddingos_session")?.value;
+  const session = request.cookies.get(authCookie)?.value;
   const demoRequested = request.nextUrl.searchParams.get("demo") === "1";
   const demoCookie = request.cookies.get("weddingos_demo")?.value === "1";
 
