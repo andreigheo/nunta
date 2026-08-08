@@ -18,6 +18,7 @@ export const uploadPurposes = [
   "VENDOR_LEGAL_DOCUMENT",
   "GENERAL_COMMERCIAL_DOCUMENT",
   "INVITATION_MEDIA",
+  "PROFILE_IMAGE",
 ] as const;
 export const uploadPurposeSchema = z.enum(uploadPurposes);
 

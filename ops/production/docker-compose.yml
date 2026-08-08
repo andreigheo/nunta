@@ -181,7 +181,8 @@ services:
     command:
       - >-
         /app/packages/database/node_modules/.bin/prisma migrate deploy
-        --schema /app/packages/database/prisma/schema.prisma
+        --schema /app/packages/database/prisma/schema.prisma &&
+        node /app/packages/database/dist/seed.js
     environment:
       DATABASE_URL: postgresql://sarbato_admin:${POSTGRES_ADMIN_PASSWORD:?POSTGRES_ADMIN_PASSWORD is required}@postgres:5432/weddingos?schema=public
       DATABASE_OWNER_URL: postgresql://sarbato_admin:${POSTGRES_ADMIN_PASSWORD:?POSTGRES_ADMIN_PASSWORD is required}@postgres:5432/weddingos?schema=public

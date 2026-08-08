@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -58,6 +59,20 @@ const styleOptions = [
 
 const priorities = ["Locația", "Mâncarea", "Muzica", "Fotografia", "Decorul", "Experiența invitaților", "Ținutele", "Cazarea"];
 
+const profilePhotoSlots = [
+  { id: "one", label: "Partener 1", valueKey: "partnerOnePhotoId" },
+  { id: "two", label: "Partener 2", valueKey: "partnerTwoPhotoId" },
+] as const;
+const allowedProfilePhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const profilePhotoMaximumBytes = 10 * 1024 * 1024;
+
+type ProfilePhotoSlot = (typeof profilePhotoSlots)[number]["id"];
+type ProfilePhotoSelection = {
+  file?: File;
+  objectId?: string;
+  previewUrl: string;
+};
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -89,10 +104,86 @@ export default function OnboardingPage() {
   const [draftVersion, setDraftVersion] = React.useState<number | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [loadingDraft, setLoadingDraft] = React.useState(true);
+  const [profilePhotos, setProfilePhotos] = React.useState<Record<ProfilePhotoSlot, ProfilePhotoSelection | null>>({
+    one: null,
+    two: null,
+  });
+  const [uploadingProfilePhoto, setUploadingProfilePhoto] = React.useState<ProfilePhotoSlot | null>(null);
+  const profilePhotoInputs = React.useRef<Record<ProfilePhotoSlot, HTMLInputElement | null>>({ one: null, two: null });
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setValues((v) => ({ ...v, [key]: e.target.value }));
   const toggle = (key: string) => (c: boolean) => setToggles((t) => ({ ...t, [key]: c }));
+
+  const selectProfilePhoto = (slot: ProfilePhotoSlot, file: File | undefined) => {
+    if (!file) return;
+    if (!allowedProfilePhotoTypes.has(file.type)) {
+      toast({
+        title: "Format de imagine neacceptat",
+        description: "Alege o fotografie JPG, PNG sau WebP.",
+        variant: "error",
+      });
+      return;
+    }
+    if (file.size <= 0 || file.size > profilePhotoMaximumBytes) {
+      toast({
+        title: "Fotografia este prea mare",
+        description: "Dimensiunea maximă este 10 MB.",
+        variant: "error",
+      });
+      return;
+    }
+    setProfilePhotos((current) => {
+      const previous = current[slot];
+      if (previous?.previewUrl.startsWith("blob:")) URL.revokeObjectURL(previous.previewUrl);
+      return {
+        ...current,
+        [slot]: { file, previewUrl: URL.createObjectURL(file) },
+      };
+    });
+  };
+
+  const uploadProfilePhoto = async (selectedWorkspaceId: string, slot: ProfilePhotoSlot, file: File) => {
+    setUploadingProfilePhoto(slot);
+    try {
+      const bytes = await file.arrayBuffer();
+      const checksumSha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+        .map((value) => value.toString(16).padStart(2, "0"))
+        .join("");
+      const session = await weddingOsApi.createUploadSession(selectedWorkspaceId, {
+        purpose: "PROFILE_IMAGE",
+        originalFileName: file.name,
+        contentType: file.type,
+        sizeBytes: file.size,
+        checksumSha256,
+      });
+      await weddingOsApi.putSignedUpload(session.upload.url, file, session.upload.headers);
+      const completed = await weddingOsApi.completeUploadSession(session.id, checksumSha256);
+      const objectId = String(completed.storageObjectId ?? "");
+      if (!objectId) throw new Error("Storage-ul nu a returnat identificatorul fotografiei.");
+      return objectId;
+    } finally {
+      setUploadingProfilePhoto(null);
+    }
+  };
+
+  const persistProfilePhotos = async (selectedWorkspaceId: string) => {
+    let nextValues = values;
+    for (const slot of profilePhotoSlots) {
+      const selected = profilePhotos[slot.id];
+      if (!selected?.file) continue;
+      const objectId = await uploadProfilePhoto(selectedWorkspaceId, slot.id, selected.file);
+      nextValues = { ...nextValues, [slot.valueKey]: objectId };
+      setValues((current) => ({ ...current, [slot.valueKey]: objectId }));
+      setProfilePhotos((current) => ({
+        ...current,
+        [slot.id]: current[slot.id]
+          ? { previewUrl: current[slot.id]!.previewUrl, objectId }
+          : null,
+      }));
+    }
+    return nextValues;
+  };
 
   const canContinue = step !== 1 || Boolean(values.partnerOne?.trim() && values.partnerTwo?.trim());
   const canSkip = [4, 5, 6].includes(step);
@@ -165,10 +256,11 @@ export default function OnboardingPage() {
       const draft = await weddingOsApi.onboarding(created.id);
       version = draft.version;
     }
+    const persistedValues = step === 1 ? await persistProfilePhotos(selectedWorkspaceId) : values;
     if (version === null) throw new Error("Versiunea draftului lipsește.");
     const updated = await weddingOsApi.updateOnboarding(
       selectedWorkspaceId,
-      { currentStep: Math.min(nextStep, 8), ...sectionForStep(step, values, toggles, styles, selectedPriorities, progress, extraEvents) },
+      { currentStep: Math.min(nextStep, 8), ...sectionForStep(step, persistedValues, toggles, styles, selectedPriorities, progress, extraEvents) },
       version,
     );
     setDraftVersion(updated.version);
@@ -294,18 +386,73 @@ export default function OnboardingPage() {
               <div className="sm:col-span-2">
                 <p className="text-[13px] font-medium text-ink">Fotografii de profil (opțional)</p>
                 <div className="mt-2 flex gap-3">
-                  {[1, 2].map((i) => (
-                    <button
-                      key={i}
-                      disabled
-                      title="Disponibil după integrarea storage securizat"
-                      className="flex size-20 cursor-not-allowed flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-line-strong text-faint opacity-60"
-                    >
-                      <Camera className="size-5" aria-hidden />
-                      <span className="text-[10px]">Partener {i}</span>
-                    </button>
-                  ))}
+                  {profilePhotoSlots.map((slot) => {
+                    const selected = profilePhotos[slot.id];
+                    const objectId = selected?.objectId || values[slot.valueKey];
+                    const source =
+                      selected?.previewUrl ||
+                      (workspaceId && objectId
+                        ? `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/invitation-media/${encodeURIComponent(objectId)}`
+                        : "");
+                    const uploading = uploadingProfilePhoto === slot.id;
+                    return (
+                      <div key={slot.id}>
+                        <input
+                          ref={(node) => {
+                            profilePhotoInputs.current[slot.id] = node;
+                          }}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          onChange={(event) => {
+                            selectProfilePhoto(slot.id, event.target.files?.[0]);
+                            event.currentTarget.value = "";
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => profilePhotoInputs.current[slot.id]?.click()}
+                          disabled={saving || uploading}
+                          aria-label={`${source ? "Schimbă" : "Adaugă"} fotografia pentru ${slot.label}`}
+                          className="group relative flex size-24 overflow-hidden rounded-xl border border-dashed border-line-strong bg-surface text-faint transition-colors hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand/25 disabled:cursor-wait disabled:opacity-70"
+                        >
+                          {source ? (
+                            <Image
+                              src={source}
+                              alt={`Fotografie ${slot.label}`}
+                              fill
+                              unoptimized
+                              sizes="96px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <span className="m-auto flex flex-col items-center gap-1.5">
+                              <Camera className="size-5" aria-hidden />
+                              <span className="text-[11px] font-medium">{slot.label}</span>
+                            </span>
+                          )}
+                          {source && !uploading && (
+                            <span className="absolute inset-x-0 bottom-0 bg-ink/75 px-1.5 py-1 text-[10px] font-medium text-white">
+                              Schimbă
+                            </span>
+                          )}
+                          {uploading && (
+                            <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-surface/90 text-brand" role="status">
+                              <LoaderCircle className="size-5 motion-safe:animate-spin" aria-hidden />
+                              <span className="text-[10px] font-medium">Se încarcă</span>
+                            </span>
+                          )}
+                        </button>
+                        {source && (
+                          <p className="mt-1.5 text-center text-[10px] text-faint">
+                            {selected?.file ? "Pregătită" : "Salvată"}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                <p className="mt-2 text-xs text-faint">JPG, PNG sau WebP, maximum 10 MB.</p>
               </div>
             </div>
           )}
@@ -642,7 +789,7 @@ function sectionForStep(
 ): import("@weddingos/contracts").UpdateOnboardingDraft {
   const pick = (...keys: string[]) =>
     Object.fromEntries(keys.map((key) => [key, values[key] ?? ""]));
-  if (step === 1) return { couple: { confirmed: true, ...pick("partnerOne", "partnerTwo", "title", "preferred") } };
+  if (step === 1) return { couple: { confirmed: true, ...pick("partnerOne", "partnerTwo", "title", "preferred", "partnerOnePhotoId", "partnerTwoPhotoId") } };
   if (step === 2) return { dateEvents: { confirmed: true, ...pick("date", "altDates"), civil: toggles.civil, religious: toggles.religious, reception: toggles.reception, welcomeDinner: toggles.welcomeDinner, brunch: toggles.brunch, flexibleDate: toggles.flexibleDate, extraEvents } };
   if (step === 3) return { location: { confirmed: true, ...pick("country", "region", "city", "venue", "venueAddress", "locationFlex"), venueSelected: toggles.venueSelected, destination: toggles.destination } };
   if (step === 4) return { guests: { confirmed: true, ...pick("guestCount", "adults", "children", "local", "transport", "accommodation") } };

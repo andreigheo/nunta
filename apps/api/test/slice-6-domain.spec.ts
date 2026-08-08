@@ -65,6 +65,15 @@ describe("Slice 6 secure document contracts", () => {
         purpose: "ARBITRARY",
       }).success,
     ).toBe(false);
+    expect(
+      createUploadSessionSchema.safeParse({
+        ...base,
+        workspaceId: uuid,
+        purpose: "PROFILE_IMAGE",
+        originalFileName: "profil.webp",
+        contentType: "image/webp",
+      }).success,
+    ).toBe(true);
   });
 
   it("validates contract-party grants and signature memberships as UUIDs", () => {

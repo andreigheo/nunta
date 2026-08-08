@@ -93,6 +93,10 @@ const uploadPolicy = {
     types: ["image/jpeg", "image/png", "image/webp"],
     maximum: 20 * 1024 * 1024,
   },
+  PROFILE_IMAGE: {
+    types: ["image/jpeg", "image/png", "image/webp"],
+    maximum: 10 * 1024 * 1024,
+  },
 } as const;
 
 function jsonSafe<T>(value: T): T {
@@ -116,6 +120,15 @@ function invitationDocumentContainsMedia(
     ([key, child]) =>
       (key === "mediaId" && child === objectId) ||
       invitationDocumentContainsMedia(child, objectId),
+  );
+}
+
+function onboardingCoupleContainsMedia(value: unknown, objectId: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const couple = value as Record<string, unknown>;
+  return (
+    couple.partnerOnePhotoId === objectId ||
+    couple.partnerTwoPhotoId === objectId
   );
 }
 
@@ -354,7 +367,9 @@ export class SecureCommerceService {
       owner,
       input.purpose === "INVITATION_MEDIA"
         ? "invitation.write"
-        : "document.upload",
+        : input.purpose === "PROFILE_IMAGE"
+          ? "workspace.update"
+          : "document.upload",
     );
     const policy = uploadPolicy[input.purpose];
     if (!(policy.types as readonly string[]).includes(input.contentType))
@@ -523,15 +538,35 @@ export class SecureCommerceService {
     workspaceId: string,
     objectId: string,
   ) {
-    await this.requireCapability(userId, { workspaceId }, "invitation.write");
-    const object = await this.database.withContext(
+    const result = await this.database.withContext(
       { userId, workspaceId },
-      (tx) =>
-        tx.storedObject.findFirst({
+      async (tx) => {
+        const object = await tx.storedObject.findFirst({
           where: { id: objectId, workspaceId, deletedAt: null },
-        }),
+        });
+        const session = object
+          ? await tx.fileUploadSession.findFirst({
+              where: { storageObjectId: object.id, workspaceId },
+            })
+          : null;
+        const onboarding =
+          session?.purpose === "PROFILE_IMAGE"
+            ? await tx.onboardingDraft.findUnique({
+                where: { workspaceId },
+                select: { couple: true },
+              })
+            : null;
+        return { object, session, onboarding };
+      },
     );
-    return this.readInvitationMedia(object);
+    if (result.session?.purpose === "PROFILE_IMAGE") {
+      await this.requireCapability(userId, { workspaceId }, "workspace.read");
+      if (!onboardingCoupleContainsMedia(result.onboarding?.couple, objectId))
+        problem("NOT_FOUND", HttpStatus.NOT_FOUND, "Profile image not found");
+    } else {
+      await this.requireCapability(userId, { workspaceId }, "invitation.write");
+    }
+    return this.readInvitationMedia(result.object);
   }
 
   async invitationMediaForGuest(token: string, objectId: string) {
