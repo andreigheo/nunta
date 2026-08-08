@@ -25,7 +25,7 @@ export function Hero() {
 
           <h1
             id="landing-title"
-            className="marketing-heading mkt-rise mkt-rise-1 mt-5 text-[clamp(2.375rem,10.5vw,2.75rem)] font-semibold leading-[1.02] tracking-[-0.03em] text-brand text-balance sm:mt-6 sm:text-[clamp(3rem,4.25vw,3.75rem)] sm:tracking-[-0.035em]"
+            className="marketing-heading mkt-rise mkt-rise-1 mt-5 text-[clamp(2.25rem,9.5vw,2.5rem)] font-semibold leading-[1.03] tracking-[-0.03em] text-brand text-balance sm:mt-6 sm:text-[clamp(3rem,4.25vw,3.75rem)] sm:leading-[1.02] sm:tracking-[-0.035em]"
           >
             {titleStart}{" "}
             <span className="relative inline">
@@ -37,7 +37,7 @@ export function Hero() {
             </span>
           </h1>
 
-          <p className="mkt-rise mkt-rise-2 mt-5 max-w-[57ch] text-[1.0625rem] leading-7 text-ink sm:mt-6 sm:text-lg sm:leading-8">
+          <p className="mkt-rise mkt-rise-2 mt-5 max-w-[57ch] text-base leading-7 text-ink sm:mt-6 sm:text-lg sm:leading-8">
             {hero.lead}
           </p>
 

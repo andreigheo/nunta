@@ -6,6 +6,8 @@ import {
   ArrowRight,
   CalendarCheck2,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   FileCheck2,
   MailCheck,
@@ -41,11 +43,14 @@ export function LiveFlow() {
   const [activeId, setActiveId] = React.useState<FlowId>(flow.steps[0].id);
   const activeIndex = flow.steps.findIndex((step) => step.id === activeId);
   const active = flow.steps[activeIndex] ?? flow.steps[0];
+  const previousIndex = Math.max(0, activeIndex - 1);
+  const nextIndex = Math.min(flow.steps.length - 1, activeIndex + 1);
+  const ActiveIcon = icons[active.id];
 
   return (
     <section
       id="flux"
-      className="scroll-mt-16 border-y border-line bg-elevated py-11 sm:scroll-mt-[4.5rem] sm:py-16 lg:py-20"
+      className="scroll-mt-24 border-y border-line bg-elevated py-11 sm:scroll-mt-[5.5rem] sm:py-16 lg:py-20"
       aria-labelledby="flow-title"
     >
       <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
@@ -78,8 +83,63 @@ export function LiveFlow() {
             </div>
           </div>
 
+          <div className="border-b border-line bg-subtle p-3 lg:hidden">
+            <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveId(flow.steps[previousIndex].id)}
+                disabled={activeIndex === 0}
+                aria-label="Etapa anterioară"
+                className="flex size-11 touch-manipulation items-center justify-center rounded-lg border border-line bg-surface text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <ChevronLeft className="size-5" aria-hidden />
+              </button>
+
+              <div className="flex min-w-0 items-center justify-center gap-2.5 px-1">
+                <span
+                  className={cn(
+                    "flex size-10 shrink-0 items-center justify-center rounded-xl",
+                    stageTones[activeIndex],
+                  )}
+                >
+                  <ActiveIcon className="size-4.5" strokeWidth={1.9} aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                    Etapa {activeIndex + 1} din {flow.steps.length}
+                  </p>
+                  <p className="truncate text-sm font-semibold text-ink">
+                    {active.label}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveId(flow.steps[nextIndex].id)}
+                disabled={activeIndex === flow.steps.length - 1}
+                aria-label="Etapa următoare"
+                className="flex size-11 touch-manipulation items-center justify-center rounded-lg border border-line bg-surface text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <ChevronRight className="size-5" aria-hidden />
+              </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-7 gap-1" aria-hidden>
+              {flow.steps.map((step, index) => (
+                <span
+                  key={step.id}
+                  className={cn(
+                    "h-1 rounded-full",
+                    index <= activeIndex ? "bg-brand" : "bg-line-strong",
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
           <ol
-            className="relative flex snap-x snap-mandatory overflow-x-auto bg-subtle [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-7 lg:overflow-visible"
+            className="relative hidden grid-cols-7 bg-subtle lg:grid"
             aria-label="Etapele informației în Sarbato"
           >
             {flow.steps.map((step, index) => {

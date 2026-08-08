@@ -57,18 +57,18 @@ export function HeroDashboard() {
           aria-label="Etapele exemplului de produs"
           className="overflow-hidden border-b border-line bg-brand lg:border-r lg:border-b-0"
         >
-          <ul className="flex snap-x snap-mandatory overflow-x-auto p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-1 lg:overflow-visible lg:p-3">
+          <ul className="grid grid-cols-4 gap-1 p-1.5 lg:grid-cols-1 lg:gap-0 lg:p-3">
             {showcaseStages.map((stage) => {
               const selected = stage.id === activeId;
               const Icon = stageIcons[stage.id];
               return (
-                <li key={stage.id} className="min-w-[7.75rem] snap-start lg:min-w-0">
+                <li key={stage.id} className="min-w-0">
                   <button
                     type="button"
                     onClick={() => selectStage(stage.id)}
                     aria-pressed={selected}
                     className={cn(
-                      "flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+                      "flex min-h-14 w-full touch-manipulation flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-center text-xs font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white lg:min-h-11 lg:flex-row lg:justify-start lg:gap-2 lg:px-2.5 lg:py-2 lg:text-left lg:text-sm",
                       selected
                         ? "bg-elevated text-brand"
                         : "text-on-brand hover:bg-brand-strong",
@@ -79,7 +79,12 @@ export function HeroDashboard() {
                       strokeWidth={1.9}
                       aria-hidden
                     />
-                    <span className="leading-tight">{stage.navLabel}</span>
+                    <span className="leading-tight lg:hidden">
+                      {stage.shortLabel}
+                    </span>
+                    <span className="hidden leading-tight lg:inline">
+                      {stage.navLabel}
+                    </span>
                   </button>
                 </li>
               );
@@ -100,7 +105,7 @@ export function HeroDashboard() {
                   </span>
                   <div className="min-w-0">
                     <p
-                      className="text-lg font-semibold leading-tight text-ink"
+                      className="text-base font-semibold leading-tight text-ink sm:text-lg"
                       aria-live="polite"
                     >
                       {active.action}
