@@ -8,7 +8,7 @@ import { Button, Checkbox, Field, Input } from "@/components/ui";
 import { AuthError, AuthHeading, AuthInfo, Divider, SocialButtons } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import {
-  destinationForRegistration,
+  destinationAfterAuthentication,
   inferredRegistrationIntent,
   safeInternalPath,
 } from "@/lib/account-routing";
@@ -47,40 +47,21 @@ export default function SignInPage() {
     setLoading(true);
     try {
       await weddingOsApi.signIn(email, password, remember);
-      if (returnTo) {
-        router.push(returnTo);
-      } else {
-        const [currentUser, workspaces] = await Promise.all([
-          weddingOsApi.me(),
-          weddingOsApi.workspaces(),
-        ]);
-        const contextCount = [
-          workspaces.length > 0,
-          currentUser.contexts.vendorOrganizations,
-          currentUser.contexts.platform,
-        ].filter(Boolean).length;
-        if (contextCount > 1) {
-          router.push("/start");
-        } else if (currentUser.contexts.platform) {
-          router.push("/admin");
-        } else if (
-          currentUser.preferences.registrationIntent === "SERVICE_PROVIDER" &&
-          currentUser.contexts.vendorOrganizations
-        ) {
-          router.push("/vendor");
-        } else if (workspaces.length > 0) {
-          router.push("/overview");
-        } else if (currentUser.contexts.vendorOrganizations) {
-          router.push("/vendor");
-        } else {
-          router.push(
-            destinationForRegistration(
-              currentUser.preferences.registrationIntent,
-            ),
-          );
-        }
-      }
-      router.refresh();
+      const [currentUser, workspaces] = await Promise.all([
+        weddingOsApi.me(),
+        weddingOsApi.workspaces(),
+      ]);
+      const destination = destinationAfterAuthentication({
+        returnTo,
+        registrationIntent: currentUser.preferences.registrationIntent,
+        workspaceCount: workspaces.length,
+        hasVendorOrganizations: currentUser.contexts.vendorOrganizations,
+        hasPlatformAccess: currentUser.contexts.platform,
+      });
+
+      // The HttpOnly cookie changed during this request. A full navigation
+      // makes every server boundary evaluate the new session consistently.
+      window.location.assign(destination);
     } catch (error) {
       setFormError(apiErrorMessage(error));
     } finally {

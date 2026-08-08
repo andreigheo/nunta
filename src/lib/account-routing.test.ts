@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  destinationAfterAuthentication,
   destinationForRegistration,
   inferredRegistrationIntent,
   safeInternalPath,
@@ -24,6 +25,45 @@ describe("account routing", () => {
   it("rejects external and protocol-relative redirects", () => {
     expect(safeInternalPath("https://evil.example")).toBeNull();
     expect(safeInternalPath("//evil.example/path")).toBeNull();
+  });
+
+  it("sends a verified organizer without a workspace to onboarding", () => {
+    expect(
+      destinationAfterAuthentication({
+        registrationIntent: "EVENT_ORGANIZER",
+        workspaceCount: 0,
+        hasVendorOrganizations: false,
+        hasPlatformAccess: false,
+      }),
+    ).toBe("/onboarding");
+  });
+
+  it("routes authenticated contexts without losing safe return paths", () => {
+    expect(
+      destinationAfterAuthentication({
+        returnTo: "/invitations/editor",
+        registrationIntent: "EVENT_ORGANIZER",
+        workspaceCount: 1,
+        hasVendorOrganizations: false,
+        hasPlatformAccess: false,
+      }),
+    ).toBe("/invitations/editor");
+    expect(
+      destinationAfterAuthentication({
+        registrationIntent: "SERVICE_PROVIDER",
+        workspaceCount: 0,
+        hasVendorOrganizations: true,
+        hasPlatformAccess: false,
+      }),
+    ).toBe("/vendor");
+    expect(
+      destinationAfterAuthentication({
+        registrationIntent: "EVENT_ORGANIZER",
+        workspaceCount: 1,
+        hasVendorOrganizations: true,
+        hasPlatformAccess: false,
+      }),
+    ).toBe("/start");
   });
 });
 

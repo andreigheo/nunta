@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Wand2 } from "lucide-react";
 import { AuthActionLink, AuthError, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
+import { destinationAfterAuthentication } from "@/lib/account-routing";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 
 export default function MagicLinkPage() {
-  const router = useRouter();
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
 
@@ -20,15 +19,27 @@ export default function MagicLinkPage() {
       }
       weddingOsApi
         .exchangeMagicLink(token)
-        .then(() => {
-          router.replace("/overview");
-          router.refresh();
+        .then(async () => {
+          const [currentUser, workspaces] = await Promise.all([
+            weddingOsApi.me(),
+            weddingOsApi.workspaces(),
+          ]);
+          const destination = destinationAfterAuthentication({
+            registrationIntent: currentUser.preferences.registrationIntent,
+            workspaceCount: workspaces.length,
+            hasVendorOrganizations: currentUser.contexts.vendorOrganizations,
+            hasPlatformAccess: currentUser.contexts.platform,
+          });
+
+          // Replace the one-use token URL and force the server-side guards to
+          // observe the newly issued HttpOnly session cookie.
+          window.location.replace(destination);
         })
         .catch((cause) => setError(apiErrorMessage(cause)))
         .finally(() => setLoading(false));
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [router]);
+  }, []);
 
   return (
     <div className="text-center">

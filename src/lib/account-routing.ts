@@ -22,3 +22,30 @@ export function inferredRegistrationIntent(returnTo?: string | null) {
     ? ("INVITED_MEMBER" as const)
     : null;
 }
+
+export function destinationAfterAuthentication(input: {
+  returnTo?: string | null;
+  registrationIntent: RegistrationIntent;
+  workspaceCount: number;
+  hasVendorOrganizations: boolean;
+  hasPlatformAccess: boolean;
+}) {
+  const requested = safeInternalPath(input.returnTo);
+  if (requested) return requested;
+
+  const contextCount = [
+    input.workspaceCount > 0,
+    input.hasVendorOrganizations,
+    input.hasPlatformAccess,
+  ].filter(Boolean).length;
+  if (contextCount > 1) return "/start";
+  if (input.hasPlatformAccess) return "/admin";
+  if (
+    input.registrationIntent === "SERVICE_PROVIDER" &&
+    input.hasVendorOrganizations
+  )
+    return "/vendor";
+  if (input.workspaceCount > 0) return "/overview";
+  if (input.hasVendorOrganizations) return "/vendor";
+  return destinationForRegistration(input.registrationIntent);
+}
