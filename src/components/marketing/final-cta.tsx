@@ -29,7 +29,7 @@ export function FinalCta() {
           <p className="mx-auto mt-4 max-w-[58ch] text-[1.0625rem] leading-7 text-on-brand sm:mt-6 sm:text-lg sm:leading-8">
             {finalCta.text}
           </p>
-          <ul className="mt-5 flex flex-col items-start justify-center gap-2.5 text-left text-sm font-semibold text-white/80 min-[430px]:items-center min-[430px]:text-center sm:mt-7 sm:flex-row sm:flex-wrap sm:gap-x-6">
+          <ul className="mt-5 flex flex-col items-start justify-center gap-2.5 text-left text-sm font-semibold text-white/80 min-[520px]:items-center min-[520px]:text-center sm:mt-7 sm:flex-row sm:flex-wrap sm:gap-x-6">
             {finalCta.assurances.map((assurance) => (
               <li key={assurance} className="flex items-center gap-2">
                 <CheckCircle2 className="size-4 text-success-soft" aria-hidden />
@@ -37,17 +37,17 @@ export function FinalCta() {
               </li>
             ))}
           </ul>
-          <div className="mt-7 flex flex-col justify-center gap-2.5 min-[430px]:flex-row min-[430px]:items-center sm:mt-9 sm:gap-3">
+          <div className="mt-7 flex flex-col justify-center gap-2.5 min-[520px]:flex-row min-[520px]:items-center sm:mt-9 sm:gap-3">
             <CtaLink
               cta={primaryCta}
               withArrow
               variant="outline"
-              className="w-full border-transparent bg-elevated text-brand hover:bg-surface min-[430px]:w-auto"
+              className="w-full border-transparent bg-elevated text-brand hover:bg-surface min-[520px]:w-auto"
             />
             <CtaLink
               cta={signInCta}
               variant="ghost"
-              className="w-full text-on-brand hover:bg-white/10 hover:text-white min-[430px]:w-auto"
+              className="w-full text-on-brand hover:bg-white/10 hover:text-white min-[520px]:w-auto"
             />
           </div>
           <p className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-white/75">

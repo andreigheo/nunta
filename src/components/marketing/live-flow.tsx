@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CalendarCheck2,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -53,7 +54,7 @@ export function LiveFlow() {
       className="scroll-mt-24 border-y border-line bg-elevated py-11 sm:scroll-mt-[5.5rem] sm:py-16 lg:py-20"
       aria-labelledby="flow-title"
     >
-      <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
+      <div className="marketing-safe-container mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
         <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(31rem,1.28fr)] lg:items-end lg:gap-12">
           <div>
             <p className="text-sm font-semibold text-accent-strong">
@@ -83,45 +84,69 @@ export function LiveFlow() {
             </div>
           </div>
 
-          <div className="border-b border-line bg-subtle p-3 lg:hidden">
-            <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
+          <div className="border-b border-line bg-subtle p-3 sm:p-4 lg:hidden">
+            <label
+              htmlFor="marketing-flow-stage"
+              className="text-xs font-semibold text-faint"
+            >
+              Alege direct etapa
+            </label>
+
+            <div className="mt-2 flex min-w-0 items-center gap-2.5">
+              <span
+                className={cn(
+                  "flex size-11 shrink-0 items-center justify-center rounded-xl",
+                  stageTones[activeIndex],
+                )}
+              >
+                <ActiveIcon className="size-5" strokeWidth={1.9} aria-hidden />
+              </span>
+              <div className="relative min-w-0 flex-1">
+                <select
+                  id="marketing-flow-stage"
+                  data-testid="flow-stage-select"
+                  value={active.id}
+                  onChange={(event) => setActiveId(event.target.value as FlowId)}
+                  className="min-h-12 w-full appearance-none rounded-lg border border-line-strong bg-surface py-2.5 pl-3 pr-10 text-base font-semibold leading-6 text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                >
+                  {flow.steps.map((step, index) => (
+                    <option key={step.id} value={step.id}>
+                      {index + 1}. {step.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-brand"
+                  aria-hidden
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
               <button
                 type="button"
                 onClick={() => setActiveId(flow.steps[previousIndex].id)}
                 disabled={activeIndex === 0}
                 aria-label="Etapa anterioară"
-                className="flex size-11 touch-manipulation items-center justify-center rounded-lg border border-line bg-surface text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
+                className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
               >
-                <ChevronLeft className="size-5" aria-hidden />
+                <ChevronLeft className="size-4" aria-hidden />
+                Înapoi
               </button>
 
-              <div className="flex min-w-0 items-center justify-center gap-2.5 px-1">
-                <span
-                  className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-xl",
-                    stageTones[activeIndex],
-                  )}
-                >
-                  <ActiveIcon className="size-4.5" strokeWidth={1.9} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-faint">
-                    Etapa {activeIndex + 1} din {flow.steps.length}
-                  </p>
-                  <p className="truncate text-sm font-semibold text-ink">
-                    {active.label}
-                  </p>
-                </div>
-              </div>
+              <p className="px-1 text-xs font-semibold text-faint tabular-nums">
+                {activeIndex + 1} / {flow.steps.length}
+              </p>
 
               <button
                 type="button"
                 onClick={() => setActiveId(flow.steps[nextIndex].id)}
                 disabled={activeIndex === flow.steps.length - 1}
                 aria-label="Etapa următoare"
-                className="flex size-11 touch-manipulation items-center justify-center rounded-lg border border-line bg-surface text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
+                className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
               >
-                <ChevronRight className="size-5" aria-hidden />
+                Următoarea
+                <ChevronRight className="size-4" aria-hidden />
               </button>
             </div>
 

@@ -15,7 +15,7 @@ export function PublicProofSection({
       aria-labelledby="public-proof-title"
       data-testid="public-proof-metrics"
     >
-      <div className="mx-auto grid w-full max-w-[90rem] gap-8 px-4 sm:gap-10 sm:px-8 lg:grid-cols-[minmax(18rem,0.7fr)_minmax(0,1.3fr)] lg:items-end lg:gap-16 lg:px-10 xl:px-12">
+      <div className="marketing-safe-container mx-auto grid w-full max-w-[90rem] gap-8 px-4 sm:gap-10 sm:px-8 lg:grid-cols-[minmax(18rem,0.7fr)_minmax(0,1.3fr)] lg:items-end lg:gap-16 lg:px-10 xl:px-12">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-warning-soft">
             <ShieldCheck className="size-4" aria-hidden />
@@ -48,16 +48,16 @@ export function PublicProofSection({
               <p
                 className={
                   metric.state === "published"
-                    ? "mt-6 marketing-heading text-4xl font-semibold text-white tabular-nums"
-                    : "mt-6 text-base font-semibold leading-6 text-white"
+                    ? "mt-6 break-words marketing-heading text-4xl font-semibold text-white tabular-nums"
+                    : "mt-6 break-words text-base font-semibold leading-6 text-white"
                 }
               >
                 {metric.value ?? "Cohortă insuficientă"}
               </p>
-              <p className="mt-2 text-sm font-semibold leading-6 text-white">
+              <p className="mt-2 break-words text-sm font-semibold leading-6 text-white">
                 {metric.label}
               </p>
-              <p className="mt-2 text-xs leading-5 text-white/65">
+              <p className="mt-2 break-words text-xs leading-5 text-white/65">
                 {metric.cohort ??
                   "Pragul public de confidențialitate nu a fost atins."}
               </p>

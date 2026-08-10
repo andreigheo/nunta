@@ -21,13 +21,13 @@ export function MarketingHeader() {
     <header
       data-scrolled={scrolled}
       className={cn(
-        "sticky top-0 z-40 border-b transition-[background-color,box-shadow,border-color] duration-200",
+        "sticky top-0 z-40 border-b pt-[env(safe-area-inset-top)] transition-[background-color,box-shadow,border-color] duration-200",
         scrolled
           ? "border-line bg-background shadow-sm"
           : "border-line/60 bg-background/80 backdrop-blur-md",
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-[90rem] items-center gap-3 px-4 sm:h-[4.5rem] sm:px-8 lg:px-10 xl:px-12">
+      <div className="marketing-safe-container mx-auto flex h-16 w-full max-w-[90rem] items-center gap-3 px-4 sm:h-[4.5rem] sm:px-8 lg:px-10 xl:px-12">
         <BrandMark />
 
         <nav
@@ -38,7 +38,7 @@ export function MarketingHeader() {
             <a
               key={item.href}
               href={item.href}
-              className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-ink transition-colors hover:bg-subtle hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-3 text-sm font-semibold text-ink transition-colors hover:bg-subtle hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               {item.label}
             </a>

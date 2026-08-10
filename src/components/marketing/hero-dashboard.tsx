@@ -93,7 +93,7 @@ export function HeroDashboard() {
         </nav>
 
         <div className="min-w-0 p-3.5 sm:p-5">
-          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_11rem] xl:gap-4">
+          <div className="grid min-w-0 gap-3 min-[1380px]:grid-cols-[minmax(0,1fr)_11rem] min-[1380px]:gap-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-muted">
                 Următoarea acțiune
@@ -139,7 +139,7 @@ export function HeroDashboard() {
                 </div>
               </div>
 
-              <div className="mt-2.5 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-3">
+              <div className="mt-2.5 grid grid-cols-1 gap-2 min-[380px]:grid-cols-3 sm:mt-4 sm:gap-3">
                 {active.connected.map((item, index) => (
                   <div
                     key={item}
@@ -164,7 +164,7 @@ export function HeroDashboard() {
               </div>
             </div>
 
-            <div className="hidden xl:block">
+            <div className="hidden min-[1380px]:block">
               <InvitationPhone />
             </div>
           </div>
@@ -202,7 +202,7 @@ export function HeroDashboard() {
 
       <p
         data-testid="showcase-label"
-        className="border-t border-line px-3 py-2 text-[0.6875rem] font-medium leading-4 text-muted sm:px-5 sm:text-xs"
+        className="border-t border-line px-3 py-2 text-xs font-medium leading-4 text-muted sm:px-5"
       >
         Exemplu de produs — nu reprezintă datele unui client.
       </p>

@@ -5,6 +5,7 @@ import { PublicCookiePreferences } from "@/components/marketing/cookie-preferenc
 
 export const viewport: Viewport = {
   themeColor: "#f7f7f3",
+  viewportFit: "cover",
 };
 
 /**

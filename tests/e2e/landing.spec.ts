@@ -327,15 +327,21 @@ test("landing mobil — meniu, ordine semantică și reduced motion", async ({
   await expect(flowSteps.first()).toContainText("Plan");
   await expect(flowSteps.last()).toContainText("Ziua evenimentului");
 
-  // Interacțiunea semnătură funcționează și tactil.
-  const eventDayStep = page
-    .locator("#flux")
-    .getByRole("button", { name: /Ziua evenimentului/ });
-  await eventDayStep.click();
-  await expect(eventDayStep).toHaveAttribute("aria-pressed", "true");
+  // Selectorul mobil oferă acces direct la toate etapele, fără șase tap-uri
+  // succesive și fără un rail orizontal ascuns.
+  const stageSelect = page.getByTestId("flow-stage-select");
+  await expect(stageSelect.locator("option")).toHaveCount(7);
+  await stageSelect.selectOption("event-day");
+  await expect(stageSelect).toHaveValue("event-day");
   await expect(page.locator("#flux")).toContainText(
     "Planul devine vedere operațională",
   );
+
+  const pricingCards = page.locator("#abonamente article");
+  await expect(pricingCards).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(pricingCards.nth(index)).toBeVisible();
+  }
 
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
@@ -345,9 +351,28 @@ test("landing mobil — meniu, ordine semantică și reduced motion", async ({
 });
 
 for (const viewport of [
-  { name: "320", width: 320, height: 720 },
+  { name: "phone-320", width: 320, height: 720 },
+  { name: "phone-360", width: 360, height: 800 },
+  { name: "phone-390", width: 390, height: 844 },
+  { name: "phone-430", width: 430, height: 932 },
+  { name: "header-before-520", width: 519, height: 900 },
+  { name: "header-at-520", width: 520, height: 900 },
+  { name: "large-phone-600", width: 600, height: 960 },
+  { name: "sm-before-640", width: 639, height: 960 },
+  { name: "sm-at-640", width: 640, height: 960 },
+  { name: "tablet-before-768", width: 767, height: 1024 },
   { name: "tablet-768", width: 768, height: 1024 },
+  { name: "tablet-820", width: 820, height: 1180 },
+  { name: "phone-landscape", width: 844, height: 390 },
+  { name: "lg-before-1024", width: 1023, height: 768 },
   { name: "laptop-1024", width: 1024, height: 768 },
+  { name: "invitation-before-1120", width: 1119, height: 800 },
+  { name: "invitation-at-1120", width: 1120, height: 800 },
+  { name: "xl-before-1280", width: 1279, height: 900 },
+  { name: "desktop-1280", width: 1280, height: 900 },
+  { name: "desktop-1440", width: 1440, height: 1000 },
+  { name: "desktop-1920", width: 1920, height: 1080 },
+  { name: "desktop-2560", width: 2560, height: 1440 },
 ] as const) {
   test(`landing ${viewport.name} — fără overflow și cu toate secțiunile`, async ({
     page,
@@ -361,5 +386,27 @@ for (const viewport of [
     await expect(publicSections(page)).toHaveCount(10);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expectNoHorizontalOverflow(page);
+
+    const invitationSurface = page.locator("#invitatii [role='group']").first();
+    const invitationWidths = await invitationSurface.evaluate((surface) => ({
+      clientWidth: surface.clientWidth,
+      scrollWidth: surface.scrollWidth,
+    }));
+    expect(
+      invitationWidths.scrollWidth,
+      `Editorul invitației este tăiat la ${viewport.width}px`,
+    ).toBeLessThanOrEqual(invitationWidths.clientWidth + 1);
+
+    const pricingWidths = await page
+      .locator("#abonamente [aria-label='Comparație abonamente Sarbato']")
+      .evaluate((plans) => ({
+        clientWidth: plans.clientWidth,
+        scrollWidth: plans.scrollWidth,
+        display: getComputedStyle(plans).display,
+      }));
+    expect(pricingWidths.display).toBe("grid");
+    expect(pricingWidths.scrollWidth).toBeLessThanOrEqual(
+      pricingWidths.clientWidth + 1,
+    );
   });
 }

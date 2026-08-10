@@ -84,7 +84,7 @@ export function DomainStory({
       />
       <div
         className={cn(
-          "mx-auto grid w-full max-w-[90rem] gap-8 px-4 sm:gap-12 sm:px-8 lg:items-center lg:gap-16 lg:px-10 xl:px-12",
+          "marketing-safe-container mx-auto grid w-full max-w-[90rem] gap-8 px-4 sm:gap-12 sm:px-8 lg:items-center lg:gap-16 lg:px-10 xl:px-12",
           index % 2 === 1
             ? "lg:grid-cols-[minmax(0,1.28fr)_minmax(20rem,0.72fr)]"
             : "lg:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1.28fr)]",
@@ -140,7 +140,7 @@ export function DomainStory({
 
           <dl
             className={cn(
-              "mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2.5 border-y py-4 sm:mt-7 sm:items-center sm:gap-3",
+              "mt-5 grid grid-cols-1 items-start gap-2.5 border-y py-4 sm:mt-7 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-3",
               dark ? "border-white/15" : "border-line-strong",
             )}
           >
@@ -164,7 +164,7 @@ export function DomainStory({
             </div>
             <ArrowRight
               className={cn(
-                "mt-4 block size-4 sm:mt-0 sm:size-5",
+                "ml-1 block size-4 rotate-90 sm:ml-0 sm:size-5 sm:rotate-0",
                 dark ? "text-warning-soft" : "text-accent-strong",
               )}
               aria-hidden
@@ -277,7 +277,7 @@ function SurfaceShell({
         <span
           data-testid="showcase-label"
           className={cn(
-            "max-w-full rounded-full px-3 py-1.5 text-[0.6875rem] font-semibold leading-4 sm:text-xs",
+            "max-w-full rounded-full px-3 py-1.5 text-xs font-semibold leading-4",
             dark ? "bg-white/10 text-white" : "bg-subtle text-muted",
           )}
         >
@@ -319,14 +319,14 @@ function PlanningSurface() {
     >
       <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(14rem,0.85fr)]">
         <div className="border-b border-line p-3.5 sm:p-6 lg:border-r lg:border-b-0">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col items-start gap-3 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
+            <div className="flex min-w-0 items-center gap-2">
               <ClipboardCheck className="size-5 text-brand" aria-hidden />
               <p className="text-base font-semibold text-ink">
                 Etapa în revizuire
               </p>
             </div>
-            <span className="rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning">
+            <span className="shrink-0 rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning">
               Necesită aprobare
             </span>
           </div>
@@ -425,7 +425,7 @@ function GuestSurface() {
       title="Invitație și RSVP"
       description="Blocuri, design, previzualizare și răspunsuri conectate"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
+      <div className="flex flex-col items-start gap-3 border-b border-line px-4 py-3 min-[430px]:flex-row min-[430px]:flex-wrap min-[430px]:items-center min-[430px]:justify-between sm:px-5">
         <div>
           <p className="text-sm font-semibold text-ink">Editor invitație</p>
           <p className="mt-0.5 text-xs text-muted">
@@ -459,13 +459,16 @@ function GuestSurface() {
         </div>
       </div>
 
-      <div className="grid min-w-0 lg:grid-cols-[10.5rem_minmax(16rem,1fr)_12rem]">
-        <div className="border-b border-line p-3.5 sm:p-4 lg:border-r lg:border-b-0">
+      <div className="grid min-w-0 min-[1120px]:grid-cols-[10.5rem_minmax(16rem,1fr)_12rem]">
+        <div className="border-b border-line p-3.5 sm:p-4 min-[1120px]:border-r min-[1120px]:border-b-0">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-ink">Blocuri</p>
-              <span className="text-xs font-semibold text-faint">14 tipuri</span>
+            <span className="text-xs font-semibold text-faint">14 tipuri</span>
           </div>
-          <ul className="mt-3 grid grid-cols-2 gap-2 lg:block lg:space-y-2" aria-label="Exemple de blocuri disponibile">
+          <ul
+            className="mt-3 grid grid-cols-1 gap-2 min-[400px]:grid-cols-2 min-[1120px]:block min-[1120px]:space-y-2"
+            aria-label="Exemple de blocuri disponibile"
+          >
             {blocks.map(([Icon, name, status], index) => (
               <li
                 key={name}
@@ -493,7 +496,7 @@ function GuestSurface() {
           </span>
         </div>
 
-        <div className="min-w-0 border-b border-line bg-subtle p-4 sm:p-5 lg:border-r lg:border-b-0">
+        <div className="min-w-0 border-b border-line bg-subtle p-4 sm:p-5 min-[1120px]:border-r min-[1120px]:border-b-0">
           <div className="mx-auto max-w-[25rem] overflow-hidden border border-line bg-elevated shadow-card">
             <div className="relative min-h-36 bg-accent-soft px-5 py-6 text-center">
               <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-1 text-xs font-semibold text-brand">
@@ -531,8 +534,8 @@ function GuestSurface() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-4 p-3.5 sm:p-4 lg:block">
-          <div className="col-span-2 flex items-center gap-2 lg:col-span-1">
+        <div className="grid grid-cols-1 gap-x-4 p-3.5 min-[430px]:grid-cols-2 sm:p-4 min-[1120px]:block">
+          <div className="flex items-center gap-2 min-[430px]:col-span-2 min-[1120px]:col-span-1">
             <SlidersHorizontal className="size-4 text-brand" aria-hidden />
             <p className="text-sm font-semibold text-ink">Inspector</p>
           </div>
@@ -569,7 +572,7 @@ function GuestSurface() {
               </span>
             </div>
           </div>
-          <div className="col-span-2 pt-4 lg:col-span-1">
+          <div className="pt-4 min-[430px]:col-span-2 min-[1120px]:col-span-1">
             <p className="text-xs font-semibold text-muted">Imagine hero</p>
             <dl className="mt-3 space-y-2 text-xs">
               <div className="flex justify-between gap-2">
@@ -592,7 +595,7 @@ function GuestSurface() {
             Răspunsul continuă în logistică
           </p>
         </div>
-        <ul className="mt-3 grid grid-cols-2 gap-px bg-line xl:grid-cols-4">
+        <ul className="mt-3 grid grid-cols-1 gap-px bg-line min-[430px]:grid-cols-2 xl:grid-cols-4">
           {logistics.map(([Icon, title, status]) => (
             <li key={title} className="flex min-h-16 items-center gap-3 bg-elevated p-3">
               <Icon className="size-4 shrink-0 text-brand" aria-hidden />
@@ -625,7 +628,7 @@ function VendorSurface() {
     >
       <div className="p-3.5 sm:p-6">
         <ol
-          className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3"
+          className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2 sm:gap-3 lg:grid-cols-3"
           aria-label="Fluxul comercial: cerere, ofertă, comparare, rezervare, contract, buget"
         >
           {steps.map(({ Icon, label }, index) => (
@@ -687,10 +690,10 @@ function VendorSurface() {
               ].map(([term, value]) => (
                 <div
                   key={term}
-                  className="flex min-h-12 items-center justify-between gap-4 py-2"
+                  className="flex min-h-12 flex-col items-start justify-center gap-1 py-2 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between min-[430px]:gap-4"
                 >
                   <dt className="text-sm text-muted">{term}</dt>
-                  <dd className="text-right text-sm font-semibold text-ink">
+                  <dd className="text-left text-sm font-semibold text-ink min-[430px]:text-right">
                     {value}
                   </dd>
                 </div>
@@ -725,7 +728,7 @@ function EventDaySurface() {
     >
       <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(15rem,0.85fr)]">
         <div className="border-b border-white/15 p-3.5 sm:p-6 lg:border-r lg:border-b-0">
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <div className="grid grid-cols-1 gap-2.5 min-[430px]:grid-cols-2 sm:gap-3">
             <div className="bg-white/10 p-3 sm:p-4">
               <p className="text-xs font-semibold text-warning-soft">ACUM</p>
               <p className="mt-2 text-base font-semibold leading-5 text-white sm:text-lg sm:leading-normal">

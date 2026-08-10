@@ -16,7 +16,7 @@ export function Hero() {
         <span className="absolute -right-24 top-4 size-72 rounded-full bg-warning-soft blur-3xl" />
       </div>
 
-      <div className="relative mx-auto grid w-full max-w-[90rem] gap-6 px-4 pb-10 pt-7 sm:gap-9 sm:px-8 sm:pb-16 sm:pt-12 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:items-center lg:gap-10 lg:px-10 lg:pb-20 lg:pt-16 xl:px-12">
+      <div className="marketing-safe-container relative mx-auto grid w-full max-w-[90rem] gap-6 px-4 pb-10 pt-7 sm:gap-9 sm:px-8 sm:pb-16 sm:pt-12 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:items-center lg:gap-10 lg:px-10 lg:pb-20 lg:pt-16 xl:px-12">
         <div className="min-w-0 max-w-[40rem]">
           <p className="mkt-rise inline-flex max-w-full items-center gap-2 rounded-full bg-brand-softer px-3 py-2 text-xs font-semibold leading-5 text-brand sm:text-sm">
             <span className="size-2 rounded-full bg-success" aria-hidden />

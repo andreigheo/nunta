@@ -5,7 +5,7 @@ import { BrandMark } from "./brand-mark";
 export function MarketingFooter() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto w-full max-w-[90rem] px-4 py-10 sm:px-8 sm:py-14 lg:px-10 lg:py-16 xl:px-12">
+      <div className="marketing-safe-container mx-auto w-full max-w-[90rem] px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-8 sm:py-14 sm:pb-[max(3.5rem,env(safe-area-inset-bottom))] lg:px-10 lg:py-16 lg:pb-[max(4rem,env(safe-area-inset-bottom))] xl:px-12">
         <div className="grid gap-9 sm:gap-12 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
           <div>
             <BrandMark />
@@ -18,7 +18,7 @@ export function MarketingFooter() {
           </div>
 
           <nav
-            className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4 sm:gap-8"
+            className="grid grid-cols-1 gap-x-6 gap-y-8 min-[360px]:grid-cols-2 sm:grid-cols-4 sm:gap-8"
             aria-label="Navigație subsol"
           >
             {footer.columns.map((column) => (

@@ -9,7 +9,7 @@ export function PricingSection() {
       className="scroll-mt-16 bg-elevated py-14 sm:scroll-mt-[4.5rem] sm:py-24 lg:py-28"
       aria-labelledby="pricing-title"
     >
-      <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
+      <div className="marketing-safe-container mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(30rem,1.2fr)] lg:items-end lg:gap-16">
           <div>
             <p className="text-sm font-semibold text-accent-strong">
@@ -37,10 +37,10 @@ export function PricingSection() {
         </div>
 
         <p className="mt-8 text-sm font-semibold text-brand lg:hidden">
-          Glisează pentru a compara cele trei planuri.
+          Compară toate cele trei planuri, fără informații ascunse.
         </p>
         <div
-          className="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-14 lg:grid lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pb-0"
+          className="mt-4 grid gap-4 md:grid-cols-3 lg:mt-14"
           aria-label="Comparație abonamente Sarbato"
         >
           {pricing.plans.map((plan) => (
@@ -48,11 +48,11 @@ export function PricingSection() {
               key={plan.name}
               className={
                 plan.featured
-                  ? "relative flex w-[calc(100%_-_1rem)] min-w-[calc(100%_-_1rem)] snap-start flex-col bg-brand p-5 text-on-brand sm:w-[22rem] sm:min-w-[22rem] sm:p-8 lg:w-auto lg:min-w-0"
-                  : "relative flex w-[calc(100%_-_1rem)] min-w-[calc(100%_-_1rem)] snap-start flex-col border border-line bg-surface p-5 text-ink sm:w-[22rem] sm:min-w-[22rem] sm:p-8 lg:w-auto lg:min-w-0"
+                  ? "relative flex min-w-0 flex-col bg-brand p-5 text-on-brand sm:p-8"
+                  : "relative flex min-w-0 flex-col border border-line bg-surface p-5 text-ink sm:p-8"
               }
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <h3 className="marketing-heading text-2xl font-semibold">
                   {plan.name}
                 </h3>

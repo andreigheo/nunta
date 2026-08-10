@@ -80,7 +80,7 @@ export function Section({
     <section id={id} className={cn(spacingClasses[spacing], className)}>
       <div
         className={cn(
-          "mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12",
+          "marketing-safe-container mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12",
           containerClassName,
         )}
       >

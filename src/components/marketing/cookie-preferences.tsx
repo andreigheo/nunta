@@ -34,8 +34,10 @@ export function PublicCookiePreferences() {
   if (!visible) return null;
   return (
     <aside
+      role="region"
+      aria-live="polite"
       aria-label="Preferințe cookie"
-      className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-3xl rounded-xl border border-line bg-surface p-3.5 shadow-xl sm:inset-x-3 sm:bottom-3 sm:flex sm:items-center sm:gap-5 sm:rounded-2xl sm:p-4"
+      className="fixed left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-50 mx-auto max-h-[calc(100dvh_-_1rem_-_env(safe-area-inset-bottom))] max-w-3xl overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface p-3.5 shadow-xl sm:left-[max(0.75rem,env(safe-area-inset-left))] sm:right-[max(0.75rem,env(safe-area-inset-right))] sm:bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:items-center sm:gap-5 sm:rounded-2xl sm:p-4"
     >
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">Preferințe cookie</p>

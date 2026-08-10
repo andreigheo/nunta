@@ -165,6 +165,7 @@ export function Drawer({
   children,
   footer,
   headerActions,
+  className,
   "aria-label": ariaLabel,
 }: {
   open: boolean;
@@ -175,6 +176,7 @@ export function Drawer({
   children: React.ReactNode;
   footer?: React.ReactNode;
   headerActions?: React.ReactNode;
+  className?: string;
   "aria-label"?: string;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
@@ -210,6 +212,7 @@ export function Drawer({
           className={cn(
             "absolute inset-y-0 right-0 flex w-full animate-slide-in-right flex-col border-l border-line bg-elevated shadow-overlay",
             widths[width],
+            className,
           )}
         >
           <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
