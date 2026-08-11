@@ -27,6 +27,7 @@ read-only on Pro, and a planner does not gain billing administration.
 | Storage                                     |                    250 MB |                      2 GB |     10 GB |
 | Plan, calendar, budget, invitation and RSVP |                       Yes |                       Yes |       Yes |
 | Invitation studio                           |                       Yes |                       Yes |       Yes |
+| Accommodation discovery                     |                       Yes |                       Yes |       Yes |
 | Seating, transport and accommodation        | Read-only after downgrade |                       Yes |       Yes |
 | Vendor coordination                         | Read-only after downgrade |                       Yes |       Yes |
 | Documents and advanced exports              | Read-only after downgrade |                       Yes |       Yes |

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { CreateMenu, GuestRsvpRequest } from "@weddingos/contracts";
+import { guestAccommodationRecommendationSchema } from "@weddingos/contracts";
 import type { ApiEnvironment } from "@weddingos/config";
 import type { Prisma } from "@weddingos/database";
 import { AsyncService } from "../async/async.service";
@@ -268,6 +269,20 @@ export class RsvpMenuService {
       const operationsRows = await tx.$queryRaw<
         Array<{ data: Prisma.JsonValue }>
       >`SELECT public.weddingos_guest_operations_bootstrap() AS data`;
+      const accommodationRecommendations =
+        await tx.accommodationRecommendation.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            weddingEventId: { in: events.map((event) => event.id) },
+            status: "PUBLISHED",
+            deletedAt: null,
+          },
+          orderBy: [
+            { weddingEventId: "asc" },
+            { position: "asc" },
+            { createdAt: "asc" },
+          ],
+        });
       await tx.guestAccessGrant.update({
         where: { id: context.grantId },
         data: { lastUsedAt: new Date(), version: { increment: 1 } },
@@ -349,6 +364,9 @@ export class RsvpMenuService {
         events: events.map(mapEvent),
         menus: menus.map(mapMenuSummary),
         operations: object(operationsRows[0]?.data),
+        accommodationRecommendations: accommodationRecommendations.map(
+          mapAccommodationRecommendation,
+        ),
         rsvp: {
           submissionId: submission?.id ?? null,
           version: submission?.version ?? 1,
@@ -1434,6 +1452,69 @@ export class RsvpMenuService {
       },
     });
   }
+}
+
+function mapAccommodationRecommendation(row: {
+  id: string;
+  workspaceId: string;
+  weddingEventId: string;
+  source: string;
+  externalId: string | null;
+  sourceUrl: string | null;
+  sourceUpdatedAt: Date | null;
+  fetchedAt: Date;
+  attribution: string | null;
+  name: string;
+  type: string;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  latitude: Prisma.Decimal | null;
+  longitude: Prisma.Decimal | null;
+  distanceKm: Prisma.Decimal | null;
+  bookingUrl: string | null;
+  contactUrl: string | null;
+  contactPhone: string | null;
+  facilities: Prisma.JsonValue;
+  priceSnapshot: Prisma.JsonValue | null;
+  organizerNote: string | null;
+  groupCode: string | null;
+  deadline: Date | null;
+  status: string;
+  position: number;
+  publishedAt: Date | null;
+  archivedAt: Date | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return guestAccommodationRecommendationSchema.parse({
+    id: row.id,
+    weddingEventId: row.weddingEventId,
+    source: row.source.toLowerCase(),
+    provenance: {
+      sourceUpdatedAt: row.sourceUpdatedAt?.toISOString() ?? null,
+      fetchedAt: row.fetchedAt.toISOString(),
+      attribution: row.attribution,
+    },
+    name: row.name,
+    type: row.type.toLowerCase(),
+    address: row.address,
+    city: row.city,
+    country: row.country,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    distanceKm: row.distanceKm == null ? null : Number(row.distanceKm),
+    bookingUrl: row.bookingUrl,
+    contactUrl: row.contactUrl,
+    contactPhone: row.contactPhone,
+    facilities: row.facilities,
+    priceSnapshot: row.priceSnapshot,
+    organizerNote: row.organizerNote,
+    groupCode: row.groupCode,
+    deadline: row.deadline?.toISOString() ?? null,
+    position: row.position,
+  });
 }
 
 function mapFormVersion(row: {

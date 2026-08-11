@@ -84,7 +84,7 @@ export const navGroups: NavGroup[] = [
       { label: "Plan de mese", href: "/seating", icon: Armchair, capability: "seating.read", minimumPlan: "PLUS" },
       { label: "Meniuri", href: "/menus", icon: UtensilsCrossed, capability: "menu.read" },
       { label: "Transport", href: "/transport", icon: Bus, capability: "transport.read", minimumPlan: "PLUS" },
-      { label: "Cazare", href: "/accommodation", icon: BedDouble, capability: "accommodation.read", minimumPlan: "PLUS" },
+      { label: "Cazare", href: "/accommodation", icon: BedDouble, capability: "accommodation.read" },
     ],
   },
   {

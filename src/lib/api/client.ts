@@ -64,6 +64,12 @@ import type {
   RsvpSubmissionResource,
   SaveInvitationDraft,
   UpdateHousehold,
+  AccommodationDiscoveryQuery,
+  AccommodationDiscoveryResponse,
+  AccommodationRecommendationResource,
+  AccommodationRecommendationStatus,
+  CreateAccommodationRecommendation,
+  UpdateAccommodationRecommendation,
 } from "@weddingos/contracts";
 import { classifyApiProblem, isDemoCookieHeader } from "./transport-policy";
 
@@ -1658,6 +1664,104 @@ export const weddingOsApi = {
       {
         method: "POST",
         body: { format: "xlsx", includeSensitive },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  accommodationDiscovery: (
+    workspaceId: string,
+    input: AccommodationDiscoveryQuery,
+  ) =>
+    request<AccommodationDiscoveryResponse>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-discovery${queryString({
+        eventId: input.eventId,
+        query: input.query,
+        lat: input.lat,
+        lng: input.lng,
+        radiusKm: input.radiusKm,
+        types: input.types.join(","),
+        facilities: input.facilities.join(","),
+        budgetMaxMinor: input.budgetMaxMinor,
+        currency: input.currency,
+      })}`,
+    ),
+  accommodationRecommendations: (
+    workspaceId: string,
+    input: {
+      eventId?: string;
+      status?: AccommodationRecommendationStatus;
+    } = {},
+  ) =>
+    request<{ items: AccommodationRecommendationResource[] }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations${queryString(input)}`,
+    ),
+  createAccommodationRecommendation: (
+    workspaceId: string,
+    input: CreateAccommodationRecommendation,
+  ) =>
+    request<AccommodationRecommendationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  updateAccommodationRecommendation: (
+    workspaceId: string,
+    recommendationId: string,
+    version: number,
+    input: UpdateAccommodationRecommendation,
+  ) =>
+    request<AccommodationRecommendationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations/${encodeURIComponent(recommendationId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  reorderAccommodationRecommendations: (
+    workspaceId: string,
+    items: Array<{ id: string; version: number; position: number }>,
+  ) =>
+    request<{ items: AccommodationRecommendationResource[] }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations/order`,
+      {
+        method: "PUT",
+        body: { items },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  deleteAccommodationRecommendation: (
+    workspaceId: string,
+    recommendationId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations/${encodeURIComponent(recommendationId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
+  publishAccommodationRecommendation: (
+    workspaceId: string,
+    recommendationId: string,
+    version: number,
+  ) =>
+    request<AccommodationRecommendationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations/${encodeURIComponent(recommendationId)}/publish`,
+      {
+        method: "POST",
+        body: {},
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  archiveAccommodationRecommendation: (
+    workspaceId: string,
+    recommendationId: string,
+    version: number,
+  ) =>
+    request<AccommodationRecommendationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations/${encodeURIComponent(recommendationId)}/archive`,
+      {
+        method: "POST",
+        body: {},
+        ifMatch: version,
         idempotencyKey: crypto.randomUUID(),
       },
     ),

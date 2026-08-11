@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { guestAccommodationRecommendationSchema } from "./accommodation-discovery";
 
 const uuid = z.string().uuid();
 const version = z.number().int().positive();
@@ -661,6 +662,9 @@ export const guestCompanionBootstrapSchema = z
     }),
     rsvp: z.record(z.unknown()),
     menus: z.array(z.record(z.unknown())),
+    accommodationRecommendations: z.array(
+      guestAccommodationRecommendationSchema,
+    ),
     deadline: z.string().datetime().nullable(),
     allowEdits: z.boolean(),
     closedMessage: z.string(),

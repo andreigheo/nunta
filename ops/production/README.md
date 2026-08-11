@@ -24,5 +24,13 @@ remain disabled and are not part of this integration.
 The free plan and all persistent planning modules can operate without those
 providers.
 
+Accommodation discovery is informational and never creates or processes a
+booking. The default adapter reads public OpenStreetMap data through Nominatim
+and Overpass with server-side throttling, bounded queries, attribution, and a
+database cache. Configure `ACCOMMODATION_NOMINATIM_URL` and
+`ACCOMMODATION_OVERPASS_URL` to self-hosted or contracted endpoints before the
+feature receives sustained production traffic; the public endpoints are shared
+community infrastructure, not a hotel inventory or pricing service.
+
 Production cutover details and the current acceptance boundary are recorded in
 `docs/SARBATO_PRODUCTION_CUTOVER_2026-08-08.md`.

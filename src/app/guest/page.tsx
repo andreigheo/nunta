@@ -17,7 +17,9 @@ import {
   Users,
 } from "lucide-react";
 import type { GuestCompanionBootstrapResource } from "@weddingos/contracts";
+import type { GuestAccommodationRecommendationResource } from "@weddingos/contracts";
 import { PublishedInvitation } from "@/components/invitations/published-invitation";
+import { GuestAccommodationRecommendations } from "@/components/guest/accommodation-recommendations";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { PortalShell } from "@/components/portals/portal-shell";
 import {
@@ -67,6 +69,7 @@ type GuestOperations = {
 };
 type GuestBootstrap = GuestCompanionBootstrapResource & {
   operations?: GuestOperations;
+  accommodationRecommendations?: GuestAccommodationRecommendationResource[];
 };
 
 export default function GuestCompanionPage() {
@@ -293,6 +296,12 @@ export default function GuestCompanionPage() {
       ) : (
         <>
           <PublishedInvitation invitation={data.invitation} token={token} onAddCalendar={addCalendar} />
+          <GuestAccommodationRecommendations
+            items={data.accommodationRecommendations ?? []}
+            eventTitles={Object.fromEntries(
+              events.map((event) => [event.id, event.title || "Eveniment"]),
+            )}
+          />
           <section id="confirmare-rsvp" className="mt-8 grid scroll-mt-6 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
             <Card>
               <CardHeader>

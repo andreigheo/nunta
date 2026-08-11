@@ -566,6 +566,33 @@ enum AccommodationPropertyType {
   OTHER
 }
 
+enum AccommodationDiscoverySource {
+  OSM
+  ORGANIZER
+  OTHER
+}
+
+enum AccommodationDiscoveryType {
+  HOTEL
+  GUEST_HOUSE
+  HOSTEL
+  MOTEL
+  APARTMENT
+  CHALET
+  OTHER
+}
+
+enum AccommodationRecommendationStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AccommodationDiscoveryCacheKind {
+  GEOCODING
+  DISCOVERY
+}
+
 enum AccommodationPropertyStatus {
   DRAFT
   ACTIVE
@@ -2914,6 +2941,67 @@ model AccommodationIssue {
   @@unique([workspaceId, stayId, dedupeKey])
   @@index([workspaceId, stayId, status, severity])
   @@map("accommodation_issues")
+}
+
+model AccommodationRecommendation {
+  id              String                            @id @default(uuid()) @db.Uuid
+  workspaceId     String                            @map("workspace_id") @db.Uuid
+  weddingEventId  String                            @map("wedding_event_id") @db.Uuid
+  source          AccommodationDiscoverySource
+  externalId      String?                           @map("external_id") @db.VarChar(180)
+  sourceUrl       String?                           @map("source_url") @db.VarChar(2048)
+  sourceUpdatedAt DateTime?                         @map("source_updated_at")
+  fetchedAt       DateTime                          @default(now()) @map("fetched_at")
+  attribution     String?                           @db.VarChar(240)
+  name            String                            @db.VarChar(180)
+  type            AccommodationDiscoveryType
+  address         String?                           @db.VarChar(500)
+  city            String?                           @db.VarChar(120)
+  country         String?                           @db.VarChar(120)
+  latitude        Decimal?                          @db.Decimal(10, 7)
+  longitude       Decimal?                          @db.Decimal(10, 7)
+  distanceKm      Decimal?                          @map("distance_km") @db.Decimal(8, 3)
+  bookingUrl      String?                           @map("booking_url") @db.VarChar(2048)
+  contactUrl      String?                           @map("contact_url") @db.VarChar(2048)
+  contactPhone    String?                           @map("contact_phone") @db.VarChar(80)
+  facilities      Json                              @default("[]")
+  priceSnapshot   Json?                             @map("price_snapshot")
+  organizerNote   String?                           @map("organizer_note") @db.VarChar(2000)
+  groupCode       String?                           @map("group_code") @db.VarChar(120)
+  deadline        DateTime?
+  status          AccommodationRecommendationStatus @default(DRAFT)
+  position        Int                               @default(0)
+  publishedAt     DateTime?                         @map("published_at")
+  archivedAt      DateTime?                         @map("archived_at")
+  createdById     String                            @map("created_by") @db.Uuid
+  updatedById     String                            @map("updated_by") @db.Uuid
+  version         Int                               @default(1)
+  deletedAt       DateTime?                         @map("deleted_at")
+  createdAt       DateTime                          @default(now()) @map("created_at")
+  updatedAt       DateTime                          @updatedAt @map("updated_at")
+
+  @@index([workspaceId, weddingEventId, status, position])
+  @@index([workspaceId, source, externalId])
+  @@map("accommodation_recommendations")
+}
+
+model AccommodationDiscoveryCache {
+  id          String                          @id @default(uuid()) @db.Uuid
+  workspaceId String                          @map("workspace_id") @db.Uuid
+  kind        AccommodationDiscoveryCacheKind
+  cacheKey    String                          @map("cache_key") @db.Char(64)
+  request     Json
+  response    Json
+  attribution String                          @db.VarChar(240)
+  fetchedAt   DateTime                        @default(now()) @map("fetched_at")
+  expiresAt   DateTime                        @map("expires_at")
+  version     Int                             @default(1)
+  createdAt   DateTime                        @default(now()) @map("created_at")
+  updatedAt   DateTime                        @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, kind, cacheKey])
+  @@index([workspaceId, kind, expiresAt])
+  @@map("accommodation_discovery_cache")
 }
 
 model VendorOrganization {

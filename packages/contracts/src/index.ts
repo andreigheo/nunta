@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export * from "./operations";
+export * from "./accommodation-discovery";
 export * from "./commercial";
 export * from "./marketing";
 export * from "./marketing-capability-manifest";
@@ -37,6 +38,7 @@ export const problemCodes = [
   "ORIGIN_NOT_ALLOWED",
   "INTERNAL_ERROR",
   "ASYNC_DEPENDENCY_UNAVAILABLE",
+  "EXTERNAL_DATA_UNAVAILABLE",
   "JOB_NOT_FOUND",
   "ONBOARDING_INCOMPLETE",
   "UPLOAD_EXPIRED",
