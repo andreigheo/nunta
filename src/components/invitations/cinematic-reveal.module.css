@@ -110,10 +110,12 @@
   line-height: 1;
   padding: 0.5rem;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .monogramCompact {
-  font-size: 1.75rem;
+  font-size: 1.45rem;
+  line-height: 1.05;
 }
 
 .monogramLong {
