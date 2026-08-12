@@ -28,6 +28,8 @@ jobs:
           DATABASE_OWNER_URL: postgresql://weddingos:weddingos@127.0.0.1:54339/weddingos?schema=public
         run: |
           pnpm db:migrate
+          pnpm --filter @weddingos/contracts build
+          pnpm db:generate
           pnpm db:seed
           pnpm --filter @weddingos/database exec prisma migrate status --schema prisma/schema.prisma
       - name: Verify Slice 0/1/2A

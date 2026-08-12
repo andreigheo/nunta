@@ -39,7 +39,7 @@ describe("cinematic reveal open reporting", () => {
       persistenceKey: "invitation:keyboard",
       recipientLabel: "Pentru Familia Popescu",
       message: "O invitație pentru tine",
-      monogram: "AP",
+      monogram: "A & A",
       panelColor: "#3B183F",
       backgroundColor: "#F7F7F3",
       accentColor: "#F06449",
@@ -64,6 +64,7 @@ describe("cinematic reveal open reporting", () => {
     expect(markup).toContain('tabindex="-1"');
     expect(markup).toContain("Deschide invitația");
     expect(markup).toContain("Sari peste introducere");
+    expect(markup).toContain("A &amp; A");
   });
 
   it("cycles focus only when Tab reaches a dialog boundary", () => {

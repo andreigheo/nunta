@@ -54,6 +54,15 @@ export function CinematicReveal({
   onOpened?: (source: InvitationOpenSource) => void | Promise<void>;
   shouldAutoReveal?: boolean;
 }) {
+  const monogram = settings.monogram?.trim() ?? "";
+  const monogramClassName = cn(
+    styles.monogram,
+    monogram.length > 5
+      ? styles.monogramLong
+      : monogram.length > 2
+        ? styles.monogramCompact
+        : undefined,
+  );
   const autoReveal = settings.enabled && (shouldAutoReveal ?? true);
   const [state, setState] = React.useState<RevealState>(
     autoReveal ? "closed" : "open",
@@ -273,9 +282,9 @@ export function CinematicReveal({
                 decoding="async"
               />
             ) : null}
-            {settings.monogram ? (
-              <div className={styles.monogram} aria-hidden>
-                {settings.monogram.slice(0, 4)}
+            {monogram ? (
+              <div className={monogramClassName} aria-hidden>
+                {monogram}
               </div>
             ) : !settings.coverImageUrl ? (
               <div className={styles.mark} aria-hidden />
