@@ -1,3 +1,243 @@
+.invitation {
+  position: relative;
+  isolation: isolate;
+}
+
+.invitationSection {
+  position: relative;
+}
+
+.nocturne {
+  counter-reset: invitation-chapter;
+  box-shadow: 0 2rem 6rem rgb(21 8 25 / 22%);
+}
+
+.nocturne .invitationSection {
+  counter-increment: invitation-chapter;
+}
+
+.nocturne .invitationSection:not([data-invitation-section="hero"])::before {
+  position: absolute;
+  z-index: 3;
+  top: 1.1rem;
+  left: 1.25rem;
+  content: "0" counter(invitation-chapter);
+  font-family: var(--font-sans);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  opacity: 0.42;
+}
+
+.nocturne [data-invitation-section="hero"] {
+  min-height: min(88rem, 92svh) !important;
+  background-position: 50% 88%;
+}
+
+.nocturne [data-invitation-section="hero"]::before {
+  position: absolute;
+  z-index: 1;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 4.5rem;
+  height: 4.5rem;
+  content: "";
+  border: 1px solid rgb(255 255 255 / 46%);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.45rem rgb(255 255 255 / 5%);
+}
+
+.heroCopy {
+  max-width: 52rem;
+}
+
+.nocturne .heroCopy {
+  padding-block: 4rem 1rem;
+}
+
+.nocturne .heroCopy > p:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  letter-spacing: 0.32em;
+}
+
+.nocturne .heroCopy > p:first-child::before {
+  width: 2.75rem;
+  height: 1px;
+  content: "";
+  background: currentColor;
+  opacity: 0.65;
+}
+
+.nocturne .heroHeading {
+  max-width: 8.4ch;
+  margin-top: clamp(2rem, 7cqi, 5.5rem);
+  font-weight: 500;
+  line-height: 0.78;
+  letter-spacing: -0.07em;
+  text-wrap: balance;
+  text-shadow: 0 0.15em 1em rgb(17 4 20 / 20%);
+}
+
+.nocturne .heroCopy > div:nth-of-type(1) {
+  margin-top: clamp(2.5rem, 8cqi, 6rem);
+  padding-top: 1rem;
+  border-top: 1px solid rgb(255 255 255 / 38%);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nocturne .heroSubheading {
+  max-width: 16ch;
+  margin-top: 1.4rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.nocturne [data-invitation-section="story"] {
+  display: flex;
+  min-height: clamp(28rem, 58cqi, 44rem);
+  flex-direction: column;
+  justify-content: center;
+}
+
+.nocturne [data-invitation-section="story"] h2 {
+  font-size: clamp(3rem, 9cqi, 6.75rem);
+  font-weight: 500;
+  line-height: 0.88;
+  letter-spacing: -0.055em;
+}
+
+.nocturne [data-invitation-section="story"] > p:not(:first-child) {
+  font-size: clamp(1rem, 2.2cqi, 1.2rem);
+  line-height: 1.8;
+}
+
+.nocturne [data-invitation-section="story"] blockquote {
+  margin-top: 3rem;
+  border-color: color-mix(in srgb, currentColor 32%, transparent);
+  font-size: clamp(1.35rem, 3.4cqi, 2rem);
+  font-style: normal;
+}
+
+.nocturne [data-invitation-section="countdown"] {
+  min-height: 26rem;
+  overflow: hidden;
+}
+
+.nocturne [data-invitation-section="countdown"]::after {
+  position: absolute;
+  right: -7rem;
+  bottom: -8rem;
+  width: 20rem;
+  height: 20rem;
+  content: "";
+  border: 1px solid rgb(240 100 73 / 46%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3.5rem rgb(240 100 73 / 5%),
+    0 0 0 7rem rgb(240 100 73 / 3%);
+}
+
+.nocturne [data-invitation-section="countdown"] h2 {
+  color: #fff8ee;
+  font-weight: 500;
+}
+
+.nocturne [data-invitation-section="schedule"] {
+  min-height: 36rem;
+}
+
+.nocturne [data-invitation-section="schedule"] > h2,
+.nocturne [data-invitation-section="locations"] > h2,
+.nocturne [data-invitation-section="rsvp"] > h2 {
+  font-size: clamp(2.75rem, 7.5cqi, 5.5rem);
+  font-weight: 500;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+}
+
+.nocturne .scheduleList {
+  position: relative;
+  max-width: 42rem;
+  padding-left: 1.4rem;
+}
+
+.nocturne .scheduleList::before {
+  position: absolute;
+  top: 1.35rem;
+  bottom: 1.35rem;
+  left: 0;
+  width: 1px;
+  content: "";
+  background: linear-gradient(var(--invitation-accent, #f06449), transparent);
+  opacity: 0.55;
+}
+
+.nocturne .scheduleItem {
+  position: relative;
+  grid-template-columns: minmax(4.5rem, 0.35fr) minmax(0, 1fr);
+  gap: clamp(1rem, 4cqi, 3rem);
+  padding-block: 1.65rem;
+  border-color: rgb(37 22 41 / 14%);
+}
+
+.nocturne .scheduleItem::before {
+  position: absolute;
+  top: 2.05rem;
+  left: -1.7rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  content: "";
+  border: 2px solid #fff8ee;
+  border-radius: 50%;
+  background: #f06449;
+  box-shadow: 0 0 0 1px #f06449;
+}
+
+.nocturne .scheduleTime {
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 3cqi, 1.75rem);
+  font-weight: 500;
+}
+
+.nocturne [data-invitation-section="locations"] a,
+.nocturne [data-invitation-section="locations"] > div > div {
+  border: 0;
+  border-top: 1px solid rgb(37 22 41 / 25%);
+  background: rgb(255 248 238 / 28%);
+}
+
+.nocturne [data-invitation-section="locations"] a:nth-child(even),
+.nocturne [data-invitation-section="locations"] > div > div:nth-child(even) {
+  transform: translateY(1.75rem);
+}
+
+.nocturne [data-invitation-section="rsvp"] {
+  display: flex;
+  min-height: 34rem;
+  flex-direction: column;
+  justify-content: center;
+  background-image:
+    radial-gradient(circle at 16% 25%, rgb(255 248 238 / 24%), transparent 23%),
+    linear-gradient(125deg, transparent 42%, rgb(59 24 63 / 9%));
+}
+
+.nocturne [data-invitation-section="rsvp"] h2 {
+  color: #251629;
+}
+
+.nocturne [data-invitation-section="rsvp"] button,
+.nocturne [data-invitation-section="rsvp"] a {
+  min-height: 3.5rem;
+  padding-inline: 1.6rem;
+  background: #251629 !important;
+  color: #fff8ee !important;
+}
+
 .artDirected {
   --invitation-focal: var(--invitation-focal-desktop, 50% 50%);
   --invitation-heading-scale: var(--invitation-heading-desktop, 1);

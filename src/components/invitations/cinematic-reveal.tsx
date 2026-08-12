@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Eye, MoveHorizontal } from "lucide-react";
+import { Eye, MailOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CinematicRevealSettings } from "./invitation-experience";
 import styles from "./cinematic-reveal.module.css";
@@ -268,30 +268,39 @@ export function CinematicReveal({
           aria-labelledby="invitation-reveal-title"
           onKeyDown={handleDialogKeyDown}
         >
-          <div className={cn(styles.shutter, styles.shutterLeft)} aria-hidden />
-          <div className={cn(styles.shutter, styles.shutterRight)} aria-hidden />
-          <div className={styles.seam} aria-hidden />
+          <div className={styles.ambientGlow} aria-hidden />
+          <div className={styles.ambientOrb} aria-hidden />
           <div className={styles.content}>
             <p className={styles.recipient}>{settings.recipientLabel}</p>
-            {settings.coverImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={settings.coverImageUrl}
-                alt=""
-                className={styles.coverImage}
-                decoding="async"
-              />
-            ) : null}
-            {monogram ? (
-              <div className={monogramClassName} aria-hidden>
-                {monogram}
-              </div>
-            ) : !settings.coverImageUrl ? (
-              <div className={styles.mark} aria-hidden />
-            ) : null}
             <h1 id="invitation-reveal-title" className={styles.message}>
               {settings.message}
             </h1>
+            <div className={styles.envelopeStage}>
+              <div className={styles.letter} aria-hidden>
+                {settings.coverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={settings.coverImageUrl}
+                    alt=""
+                    className={styles.coverImage}
+                    decoding="async"
+                  />
+                ) : null}
+                <span className={styles.letterKicker}>Sarbato · invitație</span>
+                {monogram ? (
+                  <span className={monogramClassName}>{monogram}</span>
+                ) : (
+                  <span className={styles.mark} />
+                )}
+                <span className={styles.letterMessage}>{settings.message}</span>
+                <span className={styles.letterRule} />
+              </div>
+              <div className={styles.envelopeBack} aria-hidden />
+              <div className={styles.envelopeFlap} aria-hidden />
+              <div className={styles.envelopePocket} aria-hidden />
+              <div className={styles.envelopeFoldLeft} aria-hidden />
+              <div className={styles.envelopeFoldRight} aria-hidden />
+            </div>
             <button
               ref={openButtonRef}
               type="button"
@@ -299,8 +308,10 @@ export function CinematicReveal({
               onClick={open}
               disabled={state === "opening"}
             >
-              <MoveHorizontal className="size-4" aria-hidden />
-              Deschide invitația
+              <span className={styles.seal} aria-hidden>
+                <MailOpen className="size-5" />
+              </span>
+              <span>Deschide invitația</span>
             </button>
             <button
               type="button"

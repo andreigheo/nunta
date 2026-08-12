@@ -1373,7 +1373,21 @@ export default function InvitationEditorPage() {
             <button
               key={entry.id}
               onClick={() => {
-                commit({ ...snapshot, design: { ...entry.design } });
+                commit({
+                  ...snapshot,
+                  design: { ...entry.design },
+                  experience:
+                    entry.id === "nocturne"
+                      ? {
+                          ...snapshot.experience,
+                          enabled: true,
+                          panelColor: "#3B183F",
+                          backgroundColor: "#180F1C",
+                          accentColor: "#F06449",
+                          durationMs: 1550,
+                        }
+                      : snapshot.experience,
+                });
                 setTemplateOpen(false);
               }}
               className={cn(
@@ -1384,9 +1398,24 @@ export default function InvitationEditorPage() {
               )}
             >
               <div
-                className="flex h-28 items-center justify-center"
-                style={{ backgroundColor: entry.design.background }}
+                className="relative flex h-28 items-center justify-center overflow-hidden"
+                style={{
+                  backgroundColor: entry.design.background,
+                  ...(entry.id === "nocturne"
+                    ? {
+                        backgroundImage:
+                          'linear-gradient(90deg, rgb(24 15 28 / 32%), rgb(24 15 28 / 8%)), url("/invitation-art/nocturne-glass.webp")',
+                        backgroundPosition: "center 64%",
+                        backgroundSize: "cover",
+                      }
+                    : {}),
+                }}
               >
+                {entry.id === "nocturne" ? (
+                  <span className="absolute left-2 top-2 bg-[#F06449] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#251629]">
+                    Nou · cinematic
+                  </span>
+                ) : null}
                 <div
                   className={cn(
                     "border px-8 py-5 text-center",

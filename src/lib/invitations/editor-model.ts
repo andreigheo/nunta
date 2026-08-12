@@ -87,7 +87,7 @@ export type InvitationSection = {
 };
 
 export type InvitationDesign = {
-  template: "garden" | "editorial" | "minimal" | "classic";
+  template: "nocturne" | "garden" | "editorial" | "minimal" | "classic";
   accent: string;
   background: string;
   surface: string;
@@ -162,7 +162,7 @@ export const advancedBlockCatalog: Array<{
 ];
 
 export const defaultInvitationExperience: InvitationExperienceSettings = {
-  enabled: false,
+  enabled: true,
   style: "split_panels",
   replay: "first_visit",
   panelColor: "#3B183F",
@@ -203,6 +203,23 @@ export const invitationTemplates: Array<{
   description: string;
   design: InvitationDesign;
 }> = [
+  {
+    id: "nocturne",
+    name: "Nocturne",
+    description: "Cinematic, tactil și imposibil de confundat",
+    design: {
+      template: "nocturne",
+      accent: "#F06449",
+      background: "#180F1C",
+      surface: "#FFF8EE",
+      text: "#251629",
+      headingFont: "display",
+      palette: ["#F06449", "#3B183F", "#7E3543", "#F1DCCB", "#FFF8EE", "#251629"],
+      spacing: "airy",
+      radius: "none",
+      buttonStyle: "solid",
+    },
+  },
   {
     id: "garden",
     name: "Grădină de seară",
@@ -454,6 +471,14 @@ export function createAdvancedSection(
 }
 
 export function createInitialSnapshot(): InvitationEditorSnapshot {
+  const hero = createDefaultSection("hero", "hero");
+  hero.content.coverImage = "/invitation-art/nocturne-glass.webp";
+  hero.content.imageAlt = "Compoziție abstractă din sticlă aubergine și coral";
+  hero.content.heroHeight = 780;
+  hero.content.overlayColor = "#251629";
+  hero.content.overlayOpacity = 34;
+  hero.content.headingSize = 92;
+
   return {
     design: {
       ...invitationTemplates[0].design,
@@ -461,7 +486,7 @@ export function createInitialSnapshot(): InvitationEditorSnapshot {
     },
     experience: { ...defaultInvitationExperience },
     sections: [
-      createDefaultSection("hero", "hero"),
+      hero,
       createDefaultSection("story", "story"),
       createDefaultSection("countdown", "countdown"),
       createDefaultSection("schedule", "schedule"),

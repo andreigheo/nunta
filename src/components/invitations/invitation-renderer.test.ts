@@ -92,6 +92,7 @@ describe("InvitationRenderer", () => {
 
   it("uses readable foreground text for a coral invitation action", () => {
     const hero = createDefaultSection("hero", "hero-contrast");
+    hero.content.layout = "minimal";
     const snapshot: InvitationEditorSnapshot = {
       design: {
         ...invitationTemplates[0].design,

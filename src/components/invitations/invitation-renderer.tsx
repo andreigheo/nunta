@@ -75,10 +75,13 @@ export function InvitationRenderer({
       tabIndex={-1}
       className={cn(
         "overflow-hidden outline-none [container-name:invitation-canvas] [container-type:inline-size] focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4",
+        styles.invitation,
+        design.template === "nocturne" && styles.nocturne,
         radiusClass(design.radius),
         className,
       )}
       style={{ backgroundColor: design.background, color: design.text }}
+      data-template={design.template}
       data-invitation-renderer
     >
       {visibleSections.map((section) => {
@@ -125,22 +128,30 @@ type InvitationSectionViewProps = {
 
 export function InvitationSectionView(props: InvitationSectionViewProps) {
   const rendered = InvitationSectionContent(props);
-  if (!array(props.section.content.decorations).length) return rendered;
   const element = rendered as React.ReactElement<{
     className?: string;
     children?: React.ReactNode;
+    "data-invitation-section"?: string;
   }>;
   return React.cloneElement(
     element,
     {
-      className: cn(element.props.className, styles.decoratedSection),
+      className: cn(
+        element.props.className,
+        styles.invitationSection,
+        array(props.section.content.decorations).length &&
+          styles.decoratedSection,
+      ),
+      "data-invitation-section": props.section.type,
     },
     element.props.children,
-    <InvitationDecorations
-      section={props.section}
-      resolveMedia={props.resolveMedia}
-      artDirection={invitationArtDirection(props.section.content)}
-    />,
+    array(props.section.content.decorations).length ? (
+      <InvitationDecorations
+        section={props.section}
+        resolveMedia={props.resolveMedia}
+        artDirection={invitationArtDirection(props.section.content)}
+      />
+    ) : null,
   );
 }
 
@@ -184,10 +195,15 @@ function InvitationSectionContent({
   );
 
   if (section.type === "hero") {
-    const image = resolveMedia(
+    const resolvedImage = resolveMedia(
       text(content.mediaId),
       text(content.coverImage),
     );
+    const image =
+      resolvedImage ||
+      (design.template === "nocturne"
+        ? "/invitation-art/nocturne-glass.webp"
+        : "");
     const layout = text(content.layout, "immersive");
     const isImmersive = Boolean(image && layout === "immersive");
     const heroHeight = clampNumber(content.heroHeight, 420, 900, 620);
@@ -198,7 +214,13 @@ function InvitationSectionContent({
       headingMax,
     );
     const textBlock = (
-      <div className={cn("relative z-10 w-full", isImmersive && "text-white")}>
+      <div
+        className={cn(
+          "relative z-10 w-full",
+          isImmersive && "text-white",
+          styles.heroCopy,
+        )}
+      >
         <p className="text-xs font-semibold uppercase tracking-[.22em] opacity-75">
           {edit("eyebrow")}
         </p>
@@ -399,10 +421,10 @@ function InvitationSectionContent({
     return (
       <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
         <SectionHeading section={section} design={design} className={headingClass}>{edit("title")}</SectionHeading>
-        <div className={cn("mt-8", center && "mx-auto max-w-xl", right && "ml-auto max-w-xl")}>
+        <div className={cn("mt-8", styles.scheduleList, center && "mx-auto max-w-xl", right && "ml-auto max-w-xl")}>
           {array(content.items).map((item, index) => (
-            <div key={index} className="grid grid-cols-[62px_minmax(0,1fr)] gap-4 border-t border-current/15 py-4 text-left first:border-t-0">
-              <p className="text-sm font-semibold tabular-nums" style={{ color: design.accent }}>
+            <div key={index} className={cn("grid grid-cols-[62px_minmax(0,1fr)] gap-4 border-t border-current/15 py-4 text-left first:border-t-0", styles.scheduleItem)}>
+              <p className={cn("text-sm font-semibold tabular-nums", styles.scheduleTime)} style={{ color: design.accent }}>
                 {invitationDisplayTime(text(item.time))}
               </p>
               <div>
@@ -858,6 +880,20 @@ function sectionTone(section: InvitationSection, design: InvitationDesign, resol
   if (style.tone === "soft") return { backgroundColor: mixHex(design.accent, design.surface, 0.08), color: design.text };
   if (style.tone === "accent") return { backgroundColor: design.accent, color: "#FFFFFF" };
   if (style.tone === "dark") return { backgroundColor: design.text, color: design.surface };
+  if (design.template === "nocturne") {
+    if (section.type === "countdown")
+      return { backgroundColor: "#251629", color: "#FFF8EE" };
+    if (section.type === "locations")
+      return { backgroundColor: "#F1DCCB", color: "#251629" };
+    if (section.type === "rsvp")
+      return { backgroundColor: design.accent, color: "#251629" };
+    if (
+      section.type === "dress_code" ||
+      section.type === "faq" ||
+      section.type === "contact"
+    )
+      return { backgroundColor: "#3B183F", color: "#FFF8EE" };
+  }
   return { backgroundColor: design.surface, color: design.text };
 }
 

@@ -70,10 +70,42 @@ async function captureInvitationV2(
       () => document.documentElement.scrollWidth,
     );
     expect(documentWidth).toBeLessThanOrEqual(viewport.width + 1);
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(async () => {
+      const urls = Array.from(document.querySelectorAll<HTMLElement>("*"))
+        .flatMap((element) =>
+          Array.from(
+            getComputedStyle(element).backgroundImage.matchAll(
+              /url\(["']?([^"')]+)["']?\)/g,
+            ),
+          ).map((match) => match[1]),
+        )
+        .filter((url, index, values) => values.indexOf(url) === index);
+      await Promise.all(
+        urls.map(
+          (url) =>
+            new Promise<void>((resolve) => {
+              const image = new Image();
+              image.onload = () => resolve();
+              image.onerror = () => resolve();
+              image.src = url;
+              if (image.complete) resolve();
+            }),
+        ),
+      );
+    });
+    await page.waitForTimeout(450);
     await page.screenshot({
       path: `test-results/invitation-v2-${name}-${viewport.width}.png`,
       animations: "disabled",
     });
+    if (name === "guest-open" && viewport.width === 390) {
+      await page.screenshot({
+        path: "test-results/invitation-v2-guest-open-full-390.png",
+        animations: "disabled",
+        fullPage: true,
+      });
+    }
   }
   if (originalViewport) await page.setViewportSize(originalViewport);
 }
@@ -346,6 +378,11 @@ test("E2E 6 — Guest opens invitation", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Deschide invitația" }),
   ).toBeVisible();
+  const nocturneArtwork = await page.request.get(
+    "/invitation-art/nocturne-glass.webp",
+  );
+  expect(nocturneArtwork.ok()).toBe(true);
+  expect(nocturneArtwork.headers()["content-type"]).toContain("image/webp");
   await captureInvitationV2(page, "guest-cover");
   const recipientBeforeReveal = await apiData<{
     items: Array<{ id: string; status: string }>;
