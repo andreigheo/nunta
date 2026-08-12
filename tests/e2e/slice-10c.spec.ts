@@ -74,16 +74,16 @@ test("S10C E2E 01 — full demo isolation has zero API traffic", async ({
   page,
 }) => {
   const calls: string[] = [];
-  page.on("request", (request) => {
-    if (new URL(request.url()).pathname.startsWith("/api/"))
-      calls.push(`${request.method()} ${request.url()}`);
-  });
   await page.context().clearCookies();
   await page.goto("/sign-in");
   await page.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
     document.cookie = "weddingos_demo=1; Path=/; Max-Age=28800; SameSite=Lax";
+  });
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/"))
+      calls.push(`${request.method()} ${request.url()}`);
   });
   await page.goto("/team?demo=1");
   await page.goto("/activity?demo=1");
