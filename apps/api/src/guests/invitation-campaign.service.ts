@@ -2977,7 +2977,11 @@ async function connectedInvitationSources(
   tx: Transaction,
   workspaceId: string,
 ) {
-  const [profile, events, form] = await Promise.all([
+  const [workspace, profile, events, form] = await Promise.all([
+    tx.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { timezone: true },
+    }),
     tx.weddingProfile.findUnique({ where: { workspaceId } }),
     tx.weddingEvent.findMany({
       where: {
@@ -3028,7 +3032,14 @@ async function connectedInvitationSources(
       sectionType: "hero",
       field: "date",
       source: "wedding_profile",
-      value: profile.weddingDate.toISOString().slice(0, 10),
+      value: connectedInvitationDateLabel(
+        profile.weddingDate,
+        // weddingDate is a calendar date persisted at UTC midnight, not an
+        // instant. Formatting it in a negative-offset workspace would move it
+        // to the previous day.
+        "UTC",
+        false,
+      ),
     });
   if (profile?.location)
     values.push({
@@ -3046,7 +3057,10 @@ async function connectedInvitationSources(
       source: "wedding_events",
       value: events.map((event) => ({
         id: event.id,
-        time: event.startAt?.toISOString() ?? "",
+        // Onboarding stores the intended local wall-clock value in the UTC
+        // fields and keeps the actual timezone separately. Preserve HH:mm
+        // here instead of shifting it a second time during invitation sync.
+        time: event.startAt?.toISOString().slice(11, 16) ?? "",
         title: event.title,
         detail: event.locationName ?? event.locationAddress ?? "",
         startAt: event.startAt?.toISOString() ?? null,
@@ -3078,7 +3092,11 @@ async function connectedInvitationSources(
       sectionType: "rsvp",
       field: "deadline",
       source: "rsvp_form",
-      value: deadline,
+      value: connectedInvitationDateLabel(
+        new Date(deadline),
+        workspace?.timezone ?? "Europe/Bucharest",
+        true,
+      ),
     });
   if (accommodations.length)
     values.push({
@@ -3123,6 +3141,32 @@ async function connectedInvitationSources(
     values,
   });
   return { revision, values };
+}
+
+function connectedInvitationDateLabel(
+  value: Date,
+  timeZone: string,
+  includeTime: boolean,
+) {
+  const format = (zone: string) =>
+    new Intl.DateTimeFormat("ro-RO", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      ...(includeTime
+        ? {
+            hour: "2-digit" as const,
+            minute: "2-digit" as const,
+            hour12: false,
+          }
+        : {}),
+      timeZone: zone,
+    }).format(value);
+  try {
+    return format(timeZone);
+  } catch {
+    return format("UTC");
+  }
 }
 
 function invitationSections(value: unknown) {

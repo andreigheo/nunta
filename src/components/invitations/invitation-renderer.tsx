@@ -67,6 +67,7 @@ export function InvitationRenderer({
 }: InvitationRendererProps) {
   const visibleSections = snapshot.sections.filter((section) => section.visible);
   const { design } = snapshot;
+  const defaultTimeZone = invitationTimeZone(snapshot.sections);
 
   return (
     <article
@@ -90,6 +91,7 @@ export function InvitationRenderer({
             onAddCalendar={onAddCalendar}
             onRsvp={onRsvp}
             onContentChange={onContentChange}
+            defaultTimeZone={defaultTimeZone}
           />
         );
 
@@ -118,6 +120,7 @@ type InvitationSectionViewProps = {
   onAddCalendar?: () => void;
   onRsvp?: () => void;
   onContentChange?: InvitationRendererProps["onContentChange"];
+  defaultTimeZone?: string;
 };
 
 export function InvitationSectionView(props: InvitationSectionViewProps) {
@@ -148,6 +151,7 @@ function InvitationSectionContent({
   onAddCalendar,
   onRsvp,
   onContentChange,
+  defaultTimeZone,
 }: InvitationSectionViewProps) {
   const content = section.content;
   const center = section.style.align === "center";
@@ -398,7 +402,9 @@ function InvitationSectionContent({
         <div className={cn("mt-8", center && "mx-auto max-w-xl", right && "ml-auto max-w-xl")}>
           {array(content.items).map((item, index) => (
             <div key={index} className="grid grid-cols-[62px_minmax(0,1fr)] gap-4 border-t border-current/15 py-4 text-left first:border-t-0">
-              <p className="text-sm font-semibold tabular-nums" style={{ color: design.accent }}>{text(item.time)}</p>
+              <p className="text-sm font-semibold tabular-nums" style={{ color: design.accent }}>
+                {invitationDisplayTime(text(item.time))}
+              </p>
               <div>
                 <p className="text-sm font-semibold">{text(item.title)}</p>
                 <p className="mt-1 text-xs leading-relaxed opacity-65">{text(item.detail)}</p>
@@ -427,12 +433,26 @@ function InvitationSectionContent({
   }
 
   if (section.type === "rsvp") {
+    const deadline = invitationDisplayDeadline(
+      text(content.deadline),
+      text(content.deadlineTimezone) || defaultTimeZone,
+    );
     return (
       <section id="confirmare-invitatie" className={commonClass} style={commonStyle}>
         <p className="text-xs font-semibold uppercase tracking-[.22em] opacity-70">RSVP</p>
         <h2 className={cn("mt-3", headingClass, styles.responsiveHeading)}>{edit("title")}</h2>
         <p className={cn("mt-4 max-w-xl text-sm leading-relaxed opacity-75", center && "mx-auto", right && "ml-auto")}>{edit("body")}</p>
-        <p className="mt-3 text-xs font-semibold opacity-75">Până pe {edit("deadline")}</p>
+        <p className="mt-3 text-xs font-semibold opacity-75">
+          Până pe{" "}
+          <InvitationText
+            value={deadline}
+            onCommit={
+              onContentChange
+                ? (value) => onContentChange(section.id, "deadline", value)
+                : undefined
+            }
+          />
+        </p>
         {text(content.buttonLabel) ? <RsvpAction label={text(content.buttonLabel)} className={cn("mt-7", buttonClass)} design={design} inverted={section.style.tone === "accent" || section.style.tone === "dark"} onRsvp={onRsvp} /> : null}
       </section>
     );
@@ -881,6 +901,50 @@ function safeLink(value: string) {
   } catch {
     return "";
   }
+}
+
+const connectedIsoDateTimePattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?Z$/i;
+
+export function invitationDisplayTime(value: string) {
+  const normalized = value.trim();
+  if (!connectedIsoDateTimePattern.test(normalized)) return value;
+  return normalized.slice(11, 16);
+}
+
+export function invitationDisplayDeadline(value: string, timeZone?: string) {
+  const normalized = value.trim();
+  if (!connectedIsoDateTimePattern.test(normalized)) return value;
+  const date = new Date(normalized);
+  if (!Number.isFinite(date.getTime())) return value;
+
+  const format = (zone: string) =>
+    new Intl.DateTimeFormat("ro-RO", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: zone,
+    }).format(date);
+
+  try {
+    return format(timeZone || "UTC");
+  } catch {
+    return format("UTC");
+  }
+}
+
+function invitationTimeZone(sections: InvitationSection[]) {
+  for (const section of sections) {
+    if (section.type !== "schedule") continue;
+    for (const item of array(section.content.items)) {
+      const timeZone = text(item.timezone).trim();
+      if (timeZone) return timeZone;
+    }
+  }
+  return undefined;
 }
 
 function record(value: unknown): Record<string, unknown> {

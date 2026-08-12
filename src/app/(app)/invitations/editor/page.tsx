@@ -1304,7 +1304,7 @@ export default function InvitationEditorPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         title="Adaugă o secțiune"
-        description="Construiește invitația din blocuri care rămân complet editabile."
+        description="Fiecare card adaugă un bloc nou. Secțiunile existente se selectează și se organizează din Layere."
         size="lg"
       >
         <div className="grid gap-2 sm:grid-cols-2">
@@ -1314,12 +1314,14 @@ export default function InvitationEditorPage() {
               <button
                 key={entry.type}
                 onClick={() => addSection(entry.type)}
+                aria-label={`Adaugă secțiunea ${entry.label}`}
+                title={`Adaugă secțiunea ${entry.label}`}
                 className="group flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-subtle text-brand-strong group-hover:bg-surface">
                   <Icon className="size-4" aria-hidden />
                 </span>
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-ink">
                     {entry.label}
                   </span>
@@ -1327,6 +1329,7 @@ export default function InvitationEditorPage() {
                     {entry.description}
                   </span>
                 </span>
+                <Plus className="ml-auto size-4 shrink-0 text-faint" aria-hidden />
               </button>
             );
           })}
@@ -1336,12 +1339,14 @@ export default function InvitationEditorPage() {
               <button
                 key={entry.blockKind}
                 onClick={() => addAdvancedSection(entry.blockKind)}
+                aria-label={`Adaugă secțiunea ${entry.label}`}
+                title={`Adaugă secțiunea ${entry.label}`}
                 className="group flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent group-hover:bg-surface">
                   <Icon className="size-4" aria-hidden />
                 </span>
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-ink">
                     {entry.label}
                   </span>
@@ -1349,6 +1354,7 @@ export default function InvitationEditorPage() {
                     {entry.description}
                   </span>
                 </span>
+                <Plus className="ml-auto size-4 shrink-0 text-faint" aria-hidden />
               </button>
             );
           })}
@@ -1559,10 +1565,10 @@ function CreativeRail({
       ) : null}
       {tab === "blocks" ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          <p className="text-xs font-semibold text-ink">Construiește pagina</p>
+          <p className="text-xs font-semibold text-ink">Adaugă un bloc nou</p>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Adaugă blocuri, apoi schimbă layoutul, imaginile și culorile din
-            inspector.
+            Fiecare card creează încă o secțiune. Pentru a selecta, ascunde sau
+            șterge secțiunile existente, deschide Layere.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             {sectionCatalog.map((entry) => {
@@ -1572,10 +1578,15 @@ function CreativeRail({
                   key={entry.type}
                   disabled={structuralLocked}
                   onClick={() => onAddSection(entry.type)}
+                  aria-label={`Adaugă secțiunea ${entry.label}`}
+                  title={`Adaugă secțiunea ${entry.label}`}
                   className="group flex min-h-24 cursor-pointer flex-col items-start justify-between rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <span className="grid size-8 place-items-center rounded-lg bg-subtle text-brand-strong group-hover:bg-surface">
-                    <Icon className="size-4" />
+                  <span className="flex w-full items-center justify-between">
+                    <span className="grid size-8 place-items-center rounded-lg bg-subtle text-brand-strong group-hover:bg-surface">
+                      <Icon className="size-4" aria-hidden />
+                    </span>
+                    <Plus className="size-4 text-faint" aria-hidden />
                   </span>
                   <span className="text-xs font-semibold leading-tight text-ink">
                     {entry.label}
@@ -1590,10 +1601,15 @@ function CreativeRail({
                   key={entry.blockKind}
                   disabled={structuralLocked}
                   onClick={() => onAddAdvanced(entry.blockKind)}
+                  aria-label={`Adaugă secțiunea ${entry.label}`}
+                  title={`Adaugă secțiunea ${entry.label}`}
                   className="group flex min-h-24 cursor-pointer flex-col items-start justify-between rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <span className="grid size-8 place-items-center rounded-lg bg-accent-soft text-accent group-hover:bg-surface">
-                    <Icon className="size-4" aria-hidden />
+                  <span className="flex w-full items-center justify-between">
+                    <span className="grid size-8 place-items-center rounded-lg bg-accent-soft text-accent group-hover:bg-surface">
+                      <Icon className="size-4" aria-hidden />
+                    </span>
+                    <Plus className="size-4 text-faint" aria-hidden />
                   </span>
                   <span className="text-xs font-semibold leading-tight text-ink">
                     {entry.label}

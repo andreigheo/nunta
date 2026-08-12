@@ -9,6 +9,8 @@ import {
 } from "@/lib/invitations/editor-model";
 import {
   countdownValuesAt,
+  invitationDisplayDeadline,
+  invitationDisplayTime,
   InvitationRenderer,
 } from "./invitation-renderer";
 
@@ -20,9 +22,12 @@ describe("InvitationRenderer", () => {
     const accommodation = sections.find(
       (section) => section.type === "accommodation",
     );
+    const schedule = sections.find((section) => section.type === "schedule");
+    const rsvp = sections.find((section) => section.type === "rsvp");
     const registry = sections.find((section) => section.type === "registry");
     const custom = sections.find((section) => section.type === "custom");
-    if (!accommodation || !registry || !custom) throw new Error("fixture");
+    if (!accommodation || !schedule || !rsvp || !registry || !custom)
+      throw new Error("fixture");
     accommodation.content.items = [
       {
         name: "Hotel Central",
@@ -33,6 +38,15 @@ describe("InvitationRenderer", () => {
     registry.content.url = "https://example.com/lista";
     custom.content.buttonLabel = "Detalii speciale";
     custom.content.url = "https://example.com/detalii";
+    schedule.content.items = [
+      {
+        time: "2027-09-29T12:00:00.000Z",
+        timezone: "Europe/Bucharest",
+        title: "Ceremonia",
+        detail: "Grădină",
+      },
+    ];
+    rsvp.content.deadline = "2027-09-20T20:59:00.000Z";
     const snapshot: InvitationEditorSnapshot = {
       design: {
         ...invitationTemplates[0].design,
@@ -67,6 +81,10 @@ describe("InvitationRenderer", () => {
     expect(markup).toContain("Hotel Central");
     expect(markup).toContain("https://example.com/lista");
     expect(markup).toContain("Detalii speciale");
+    expect(markup).toContain("12:00");
+    expect(markup).toMatch(/20.*septembrie.*2027.*23:59/i);
+    expect(markup).not.toContain("2027-09-29T12:00:00.000Z");
+    expect(markup).not.toContain("2027-09-20T20:59:00.000Z");
     expect(markup).toContain("rounded-full");
     expect(markup).toContain('role="timer"');
     expect(markup).toContain("—");
@@ -120,5 +138,24 @@ describe("InvitationRenderer", () => {
       ["03", "secunde"],
     ]);
     expect(countdownValuesAt("invalid", 0)[0]).toEqual(["—", "zile"]);
+  });
+
+  it("turns connected ISO values into deterministic guest-facing times and deadlines", () => {
+    expect(invitationDisplayTime("2027-09-29T12:00:00.000Z")).toBe(
+      "12:00",
+    );
+    expect(
+      invitationDisplayDeadline(
+        "2027-09-20T20:59:00.000Z",
+        "Europe/Bucharest",
+      ),
+    ).toMatch(/20.*septembrie.*2027.*23:59/i);
+    expect(invitationDisplayTime("16:00")).toBe("16:00");
+    expect(
+      invitationDisplayDeadline(
+        "2027-09-29T12:00:00.000Z",
+        "Not/A_Timezone",
+      ),
+    ).toMatch(/29.*septembrie.*2027.*12:00/i);
   });
 });
