@@ -1,0 +1,169 @@
+.artDirected {
+  --invitation-focal: var(--invitation-focal-desktop, 50% 50%);
+  --invitation-heading-scale: var(--invitation-heading-desktop, 1);
+  background-position: var(--invitation-focal);
+}
+
+.artDirectedImage {
+  --invitation-focal: var(--invitation-focal-desktop, 50% 50%);
+  object-position: var(--invitation-focal);
+}
+
+.heroHeading {
+  font-size: clamp(
+    2.375rem,
+    calc(10cqi * var(--invitation-heading-scale, 1)),
+    var(--invitation-heading-max, 6rem)
+  );
+}
+
+.advancedHeading {
+  font-size: clamp(
+    1.75rem,
+    calc(6cqi * var(--invitation-heading-scale, 1)),
+    var(--invitation-heading-max, 3rem)
+  );
+}
+
+.sectionPadding {
+  padding-inline: 1.5rem;
+}
+
+.heroSubheading {
+  font-size: clamp(1.25rem, 4.6cqi, 1.5rem);
+}
+
+.responsiveHeading {
+  font-size: clamp(1.875rem, 6cqi, 2.25rem);
+}
+
+.countdownHeading {
+  font-size: clamp(1.5rem, 5cqi, 1.875rem);
+}
+
+.countdownValue {
+  font-size: clamp(1.25rem, 7cqi, 2.25rem);
+}
+
+.heroSplit {
+  position: relative;
+  display: grid;
+  min-height: 32.5rem;
+  overflow: hidden;
+}
+
+.heroSplitContent {
+  padding: 3.5rem 1.5rem;
+}
+
+.twoColumnGrid,
+.galleryMosaic,
+.mediaTextGrid {
+  display: grid;
+}
+
+.filmstripItem {
+  width: 78%;
+}
+
+.artworkImage {
+  aspect-ratio: 4 / 3;
+}
+
+.decoratedSection {
+  position: relative;
+  overflow: hidden;
+}
+
+.decoratedSection > :not(.decorationLayer) {
+  position: relative;
+  z-index: 2;
+}
+
+.decorationLayer {
+  z-index: 1;
+}
+
+.decorationTablet,
+.decorationMobile {
+  display: none;
+}
+
+@container invitation-canvas (min-width: 640px) and (max-width: 959px) {
+  .artDirected,
+  .artDirectedImage {
+    --invitation-focal: var(--invitation-focal-tablet, var(--invitation-focal-desktop, 50% 50%));
+  }
+
+  .artDirected {
+    --invitation-heading-scale: var(--invitation-heading-tablet, var(--invitation-heading-desktop, 1));
+  }
+
+  .decorationDesktop,
+  .decorationMobile {
+    display: none;
+  }
+
+  .decorationTablet {
+    display: block;
+  }
+}
+
+@container invitation-canvas (min-width: 640px) {
+  .sectionPadding {
+    padding-inline: 3rem;
+  }
+
+  .heroSplit {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .heroSplitContent {
+    padding: 4rem 2.5rem;
+  }
+
+  .twoColumnGrid,
+  .mediaTextGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .galleryMosaic {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .filmstripItem {
+    width: 56%;
+  }
+
+  .artworkImage {
+    aspect-ratio: 16 / 9;
+  }
+
+  .mediaTextRightImage {
+    order: 2;
+  }
+
+  .mediaTextRightCopy {
+    order: 1;
+  }
+}
+
+@container invitation-canvas (max-width: 639px) {
+  .artDirected,
+  .artDirectedImage {
+    --invitation-focal: var(--invitation-focal-mobile, var(--invitation-focal-tablet, 50% 50%));
+  }
+
+  .artDirected {
+    --invitation-heading-scale: var(--invitation-heading-mobile, var(--invitation-heading-tablet, 1));
+  }
+
+  .decorationDesktop,
+  .decorationTablet {
+    display: none;
+  }
+
+  .decorationMobile {
+    display: block;
+  }
+}

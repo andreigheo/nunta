@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 if (
   process.env.NODE_ENV === "production" &&
-  process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true"
+  process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true" &&
+  process.env.WEDDINGOS_E2E !== "true"
 ) {
   throw new Error(
     "Production builds must not enable NEXT_PUBLIC_DEMO_MODE_ENABLED.",

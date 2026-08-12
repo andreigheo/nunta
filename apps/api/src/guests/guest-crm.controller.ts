@@ -336,6 +336,7 @@ export class GuestCrmController {
           [],
           data.guestIds,
           undefined,
+          undefined,
           request.correlationId,
         ),
       );
@@ -358,7 +359,7 @@ export class GuestCrmController {
       requireAllCapabilities(request, ["campaign.write", "campaign.send"]);
       return apiResponse(
         request,
-        await this.invitations.sendRsvpReminder(
+        await this.invitations.prepareRsvpReminder(
           auth.userId,
           scopedWorkspaceId,
           data.guestIds,

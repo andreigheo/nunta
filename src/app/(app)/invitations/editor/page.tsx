@@ -28,6 +28,7 @@ import {
   LayoutTemplate,
   MapPin,
   Maximize2,
+  Minus,
   Monitor,
   Palette,
   PanelRight,
@@ -42,15 +43,27 @@ import {
   Trash2,
   Undo2,
   Users,
+  Video,
 } from "lucide-react";
-import type { InvitationSiteResource } from "@weddingos/contracts";
+import type {
+  InvitationPreflightResource,
+  InvitationSiteResource,
+  InvitationSyncPath,
+  InvitationSyncPreviewResource,
+  InvitationVariantResource,
+  InvitationVersionHistoryItemResource,
+} from "@weddingos/contracts";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import {
+  advancedBlockCatalog,
+  applyInvitationVariant,
   array,
+  createAdvancedSection,
   createDefaultSection,
   createInitialSnapshot,
   invitationReadiness,
+  invitationVariantOverrides,
   invitationTemplates,
   sectionCatalog,
   serializeSnapshot,
@@ -58,11 +71,18 @@ import {
   stringArray,
   text,
   type InvitationDesign,
+  type InvitationDevice,
   type InvitationEditorSnapshot,
+  type InvitationExperienceSettings,
+  type InvitationBlockKind,
   type InvitationSection,
   type InvitationSectionType,
 } from "@/lib/invitations/editor-model";
 import { cn } from "@/lib/utils";
+import { InvitationExperiencePanel } from "@/components/invitations/editor-experience-panel";
+import { EditorLayerStudio } from "@/components/invitations/editor-layer-studio";
+import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
+import { EditorWorkflowPanel } from "@/components/invitations/editor-workflow-panel";
 import {
   Badge,
   Button,
@@ -81,8 +101,8 @@ import {
   useToast,
 } from "@/components/ui";
 
-type Device = "desktop" | "tablet" | "mobile";
-type InspectorTab = "content" | "design" | "publish";
+type Device = InvitationDevice;
+type InspectorTab = "content" | "design" | "experience" | "publish";
 type LeftPanelTab = "blocks" | "layers";
 
 const icons: Record<InvitationSectionType, React.ElementType> = {
@@ -102,6 +122,13 @@ const icons: Record<InvitationSectionType, React.ElementType> = {
   custom: Plus,
 };
 
+const advancedIcons: Record<InvitationBlockKind, React.ElementType> = {
+  artwork: Images,
+  video: Video,
+  media_text: ImageIcon,
+  divider: Minus,
+};
+
 export default function InvitationEditorPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -109,11 +136,12 @@ export default function InvitationEditorPage() {
   const [snapshot, setSnapshot] = React.useState<InvitationEditorSnapshot>(() =>
     createInitialSnapshot(),
   );
+  const [baseSnapshot, setBaseSnapshot] =
+    React.useState<InvitationEditorSnapshot>(() => createInitialSnapshot());
   const [history, setHistory] = React.useState<InvitationEditorSnapshot[]>([]);
   const [future, setFuture] = React.useState<InvitationEditorSnapshot[]>([]);
   const [selectedId, setSelectedId] = React.useState("hero");
   const [device, setDevice] = React.useState<Device>("desktop");
-  const [zoom, setZoom] = React.useState(90);
   const [leftPanelTab, setLeftPanelTab] =
     React.useState<LeftPanelTab>("blocks");
   const [inspectorTab, setInspectorTab] =
@@ -126,6 +154,7 @@ export default function InvitationEditorPage() {
   const [dirty, setDirty] = React.useState(false);
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   const [publishOpen, setPublishOpen] = React.useState(false);
+  const [canvasPreviewOpen, setCanvasPreviewOpen] = React.useState(false);
   const [templateOpen, setTemplateOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
   const [sectionsOpen, setSectionsOpen] = React.useState(false);
@@ -134,6 +163,24 @@ export default function InvitationEditorPage() {
   const [mediaPreviews, setMediaPreviews] = React.useState<
     Record<string, string>
   >({});
+  const [variants, setVariants] = React.useState<InvitationVariantResource[]>([]);
+  const [activeVariantId, setActiveVariantId] = React.useState<string | null>(
+    null,
+  );
+  const [versions, setVersions] = React.useState<
+    InvitationVersionHistoryItemResource[]
+  >([]);
+  const [syncPreview, setSyncPreview] =
+    React.useState<InvitationSyncPreviewResource | null>(null);
+  const [preflight, setPreflight] =
+    React.useState<InvitationPreflightResource | null>(null);
+  const [workflowBusy, setWorkflowBusy] = React.useState(false);
+  const [variantCreateOpen, setVariantCreateOpen] = React.useState(false);
+  const [variantToArchive, setVariantToArchive] =
+    React.useState<InvitationVariantResource | null>(null);
+  const [versionToRestore, setVersionToRestore] =
+    React.useState<InvitationVersionHistoryItemResource | null>(null);
+  const editRevisionRef = React.useRef(0);
   const canWrite =
     bootstrap?.membership.capabilities.includes("invitation.write") ?? false;
   const canPublish =
@@ -149,20 +196,29 @@ export default function InvitationEditorPage() {
       return () => window.clearTimeout(timer);
     }
     let active = true;
-    void weddingOsApi
-      .invitationSite(currentWorkspace.id)
-      .then((value) => {
+    void (async () => {
+      try {
+        const value = await weddingOsApi.invitationSite(currentWorkspace.id);
+        const [variantData, versionData] = value
+          ? await Promise.all([
+              weddingOsApi.invitationVariants(currentWorkspace.id),
+              weddingOsApi.invitationVersions(currentWorkspace.id),
+            ])
+          : [{ items: [] }, { items: [], nextCursor: null }];
         if (!active) return;
         setSite(value);
         const next = snapshotFromPersisted(
           value?.draft?.document.sections,
           value?.draft?.settings as Parameters<typeof snapshotFromPersisted>[1],
         );
+        setBaseSnapshot(next);
         setSnapshot(next);
+        setVariants(variantData.items);
+        setVersions(versionData.items);
+        setActiveVariantId(null);
         setSelectedId(next.sections[0]?.id ?? "");
         setLastSavedAt(value?.draft ? new Date() : null);
-      })
-      .catch((caught) => {
+      } catch (caught) {
         const message = apiErrorMessage(caught);
         setLoadError(message);
         toast({
@@ -170,8 +226,10 @@ export default function InvitationEditorPage() {
           description: message,
           variant: "error",
         });
-      })
-      .finally(() => active && setLoading(false));
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
     return () => {
       active = false;
     };
@@ -188,6 +246,8 @@ export default function InvitationEditorPage() {
 
   const commit = React.useCallback(
     (next: InvitationEditorSnapshot) => {
+      editRevisionRef.current += 1;
+      setPreflight(null);
       setHistory((current) => [...current.slice(-39), snapshot]);
       setFuture([]);
       setSnapshot(next);
@@ -196,10 +256,38 @@ export default function InvitationEditorPage() {
     [snapshot],
   );
 
-  const saveDraft = React.useCallback(async () => {
+  const saveDraft = React.useCallback(async (silent = false) => {
     if (!currentWorkspace || demoMode || !canWrite) return site;
+    const revisionAtStart = editRevisionRef.current;
     setSaving(true);
     try {
+      const activeVariant = variants.find(
+        (variant) => variant.id === activeVariantId,
+      );
+      if (activeVariant) {
+        const updatedVariant = await weddingOsApi.saveInvitationVariantDraft(
+          currentWorkspace.id,
+          activeVariant.id,
+          activeVariant.version,
+          {
+            overrides: invitationVariantOverrides(baseSnapshot, snapshot),
+          },
+        );
+        setVariants((current) =>
+          current.map((variant) =>
+            variant.id === updatedVariant.id ? updatedVariant : variant,
+          ),
+        );
+        if (revisionAtStart === editRevisionRef.current) setDirty(false);
+        setLastSavedAt(new Date());
+        if (!silent)
+          toast({
+            title: "Variantă salvată",
+            description: `${updatedVariant.name} păstrează numai diferențele față de invitația de bază.`,
+            variant: "success",
+          });
+        return site;
+      }
       const serialized = serializeSnapshot(snapshot);
       const updated = await weddingOsApi.saveInvitationDraft(
         currentWorkspace.id,
@@ -219,13 +307,19 @@ export default function InvitationEditorPage() {
         },
       );
       setSite(updated);
-      setDirty(false);
+      setBaseSnapshot(snapshot);
+      if (revisionAtStart === editRevisionRef.current) setDirty(false);
       setLastSavedAt(new Date());
-      toast({
-        title: "Ciornă salvată",
-        description: `Conținutul și designul versiunii ${updated.draft?.versionNumber ?? "noi"} sunt persistente.`,
-        variant: "success",
-      });
+      void weddingOsApi
+        .invitationVersions(currentWorkspace.id)
+        .then((versionData) => setVersions(versionData.items))
+        .catch(() => undefined);
+      if (!silent)
+        toast({
+          title: "Ciornă salvată",
+          description: `Conținutul și designul versiunii ${updated.draft?.versionNumber ?? "noi"} sunt persistente.`,
+          variant: "success",
+        });
       return updated;
     } catch (caught) {
       toast({
@@ -237,7 +331,23 @@ export default function InvitationEditorPage() {
     } finally {
       setSaving(false);
     }
-  }, [canWrite, currentWorkspace, demoMode, site, snapshot, toast]);
+  }, [
+    activeVariantId,
+    baseSnapshot,
+    canWrite,
+    currentWorkspace,
+    demoMode,
+    site,
+    snapshot,
+    toast,
+    variants,
+  ]);
+
+  React.useEffect(() => {
+    if (!dirty || saving || !canWrite || demoMode || !currentWorkspace) return;
+    const timer = window.setTimeout(() => void saveDraft(true), 1600);
+    return () => window.clearTimeout(timer);
+  }, [canWrite, currentWorkspace, demoMode, dirty, saveDraft, saving]);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -253,6 +363,7 @@ export default function InvitationEditorPage() {
   const undo = () => {
     const previous = history.at(-1);
     if (!previous) return;
+    editRevisionRef.current += 1;
     setFuture((current) => [snapshot, ...current]);
     setSnapshot(previous);
     setHistory((current) => current.slice(0, -1));
@@ -262,6 +373,7 @@ export default function InvitationEditorPage() {
   const redo = () => {
     const next = future[0];
     if (!next) return;
+    editRevisionRef.current += 1;
     setHistory((current) => [...current, snapshot]);
     setSnapshot(next);
     setFuture((current) => current.slice(1));
@@ -292,7 +404,25 @@ export default function InvitationEditorPage() {
   const updateDesign = (update: Partial<InvitationDesign>) =>
     commit({ ...snapshot, design: { ...snapshot.design, ...update } });
 
+  const updateExperience = (update: Partial<InvitationExperienceSettings>) =>
+    commit({
+      ...snapshot,
+      experience: { ...snapshot.experience, ...update },
+    });
+
+  const structureLockedByVariant = () => {
+    if (!activeVariantId) return false;
+    toast({
+      title: "Structura vine din invitația de bază",
+      description:
+        "Într-o variantă poți schimba textul, vizibilitatea și designul. Adaugă, șterge sau reordonează secțiunile în baza invitației.",
+      variant: "info",
+    });
+    return true;
+  };
+
   const moveSection = (id: string, direction: -1 | 1) => {
+    if (structureLockedByVariant()) return;
     const index = snapshot.sections.findIndex((section) => section.id === id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= snapshot.sections.length) return;
@@ -302,6 +432,7 @@ export default function InvitationEditorPage() {
   };
 
   const duplicateSection = (id: string) => {
+    if (structureLockedByVariant()) return;
     const index = snapshot.sections.findIndex((section) => section.id === id);
     if (index < 0) return;
     const source = snapshot.sections[index];
@@ -319,6 +450,7 @@ export default function InvitationEditorPage() {
   };
 
   const removeSection = (id: string) => {
+    if (structureLockedByVariant()) return;
     if (snapshot.sections.length === 1) {
       toast({ title: "Păstrează cel puțin o secțiune", variant: "warning" });
       return;
@@ -332,12 +464,229 @@ export default function InvitationEditorPage() {
   };
 
   const addSection = (type: InvitationSectionType) => {
+    if (structureLockedByVariant()) return;
     const section = createDefaultSection(type);
     commit({ ...snapshot, sections: [...snapshot.sections, section] });
     setSelectedId(section.id);
     setInspectorTab("content");
     setAddOpen(false);
     if (window.innerWidth < 1024) setInspectorOpen(true);
+  };
+
+  const addAdvancedSection = (blockKind: InvitationBlockKind) => {
+    if (structureLockedByVariant()) return;
+    const section = createAdvancedSection(blockKind);
+    commit({ ...snapshot, sections: [...snapshot.sections, section] });
+    setSelectedId(section.id);
+    setInspectorTab("content");
+    setAddOpen(false);
+    if (window.innerWidth < 1024) setInspectorOpen(true);
+  };
+
+  const selectVariant = async (variantId: string | null) => {
+    if (variantId === activeVariantId) return;
+    const sourceBase = activeVariantId ? baseSnapshot : snapshot;
+    if (dirty) {
+      const saved = await saveDraft(true);
+      if (!saved) return;
+    }
+    const variant = variants.find((item) => item.id === variantId);
+    const next = variant
+      ? applyInvitationVariant(
+          sourceBase,
+          variant.draft?.overrides ?? variant.published?.overrides,
+        )
+      : sourceBase;
+    setBaseSnapshot(sourceBase);
+    setSnapshot(next);
+    setActiveVariantId(variant?.id ?? null);
+    setHistory([]);
+    setFuture([]);
+    setDirty(false);
+    setSelectedId(next.sections[0]?.id ?? "");
+  };
+
+  const createVariant = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!currentWorkspace || demoMode || !site) return;
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("name") ?? "").trim();
+    const code = variantCode(String(form.get("code") ?? name));
+    if (!name) return;
+    const sourceBase = activeVariantId ? baseSnapshot : snapshot;
+    if (dirty) {
+      const saved = await saveDraft(true);
+      if (!saved) return;
+    }
+    setWorkflowBusy(true);
+    try {
+      const created = await weddingOsApi.createInvitationVariant(
+        currentWorkspace.id,
+        { name, code, overrides: {} },
+      );
+      setVariants((current) => [...current, created]);
+      setActiveVariantId(created.id);
+      setBaseSnapshot(sourceBase);
+      setSnapshot(structuredClone(sourceBase));
+      setVariantCreateOpen(false);
+      setHistory([]);
+      setFuture([]);
+      setDirty(false);
+      toast({
+        title: "Variantă creată",
+        description: `${created.name} moștenește invitația de bază până când schimbi ceva aici.`,
+        variant: "success",
+      });
+    } catch (caught) {
+      toast({
+        title: "Varianta nu a fost creată",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setWorkflowBusy(false);
+    }
+  };
+
+  const archiveVariant = async () => {
+    if (!currentWorkspace || !variantToArchive) return;
+    setWorkflowBusy(true);
+    try {
+      const archived = await weddingOsApi.archiveInvitationVariant(
+        currentWorkspace.id,
+        variantToArchive.id,
+        variantToArchive.version,
+      );
+      setVariants((current) =>
+        current.map((variant) =>
+          variant.id === archived.id ? archived : variant,
+        ),
+      );
+      if (activeVariantId === archived.id) {
+        setActiveVariantId(null);
+        setSnapshot(structuredClone(baseSnapshot));
+        setDirty(false);
+      }
+      setVariantToArchive(null);
+      toast({
+        title: "Variantă arhivată",
+        description: "Destinatarii pot fi mutați pe baza invitației sau pe altă variantă.",
+        variant: "success",
+      });
+    } catch (caught) {
+      toast({
+        title: "Varianta nu a fost arhivată",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setWorkflowBusy(false);
+    }
+  };
+
+  const restoreVersion = async () => {
+    if (!currentWorkspace || !site || !versionToRestore) return;
+    setWorkflowBusy(true);
+    try {
+      const updated = await weddingOsApi.restoreInvitationVersion(
+        currentWorkspace.id,
+        versionToRestore.id,
+        site.version,
+      );
+      const next = snapshotFromPersisted(
+        updated.draft?.document.sections,
+        updated.draft?.settings as Parameters<typeof snapshotFromPersisted>[1],
+      );
+      setSite(updated);
+      setBaseSnapshot(next);
+      setSnapshot(next);
+      setActiveVariantId(null);
+      setDirty(false);
+      setHistory([]);
+      setFuture([]);
+      setVersionToRestore(null);
+      const versionData = await weddingOsApi.invitationVersions(
+        currentWorkspace.id,
+      );
+      setVersions(versionData.items);
+      toast({
+        title: "Versiune restaurată",
+        description: "Am creat o ciornă nouă; versiunea publicată nu s-a schimbat.",
+        variant: "success",
+      });
+    } catch (caught) {
+      toast({
+        title: "Versiunea nu a fost restaurată",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setWorkflowBusy(false);
+    }
+  };
+
+  const refreshSyncPreview = async () => {
+    if (!currentWorkspace || !site) return;
+    if (activeVariantId) {
+      toast({
+        title: "Compară invitația de bază",
+        description: "Datele conectate se aplică bazei, apoi variantele moștenesc schimbarea.",
+        variant: "info",
+      });
+      return;
+    }
+    setWorkflowBusy(true);
+    try {
+      setSyncPreview(
+        await weddingOsApi.invitationSyncPreview(currentWorkspace.id),
+      );
+    } catch (caught) {
+      toast({
+        title: "Diferențele nu au putut fi verificate",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setWorkflowBusy(false);
+    }
+  };
+
+  const applySync = async (paths: InvitationSyncPath[]) => {
+    if (!currentWorkspace || !site || !syncPreview || activeVariantId) return;
+    setWorkflowBusy(true);
+    try {
+      const updated = await weddingOsApi.applyInvitationSync(
+        currentWorkspace.id,
+        site.version,
+        { sourceRevision: syncPreview.sourceRevision, paths },
+      );
+      const next = snapshotFromPersisted(
+        updated.draft?.document.sections,
+        updated.draft?.settings as Parameters<typeof snapshotFromPersisted>[1],
+      );
+      setSite(updated);
+      setBaseSnapshot(next);
+      setSnapshot(next);
+      setDirty(false);
+      setHistory([]);
+      setFuture([]);
+      setSyncPreview(
+        await weddingOsApi.invitationSyncPreview(currentWorkspace.id),
+      );
+      toast({
+        title: "Ciorna a fost actualizată",
+        description: `${paths.length} diferențe au fost aplicate. Invitația publică nu s-a schimbat.`,
+        variant: "success",
+      });
+    } catch (caught) {
+      toast({
+        title: "Diferențele nu au fost aplicate",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setWorkflowBusy(false);
+    }
   };
 
   const uploadInvitationImage = async (
@@ -423,15 +772,94 @@ export default function InvitationEditorPage() {
 
   const publish = async () => {
     if (!currentWorkspace || demoMode || !canPublish) return;
+    if (readiness.completed !== readiness.total) {
+      setPublishOpen(false);
+      setInspectorTab("publish");
+      toast({
+        title: "Invitația nu este încă pregătită",
+        description:
+          "Înlocuiește exemplele demonstrative și completează verificările înainte de publicare.",
+        variant: "warning",
+      });
+      return;
+    }
     const latest = dirty || !site?.draft ? await saveDraft() : site;
     if (!latest) return;
     setSaving(true);
     try {
+      const checked = await weddingOsApi.invitationPreflight(
+        currentWorkspace.id,
+      );
+      setPreflight(checked);
+      if (!checked.ready) {
+        setPublishOpen(false);
+        setInspectorTab("publish");
+        toast({
+          title: "Invitația nu este încă pregătită",
+          description:
+            checked.errors[0]?.message ??
+            "Rezolvă verificările de publicare și încearcă din nou.",
+          variant: "warning",
+        });
+        return;
+      }
       const published = await weddingOsApi.publishInvitation(
         currentWorkspace.id,
         latest.version,
       );
       setSite(published);
+      const persistedBase = published.draft ?? published.published;
+      const refreshedBase = snapshotFromPersisted(
+        persistedBase?.document.sections,
+        persistedBase?.settings as Parameters<typeof snapshotFromPersisted>[1],
+      );
+      try {
+        const [variantData, versionData] = await Promise.all([
+          weddingOsApi.invitationVariants(currentWorkspace.id),
+          weddingOsApi.invitationVersions(currentWorkspace.id),
+        ]);
+        const refreshedActiveVariant = activeVariantId
+          ? variantData.items.find(
+              (variant) =>
+                variant.id === activeVariantId && variant.status === "active",
+            )
+          : undefined;
+        const refreshedSnapshot = refreshedActiveVariant
+          ? applyInvitationVariant(
+              refreshedBase,
+              refreshedActiveVariant.draft?.overrides ??
+                refreshedActiveVariant.published?.overrides,
+            )
+          : refreshedBase;
+        setBaseSnapshot(refreshedBase);
+        setVariants(variantData.items);
+        setVersions(versionData.items);
+        setActiveVariantId(refreshedActiveVariant?.id ?? null);
+        setSnapshot(refreshedSnapshot);
+        setSelectedId((current) =>
+          refreshedSnapshot.sections.some((section) => section.id === current)
+            ? current
+            : (refreshedSnapshot.sections[0]?.id ?? ""),
+        );
+        setHistory([]);
+        setFuture([]);
+        setDirty(false);
+        setLastSavedAt(new Date());
+      } catch (refreshError) {
+        setBaseSnapshot(refreshedBase);
+        setSnapshot(refreshedBase);
+        setVariants([]);
+        setActiveVariantId(null);
+        setHistory([]);
+        setFuture([]);
+        setDirty(false);
+        setLoadAttempt((current) => current + 1);
+        toast({
+          title: "Publicată, se reîncarcă starea editorului",
+          description: apiErrorMessage(refreshError),
+          variant: "warning",
+        });
+      }
       setPublishOpen(false);
       toast({
         title: "Invitația a fost publicată",
@@ -450,10 +878,24 @@ export default function InvitationEditorPage() {
     }
   };
 
+  const requestPublish = () => {
+    setInspectorTab("publish");
+    if (readiness.completed === readiness.total) {
+      setPublishOpen(true);
+      return;
+    }
+    toast({
+      title: "Mai sunt detalii de verificat",
+      description:
+        "Deschide fila Publicare și rezolvă elementele marcate înainte de a continua.",
+      variant: "warning",
+    });
+  };
+
   const widths: Record<Device, string> = {
-    desktop: "max-w-[760px]",
-    tablet: "max-w-[560px]",
-    mobile: "max-w-[360px]",
+    desktop: "w-[1440px]",
+    tablet: "w-[768px]",
+    mobile: "w-[390px]",
   };
 
   if (loading) {
@@ -501,7 +943,11 @@ export default function InvitationEditorPage() {
             <h1 className="truncate font-brand text-base font-semibold text-brand">
               Studio invitație
             </h1>
-            {dirty ? (
+            {saving ? (
+              <Badge className="hidden md:inline-flex" variant="info" dot>
+                Se salvează
+              </Badge>
+            ) : dirty ? (
               <Badge className="hidden md:inline-flex" variant="warning" dot>
                 Nesalvat
               </Badge>
@@ -512,7 +958,9 @@ export default function InvitationEditorPage() {
             )}
           </div>
           <p className="hidden text-[11px] text-faint md:block">
-            {dirty
+            {saving
+              ? "Se creează o versiune sigură…"
+              : dirty
               ? "Modificări locale"
               : lastSavedAt
                 ? `Salvat la ${lastSavedAt.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}`
@@ -583,15 +1031,12 @@ export default function InvitationEditorPage() {
             onClick={() => void saveDraft()}
           >
             <Save className="size-3.5" aria-hidden />
-            <span className="hidden sm:inline">Salvează</span>
+            <span className="hidden sm:inline">Salvează acum</span>
           </Button>
           <Button
             size="sm"
             disabled={!canPublish || demoMode || saving}
-            onClick={() => {
-              setInspectorTab("publish");
-              setPublishOpen(true);
-            }}
+            onClick={requestPublish}
           >
             Publică
           </Button>
@@ -616,6 +1061,8 @@ export default function InvitationEditorPage() {
             onDuplicate={duplicateSection}
             onRemove={removeSection}
             onAddSection={addSection}
+            onAddAdvanced={addAdvancedSection}
+            structuralLocked={Boolean(activeVariantId)}
           />
         </aside>
 
@@ -654,35 +1101,14 @@ export default function InvitationEditorPage() {
               ]}
             />
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setZoom((value) => Math.max(50, value - 10))}
-                className="grid size-11 cursor-pointer place-items-center rounded-lg text-xs text-muted hover:bg-subtle"
-                aria-label="Micșorează canvasul"
-              >
-                −
-              </button>
-              <button
-                onClick={() => setZoom(90)}
-                className="min-h-11 min-w-12 cursor-pointer rounded-lg text-center text-[11px] font-semibold tabular-nums text-muted hover:bg-subtle"
-                aria-label="Resetează zoomul"
-              >
-                {zoom}%
-              </button>
-              <button
-                onClick={() => setZoom((value) => Math.min(120, value + 10))}
-                className="grid size-11 cursor-pointer place-items-center rounded-lg text-xs text-muted hover:bg-subtle"
-                aria-label="Mărește canvasul"
-              >
-                +
-              </button>
+              <span className="hidden text-[11px] font-medium text-muted sm:inline">
+                Viewport real
+              </span>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Deschide previzualizarea mare"
-                onClick={() => {
-                  setDevice("desktop");
-                  setZoom(100);
-                }}
+                onClick={() => setCanvasPreviewOpen(true)}
               >
                 <Maximize2 className="size-4" aria-hidden />
               </Button>
@@ -691,10 +1117,9 @@ export default function InvitationEditorPage() {
           <div className="min-h-0 flex-1 overflow-auto px-3 py-5 sm:p-8">
             <div
               className={cn(
-                "mx-auto transition-[max-width] duration-200",
+                "mx-auto shrink-0 transition-[width] duration-200",
                 widths[device],
               )}
-              style={{ zoom: zoom / 100 }}
             >
               <div className="mb-2 flex items-center justify-between px-1 text-[11px] text-faint">
                 <span>
@@ -750,10 +1175,33 @@ export default function InvitationEditorPage() {
             onUpdateContent={updateContent}
             onUpdateContentMany={updateContentMany}
             onUpdateDesign={updateDesign}
+            onUpdateExperience={updateExperience}
+            coverPreviewUrl={resolveMedia(
+              snapshot.experience.coverMediaId ?? "",
+              snapshot.experience.coverImageUrl ?? "",
+            )}
+            onUploadExperienceCover={(file) =>
+              void uploadInvitationImage(file, (mediaId) =>
+                updateExperience({ coverMediaId: mediaId, coverImageUrl: null }),
+              )
+            }
+            device={device}
             uploadingMedia={uploadingMedia}
             onUploadImage={uploadInvitationImage}
             onChooseTemplate={() => setTemplateOpen(true)}
-            onPublish={() => setPublishOpen(true)}
+            onPublish={requestPublish}
+            variants={variants}
+            activeVariantId={activeVariantId}
+            versions={versions}
+            syncPreview={syncPreview}
+            preflight={preflight}
+            workflowBusy={workflowBusy}
+            onSelectVariant={(variantId) => void selectVariant(variantId)}
+            onCreateVariant={() => setVariantCreateOpen(true)}
+            onArchiveVariant={setVariantToArchive}
+            onRestoreVersion={setVersionToRestore}
+            onRefreshSync={() => void refreshSyncPreview()}
+            onApplySync={(paths) => void applySync(paths)}
           />
         </aside>
       </div>
@@ -778,6 +1226,7 @@ export default function InvitationEditorPage() {
           onDuplicate={duplicateSection}
           onRemove={removeSection}
           onAdd={() => setAddOpen(true)}
+          structuralLocked={Boolean(activeVariantId)}
         />
       </Drawer>
 
@@ -799,12 +1248,57 @@ export default function InvitationEditorPage() {
           onUpdateContent={updateContent}
           onUpdateContentMany={updateContentMany}
           onUpdateDesign={updateDesign}
+          onUpdateExperience={updateExperience}
+          coverPreviewUrl={resolveMedia(
+            snapshot.experience.coverMediaId ?? "",
+            snapshot.experience.coverImageUrl ?? "",
+          )}
+          onUploadExperienceCover={(file) =>
+            void uploadInvitationImage(file, (mediaId) =>
+              updateExperience({ coverMediaId: mediaId, coverImageUrl: null }),
+            )
+          }
+          device={device}
           uploadingMedia={uploadingMedia}
           onUploadImage={uploadInvitationImage}
           onChooseTemplate={() => setTemplateOpen(true)}
-          onPublish={() => setPublishOpen(true)}
+          onPublish={requestPublish}
+          variants={variants}
+          activeVariantId={activeVariantId}
+          versions={versions}
+          syncPreview={syncPreview}
+          preflight={preflight}
+          workflowBusy={workflowBusy}
+          onSelectVariant={(variantId) => void selectVariant(variantId)}
+          onCreateVariant={() => setVariantCreateOpen(true)}
+          onArchiveVariant={setVariantToArchive}
+          onRestoreVersion={setVersionToRestore}
+          onRefreshSync={() => void refreshSyncPreview()}
+          onApplySync={(paths) => void applySync(paths)}
         />
       </Drawer>
+
+      <Modal
+        open={canvasPreviewOpen}
+        onClose={() => setCanvasPreviewOpen(false)}
+        title="Previzualizarea completă"
+        description={`Invitația este randată la lățimea reală pentru ${device === "desktop" ? "desktop" : device === "tablet" ? "tabletă" : "mobil"}, fără controalele editorului.`}
+        size="full"
+      >
+        <div className="overflow-auto rounded-xl bg-sunken p-2 sm:p-4">
+          <div
+            className={cn(
+              "mx-auto overflow-hidden rounded-xl shadow-overlay",
+              widths[device],
+            )}
+          >
+            <InvitationRenderer
+              snapshot={snapshot}
+              resolveMedia={resolveMedia}
+            />
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={addOpen}
@@ -823,6 +1317,28 @@ export default function InvitationEditorPage() {
                 className="group flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-subtle text-brand-strong group-hover:bg-surface">
+                  <Icon className="size-4" aria-hidden />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold text-ink">
+                    {entry.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+                    {entry.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+          {advancedBlockCatalog.map((entry) => {
+            const Icon = advancedIcons[entry.blockKind];
+            return (
+              <button
+                key={entry.blockKind}
+                onClick={() => addAdvancedSection(entry.blockKind)}
+                className="group flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent group-hover:bg-surface">
                   <Icon className="size-4" aria-hidden />
                 </span>
                 <span>
@@ -901,6 +1417,72 @@ export default function InvitationEditorPage() {
         </div>
       </Modal>
 
+      <Modal
+        open={variantCreateOpen}
+        onClose={() => setVariantCreateOpen(false)}
+        title="Variantă nouă"
+        description="Pornește din invitația de bază și păstrează numai diferențele pentru un anumit grup."
+        size="sm"
+      >
+        <form className="space-y-4" onSubmit={createVariant}>
+          <Field label="Numele variantei" required>
+            <Input
+              name="name"
+              required
+              maxLength={80}
+              placeholder="Familie apropiată"
+            />
+          </Field>
+          <Field
+            label="Cod intern opțional"
+            hint="Este folosit doar pentru organizare, nu apare în invitație."
+          >
+            <Input name="code" maxLength={80} placeholder="familie-apropiata" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setVariantCreateOpen(false)}
+            >
+              Renunță
+            </Button>
+            <Button type="submit" loading={workflowBusy} disabled={workflowBusy}>
+              Creează varianta
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(variantToArchive)}
+        onClose={() => setVariantToArchive(null)}
+        onConfirm={() => void archiveVariant()}
+        title="Arhivezi varianta?"
+        description={
+          variantToArchive
+            ? `${variantToArchive.name} nu mai apare în selector, iar istoricul rămâne păstrat.`
+            : "Varianta va fi arhivată."
+        }
+        confirmLabel="Arhivează"
+        destructive
+        loading={workflowBusy}
+      />
+
+      <ConfirmDialog
+        open={Boolean(versionToRestore)}
+        onClose={() => setVersionToRestore(null)}
+        onConfirm={() => void restoreVersion()}
+        title="Restaurezi această versiune?"
+        description={
+          versionToRestore
+            ? `Versiunea ${versionToRestore.versionNumber} devine o ciornă nouă. Invitația publicată și istoricul existent rămân neschimbate.`
+            : "Se va crea o ciornă nouă."
+        }
+        confirmLabel="Restaurează în ciornă"
+        loading={workflowBusy}
+      />
+
       <ConfirmDialog
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
@@ -908,6 +1490,7 @@ export default function InvitationEditorPage() {
         title="Publici invitația?"
         description={`${readiness.completed} din ${readiness.total} verificări de conținut sunt complete. Ciorna va fi salvată înainte de publicare.`}
         confirmLabel="Publică"
+        loading={saving}
       />
     </div>
   );
@@ -924,6 +1507,8 @@ function CreativeRail({
   onDuplicate,
   onRemove,
   onAddSection,
+  onAddAdvanced,
+  structuralLocked,
 }: {
   tab: LeftPanelTab;
   onTabChange: (tab: LeftPanelTab) => void;
@@ -935,6 +1520,8 @@ function CreativeRail({
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
   onAddSection: (type: InvitationSectionType) => void;
+  onAddAdvanced: (blockKind: InvitationBlockKind) => void;
+  structuralLocked: boolean;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -964,6 +1551,12 @@ function CreativeRail({
           Layere
         </button>
       </div>
+      {structuralLocked ? (
+        <p className="border-b border-line bg-info-soft px-3 py-2 text-xs leading-relaxed text-info">
+          Editezi o variantă. Adăugarea, ștergerea și ordinea secțiunilor se
+          schimbă numai în invitația de bază.
+        </p>
+      ) : null}
       {tab === "blocks" ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <p className="text-xs font-semibold text-ink">Construiește pagina</p>
@@ -977,11 +1570,30 @@ function CreativeRail({
               return (
                 <button
                   key={entry.type}
+                  disabled={structuralLocked}
                   onClick={() => onAddSection(entry.type)}
-                  className="group flex min-h-24 cursor-pointer flex-col items-start justify-between rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer"
+                  className="group flex min-h-24 cursor-pointer flex-col items-start justify-between rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <span className="grid size-8 place-items-center rounded-lg bg-subtle text-brand-strong group-hover:bg-surface">
                     <Icon className="size-4" />
+                  </span>
+                  <span className="text-xs font-semibold leading-tight text-ink">
+                    {entry.label}
+                  </span>
+                </button>
+              );
+            })}
+            {advancedBlockCatalog.map((entry) => {
+              const Icon = advancedIcons[entry.blockKind];
+              return (
+                <button
+                  key={entry.blockKind}
+                  disabled={structuralLocked}
+                  onClick={() => onAddAdvanced(entry.blockKind)}
+                  className="group flex min-h-24 cursor-pointer flex-col items-start justify-between rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-brand hover:bg-brand-softer disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <span className="grid size-8 place-items-center rounded-lg bg-accent-soft text-accent group-hover:bg-surface">
+                    <Icon className="size-4" aria-hidden />
                   </span>
                   <span className="text-xs font-semibold leading-tight text-ink">
                     {entry.label}
@@ -1001,6 +1613,7 @@ function CreativeRail({
           onDuplicate={onDuplicate}
           onRemove={onRemove}
           onAdd={() => onTabChange("blocks")}
+          structuralLocked={structuralLocked}
         />
       )}
     </div>
@@ -1016,6 +1629,7 @@ function SectionsPanel({
   onDuplicate,
   onRemove,
   onAdd,
+  structuralLocked,
 }: {
   snapshot: InvitationEditorSnapshot;
   selectedId: string;
@@ -1025,6 +1639,7 @@ function SectionsPanel({
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
   onAdd: () => void;
+  structuralLocked: boolean;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1036,12 +1651,14 @@ function SectionsPanel({
           <Badge variant="neutral">{snapshot.sections.length}</Badge>
         </div>
         <p className="mt-1 text-xs text-muted">
-          Ordinea de aici este ordinea invitației.
+          {structuralLocked
+            ? "În variantă poți schimba conținutul și vizibilitatea, nu structura."
+            : "Ordinea de aici este ordinea invitației."}
         </p>
       </div>
       <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
         {snapshot.sections.map((section, index) => {
-          const Icon = icons[section.type];
+          const Icon = sectionIcon(section);
           const active = selectedId === section.id;
           return (
             <li
@@ -1099,7 +1716,7 @@ function SectionsPanel({
                 <div className="flex items-center justify-end gap-0.5 border-t border-brand/10 px-2 py-1">
                   <button
                     onClick={() => onMove(section.id, -1)}
-                    disabled={index === 0}
+                    disabled={structuralLocked || index === 0}
                     className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Mută mai sus"
                   >
@@ -1107,7 +1724,9 @@ function SectionsPanel({
                   </button>
                   <button
                     onClick={() => onMove(section.id, 1)}
-                    disabled={index === snapshot.sections.length - 1}
+                    disabled={
+                      structuralLocked || index === snapshot.sections.length - 1
+                    }
                     className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Mută mai jos"
                   >
@@ -1115,14 +1734,16 @@ function SectionsPanel({
                   </button>
                   <button
                     onClick={() => onDuplicate(section.id)}
-                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink"
+                    disabled={structuralLocked}
+                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Duplică secțiunea"
                   >
                     <Copy className="size-3.5" />
                   </button>
                   <button
                     onClick={() => onRemove(section.id)}
-                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-danger-soft hover:text-danger"
+                    disabled={structuralLocked}
+                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-danger-soft hover:text-danger disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Șterge secțiunea"
                   >
                     <Trash2 className="size-3.5" />
@@ -1134,7 +1755,13 @@ function SectionsPanel({
         })}
       </ol>
       <div className="border-t border-line p-3">
-        <Button className="w-full" variant="outline" size="sm" onClick={onAdd}>
+        <Button
+          className="w-full"
+          variant="outline"
+          size="sm"
+          disabled={structuralLocked}
+          onClick={onAdd}
+        >
           <Plus className="size-4" />
           Adaugă secțiune
         </Button>
@@ -1154,10 +1781,26 @@ function Inspector({
   onUpdateContent,
   onUpdateContentMany,
   onUpdateDesign,
+  onUpdateExperience,
+  coverPreviewUrl,
+  onUploadExperienceCover,
+  device,
   uploadingMedia,
   onUploadImage,
   onChooseTemplate,
   onPublish,
+  variants,
+  activeVariantId,
+  versions,
+  syncPreview,
+  preflight,
+  workflowBusy,
+  onSelectVariant,
+  onCreateVariant,
+  onArchiveVariant,
+  onRestoreVersion,
+  onRefreshSync,
+  onApplySync,
 }: {
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
@@ -1169,6 +1812,10 @@ function Inspector({
   onUpdateContent: (key: string, value: unknown) => void;
   onUpdateContentMany: (values: Record<string, unknown>) => void;
   onUpdateDesign: (update: Partial<InvitationDesign>) => void;
+  onUpdateExperience: (update: Partial<InvitationExperienceSettings>) => void;
+  coverPreviewUrl: string;
+  onUploadExperienceCover: (file: File) => void;
+  device: Device;
   uploadingMedia: boolean;
   onUploadImage: (
     file: File,
@@ -1176,14 +1823,27 @@ function Inspector({
   ) => Promise<void>;
   onChooseTemplate: () => void;
   onPublish: () => void;
+  variants: InvitationVariantResource[];
+  activeVariantId: string | null;
+  versions: InvitationVersionHistoryItemResource[];
+  syncPreview: InvitationSyncPreviewResource | null;
+  preflight: InvitationPreflightResource | null;
+  workflowBusy: boolean;
+  onSelectVariant: (variantId: string | null) => void;
+  onCreateVariant: () => void;
+  onArchiveVariant: (variant: InvitationVariantResource) => void;
+  onRestoreVersion: (version: InvitationVersionHistoryItemResource) => void;
+  onRefreshSync: () => void;
+  onApplySync: (paths: InvitationSyncPath[]) => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid grid-cols-3 border-b border-line bg-surface px-2 pt-2">
+      <div className="grid grid-cols-4 border-b border-line bg-surface px-2 pt-2">
         {(
           [
             ["content", "Conținut"],
             ["design", "Design"],
+            ["experience", "Intrare"],
             ["publish", "Publicare"],
           ] as Array<[InspectorTab, string]>
         ).map(([value, label]) => (
@@ -1205,6 +1865,7 @@ function Inspector({
         {tab === "content" && selected && (
           <SectionInspector
             section={selected}
+            device={device}
             uploadingMedia={uploadingMedia}
             onUploadImage={onUploadImage}
             onUpdateSection={onUpdateSection}
@@ -1219,8 +1880,31 @@ function Inspector({
             onChooseTemplate={onChooseTemplate}
           />
         )}
+        {tab === "experience" && (
+          <InvitationExperiencePanel
+            experience={snapshot.experience}
+            onChange={onUpdateExperience}
+            uploading={uploadingMedia}
+            onUploadCover={onUploadExperienceCover}
+            coverPreviewUrl={coverPreviewUrl}
+          />
+        )}
         {tab === "publish" && (
-          <div className="space-y-6 p-4">
+          <>
+            <EditorWorkflowPanel
+              variants={variants}
+              activeVariantId={activeVariantId}
+              versions={versions}
+              syncPreview={syncPreview}
+              busy={workflowBusy}
+              onSelectVariant={onSelectVariant}
+              onCreateVariant={onCreateVariant}
+              onArchiveVariant={onArchiveVariant}
+              onRestoreVersion={onRestoreVersion}
+              onRefreshSync={onRefreshSync}
+              onApplySync={onApplySync}
+            />
+            <div className="space-y-6 border-t border-line p-4">
             <div>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-ink">
@@ -1259,6 +1943,33 @@ function Inspector({
                 ))}
               </ul>
             </div>
+            {preflight ? (
+              <div
+                className={cn(
+                  "rounded-xl border p-3",
+                  preflight.ready
+                    ? "border-success/30 bg-success-soft"
+                    : "border-warning/30 bg-warning-soft",
+                )}
+              >
+                <p className="text-xs font-semibold text-ink">
+                  {preflight.ready
+                    ? "Verificările serverului sunt complete"
+                    : `${preflight.errors.length} blocaje de publicare`}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  {preflight.assignedRecipients} destinatari · {preflight.activeVariants}{" "}
+                  variante active
+                </p>
+                {preflight.errors.length ? (
+                  <ul className="mt-2 space-y-1 text-xs text-danger">
+                    {preflight.errors.map((issue, index) => (
+                      <li key={`${issue.code}-${index}`}>{issue.message}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
             <div className="rounded-xl border border-line bg-subtle/50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-faint">
                 Acces invitați
@@ -1275,10 +1986,15 @@ function Inspector({
                 .
               </p>
             </div>
-            <Button className="w-full" onClick={onPublish}>
+            <Button
+              className="w-full"
+              disabled={readiness.completed !== readiness.total}
+              onClick={onPublish}
+            >
               Verifică și publică
             </Button>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -1287,6 +2003,7 @@ function Inspector({
 
 function SectionInspector({
   section,
+  device,
   uploadingMedia,
   onUploadImage,
   onUpdateSection,
@@ -1294,6 +2011,7 @@ function SectionInspector({
   onUpdateContentMany,
 }: {
   section: InvitationSection;
+  device: Device;
   uploadingMedia: boolean;
   onUploadImage: (
     file: File,
@@ -1303,12 +2021,14 @@ function SectionInspector({
   onUpdateContent: (key: string, value: unknown) => void;
   onUpdateContentMany: (values: Record<string, unknown>) => void;
 }) {
-  const Icon = icons[section.type];
   return (
     <div className="space-y-5 p-4">
       <div className="flex items-center gap-3">
         <span className="grid size-9 place-items-center rounded-lg bg-brand-softer text-brand-strong">
-          <Icon className="size-4" aria-hidden />
+          {React.createElement(sectionIcon(section), {
+            className: "size-4",
+            "aria-hidden": true,
+          })}
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink">{section.label}</p>
@@ -1331,6 +2051,13 @@ function SectionInspector({
         onUploadImage={onUploadImage}
         onUpdate={onUpdateContent}
         onUpdateMany={onUpdateContentMany}
+      />
+      <EditorLayerStudio
+        section={section}
+        device={device}
+        uploading={uploadingMedia}
+        onUpdateContent={onUpdateContent}
+        onUploadImage={onUploadImage}
       />
       <div className="border-t border-line pt-4">
         <div className="flex items-center gap-2">
@@ -1402,6 +2129,9 @@ function SectionInspector({
         <SectionBackgroundControls
           section={section}
           onUpdateSection={onUpdateSection}
+          uploading={uploadingMedia}
+          onUploadImage={onUploadImage}
+          onUpdateContentMany={onUpdateContentMany}
         />
       </div>
     </div>
@@ -1511,7 +2241,7 @@ function ContentFields({
             type="range"
             min="0"
             max="100"
-            value={Number(c.focalX) || 50}
+            value={numberValue(c.focalX, 50)}
             onChange={(event) => onUpdate("focalX", Number(event.target.value))}
             className="min-h-11 w-full accent-[var(--brand)]"
           />
@@ -1521,7 +2251,7 @@ function ContentFields({
             type="range"
             min="0"
             max="100"
-            value={Number(c.focalY) || 50}
+            value={numberValue(c.focalY, 50)}
             onChange={(event) => onUpdate("focalY", Number(event.target.value))}
             className="min-h-11 w-full accent-[var(--brand)]"
           />
@@ -1532,12 +2262,12 @@ function ContentFields({
             value={text(c.overlayColor, "#14251D")}
             onChange={(value) => onUpdate("overlayColor", value)}
           />
-          <Field label={`Overlay ${Number(c.overlayOpacity) || 0}%`}>
+          <Field label={`Overlay ${numberValue(c.overlayOpacity, 0)}%`}>
             <input
               type="range"
               min="0"
               max="85"
-              value={Number(c.overlayOpacity) || 0}
+              value={numberValue(c.overlayOpacity, 0)}
               onChange={(event) =>
                 onUpdate("overlayOpacity", Number(event.target.value))
               }
@@ -1767,6 +2497,120 @@ function ContentFields({
         </Field>
       </>
     );
+  if (c.blockKind === "artwork")
+    return (
+      <>
+        <MediaUploader
+          title="Încarcă lucrarea"
+          fileName={text(c.fileName)}
+          uploading={uploadingMedia}
+          onFile={(file) =>
+            void onUploadImage(file, (mediaId, fileName) =>
+              onUpdateMany({ mediaId, fileName }),
+            )
+          }
+          onRemove={() => onUpdateMany({ mediaId: "", fileName: "", url: "" })}
+        />
+        {input("title", "Titlu")}
+        {input("alt", "Descriere accesibilă")}
+        {input("caption", "Legendă opțională")}
+        <Field label="Imagine externă opțională">
+          <Input
+            type="url"
+            value={text(c.url)}
+            placeholder="https://…"
+            onChange={(event) => onUpdate("url", event.target.value)}
+          />
+        </Field>
+      </>
+    );
+  if (c.blockKind === "media_text")
+    return (
+      <>
+        <MediaUploader
+          title="Încarcă imaginea"
+          fileName={text(c.fileName)}
+          uploading={uploadingMedia}
+          onFile={(file) =>
+            void onUploadImage(file, (mediaId, fileName) =>
+              onUpdateMany({ mediaId, fileName }),
+            )
+          }
+          onRemove={() => onUpdateMany({ mediaId: "", fileName: "", url: "" })}
+        />
+        {input("title", "Titlu")}
+        {area("body", "Text")}
+        {input("alt", "Descriere accesibilă")}
+        <Field label="Poziția imaginii">
+          <Select
+            value={text(c.mediaPosition, "left")}
+            onChange={(event) => onUpdate("mediaPosition", event.target.value)}
+          >
+            <option value="left">Stânga</option>
+            <option value="right">Dreapta</option>
+          </Select>
+        </Field>
+        <Field label="Imagine externă opțională">
+          <Input
+            type="url"
+            value={text(c.url)}
+            placeholder="https://…"
+            onChange={(event) => onUpdate("url", event.target.value)}
+          />
+        </Field>
+      </>
+    );
+  if (c.blockKind === "video")
+    return (
+      <>
+        <MediaUploader
+          title="Încarcă posterul video"
+          fileName={text(c.posterFileName)}
+          uploading={uploadingMedia}
+          onFile={(file) =>
+            void onUploadImage(file, (posterMediaId, posterFileName) =>
+              onUpdateMany({ posterMediaId, posterFileName }),
+            )
+          }
+          onRemove={() =>
+            onUpdateMany({
+              posterMediaId: "",
+              posterFileName: "",
+              posterUrl: "",
+            })
+          }
+        />
+        {input("title", "Titlu")}
+        <Field label="URL video">
+          <Input
+            type="url"
+            value={text(c.url)}
+            placeholder="https://…"
+            onChange={(event) => onUpdate("url", event.target.value)}
+          />
+        </Field>
+        {input("caption", "Subtitrare sau context")}
+        <Field label="Poster extern opțional">
+          <Input
+            type="url"
+            value={text(c.posterUrl)}
+            placeholder="https://…"
+            onChange={(event) => onUpdate("posterUrl", event.target.value)}
+          />
+        </Field>
+        <p className="rounded-lg bg-subtle px-3 py-2 text-xs leading-relaxed text-muted">
+          Video-ul nu pornește automat. Invitatul decide când îl redă, iar
+          posterul păstrează compoziția stabilă până atunci.
+        </p>
+      </>
+    );
+  if (c.blockKind === "divider")
+    return (
+      <>
+        {input("ornament", "Ornament")}
+        {input("label", "Mesaj scurt")}
+      </>
+    );
   return (
     <>
       {input("title", "Titlu")}
@@ -1978,9 +2822,18 @@ function ColorField({
 function SectionBackgroundControls({
   section,
   onUpdateSection,
+  uploading,
+  onUploadImage,
+  onUpdateContentMany,
 }: {
   section: InvitationSection;
   onUpdateSection: (update: Partial<InvitationSection>) => void;
+  uploading: boolean;
+  onUploadImage: (
+    file: File,
+    apply: (mediaId: string, fileName: string) => void,
+  ) => Promise<void>;
+  onUpdateContentMany: (values: Record<string, unknown>) => void;
 }) {
   const updateStyle = (update: Partial<InvitationSection["style"]>) =>
     onUpdateSection({ style: { ...section.style, ...update } });
@@ -2088,10 +2941,101 @@ function SectionBackgroundControls({
         </>
       )}
       {section.style.backgroundMode === "image" && (
-        <p className="rounded-lg bg-info-soft p-3 text-xs leading-relaxed text-info">
-          Pentru hero și galerie, imaginea se alege din zona Media de mai sus.
-          Fundalul păstrează focalizarea și overlay-ul setate acolo.
-        </p>
+        <>
+          <MediaUploader
+            title="Încarcă imaginea de fundal"
+            fileName={text(section.content.backgroundFileName)}
+            uploading={uploading}
+            onFile={(file) =>
+              void onUploadImage(file, (backgroundMediaId, backgroundFileName) =>
+                onUpdateContentMany({
+                  backgroundMediaId,
+                  backgroundFileName,
+                }),
+              )
+            }
+            onRemove={() =>
+              onUpdateContentMany({
+                backgroundMediaId: "",
+                backgroundFileName: "",
+                backgroundImage: "",
+              })
+            }
+          />
+          <Field label="URL imagine externă opțională">
+            <Input
+              type="url"
+              value={text(section.content.backgroundImage)}
+              placeholder="https://…"
+              onChange={(event) =>
+                onUpdateContentMany({ backgroundImage: event.target.value })
+              }
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <ColorField
+              label="Overlay"
+              value={text(section.content.backgroundOverlayColor, "#19151D")}
+              onChange={(backgroundOverlayColor) =>
+                onUpdateContentMany({ backgroundOverlayColor })
+              }
+            />
+            <Field
+              label={`Opacitate ${numberValue(section.content.backgroundOverlayOpacity, 42)}%`}
+            >
+              <input
+                className="min-h-11 w-full accent-[var(--brand)]"
+                type="range"
+                min="0"
+                max="85"
+                value={numberValue(
+                  section.content.backgroundOverlayOpacity,
+                  42,
+                )}
+                onChange={(event) =>
+                  onUpdateContentMany({
+                    backgroundOverlayOpacity: Number(event.target.value),
+                  })
+                }
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label={`Focal X ${numberValue(section.content.focalX, 50)}%`}
+            >
+              <input
+                className="min-h-11 w-full accent-[var(--brand)]"
+                type="range"
+                min="0"
+                max="100"
+                value={numberValue(section.content.focalX, 50)}
+                onChange={(event) =>
+                  onUpdateContentMany({ focalX: Number(event.target.value) })
+                }
+              />
+            </Field>
+            <Field
+              label={`Focal Y ${numberValue(section.content.focalY, 50)}%`}
+            >
+              <input
+                className="min-h-11 w-full accent-[var(--brand)]"
+                type="range"
+                min="0"
+                max="100"
+                value={numberValue(section.content.focalY, 50)}
+                onChange={(event) =>
+                  onUpdateContentMany({ focalY: Number(event.target.value) })
+                }
+              />
+            </Field>
+          </div>
+          <ColorField
+            label="Culoare text"
+            value={section.style.textColor || "#FFFFFF"}
+            onChange={(textColor) => updateStyle({ textColor })}
+          />
+        </>
       )}
     </div>
   );
@@ -2449,26 +3393,35 @@ function InvitationCanvas({
   onUpdateSection: (id: string, update: Partial<InvitationSection>) => void;
   onUpdateContent: (sectionId: string, key: string, value: unknown) => void;
 }) {
-  const { design } = snapshot;
   return (
-    <article
-      className={cn(
-        "overflow-hidden border border-black/10 shadow-[0_24px_70px_rgba(45,40,32,.14)]",
-        radiusClass(design.radius),
-      )}
-      style={{ backgroundColor: design.background, color: design.text }}
-    >
-      {snapshot.sections
-        .filter((section) => section.visible)
-        .map((section) => (
+    <InvitationRenderer
+      snapshot={snapshot}
+      resolveMedia={resolveMedia}
+      className="border border-black/10"
+      onContentChange={(sectionId, key, value) =>
+        onUpdateContent(sectionId, key, value)
+      }
+      emptyState={
+        <div className="grid min-h-96 place-items-center p-8 text-center text-sm opacity-60">
+          Afișează sau adaugă o secțiune pentru a construi invitația.
+        </div>
+      }
+      renderSectionFrame={({ section, children }) => (
           <div
-            key={section.id}
             onClick={() => onSelect(section.id)}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect(section.id);
+              }
+            }}
             className={cn(
               "group relative block w-full cursor-pointer text-left outline-none transition-shadow focus-visible:z-10",
               selectedId === section.id &&
                 "z-10 shadow-[inset_0_0_0_2px_var(--brand)]",
             )}
+            role="group"
             aria-label={`Editează secțiunea ${section.label}`}
             tabIndex={0}
           >
@@ -2525,733 +3478,20 @@ function InvitationCanvas({
                 </button>
               </div>
             )}
-            <PreviewSection
-              section={section}
-              design={design}
-              resolveMedia={resolveMedia}
-              onInlineChange={(key, value) =>
-                onUpdateContent(section.id, key, value)
-              }
-            />
+            {children}
           </div>
-        ))}
-      {!snapshot.sections.some((section) => section.visible) && (
-        <div className="grid min-h-96 place-items-center p-8 text-center text-sm opacity-60">
-          Afișează sau adaugă o secțiune pentru a construi invitația.
-        </div>
       )}
-    </article>
+    />
   );
-}
-
-function PreviewSection({
-  section,
-  design,
-  resolveMedia,
-  onInlineChange,
-}: {
-  section: InvitationSection;
-  design: InvitationDesign;
-  resolveMedia: (mediaId: string, externalUrl?: string) => string;
-  onInlineChange: (key: string, value: string) => void;
-}) {
-  const c = section.content;
-  const align =
-    section.style.align === "center"
-      ? "text-center"
-      : section.style.align === "right"
-        ? "text-right"
-        : "text-left";
-  const heading = cn(
-    design.headingFont === "display"
-      ? "font-display font-semibold"
-      : "font-sans font-semibold tracking-tight",
-  );
-  const tone = sectionTone(section.style, design);
-  const common = cn("relative px-6 sm:px-12", align);
-  const commonStyle = { ...tone, paddingBlock: section.style.padding };
-  const buttonClass = cn(
-    "inline-flex min-h-10 items-center justify-center px-5 text-xs font-semibold",
-    design.buttonStyle === "pill"
-      ? "rounded-full"
-      : design.buttonStyle === "solid"
-        ? radiusClass(design.radius)
-        : "border bg-transparent",
-    design.buttonStyle === "outline" && "border-current",
-  );
-  if (section.type === "hero") {
-    const imageUrl = resolveMedia(text(c.mediaId), text(c.coverImage));
-    const layout = text(c.layout, "immersive");
-    const overlay = colorWithAlpha(
-      text(c.overlayColor, "#14251D"),
-      Number(c.overlayOpacity) || 0,
-    );
-    const textBlock = (
-      <div
-        className={cn(
-          "relative z-10 w-full",
-          imageUrl && layout === "immersive" && "text-white",
-        )}
-      >
-        <EditableText
-          value={text(c.eyebrow)}
-          onCommit={(value) => onInlineChange("eyebrow", value)}
-          className="text-[10px] font-semibold uppercase tracking-[.34em] opacity-70"
-        />
-        <h2
-          className={cn("mt-4 leading-[.92]", heading)}
-          style={{
-            fontSize: Math.min(96, Math.max(38, Number(c.headingSize) || 76)),
-            ...(!imageUrl || layout !== "immersive"
-              ? { color: design.accent }
-              : {}),
-          }}
-        >
-          <EditableText
-            value={text(c.names)}
-            onCommit={(value) => onInlineChange("names", value)}
-          />
-        </h2>
-        <div
-          className={cn(
-            "mt-6 flex flex-wrap gap-x-3 gap-y-1 text-sm",
-            section.style.align === "center" && "justify-center",
-            section.style.align === "right" && "justify-end",
-          )}
-        >
-          <EditableText
-            value={text(c.date)}
-            onCommit={(value) => onInlineChange("date", value)}
-          />
-          <span aria-hidden>·</span>
-          <EditableText
-            value={text(c.venue)}
-            onCommit={(value) => onInlineChange("venue", value)}
-          />
-        </div>
-        <h3 className={cn("mt-8 text-xl sm:text-2xl", heading)}>
-          <EditableText
-            value={text(c.title)}
-            onCommit={(value) => onInlineChange("title", value)}
-          />
-        </h3>
-        <p
-          className={cn(
-            "mt-3 max-w-xl text-sm leading-relaxed opacity-80",
-            section.style.align === "center" && "mx-auto",
-            section.style.align === "right" && "ml-auto",
-          )}
-        >
-          <EditableText
-            value={text(c.subtitle)}
-            onCommit={(value) => onInlineChange("subtitle", value)}
-          />
-        </p>
-        {text(c.buttonLabel) && (
-          <span
-            className={cn("mt-7", buttonClass)}
-            style={
-              design.buttonStyle === "solid"
-                ? {
-                    backgroundColor:
-                      imageUrl && layout === "immersive"
-                        ? "#fff"
-                        : design.accent,
-                    color:
-                      imageUrl && layout === "immersive"
-                        ? design.accent
-                        : "#fff",
-                  }
-                : {
-                    color:
-                      imageUrl && layout === "immersive"
-                        ? "#fff"
-                        : design.accent,
-                  }
-            }
-          >
-            {text(c.buttonLabel)}
-          </span>
-        )}
-      </div>
-    );
-    if (layout === "split")
-      return (
-        <section
-          className={cn(
-            common,
-            "grid min-h-[520px] overflow-hidden p-0 sm:grid-cols-2",
-          )}
-          style={tone}
-        >
-          <div
-            className={cn(
-              "flex px-8 py-16 sm:px-10",
-              contentYClass(text(c.contentY, "center")),
-            )}
-          >
-            {textBlock}
-          </div>
-          <div
-            className="min-h-72 bg-black/5 bg-cover"
-            style={{
-              backgroundImage: imageUrl ? `url("${imageUrl}")` : undefined,
-              backgroundPosition: `${Number(c.focalX) || 50}% ${Number(c.focalY) || 50}%`,
-            }}
-          >
-            {!imageUrl && (
-              <span className="grid size-full min-h-72 place-items-center text-xs opacity-45">
-                Încarcă imaginea hero
-              </span>
-            )}
-          </div>
-        </section>
-      );
-    if (layout === "minimal")
-      return (
-        <section
-          className={cn(common, "overflow-hidden")}
-          style={{ ...commonStyle, minHeight: Number(c.heroHeight) || 620 }}
-        >
-          <div
-            className={cn(
-              "mx-auto max-w-2xl",
-              section.style.align === "right" && "ml-auto mr-0",
-            )}
-          >
-            {textBlock}
-          </div>
-          {imageUrl && (
-            <div
-              className={cn(
-                "mt-10 aspect-[16/7] bg-cover",
-                radiusClass(design.radius),
-              )}
-              style={{
-                backgroundImage: `url("${imageUrl}")`,
-                backgroundPosition: `${Number(c.focalX) || 50}% ${Number(c.focalY) || 50}%`,
-              }}
-            />
-          )}
-        </section>
-      );
-    return (
-      <section
-        className={cn(
-          common,
-          "flex overflow-hidden",
-          contentYClass(text(c.contentY, "bottom")),
-        )}
-        style={{
-          ...commonStyle,
-          minHeight: Number(c.heroHeight) || 620,
-          backgroundImage: imageUrl
-            ? `linear-gradient(${overlay},${overlay}),url("${imageUrl}")`
-            : undefined,
-          backgroundSize: "cover",
-          backgroundPosition: `${Number(c.focalX) || 50}% ${Number(c.focalY) || 50}%`,
-        }}
-      >
-        {textBlock}
-      </section>
-    );
-  }
-  if (section.type === "story")
-    return (
-      <section className={common} style={commonStyle}>
-        <p className="text-[10px] font-semibold uppercase tracking-[.3em] opacity-70">
-          Despre noi
-        </p>
-        <h2
-          className={cn("mt-3 text-3xl sm:text-4xl", heading)}
-          style={{ color: design.accent }}
-        >
-          <EditableText
-            value={text(c.title)}
-            onCommit={(value) => onInlineChange("title", value)}
-          />
-        </h2>
-        <p
-          className={cn(
-            "mt-5 max-w-2xl text-sm leading-7 opacity-75",
-            section.style.align === "center" && "mx-auto",
-            section.style.align === "right" && "ml-auto",
-          )}
-        >
-          <EditableText
-            value={text(c.body)}
-            onCommit={(value) => onInlineChange("body", value)}
-          />
-        </p>
-        {text(c.quote) && (
-          <blockquote
-            className={cn(
-              "mt-7 max-w-xl border-current/20 text-lg italic leading-relaxed opacity-80",
-              section.style.align === "center"
-                ? "mx-auto border-y py-5"
-                : section.style.align === "right"
-                  ? "ml-auto border-r pr-5"
-                  : "border-l pl-5",
-            )}
-          >
-            <EditableText
-              value={text(c.quote)}
-              onCommit={(value) => onInlineChange("quote", value)}
-            />
-          </blockquote>
-        )}
-      </section>
-    );
-  if (section.type === "countdown") {
-    const values = countdownValues(text(c.date));
-    return (
-      <section className={common} style={commonStyle}>
-        <h2 className={cn("text-2xl sm:text-3xl", heading)}>{text(c.title)}</h2>
-        <div
-          className={cn(
-            "mt-7 grid grid-cols-4",
-            section.style.align === "center" && "mx-auto max-w-xl",
-          )}
-        >
-          {values.map(([value, label]) => (
-            <div
-              key={label}
-              className="border-l border-current/15 px-2 first:border-l-0"
-            >
-              <p
-                className={cn("text-2xl tabular-nums sm:text-4xl", heading)}
-                style={{ color: design.accent }}
-              >
-                {value}
-              </p>
-              <p className="mt-1 text-[9px] uppercase tracking-wider opacity-55">
-                {label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-  if (section.type === "schedule")
-    return (
-      <section className={common} style={commonStyle}>
-        <h2
-          className={cn("text-3xl", heading)}
-          style={{ color: design.accent }}
-        >
-          {text(c.title)}
-        </h2>
-        <div
-          className={cn(
-            "mt-8 space-y-0",
-            section.style.align === "center" && "mx-auto max-w-xl",
-          )}
-        >
-          {array(c.items).map((item, index) => (
-            <div
-              key={index}
-              className="grid grid-cols-[62px_1fr] gap-4 border-t border-current/15 py-4 first:border-t-0"
-            >
-              <p
-                className="text-sm font-semibold tabular-nums"
-                style={{ color: design.accent }}
-              >
-                {text(item.time)}
-              </p>
-              <div>
-                <p className="text-sm font-semibold">{text(item.title)}</p>
-                <p className="mt-1 text-xs opacity-60">{text(item.detail)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  if (section.type === "locations")
-    return (
-      <section className={common} style={commonStyle}>
-        <h2
-          className={cn("text-3xl", heading)}
-          style={{ color: design.accent }}
-        >
-          {text(c.title)}
-        </h2>
-        <div
-          className={cn(
-            "mt-8 grid gap-3 sm:grid-cols-2",
-            section.style.align === "center" && "mx-auto max-w-2xl",
-          )}
-        >
-          {array(c.items).map((item, index) => (
-            <div
-              key={index}
-              className={cn(
-                "border border-current/15 p-5",
-                radiusClass(design.radius),
-              )}
-            >
-              <MapPin
-                className={cn(
-                  "size-5",
-                  section.style.align === "center" && "mx-auto",
-                )}
-                style={{ color: design.accent }}
-              />
-              <p className="mt-4 text-sm font-semibold">{text(item.name)}</p>
-              <p className="mt-1 text-xs leading-relaxed opacity-60">
-                {text(item.address)}
-              </p>
-              {text(item.url) && (
-                <span className="mt-3 inline-block text-xs font-semibold underline underline-offset-4">
-                  Deschide harta
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  if (section.type === "rsvp")
-    return (
-      <section className={common} style={commonStyle}>
-        <p className="text-[10px] font-semibold uppercase tracking-[.3em] opacity-60">
-          RSVP
-        </p>
-        <h2 className={cn("mt-3 text-3xl sm:text-4xl", heading)}>
-          {text(c.title)}
-        </h2>
-        <p
-          className={cn(
-            "mt-4 max-w-xl text-sm leading-relaxed opacity-70",
-            section.style.align === "center" && "mx-auto",
-          )}
-        >
-          {text(c.body)}
-        </p>
-        <p className="mt-3 text-xs font-semibold opacity-70">
-          Până pe {text(c.deadline)}
-        </p>
-        <span
-          className={cn("mt-7", buttonClass)}
-          style={
-            design.buttonStyle === "solid"
-              ? {
-                  backgroundColor:
-                    section.style.tone === "accent" ||
-                    section.style.tone === "dark"
-                      ? "#fff"
-                      : design.accent,
-                  color:
-                    section.style.tone === "accent" ||
-                    section.style.tone === "dark"
-                      ? design.accent
-                      : "#fff",
-                }
-              : undefined
-          }
-        >
-          {text(c.buttonLabel)}
-        </span>
-      </section>
-    );
-  if (section.type === "dress_code")
-    return (
-      <section className={common} style={commonStyle}>
-        <Shirt
-          className={cn(
-            "size-5 opacity-60",
-            section.style.align === "center" && "mx-auto",
-          )}
-        />
-        <h2 className={cn("mt-4 text-3xl", heading)}>{text(c.title)}</h2>
-        <p
-          className={cn(
-            "mt-3 max-w-xl text-sm leading-relaxed opacity-65",
-            section.style.align === "center" && "mx-auto",
-          )}
-        >
-          {text(c.body)}
-        </p>
-        <div
-          className={cn(
-            "mt-6 flex flex-wrap gap-2",
-            section.style.align === "center" && "justify-center",
-          )}
-        >
-          {stringArray(c.colors).map((color, index) => (
-            <span
-              key={`${color}-${index}`}
-              className="size-8 rounded-full border border-black/10"
-              style={{ backgroundColor: color }}
-            />
-          ))}
-        </div>
-      </section>
-    );
-  if (section.type === "gallery") {
-    const items = array(c.items);
-    const layout = text(c.layout, "mosaic");
-    return (
-      <section className={common} style={commonStyle}>
-        <h2
-          className={cn("text-3xl", heading)}
-          style={{ color: design.accent }}
-        >
-          {text(c.title)}
-        </h2>
-        <p
-          className={cn(
-            "mt-3 max-w-xl text-sm leading-relaxed opacity-65",
-            section.style.align === "center" && "mx-auto",
-          )}
-        >
-          {text(c.body)}
-        </p>
-        {items.length ? (
-          <div
-            className={cn(
-              "mt-8 gap-2",
-              layout === "filmstrip"
-                ? "flex snap-x overflow-hidden"
-                : "grid grid-cols-2 sm:grid-cols-3",
-              section.style.align === "center" &&
-                layout !== "filmstrip" &&
-                "mx-auto max-w-2xl",
-            )}
-          >
-            {items.map((item, index) => {
-              const url = resolveMedia(text(item.mediaId), text(item.url));
-              return (
-                <figure
-                  key={index}
-                  className={cn(
-                    "overflow-hidden bg-black/5",
-                    radiusClass(design.radius),
-                    layout === "mosaic" &&
-                      index === 0 &&
-                      items.length > 2 &&
-                      "col-span-2 row-span-2",
-                    layout === "filmstrip" && "w-[72%] shrink-0 snap-center",
-                  )}
-                >
-                  <div
-                    className="aspect-square bg-cover bg-center"
-                    style={{
-                      backgroundImage: url ? `url("${url}")` : undefined,
-                    }}
-                  >
-                    <span
-                      className={cn(
-                        "grid size-full place-items-center",
-                        url ? "sr-only" : "text-xs opacity-45",
-                      )}
-                    >
-                      Adaugă imaginea
-                    </span>
-                  </div>
-                  {text(item.caption) && (
-                    <figcaption className="px-3 py-2 text-[10px] opacity-60">
-                      {text(item.caption)}
-                    </figcaption>
-                  )}
-                </figure>
-              );
-            })}
-          </div>
-        ) : (
-          <div
-            className={cn(
-              "mt-8 grid min-h-40 place-items-center border border-dashed border-current/25 p-6",
-              radiusClass(design.radius),
-            )}
-          >
-            <div>
-              <Images className="mx-auto size-6 opacity-35" />
-              <p className="mt-2 text-xs opacity-50">
-                Adaugă fotografii din inspector
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
-    );
-  }
-  if (section.type === "faq")
-    return (
-      <section className={common} style={commonStyle}>
-        <h2
-          className={cn("text-3xl", heading)}
-          style={{ color: design.accent }}
-        >
-          {text(c.title)}
-        </h2>
-        <div
-          className={cn(
-            "mt-7 divide-y divide-current/15 border-y border-current/15",
-            section.style.align === "center" && "mx-auto max-w-2xl",
-          )}
-        >
-          {array(c.items).map((item, index) => (
-            <div key={index} className="py-4">
-              <p className="text-sm font-semibold">{text(item.question)}</p>
-              <p className="mt-2 text-xs leading-relaxed opacity-65">
-                {text(item.answer)}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  if (section.type === "accommodation")
-    return (
-      <section className={common} style={commonStyle}>
-        <BedDouble
-          className={cn(
-            "size-5 opacity-60",
-            section.style.align === "center" && "mx-auto",
-          )}
-        />
-        <h2 className={cn("mt-4 text-3xl", heading)}>{text(c.title)}</h2>
-        <p
-          className={cn(
-            "mt-3 max-w-xl text-sm opacity-65",
-            section.style.align === "center" && "mx-auto",
-          )}
-        >
-          {text(c.body)}
-        </p>
-        <div className="mt-6 space-y-2">
-          {array(c.items).map((item, index) => (
-            <div key={index} className="border-t border-current/15 py-3">
-              <p className="text-sm font-semibold">{text(item.name)}</p>
-              <p className="mt-1 text-xs opacity-60">{text(item.detail)}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  return (
-    <section className={common} style={commonStyle}>
-      <h2
-        className={cn("text-3xl", heading)}
-        style={{
-          color:
-            section.style.tone === "accent" || section.style.tone === "dark"
-              ? undefined
-              : design.accent,
-        }}
-      >
-        {text(c.title)}
-      </h2>
-      <p
-        className={cn(
-          "mt-4 max-w-2xl whitespace-pre-line text-sm leading-relaxed opacity-70",
-          section.style.align === "center" && "mx-auto",
-        )}
-      >
-        {text(c.body)}
-      </p>
-      {text(c.details) && (
-        <p
-          className={cn(
-            "mt-5 max-w-2xl whitespace-pre-line text-xs leading-relaxed opacity-60",
-            section.style.align === "center" && "mx-auto",
-          )}
-        >
-          {text(c.details)}
-        </p>
-      )}
-      {text(c.name) && (
-        <p className="mt-5 text-sm font-semibold">
-          {text(c.name)} · {text(c.phone)}
-        </p>
-      )}
-      {text(c.buttonLabel) && (
-        <span className={cn("mt-6", buttonClass)}>{text(c.buttonLabel)}</span>
-      )}
-    </section>
-  );
-}
-
-function EditableText({
-  value,
-  onCommit,
-  className,
-}: {
-  value: string;
-  onCommit: (value: string) => void;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-block min-w-4 cursor-text rounded-sm outline-none focus:bg-white/15 focus:ring-2 focus:ring-current/30",
-        className,
-      )}
-      contentEditable
-      suppressContentEditableWarning
-      onClick={(event) => event.stopPropagation()}
-      onBlur={(event) => {
-        const next = event.currentTarget.textContent?.trim() ?? "";
-        if (next !== value) onCommit(next);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          event.currentTarget.blur();
-        }
-      }}
-    >
-      {value}
-    </span>
-  );
-}
-
-function sectionTone(
-  style: InvitationSection["style"],
-  design: InvitationDesign,
-): React.CSSProperties {
-  if (style.backgroundMode === "gradient")
-    return {
-      background: `linear-gradient(${style.gradientAngle}deg, ${validColor(style.gradientFrom)}, ${validColor(style.gradientTo)})`,
-      color: style.textColor || design.text,
-    };
-  if (style.tone === "custom")
-    return {
-      backgroundColor: validColor(style.backgroundColor || design.surface),
-      color: validColor(style.textColor || design.text),
-    };
-  if (style.tone === "soft")
-    return {
-      backgroundColor: mixHex(design.accent, design.surface, 0.08),
-      color: design.text,
-    };
-  if (style.tone === "accent")
-    return { backgroundColor: design.accent, color: "#FFFFFF" };
-  if (style.tone === "dark")
-    return { backgroundColor: design.text, color: design.surface };
-  return { backgroundColor: design.surface, color: design.text };
 }
 
 function validColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#20211F";
 }
 
-function colorWithAlpha(value: string, opacity: number) {
-  const color = validColor(value);
-  const alpha = Math.round(Math.min(100, Math.max(0, opacity)) * 2.55)
-    .toString(16)
-    .padStart(2, "0");
-  return `${color}${alpha}`;
-}
-
-function contentYClass(value: string) {
-  return value === "top"
-    ? "items-start"
-    : value === "center"
-      ? "items-center"
-      : "items-end";
+function numberValue(value: unknown, fallback: number) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function radiusClass(radius: InvitationDesign["radius"]) {
@@ -3273,33 +3513,17 @@ function safeImageUrl(value: string) {
   }
 }
 
-function countdownValues(value: string): Array<[string, string]> {
-  const target = new Date(value).getTime();
-  const difference = Number.isFinite(target)
-    ? Math.max(0, target - Date.now())
-    : 0;
-  const days = Math.floor(difference / 86_400_000);
-  const hours = Math.floor((difference / 3_600_000) % 24);
-  const minutes = Math.floor((difference / 60_000) % 60);
-  const seconds = Math.floor((difference / 1_000) % 60);
-  return [
-    [String(days).padStart(2, "0"), "zile"],
-    [String(hours).padStart(2, "0"), "ore"],
-    [String(minutes).padStart(2, "0"), "minute"],
-    [String(seconds).padStart(2, "0"), "secunde"],
-  ];
-}
-
-function mixHex(a: string, b: string, amount: number) {
-  const parse = (hex: string) =>
-    [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
-  const [ar, ag, ab] = parse(a);
-  const [br, bg, bb] = parse(b);
-  const mix = (left: number, right: number) =>
-    Math.round(left * amount + right * (1 - amount))
-      .toString(16)
-      .padStart(2, "0");
-  return `#${mix(ar, br)}${mix(ag, bg)}${mix(ab, bb)}`;
+function sectionIcon(section: InvitationSection) {
+  const blockKind = section.content.blockKind;
+  if (
+    section.type === "custom" &&
+    (blockKind === "artwork" ||
+      blockKind === "video" ||
+      blockKind === "media_text" ||
+      blockKind === "divider")
+  )
+    return advancedIcons[blockKind];
+  return icons[section.type];
 }
 
 function invitationSlug(title: string, workspaceId: string) {
@@ -3312,4 +3536,16 @@ function invitationSlug(title: string, workspaceId: string) {
       .replace(/^-|-$/g, "")
       .slice(0, 60) || "invitatie";
   return `${base}-${workspaceId.slice(0, 8)}`;
+}
+
+function variantCode(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80) || `varianta-${Date.now()}`
+  );
 }

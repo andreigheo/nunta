@@ -17,6 +17,8 @@ import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import {
   adminRsvpOverrideSchema,
   createMenuSchema,
+  guestInvitationOpenSchema,
+  guestLinkAccessSchema,
   guestRsvpRequestSchema,
   resolveAllergyIssueSchema,
   saveRsvpFormSchema,
@@ -51,6 +53,20 @@ export class GuestCompanionController {
   @Get("rsvp")
   async rsvp(@Query("token") token: string | undefined) {
     return this.service.guestRsvp(guestToken(token));
+  }
+
+  @Post("invitation-open")
+  async invitationOpen(@Body() body: unknown) {
+    return this.service.recordInvitationOpen(
+      parseWithSchema(guestInvitationOpenSchema, body),
+    );
+  }
+
+  @Post("link-access")
+  async linkAccess(@Body() body: unknown) {
+    return this.service.recordLinkAccess(
+      parseWithSchema(guestLinkAccessSchema, body),
+    );
   }
 
   @Put("rsvp")

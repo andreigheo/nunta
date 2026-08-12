@@ -1,3 +1,5 @@
+import { invitationContainsStarterContent } from "@weddingos/contracts";
+
 export type InvitationSectionType =
   | "hero"
   | "story"
@@ -15,6 +17,55 @@ export type InvitationSectionType =
   | "custom";
 
 export type InvitationContent = Record<string, unknown>;
+
+export type InvitationDevice = "desktop" | "tablet" | "mobile";
+
+export type InvitationBlockKind =
+  | "artwork"
+  | "video"
+  | "media_text"
+  | "divider";
+
+export type InvitationDecorationLayer = {
+  id: string;
+  kind: "monogram" | "shape" | "image";
+  label: string;
+  text?: string;
+  mediaId?: string;
+  url?: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+  color?: string;
+  visibleOn: InvitationDevice[];
+};
+
+export type InvitationArtDirection = Record<
+  InvitationDevice,
+  {
+    focalX: number;
+    focalY: number;
+    headingScale: number;
+    hideDecorations: boolean;
+  }
+>;
+
+export type InvitationExperienceSettings = {
+  enabled: boolean;
+  style: "split_panels";
+  replay: "first_visit";
+  panelColor: string;
+  backgroundColor: string;
+  accentColor: string;
+  texture: "paper" | "linen" | "smooth";
+  monogram: string | null;
+  frontMessage: string | null;
+  coverImageUrl: string | null;
+  coverMediaId: string | null;
+  durationMs: number;
+};
 
 export type InvitationSection = {
   id: string;
@@ -51,6 +102,7 @@ export type InvitationDesign = {
 export type InvitationEditorSnapshot = {
   sections: InvitationSection[];
   design: InvitationDesign;
+  experience: InvitationExperienceSettings;
 };
 
 export type InvitationDocumentSection = {
@@ -81,6 +133,69 @@ export const sectionCatalog: Array<{
   { type: "registry", label: "Cadouri", description: "Mesaj despre daruri sau listă" },
   { type: "custom", label: "Secțiune liberă", description: "Titlu, text și acțiune proprie" },
 ];
+
+export const advancedBlockCatalog: Array<{
+  blockKind: InvitationBlockKind;
+  label: string;
+  description: string;
+}> = [
+  {
+    blockKind: "media_text",
+    label: "Imagine + text",
+    description: "Compoziție editorială cu media și text alăturate",
+  },
+  {
+    blockKind: "artwork",
+    label: "Art card",
+    description: "O lucrare vizuală proprie, afișată fără compromisuri",
+  },
+  {
+    blockKind: "video",
+    label: "Video",
+    description: "Clip cu poster, titlu și subtitrare opțională",
+  },
+  {
+    blockKind: "divider",
+    label: "Separator",
+    description: "Pauză vizuală cu ornament sau mesaj scurt",
+  },
+];
+
+export const defaultInvitationExperience: InvitationExperienceSettings = {
+  enabled: false,
+  style: "split_panels",
+  replay: "first_visit",
+  panelColor: "#3B183F",
+  backgroundColor: "#F7F7F3",
+  accentColor: "#F06449",
+  texture: "paper",
+  monogram: "A & M",
+  frontMessage: "O invitație pentru voi",
+  coverImageUrl: null,
+  coverMediaId: null,
+  durationMs: 1400,
+};
+
+export const defaultArtDirection: InvitationArtDirection = {
+  desktop: {
+    focalX: 50,
+    focalY: 50,
+    headingScale: 100,
+    hideDecorations: false,
+  },
+  tablet: {
+    focalX: 50,
+    focalY: 50,
+    headingScale: 92,
+    hideDecorations: false,
+  },
+  mobile: {
+    focalX: 50,
+    focalY: 50,
+    headingScale: 80,
+    hideDecorations: false,
+  },
+};
 
 export const invitationTemplates: Array<{
   id: InvitationDesign["template"];
@@ -183,6 +298,8 @@ export function createDefaultSection(
       overlayOpacity: 46,
       contentY: "bottom",
       headingSize: 76,
+      artDirection: defaultArtDirection,
+      decorations: [],
     },
     story: {
       title: "Povestea noastră",
@@ -268,7 +385,7 @@ export function createDefaultSection(
     type,
     label: entry?.label ?? "Secțiune",
     visible: true,
-    content: defaults[type],
+    content: structuredClone(defaults[type]),
     style: {
       align: type === "schedule" || type === "locations" ? "left" : "center",
       tone: "plain",
@@ -283,9 +400,66 @@ export function createDefaultSection(
   };
 }
 
+export function createAdvancedSection(
+  blockKind: InvitationBlockKind,
+  id = `section-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+): InvitationSection {
+  const entry = advancedBlockCatalog.find((item) => item.blockKind === blockKind);
+  const defaults: Record<InvitationBlockKind, InvitationContent> = {
+    artwork: {
+      blockKind,
+      title: "Un detaliu doar al nostru",
+      mediaId: "",
+      url: "",
+      alt: "",
+      caption: "",
+      decorations: [],
+    },
+    video: {
+      blockKind,
+      title: "Povestea noastră, în mișcare",
+      url: "",
+      posterMediaId: "",
+      posterUrl: "",
+      caption: "",
+      decorations: [],
+    },
+    media_text: {
+      blockKind,
+      title: "Un moment important",
+      body: "Adaugă fotografia și povestea care merită să rămână împreună.",
+      mediaId: "",
+      url: "",
+      alt: "",
+      mediaPosition: "left",
+      decorations: [],
+    },
+    divider: {
+      blockKind,
+      ornament: "✦",
+      label: "Ne vedem curând",
+      decorations: [],
+    },
+  };
+  const section = createDefaultSection("custom", id);
+  return {
+    ...section,
+    label: entry?.label ?? "Bloc creativ",
+    content: defaults[blockKind],
+    style: {
+      ...section.style,
+      padding: blockKind === "divider" ? 28 : 48,
+    },
+  };
+}
+
 export function createInitialSnapshot(): InvitationEditorSnapshot {
   return {
-    design: invitationTemplates[0].design,
+    design: {
+      ...invitationTemplates[0].design,
+      palette: [...invitationTemplates[0].design.palette],
+    },
+    experience: { ...defaultInvitationExperience },
     sections: [
       createDefaultSection("hero", "hero"),
       createDefaultSection("story", "story"),
@@ -337,8 +511,10 @@ export function snapshotFromPersisted(
         ? settings.spacing
         : "comfortable",
   };
+  const experience = invitationExperienceFromSettings(settings?.experience);
   return {
     design,
+    experience,
     sections: sections.map((item, index) => {
       const storedEditorType =
         typeof item.content?.editorType === "string" ? item.content.editorType : "";
@@ -413,7 +589,89 @@ export function serializeSnapshot(snapshot: InvitationEditorSnapshot) {
       spacing: snapshot.design.spacing,
       template: snapshot.design.template,
       editorStyle: snapshot.design,
+      experience: snapshot.experience,
     },
+  };
+}
+
+export type InvitationVariantOverrides = {
+  document?: {
+    sections?: Array<{
+      id: string;
+      title?: string | null;
+      visible?: boolean;
+      content?: Record<string, unknown>;
+    }>;
+  };
+  settings?: Record<string, unknown>;
+};
+
+export function applyInvitationVariant(
+  base: InvitationEditorSnapshot,
+  overrides: InvitationVariantOverrides | null | undefined,
+): InvitationEditorSnapshot {
+  if (!overrides) return structuredClone(base);
+  const serialized = serializeSnapshot(base);
+  const sectionOverrides = new Map(
+    (overrides.document?.sections ?? []).map((section) => [section.id, section]),
+  );
+  const sections = serialized.document.sections.map((section) => {
+    const override = sectionOverrides.get(section.id);
+    if (!override) return section;
+    return {
+      ...section,
+      ...(typeof override.title === "string" ? { title: override.title } : {}),
+      ...(typeof override.visible === "boolean"
+        ? { visible: override.visible }
+        : {}),
+      content: { ...section.content, ...(override.content ?? {}) },
+    };
+  });
+  return snapshotFromPersisted(sections, {
+    ...serialized.settings,
+    ...(overrides.settings ?? {}),
+  });
+}
+
+export function invitationVariantOverrides(
+  base: InvitationEditorSnapshot,
+  variant: InvitationEditorSnapshot,
+): InvitationVariantOverrides {
+  const baseStructure = base.sections.map((section) => section.id);
+  const variantStructure = variant.sections.map((section) => section.id);
+  if (
+    baseStructure.length !== variantStructure.length ||
+    baseStructure.some((id, index) => id !== variantStructure[index])
+  )
+    throw new Error(
+      "Structura unei variante trebuie modificată în invitația de bază.",
+    );
+  const baseSerialized = serializeSnapshot(base);
+  const variantSerialized = serializeSnapshot(variant);
+  const baseSections = new Map(
+    baseSerialized.document.sections.map((section) => [section.id, section]),
+  );
+  const sections = variantSerialized.document.sections.flatMap((section) => {
+    const baseSection = baseSections.get(section.id);
+    if (!baseSection) return [];
+    const content = changedRecord(baseSection.content, section.content);
+    const override = {
+      id: section.id,
+      ...(section.title !== baseSection.title ? { title: section.title } : {}),
+      ...(section.visible !== baseSection.visible
+        ? { visible: section.visible }
+        : {}),
+      ...(Object.keys(content).length ? { content } : {}),
+    };
+    return Object.keys(override).length > 1 ? [override] : [];
+  });
+  const settings = changedRecord(
+    baseSerialized.settings,
+    variantSerialized.settings,
+  );
+  return {
+    ...(sections.length ? { document: { sections } } : {}),
+    ...(Object.keys(settings).length ? { settings } : {}),
   };
 }
 
@@ -429,6 +687,12 @@ export function invitationReadiness(snapshot: InvitationEditorSnapshot) {
     { label: "Programul zilei", done: array(schedule?.content.items).length > 0 },
     { label: "Cel puțin o locație", done: array(locations?.content.items).length > 0 },
     { label: "Confirmare RSVP", done: Boolean(rsvp && text(rsvp.content.deadline)) },
+    {
+      label: "Exemplele demonstrative au fost înlocuite",
+      done: !invitationContainsStarterContent({
+        sections: visible.map((section) => section.content),
+      }),
+    },
   ];
   return {
     checks,
@@ -457,4 +721,67 @@ function isSectionType(value: string): value is InvitationSectionType {
 
 function safeColor(value: unknown, fallback: string) {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
+function invitationExperienceFromSettings(
+  value: unknown,
+): InvitationExperienceSettings {
+  if (!value || typeof value !== "object")
+    return { ...defaultInvitationExperience };
+  const stored = value as Record<string, unknown>;
+  return {
+    enabled:
+      typeof stored.enabled === "boolean"
+        ? stored.enabled
+        : defaultInvitationExperience.enabled,
+    style: "split_panels",
+    replay: "first_visit",
+    panelColor: safeColor(
+      stored.panelColor,
+      defaultInvitationExperience.panelColor,
+    ),
+    backgroundColor: safeColor(
+      stored.backgroundColor,
+      defaultInvitationExperience.backgroundColor,
+    ),
+    accentColor: safeColor(
+      stored.accentColor,
+      defaultInvitationExperience.accentColor,
+    ),
+    texture:
+      stored.texture === "linen" || stored.texture === "smooth"
+        ? stored.texture
+        : "paper",
+    monogram:
+      stored.monogram === null || typeof stored.monogram === "string"
+        ? stored.monogram
+        : defaultInvitationExperience.monogram,
+    frontMessage:
+      stored.frontMessage === null || typeof stored.frontMessage === "string"
+        ? stored.frontMessage
+        : defaultInvitationExperience.frontMessage,
+    coverImageUrl:
+      stored.coverImageUrl === null || typeof stored.coverImageUrl === "string"
+        ? stored.coverImageUrl
+        : defaultInvitationExperience.coverImageUrl,
+    coverMediaId:
+      stored.coverMediaId === null || typeof stored.coverMediaId === "string"
+        ? stored.coverMediaId
+        : defaultInvitationExperience.coverMediaId,
+    durationMs:
+      typeof stored.durationMs === "number"
+        ? Math.max(400, Math.min(2000, Math.round(stored.durationMs)))
+        : defaultInvitationExperience.durationMs,
+  };
+}
+
+function changedRecord(
+  base: Record<string, unknown>,
+  current: Record<string, unknown>,
+) {
+  return Object.fromEntries(
+    Object.entries(current).filter(
+      ([key, value]) => JSON.stringify(value) !== JSON.stringify(base[key]),
+    ),
+  );
 }

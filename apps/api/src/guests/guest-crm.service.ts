@@ -268,8 +268,9 @@ export class GuestCrmService {
         });
         if (!row) notFound("Household not found");
         assertVersion(row.version, version);
-        const activeGuests = await tx.guest.count({
-          where: { householdId, status: "ACTIVE" },
+        const householdGuests = await tx.guest.findMany({
+          where: { householdId },
+          select: { id: true, status: true },
         });
         await tx.guest.updateMany({
           where: { householdId, status: "ACTIVE" },
@@ -279,6 +280,17 @@ export class GuestCrmService {
             version: { increment: 1 },
           },
         });
+        await tx.invitationRecipient.updateMany({
+          where: {
+            workspaceId,
+            revokedAt: null,
+            OR: [
+              { householdId },
+              { guestId: { in: householdGuests.map((guest) => guest.id) } },
+            ],
+          },
+          data: { revokedAt: new Date(), version: { increment: 1 } },
+        });
         const updated = await tx.household.update({
           where: { id: householdId },
           data: { deletedAt: new Date(), version: { increment: 1 } },
@@ -286,7 +298,9 @@ export class GuestCrmService {
         return {
           archived: true,
           householdId,
-          affectedGuests: activeGuests,
+          affectedGuests: householdGuests.filter(
+            (guest) => guest.status === "ACTIVE",
+          ).length,
           version: updated.version,
         };
       },
@@ -782,6 +796,19 @@ export class GuestCrmService {
           where: { id: householdId, workspaceId, deletedAt: null },
         });
         if (!household) notFound("Household not found");
+        const movingHousehold = householdId !== current.householdId;
+        const directRecipientIds = movingHousehold
+          ? (
+              await tx.invitationRecipient.findMany({
+                where: {
+                  workspaceId,
+                  guestId: current.id,
+                  revokedAt: null,
+                },
+                select: { id: true },
+              })
+            ).map((recipient) => recipient.id)
+          : [];
         const row = await tx.guest.update({
           where: { id: guestId },
           data: {
@@ -833,6 +860,24 @@ export class GuestCrmService {
             version: { increment: 1 },
           },
         });
+        if (row.status === "ARCHIVED")
+          await tx.invitationRecipient.updateMany({
+            where: {
+              workspaceId,
+              revokedAt: null,
+              guestId: row.id,
+            },
+            data: { revokedAt: new Date(), version: { increment: 1 } },
+          });
+        else if (directRecipientIds.length)
+          await tx.guestAccessGrant.updateMany({
+            where: {
+              workspaceId,
+              invitationRecipientId: { in: directRecipientIds },
+              revokedAt: null,
+            },
+            data: { householdId, version: { increment: 1 } },
+          });
         if (input.tagIds) {
           await tx.guestTagAssignment.deleteMany({ where: { guestId } });
           if (input.tagIds.length)
@@ -951,6 +996,14 @@ export class GuestCrmService {
                 version: { increment: 1 },
               },
             });
+            await tx.invitationRecipient.updateMany({
+              where: {
+                workspaceId,
+                revokedAt: null,
+                guestId: { in: command.guestIds },
+              },
+              data: { revokedAt: new Date(), version: { increment: 1 } },
+            });
             break;
           case "MOVE_TO_HOUSEHOLD": {
             const household = await tx.household.findFirst({
@@ -961,10 +1014,32 @@ export class GuestCrmService {
               },
             });
             if (!household) notFound("Target household not found");
+            const directRecipientIds = (
+              await tx.invitationRecipient.findMany({
+                where: {
+                  workspaceId,
+                  guestId: { in: command.guestIds },
+                  revokedAt: null,
+                },
+                select: { id: true },
+              })
+            ).map((recipient) => recipient.id);
             await tx.guest.updateMany({
               where: { id: { in: command.guestIds } },
               data: { householdId: household.id, version: { increment: 1 } },
             });
+            if (directRecipientIds.length)
+              await tx.guestAccessGrant.updateMany({
+                where: {
+                  workspaceId,
+                  invitationRecipientId: { in: directRecipientIds },
+                  revokedAt: null,
+                },
+                data: {
+                  householdId: household.id,
+                  version: { increment: 1 },
+                },
+              });
             break;
           }
           default:

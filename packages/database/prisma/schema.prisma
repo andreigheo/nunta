@@ -294,6 +294,25 @@ enum InvitationRecipientStatus {
   REVOKED
 }
 
+enum InvitationVariantStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum GuestAccessChannel {
+  LEGACY
+  EMAIL
+  QR
+  MANUAL
+  WHATSAPP
+}
+
+enum InvitationInteractionType {
+  LINK_ACCESSED
+  INVITATION_OPENED
+  RSVP_COMPLETED
+}
+
 enum CampaignPurpose {
   INVITATION
   RSVP_REMINDER
@@ -2089,12 +2108,51 @@ model InvitationVersion {
   @@map("invitation_versions")
 }
 
+model InvitationVariant {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  workspaceId           String                  @map("workspace_id") @db.Uuid
+  invitationSiteId      String                  @map("invitation_site_id") @db.Uuid
+  name                  String                  @db.VarChar(120)
+  code                  String                  @db.VarChar(80)
+  status                InvitationVariantStatus @default(ACTIVE)
+  currentDraftVersionId String?                 @map("current_draft_version_id") @db.Uuid
+  publishedVersionId    String?                 @map("published_version_id") @db.Uuid
+  createdById           String                  @map("created_by") @db.Uuid
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+  version               Int                     @default(1)
+
+  @@unique([invitationSiteId, code])
+  @@index([workspaceId, invitationSiteId, status])
+  @@map("invitation_variants")
+}
+
+model InvitationVariantVersion {
+  id                      String    @id @default(uuid()) @db.Uuid
+  workspaceId             String    @map("workspace_id") @db.Uuid
+  invitationVariantId     String    @map("invitation_variant_id") @db.Uuid
+  baseInvitationVersionId String    @map("base_invitation_version_id") @db.Uuid
+  versionNumber           Int       @map("version_number")
+  overrides               Json
+  createdById             String    @map("created_by") @db.Uuid
+  createdAt               DateTime  @default(now()) @map("created_at")
+  publishedAt             DateTime? @map("published_at")
+  contentHash             String    @map("content_hash") @db.Char(64)
+
+  @@unique([invitationVariantId, versionNumber])
+  @@index([workspaceId, invitationVariantId, createdAt])
+  @@index([baseInvitationVersionId])
+  @@map("invitation_variant_versions")
+}
+
 model InvitationRecipient {
   id                      String                    @id @default(uuid()) @db.Uuid
   workspaceId             String                    @map("workspace_id") @db.Uuid
   householdId             String?                   @map("household_id") @db.Uuid
   guestId                 String?                   @map("guest_id") @db.Uuid
+  invitationSiteId        String                    @map("invitation_site_id") @db.Uuid
   invitationVersionId     String                    @map("invitation_version_id") @db.Uuid
+  invitationVariantId     String?                   @map("invitation_variant_id") @db.Uuid
   preferredLanguage       String                    @default("ro") @map("preferred_language") @db.VarChar(16)
   personalizationSnapshot Json                      @default("{}") @map("personalization_snapshot")
   status                  InvitationRecipientStatus @default(READY)
@@ -2109,24 +2167,44 @@ model InvitationRecipient {
   @@unique([invitationVersionId, householdId, guestId])
   @@index([workspaceId, status, createdAt])
   @@index([workspaceId, householdId])
+  @@index([invitationSiteId, invitationVariantId])
   @@map("invitation_recipients")
 }
 
 model GuestAccessGrant {
-  id                    String    @id @default(uuid()) @db.Uuid
-  workspaceId           String    @map("workspace_id") @db.Uuid
-  invitationRecipientId String    @map("invitation_recipient_id") @db.Uuid
-  householdId           String    @map("household_id") @db.Uuid
-  tokenHash             String    @unique @map("token_hash") @db.Char(64)
-  expiresAt             DateTime? @map("expires_at")
-  revokedAt             DateTime? @map("revoked_at")
-  lastUsedAt            DateTime? @map("last_used_at")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  version               Int       @default(1)
+  id                    String             @id @default(uuid()) @db.Uuid
+  workspaceId           String             @map("workspace_id") @db.Uuid
+  invitationRecipientId String             @map("invitation_recipient_id") @db.Uuid
+  householdId           String             @map("household_id") @db.Uuid
+  channel               GuestAccessChannel @default(LEGACY)
+  tokenHash             String             @unique @map("token_hash") @db.Char(64)
+  expiresAt             DateTime?          @map("expires_at")
+  revokedAt             DateTime?          @map("revoked_at")
+  lastUsedAt            DateTime?          @map("last_used_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  version               Int                @default(1)
 
   @@index([workspaceId, householdId, revokedAt])
   @@index([invitationRecipientId, revokedAt])
+  @@index([invitationRecipientId, channel, revokedAt])
   @@map("guest_access_grants")
+}
+
+model InvitationRecipientInteraction {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  workspaceId           String                    @map("workspace_id") @db.Uuid
+  invitationRecipientId String                    @map("invitation_recipient_id") @db.Uuid
+  guestAccessGrantId    String                    @map("guest_access_grant_id") @db.Uuid
+  type                  InvitationInteractionType
+  source                String                    @db.VarChar(40)
+  idempotencyKey        String                    @map("idempotency_key") @db.VarChar(200)
+  metadata              Json                      @default("{}")
+  occurredAt            DateTime                  @default(now()) @map("occurred_at")
+
+  @@unique([invitationRecipientId, type, idempotencyKey])
+  @@index([workspaceId, type, occurredAt])
+  @@index([guestAccessGrantId, occurredAt])
+  @@map("invitation_recipient_interactions")
 }
 
 model Campaign {
@@ -2153,26 +2231,27 @@ model Campaign {
 }
 
 model CampaignRecipient {
-  id                      String                  @id @default(uuid()) @db.Uuid
-  workspaceId             String                  @map("workspace_id") @db.Uuid
-  campaignId              String                  @map("campaign_id") @db.Uuid
-  invitationRecipientId   String                  @map("invitation_recipient_id") @db.Uuid
-  guestId                 String?                 @map("guest_id") @db.Uuid
-  householdId             String?                 @map("household_id") @db.Uuid
-  address                 String                  @db.VarChar(320)
-  personalizationSnapshot Json                    @default("{}") @map("personalization_snapshot")
-  status                  CampaignRecipientStatus @default(PENDING)
-  queuedAt                DateTime?               @map("queued_at")
-  sentAt                  DateTime?               @map("sent_at")
-  deliveredAt             DateTime?               @map("delivered_at")
-  openedAt                DateTime?               @map("opened_at")
-  failedAt                DateTime?               @map("failed_at")
-  failureCode             String?                 @map("failure_code") @db.VarChar(100)
-  providerMessageId       String?                 @map("provider_message_id") @db.VarChar(255)
-  dedupeKey               String                  @unique @map("dedupe_key") @db.VarChar(240)
-  createdAt               DateTime                @default(now()) @map("created_at")
-  updatedAt               DateTime                @updatedAt @map("updated_at")
-  version                 Int                     @default(1)
+  id                         String                  @id @default(uuid()) @db.Uuid
+  workspaceId                String                  @map("workspace_id") @db.Uuid
+  campaignId                 String                  @map("campaign_id") @db.Uuid
+  invitationRecipientId      String                  @map("invitation_recipient_id") @db.Uuid
+  invitationVariantVersionId String?                 @map("invitation_variant_version_id") @db.Uuid
+  guestId                    String?                 @map("guest_id") @db.Uuid
+  householdId                String?                 @map("household_id") @db.Uuid
+  address                    String                  @db.VarChar(320)
+  personalizationSnapshot    Json                    @default("{}") @map("personalization_snapshot")
+  status                     CampaignRecipientStatus @default(PENDING)
+  queuedAt                   DateTime?               @map("queued_at")
+  sentAt                     DateTime?               @map("sent_at")
+  deliveredAt                DateTime?               @map("delivered_at")
+  openedAt                   DateTime?               @map("opened_at")
+  failedAt                   DateTime?               @map("failed_at")
+  failureCode                String?                 @map("failure_code") @db.VarChar(100)
+  providerMessageId          String?                 @map("provider_message_id") @db.VarChar(255)
+  dedupeKey                  String                  @unique @map("dedupe_key") @db.VarChar(240)
+  createdAt                  DateTime                @default(now()) @map("created_at")
+  updatedAt                  DateTime                @updatedAt @map("updated_at")
+  version                    Int                     @default(1)
 
   @@unique([campaignId, invitationRecipientId])
   @@index([workspaceId, campaignId, status])
@@ -2357,11 +2436,14 @@ model GuestAllergy {
   severity         AllergySeverity @default(UNKNOWN)
   source           String          @default("GUEST") @db.VarChar(40)
   confirmedAt      DateTime?       @map("confirmed_at")
+  active           Boolean         @default(true)
+  deletedAt        DateTime?       @map("deleted_at")
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
   version          Int             @default(1)
 
   @@unique([guestId, label])
+  @@index([workspaceId, guestId, active])
   @@index([workspaceId, guestId, severity])
   @@map("guest_allergies")
 }

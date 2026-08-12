@@ -280,12 +280,87 @@ export const invitationDocumentSchema = z
         message: `Unsafe invitation URL at ${unsafe}`,
       });
   });
+
+export const invitationStarterContentValues = [
+  "Ana & Mihai",
+  "12 septembrie 2027",
+  "Conacul Ambient · Cristian",
+  "Ne-am cunoscut într-o seară de septembrie, iar de atunci fiecare drum important l-am făcut împreună.",
+  "Acum vrem să vă avem aproape la începutul următorului capitol.",
+  "Până spunem «da»",
+  "2027-09-12T16:00",
+  "Biserica Sf. Nicolae",
+  "Conacul Ambient",
+  "Biserica Sf. Nicolae, Brașov",
+  "15 iunie 2027",
+  "Vei fi alături de noi?",
+  "Răspunsul tău ne ajută să pregătim fiecare detaliu.",
+  "Garden formal",
+  "Ținute elegante și confortabile, potrivite unei seri în grădină.",
+  "Asigurăm transport dus-întors din centrul Brașovului.",
+  "Plecarea: 17:00 · Piața Sfatului. Întoarceri: 01:00 și 03:00.",
+  "Ambient Guest House",
+  "La 3 minute · cod SARBATO",
+  "Pot veni cu copiii?",
+  "Există parcare?",
+  "Andreea",
+  "+40 700 000 000",
+] as const;
+
+const invitationStarterContentSet = new Set<string>(
+  invitationStarterContentValues,
+);
+
+export function invitationContainsStarterContent(value: unknown): boolean {
+  return invitationStarterContentMatches(value).size >= 2;
+}
+
+function invitationStarterContentMatches(
+  value: unknown,
+  matches = new Set<string>(),
+): Set<string> {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (invitationStarterContentSet.has(normalized)) matches.add(normalized);
+    return matches;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) invitationStarterContentMatches(item, matches);
+    return matches;
+  }
+  if (!value || typeof value !== "object") return matches;
+  for (const item of Object.values(value as Record<string, unknown>))
+    invitationStarterContentMatches(item, matches);
+  return matches;
+}
+
+export const invitationExperienceSchema = z.object({
+  enabled: z.boolean().default(false),
+  style: z.literal("split_panels").default("split_panels"),
+  replay: z.literal("first_visit").default("first_visit"),
+  panelColor: z.string().trim().max(40).default("#3b183f"),
+  backgroundColor: z.string().trim().max(40).default("#f7f7f3"),
+  accentColor: z.string().trim().max(40).default("#f06449"),
+  texture: z.enum(["paper", "linen", "smooth"]).default("paper"),
+  monogram: z.string().trim().max(12).nullable().default(null),
+  frontMessage: z.string().trim().max(160).nullable().default(null),
+  coverImageUrl: z
+    .string()
+    .trim()
+    .url()
+    .refine((value) => isSafeInvitationUrl(value), "Unsafe cover image URL")
+    .nullable()
+    .default(null),
+  coverMediaId: uuid.nullable().default(null),
+  durationMs: z.number().int().min(400).max(2000).default(1400),
+});
 export const invitationSettingsSchema = z
   .object({
     colors: z.record(z.string()).default({}),
     typography: z.record(z.string()).default({}),
     spacing: z.enum(["compact", "comfortable", "airy"]).default("comfortable"),
     template: z.string().max(80).default("classic"),
+    experience: invitationExperienceSchema.optional(),
   })
   .passthrough();
 export const saveInvitationDraftSchema = z.object({
@@ -340,11 +415,106 @@ export const createInvitationRecipientsSchema = z
     householdIds: z.array(uuid).max(500).default([]),
     guestIds: z.array(uuid).max(500).default([]),
     invitationVersionId: uuid.optional(),
+    invitationVariantId: uuid.nullable().optional(),
   })
   .refine(
     (value) => value.householdIds.length + value.guestIds.length > 0,
     "At least one recipient is required",
   );
+
+export const invitationVariantOverridesSchema = z
+  .object({
+    document: z
+      .object({
+        sections: z
+          .array(
+            z.object({
+              id: z.string().trim().min(1).max(80),
+              title: z.string().max(240).nullable().optional(),
+              visible: z.boolean().optional(),
+              content: z.record(z.unknown()).optional(),
+            }),
+          )
+          .max(50)
+          .optional(),
+      })
+      .strict()
+      .optional(),
+    settings: z.record(z.unknown()).optional(),
+  })
+  .strict()
+  .superRefine((overrides, context) => {
+    const unsafe = findUnsafeInvitationUrl(overrides, "overrides");
+    if (unsafe)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Unsafe invitation URL at ${unsafe}`,
+      });
+  });
+
+export const invitationVariantCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+export const createInvitationVariantSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  code: invitationVariantCodeSchema,
+  overrides: invitationVariantOverridesSchema.default({}),
+});
+export const saveInvitationVariantDraftSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  overrides: invitationVariantOverridesSchema,
+});
+export const assignInvitationVariantSchema = z.object({
+  variantId: uuid.nullable(),
+});
+export const recipientAccessChannelSchema = z.enum(["MANUAL", "WHATSAPP"]);
+export const createRecipientAccessLinksSchema = z.object({
+  channels: z.array(recipientAccessChannelSchema).min(1).max(2),
+});
+export const guestInvitationOpenSchema = z.object({
+  token: z.string().min(32).max(1000),
+  idempotencyKey: z.string().trim().min(8).max(200),
+  source: z.enum(["cover", "skip", "direct", "replay"]),
+});
+export const guestLinkAccessSchema = z.object({
+  token: z.string().min(32).max(1000),
+  idempotencyKey: z.string().trim().min(8).max(200),
+  source: z.literal("guest_page").default("guest_page"),
+});
+
+export const invitationSyncPathSchema = z.enum([
+  "hero.names",
+  "hero.date",
+  "hero.venue",
+  "schedule.items",
+  "locations.items",
+  "rsvp.deadline",
+  "accommodation.items",
+]);
+export const invitationSyncDifferenceSchema = z.object({
+  path: invitationSyncPathSchema,
+  sectionId: z.string().min(1).max(80),
+  source: z.enum([
+    "wedding_profile",
+    "wedding_events",
+    "rsvp_form",
+    "accommodation_recommendations",
+  ]),
+  currentValue: z.unknown(),
+  sourceValue: z.unknown(),
+});
+export const invitationSyncPreviewSchema = z.object({
+  sourceRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  draftVersionId: uuid,
+  differences: z.array(invitationSyncDifferenceSchema),
+});
+export const applyInvitationSyncSchema = z.object({
+  sourceRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  paths: z.array(invitationSyncPathSchema).min(1).max(7),
+});
 
 export const campaignPurposeSchema = z.enum([
   "INVITATION",
@@ -382,18 +552,29 @@ export const createCampaignSchema = z.object({
   scheduledAt: z.string().datetime().nullable().optional(),
 });
 export const updateCampaignSchema = createCampaignSchema.partial();
-export const campaignTransitionSchema = z.object({
-  transition: z.enum([
-    "SCHEDULE",
-    "SEND_NOW",
-    "PAUSE",
-    "RESUME",
-    "CANCEL",
-    "RETRY_FAILED",
-    "ARCHIVE",
-  ]),
-  scheduledAt: z.string().datetime().optional(),
-});
+export const campaignTransitionSchema = z
+  .object({
+    transition: z.enum([
+      "SCHEDULE",
+      "SEND_NOW",
+      "CANCEL",
+      "RETRY_FAILED",
+      "ARCHIVE",
+    ]),
+    scheduledAt: z.string().datetime().optional(),
+    audienceRevision: z.string().length(64).optional(),
+  })
+  .superRefine((input, context) => {
+    if (
+      ["SEND_NOW", "SCHEDULE"].includes(input.transition) &&
+      !input.audienceRevision
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["audienceRevision"],
+        message: "Confirm the current campaign audience before sending",
+      });
+  });
 
 export const rsvpFormConfigSchema = z.object({
   deadline: z.string().datetime().nullable(),
@@ -561,12 +742,18 @@ export const guestImportRowListSchema = z.object({
 export const invitationRecipientSchema = z
   .object({
     id: uuid,
+    invitationSiteId: uuid,
     householdId: uuid.nullable(),
+    householdName: z.string().nullable().optional(),
     guestId: uuid.nullable(),
+    guestName: z.string().nullable().optional(),
     invitationVersionId: uuid,
+    invitationVariantId: uuid.nullable(),
+    invitationVariantName: z.string().nullable().optional(),
     preferredLanguage: z.string(),
     status: z.string(),
     openedAt: z.string().datetime().nullable(),
+    lastAccessedAt: z.string().datetime().nullable(),
     rsvpCompletedAt: z.string().datetime().nullable(),
     version,
   })
@@ -574,6 +761,83 @@ export const invitationRecipientSchema = z
 export const invitationRecipientListSchema = z.object({
   items: z.array(invitationRecipientSchema),
   nextCursor: z.string().nullable(),
+});
+
+export const invitationVariantVersionSchema = z.object({
+  id: uuid,
+  versionNumber: z.number().int().positive(),
+  baseInvitationVersionId: uuid,
+  overrides: invitationVariantOverridesSchema,
+  contentHash: z.string(),
+  publishedAt: z.string().datetime().nullable(),
+});
+export const invitationVariantSchema = z.object({
+  id: uuid,
+  workspaceId: uuid,
+  invitationSiteId: uuid,
+  name: z.string(),
+  code: invitationVariantCodeSchema,
+  status: z.enum(["active", "archived"]),
+  assignedRecipients: z.number().int().nonnegative(),
+  draft: invitationVariantVersionSchema.nullable(),
+  published: invitationVariantVersionSchema.nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  version,
+});
+export const invitationVariantListSchema = z.object({
+  items: z.array(invitationVariantSchema),
+});
+
+export const invitationVersionHistoryItemSchema = z.object({
+  id: uuid,
+  versionNumber: z.number().int().positive(),
+  document: invitationDocumentSchema,
+  settings: invitationSettingsSchema,
+  language: z.string(),
+  contentHash: z.string(),
+  createdAt: z.string().datetime(),
+  publishedAt: z.string().datetime().nullable(),
+  isCurrentDraft: z.boolean(),
+  isPublished: z.boolean(),
+});
+export const invitationVersionHistorySchema = z.object({
+  items: z.array(invitationVersionHistoryItemSchema),
+  nextCursor: uuid.nullable(),
+});
+
+export const invitationPreflightIssueSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  recipientId: uuid.optional(),
+  variantId: uuid.optional(),
+});
+export const invitationPreflightSchema = z.object({
+  ready: z.boolean(),
+  errors: z.array(invitationPreflightIssueSchema),
+  warnings: z.array(invitationPreflightIssueSchema),
+  baseVersionId: uuid.nullable(),
+  activeVariants: z.number().int().nonnegative(),
+  assignedRecipients: z.number().int().nonnegative(),
+});
+
+export const recipientAccessLinkSchema = z.object({
+  channel: recipientAccessChannelSchema,
+  url: z.string().url(),
+  reused: z.boolean(),
+});
+export const recipientAccessLinkListSchema = z.object({
+  items: z.array(recipientAccessLinkSchema),
+});
+export const guestInvitationOpenResultSchema = z.object({
+  recipientId: uuid,
+  invitationOpenedAt: z.string().datetime(),
+  duplicate: z.boolean(),
+});
+export const guestLinkAccessResultSchema = z.object({
+  recipientId: uuid,
+  linkAccessedAt: z.string().datetime(),
+  duplicate: z.boolean(),
 });
 
 export const campaignSchema = z.object({
@@ -653,7 +917,27 @@ export const rsvpSubmissionSchema = z.object({
 export const guestCompanionBootstrapSchema = z
   .object({
     couple: z.record(z.unknown()),
-    invitation: z.record(z.unknown()),
+    invitation: z.object({
+      siteId: uuid,
+      document: invitationDocumentSchema,
+      settings: invitationSettingsSchema,
+      language: z.string(),
+      baseVersionId: uuid,
+      variant: z
+        .object({
+          id: uuid,
+          name: z.string(),
+          code: invitationVariantCodeSchema,
+          versionId: uuid,
+        })
+        .nullable(),
+      experience: invitationExperienceSchema.nullable(),
+    }),
+    interaction: z.object({
+      invitationOpenedAt: z.string().datetime().nullable(),
+      lastAccessedAt: z.string().datetime().nullable(),
+      shouldPlayReveal: z.boolean(),
+    }),
     events: z.array(z.record(z.unknown())),
     household: z.object({
       id: uuid,
@@ -661,6 +945,7 @@ export const guestCompanionBootstrapSchema = z
       members: z.array(z.record(z.unknown())),
     }),
     rsvp: z.record(z.unknown()),
+    rsvpConfig: rsvpFormConfigSchema,
     menus: z.array(z.record(z.unknown())),
     accommodationRecommendations: z.array(
       guestAccommodationRecommendationSchema,
@@ -692,6 +977,19 @@ export const cursorRecordListSchema = z.object({
 });
 
 export type SaveInvitationDraft = z.infer<typeof saveInvitationDraftSchema>;
+export type InvitationExperience = z.infer<typeof invitationExperienceSchema>;
+export type CreateInvitationVariant = z.infer<
+  typeof createInvitationVariantSchema
+>;
+export type SaveInvitationVariantDraft = z.infer<
+  typeof saveInvitationVariantDraftSchema
+>;
+export type InvitationVariantOverrides = z.infer<
+  typeof invitationVariantOverridesSchema
+>;
+export type ApplyInvitationSync = z.infer<typeof applyInvitationSyncSchema>;
+export type GuestInvitationOpen = z.infer<typeof guestInvitationOpenSchema>;
+export type GuestLinkAccess = z.infer<typeof guestLinkAccessSchema>;
 export type CreateCampaign = z.infer<typeof createCampaignSchema>;
 export type CreateGuestTag = z.infer<typeof createGuestTagSchema>;
 export type UpdateGuestTag = z.infer<typeof updateGuestTagSchema>;
@@ -744,6 +1042,23 @@ export type GuestImportRowResource = z.infer<typeof guestImportRowSchema>;
 export type InvitationSiteResource = z.infer<typeof invitationSiteSchema>;
 export type InvitationRecipientResource = z.infer<
   typeof invitationRecipientSchema
+>;
+export type InvitationVariantResource = z.infer<typeof invitationVariantSchema>;
+export type InvitationVersionHistoryItemResource = z.infer<
+  typeof invitationVersionHistoryItemSchema
+>;
+export type InvitationVersionHistoryResource = z.infer<
+  typeof invitationVersionHistorySchema
+>;
+export type InvitationPreflightResource = z.infer<
+  typeof invitationPreflightSchema
+>;
+export type InvitationSyncPreviewResource = z.infer<
+  typeof invitationSyncPreviewSchema
+>;
+export type InvitationSyncPath = z.infer<typeof invitationSyncPathSchema>;
+export type RecipientAccessLinkResource = z.infer<
+  typeof recipientAccessLinkSchema
 >;
 export type CampaignResource = z.infer<typeof campaignSchema>;
 export type RsvpFormResource = z.infer<typeof rsvpFormSchema>;

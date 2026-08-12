@@ -5,6 +5,14 @@ bind only to loopback ports `43221`, `43222`, `43211`, and `43223`. Public traff
 Nginx only after migrations, health checks, authentication, and smoke tests
 pass.
 
+Invitation Studio V2 migration `20260812120000_invitation_studio_v2` is an
+application/database rollback boundary. Once applied, do not restart the
+previous API against the migrated database: its guest-media path does not set
+the object-scoped RLS context introduced by V2. Keep traffic closed until the
+new invitation/media/RSVP probes pass. A failed pre-reopen cutover must restore
+the exact verified pre-deploy database and object backup before the previous
+release is started; after accepting new writes, use a reviewed forward repair.
+
 Required secrets live in `/etc/sarbato-production.env` on the server. Resend's
 API key is bootstrapped from `/etc/sarbato-resend-smtp-password`; neither file
 belongs in the repository. The inbound relay runs as a read-only Compose

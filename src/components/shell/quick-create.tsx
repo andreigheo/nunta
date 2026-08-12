@@ -35,9 +35,9 @@ const titles: Record<QuickCreateKind, { title: string; description: string }> =
       description: "Creează grupul care va primi invitația personalizată.",
     },
     campaign: {
-      title: "Trimite campanie",
+      title: "Ciornă campanie",
       description:
-        "Creează și pune în coadă o campanie e-mail pentru destinatarii pregătiți.",
+        "Pregătește mesajul; audiența se verifică și trimiterea se confirmă în centrul Invitații.",
     },
     rsvp: {
       title: "Răspunsuri RSVP",
@@ -462,7 +462,7 @@ export function QuickCreateModal() {
           throw new Error(
             "Publică invitația și pregătește destinatarii înainte de trimitere.",
           );
-        const campaign = await weddingOsApi.createCampaign(
+        await weddingOsApi.createCampaign(
           currentWorkspace.id,
           {
             name: values.title.trim(),
@@ -477,12 +477,6 @@ export function QuickCreateModal() {
             },
             audienceFilter: {},
           },
-        );
-        await weddingOsApi.transitionCampaign(
-          currentWorkspace.id,
-          campaign.id,
-          campaign.version,
-          "SEND_NOW",
         );
       } else if (quickCreate === "seating_table") {
         if (!values.parentId) throw new Error("Selectează planul de mese.");
@@ -662,7 +656,7 @@ export function QuickCreateModal() {
       toast({
         title:
           quickCreate === "campaign"
-            ? "Campanie pusă în coadă"
+            ? "Ciornă de campanie creată"
             : quickCreate === "guest"
               ? "Invitat adăugat"
               : quickCreate === "household"
@@ -702,7 +696,7 @@ export function QuickCreateModal() {
                                           : "Eveniment creat",
         description:
           quickCreate === "campaign"
-            ? "Intenția durabilă a fost salvată; livrarea e-mailurilor este asincronă."
+            ? "Deschide Invitații, verifică numărul exact de destinatari și confirmă explicit trimiterea."
             : quickCreate === "payment"
               ? "Sarbato a salvat evidența operațională; nu a procesat și nu a transferat bani."
               : undefined,

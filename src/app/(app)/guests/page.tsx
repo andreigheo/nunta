@@ -52,6 +52,13 @@ type ImportReview = {
   rows: GuestImportRowResource[];
 };
 
+type ReminderAudience = {
+  total: number;
+  valid: number;
+  invalid: number;
+  audienceRevision: string;
+};
+
 const importFieldLabels: Record<string, string> = {
   firstName: "Prenume",
   lastName: "Nume",
@@ -79,6 +86,10 @@ export default function GuestsPage() {
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [bulkCommand, setBulkCommand] = React.useState("ADD_TAG");
   const [bulkTarget, setBulkTarget] = React.useState("");
+  const [reminderCampaign, setReminderCampaign] =
+    React.useState<CampaignResource | null>(null);
+  const [reminderAudience, setReminderAudience] =
+    React.useState<ReminderAudience | null>(null);
   const [tagOpen, setTagOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -182,12 +193,59 @@ export default function GuestsPage() {
     if (bulkCommand === "MOVE_TO_HOUSEHOLD") command.householdId = bulkTarget;
     setSaving(true);
     try {
+      if (bulkCommand === "SEND_RSVP_REMINDER") {
+        const prepared = await weddingOsApi.prepareBulkRsvpReminder(
+          currentWorkspace.id,
+          guestIds,
+        );
+        setReminderCampaign(prepared.campaign);
+        setReminderAudience(prepared.audience);
+        return;
+      }
       await weddingOsApi.bulkGuests(currentWorkspace.id, command);
       setSelectedIds(new Set());
       toast({ title: "Acțiune aplicată", description: `${guestIds.length} invitați au fost procesați.`, variant: "success" });
       await load(query);
     } catch (caught) { toast({ title: "Acțiunea bulk a eșuat", description: apiErrorMessage(caught), variant: "error" }); }
     finally { setSaving(false); }
+  };
+
+  const confirmReminder = async () => {
+    if (
+      !currentWorkspace ||
+      !reminderCampaign ||
+      !reminderAudience?.valid ||
+      demoMode
+    )
+      return;
+    setSaving(true);
+    try {
+      await weddingOsApi.transitionCampaign(
+        currentWorkspace.id,
+        reminderCampaign.id,
+        reminderCampaign.version,
+        "SEND_NOW",
+        undefined,
+        reminderAudience.audienceRevision,
+      );
+      toast({
+        title: "Reamintire pusă în coadă",
+        description: `Serverul a reverificat și a acceptat exact ${reminderAudience.valid} destinatari.`,
+        variant: "success",
+      });
+      setReminderCampaign(null);
+      setReminderAudience(null);
+      setSelectedIds(new Set());
+      await load(query);
+    } catch (caught) {
+      toast({
+        title: "Reamintirea nu a fost trimisă",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openGuest = async (guest: GuestResource) => {
@@ -399,6 +457,40 @@ export default function GuestsPage() {
         </div>
         <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="ghost" onClick={() => setGuestOpen(false)}>Renunță</Button><Button type="submit" disabled={saving || (guestKind === "plus_one" && !primaryGuestId)}>Adaugă</Button></div>
       </form>
+    </Modal>
+    <Modal
+      open={Boolean(reminderCampaign)}
+      onClose={() => {
+        if (!saving) {
+          setReminderCampaign(null);
+          setReminderAudience(null);
+        }
+      }}
+      title="Confirmă reamintirea RSVP"
+      description="Niciun mesaj nu pleacă până nu confirmi audiența verificată de server."
+      size="sm"
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-success-soft p-4">
+            <p className="text-2xl font-semibold text-success">{reminderAudience?.valid ?? "—"}</p>
+            <p className="mt-1 text-sm text-ink">destinatari valizi</p>
+          </div>
+          <div className="rounded-xl bg-subtle p-4">
+            <p className="text-2xl font-semibold text-ink">{reminderAudience?.invalid ?? "—"}</p>
+            <p className="mt-1 text-sm text-muted">fără adresă validă</p>
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed text-muted">
+          Au fost selectate {reminderAudience?.total ?? 0} accesuri. Serverul
+          compară din nou audiența la confirmare și oprește trimiterea dacă s-a
+          schimbat între timp.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" disabled={saving} onClick={() => { setReminderCampaign(null); setReminderAudience(null); }}>Renunță</Button>
+          <Button type="button" loading={saving} disabled={saving || !reminderAudience?.valid} onClick={() => void confirmReminder()}><Send className="size-4" />Trimite către {reminderAudience?.valid ?? 0}</Button>
+        </div>
+      </div>
     </Modal>
     <Modal open={tagOpen} onClose={() => setTagOpen(false)} title="Etichetă nouă"><form className="space-y-4" onSubmit={createTag}><Field label="Nume" required><Input name="name" required /></Field><Field label="Culoare" hint="Format hex, de exemplu #6d5dfc"><Input name="color" defaultValue="#6d5dfc" pattern="#[0-9a-fA-F]{6}" /></Field><div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setTagOpen(false)}>Renunță</Button><Button type="submit" disabled={saving}>Creează</Button></div></form></Modal>
     <Modal open={Boolean(selectedHousehold)} onClose={() => setSelectedHousehold(null)} title="Editează gospodăria" description={selectedHousehold ? `${selectedHousehold.guestsCount} persoane asociate` : undefined}>{selectedHousehold && <form key={`${selectedHousehold.id}:${selectedHousehold.version}`} className="space-y-4" onSubmit={updateHousehold}><Field label="Nume" required><Input name="name" defaultValue={selectedHousehold.name} required /></Field><Field label="Oraș"><Input name="city" defaultValue={selectedHousehold.city ?? ""} /></Field><Field label="Parte"><Select name="side" defaultValue={sideInput(selectedHousehold.side)}><option value="COMMON">Comună</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="OTHER">Altele</option></Select></Field><p className="text-xs text-faint">Mutarea persoanelor se face din acțiunile bulk ale listei.</p><div className="flex justify-between gap-2"><Button type="button" variant="destructive" disabled={saving || !capabilities.includes("guest.archive")} onClick={() => void archiveHousehold()}><Archive className="size-4" />Arhivează</Button><span className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setSelectedHousehold(null)}>Renunță</Button><Button type="submit" disabled={saving}>Salvează</Button></span></div></form>}</Modal>

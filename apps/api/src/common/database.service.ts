@@ -13,6 +13,7 @@ export type TenantContext = {
   invitationTokenHash?: string;
   guestTokenHash?: string;
   guestAccessGrantId?: string;
+  invitationMediaObjectId?: string;
   workerId?: string;
   jobId?: string;
   correlationId?: string;
@@ -72,11 +73,12 @@ export class DatabaseService
   async withContext<T>(
     context: TenantContext,
     operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+    options?: { timeout?: number; maxWait?: number },
   ): Promise<T> {
     return this.$transaction(async (transaction) => {
       await this.setTransactionContext(transaction, context);
       return operation(transaction);
-    });
+    }, options);
   }
 
   async setTransactionContext(
@@ -92,6 +94,7 @@ export class DatabaseService
           set_config('app.current_invitation_token_hash', ${context.invitationTokenHash ?? ""}, true),
           set_config('app.current_guest_token_hash', ${context.guestTokenHash ?? ""}, true),
           set_config('app.current_guest_access_grant_id', ${context.guestAccessGrantId ?? ""}, true),
+          set_config('app.current_invitation_media_object_id', ${context.invitationMediaObjectId ?? ""}, true),
           set_config('app.current_worker_id', ${context.workerId ?? ""}, true),
           set_config('app.current_job_id', ${context.jobId ?? ""}, true),
           set_config('app.current_correlation_id', ${context.correlationId ?? ""}, true)

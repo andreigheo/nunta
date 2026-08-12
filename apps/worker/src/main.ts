@@ -157,20 +157,21 @@ type ExpiredArtifact = { artifact_id: string; storage_key: string };
 async function withPersistedContext<T>(
   snapshot: PersistedConsumer,
   operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+  options?: { timeout?: number; maxWait?: number },
 ): Promise<T> {
   return database.$transaction(async (transaction) => {
     await transaction.$executeRaw`
-      SELECT
-        set_config('app.current_user_id', ${snapshot.actor_user_id ?? ""}, true),
-        set_config('app.current_workspace_id', ${snapshot.workspace_id ?? ""}, true),
-        set_config('app.current_vendor_organization_id', ${snapshot.vendor_organization_id ?? ""}, true),
-        set_config('app.current_worker_id', ${workerId}, true),
-        set_config('app.current_consumer_execution_id', ${snapshot.execution_id}, true),
-        set_config('app.current_job_id', ${snapshot.background_job_id ?? ""}, true),
-        set_config('app.current_correlation_id', ${snapshot.correlation_id}, true)
-    `;
+        SELECT
+          set_config('app.current_user_id', ${snapshot.actor_user_id ?? ""}, true),
+          set_config('app.current_workspace_id', ${snapshot.workspace_id ?? ""}, true),
+          set_config('app.current_vendor_organization_id', ${snapshot.vendor_organization_id ?? ""}, true),
+          set_config('app.current_worker_id', ${workerId}, true),
+          set_config('app.current_consumer_execution_id', ${snapshot.execution_id}, true),
+          set_config('app.current_job_id', ${snapshot.background_job_id ?? ""}, true),
+          set_config('app.current_correlation_id', ${snapshot.correlation_id}, true)
+      `;
     return operation(transaction);
-  });
+  }, options);
 }
 
 async function heartbeat(): Promise<void> {
@@ -3345,49 +3346,59 @@ async function processCampaignFanout(
       "Campaign fan-out requires persisted workspace and actor",
       "CAMPAIGN_FANOUT_CONTEXT_INVALID",
     );
-  return withPersistedContext(snapshot, async (transaction) => {
-    const campaign = await transaction.campaign.findFirst({
-      where: { id: campaignId, workspaceId: snapshot.workspace_id! },
-    });
-    if (
-      !campaign ||
-      !["QUEUED", "SCHEDULED", "SENDING"].includes(campaign.status)
-    )
-      throw new PermanentJobError(
-        "Campaign is unavailable for fan-out",
-        "CAMPAIGN_FANOUT_INVALID",
-      );
-    const recipients = await transaction.campaignRecipient.findMany({
-      where: {
-        campaignId,
-        workspaceId: snapshot.workspace_id!,
-        status: "PENDING",
-      },
-      orderBy: { id: "asc" },
-    });
-    await transaction.campaign.update({
-      where: { id: campaign.id },
-      data: {
-        status: "SENDING",
-        startedAt: campaign.startedAt ?? new Date(),
-        version: { increment: 1 },
-      },
-    });
-    for (const recipient of recipients) {
-      await transaction.campaignRecipient.update({
-        where: { id: recipient.id },
+  return withPersistedContext(
+    snapshot,
+    async (transaction) => {
+      await transaction.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(
+          ${`invitation-site-workspace:${snapshot.workspace_id!}`},
+          0
+        )
+      )
+    `;
+      const campaign = await transaction.campaign.findFirst({
+        where: { id: campaignId, workspaceId: snapshot.workspace_id! },
+      });
+      if (
+        !campaign ||
+        !["QUEUED", "SCHEDULED", "SENDING"].includes(campaign.status)
+      )
+        throw new PermanentJobError(
+          "Campaign is unavailable for fan-out",
+          "CAMPAIGN_FANOUT_INVALID",
+        );
+      const recipients = await transaction.campaignRecipient.findMany({
+        where: {
+          campaignId,
+          workspaceId: snapshot.workspace_id!,
+          status: "PENDING",
+        },
+        orderBy: { id: "asc" },
+      });
+      await transaction.campaign.update({
+        where: { id: campaign.id },
         data: {
-          status: "QUEUED",
-          queuedAt: new Date(),
+          status: "SENDING",
+          startedAt: campaign.startedAt ?? new Date(),
           version: { increment: 1 },
         },
       });
-      const payload = {
-        occurredAt: new Date().toISOString(),
-        subject: { campaignId, campaignRecipientId: recipient.id },
-        campaignDelivery: { campaignRecipientId: recipient.id },
-      };
-      await transaction.$queryRaw`
+      for (const recipient of recipients) {
+        await transaction.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: {
+            status: "QUEUED",
+            queuedAt: new Date(),
+            version: { increment: 1 },
+          },
+        });
+        const payload = {
+          occurredAt: new Date().toISOString(),
+          subject: { campaignId, campaignRecipientId: recipient.id },
+          campaignDelivery: { campaignRecipientId: recipient.id },
+        };
+        await transaction.$queryRaw`
         SELECT public.weddingos_record_worker_derived_event(
           ${"campaign.recipient_delivery_requested.v1"}, ${"CampaignRecipient"},
           ${recipient.id}, CAST(${recipient.version + 1} AS integer), ${snapshot.workspace_id}::uuid,
@@ -3396,13 +3407,15 @@ async function processCampaignFanout(
           ${JSON.stringify(payload)}::jsonb
         )
       `;
-    }
-    return {
-      campaignId,
-      queuedRecipients: recipients.length,
-      deliveryIntentCommitted: true,
-    };
-  });
+      }
+      return {
+        campaignId,
+        queuedRecipients: recipients.length,
+        deliveryIntentCommitted: true,
+      };
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
 }
 
 async function processCampaignDelivery(
@@ -3467,14 +3480,13 @@ async function processCampaignDelivery(
         "CAMPAIGN_HOUSEHOLD_MISSING",
       );
     const token = createHmac("sha256", environment.OUTBOX_ENCRYPTION_KEY)
-      .update(
-        `guest-access:${invitationRecipient.id}:${invitationRecipient.invitationVersionId}`,
-      )
+      .update(`guest-access:v2:${invitationRecipient.id}:EMAIL`)
       .digest("base64url");
     const tokenHash = createHash("sha256").update(token).digest("hex");
     await transaction.guestAccessGrant.updateMany({
       where: {
         invitationRecipientId: invitationRecipient.id,
+        channel: "EMAIL",
         revokedAt: null,
         tokenHash: { not: tokenHash },
       },
@@ -3489,8 +3501,32 @@ async function processCampaignDelivery(
           workspaceId: snapshot.workspace_id!,
           invitationRecipientId: invitationRecipient.id,
           householdId,
+          channel: "EMAIL",
           tokenHash,
-          expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        },
+      });
+    } else if (
+      existingGrant.invitationRecipientId !== invitationRecipient.id ||
+      existingGrant.workspaceId !== snapshot.workspace_id
+    ) {
+      throw new PermanentJobError(
+        "Deterministic campaign grant collision",
+        "CAMPAIGN_GRANT_COLLISION",
+      );
+    } else if (
+      existingGrant.revokedAt ||
+      existingGrant.channel !== "EMAIL" ||
+      existingGrant.expiresAt ||
+      existingGrant.householdId !== householdId
+    ) {
+      await transaction.guestAccessGrant.update({
+        where: { id: existingGrant.id },
+        data: {
+          channel: "EMAIL",
+          householdId,
+          revokedAt: null,
+          expiresAt: null,
+          version: { increment: 1 },
         },
       });
     }
@@ -3518,89 +3554,301 @@ async function processCampaignDelivery(
       status: prepared.status,
     };
   }
-  const sent = await sendCampaignEmail(
-    prepared.recipient.address,
-    String(prepared.template.subject ?? "Invitația voastră Sarbato"),
-    String(
-      prepared.template.body ??
-        "Vă așteptăm cu drag. Confirmați participarea folosind linkul personal.",
-    ),
-    prepared.token,
-    snapshot.execution_id,
-  );
-  return withPersistedContext(snapshot, async (transaction) => {
-    await transaction.deliveryAttempt.upsert({
-      where: {
-        consumerExecutionId_attemptNumber: {
-          consumerExecutionId: snapshot.execution_id,
-          attemptNumber: snapshot.attempt_number,
+  return withPersistedContext(
+    snapshot,
+    async (transaction) => {
+      // Hold the same lifecycle lock used by publish/unpublish/cancel across the
+      // final provider call. This deliberately keeps a short transaction open so
+      // an invitation cannot be withdrawn (or a campaign cancelled) between the
+      // last eligibility check and the external email side effect.
+      await transaction.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(
+          ${`invitation-site-workspace:${snapshot.workspace_id!}`},
+          0
+        )
+      )
+    `;
+      const [
+        currentCampaign,
+        currentCampaignRecipient,
+        currentRecipient,
+        site,
+      ] = await Promise.all([
+        transaction.campaign.findFirst({
+          where: {
+            id: prepared.campaignId,
+            workspaceId: snapshot.workspace_id!,
+          },
+        }),
+        transaction.campaignRecipient.findFirst({
+          where: {
+            id: prepared.recipient.id,
+            workspaceId: snapshot.workspace_id!,
+          },
+        }),
+        transaction.invitationRecipient.findFirst({
+          where: {
+            id: prepared.invitationRecipient.id,
+            workspaceId: snapshot.workspace_id!,
+            revokedAt: null,
+          },
+        }),
+        transaction.invitationSite.findFirst({
+          where: {
+            id: prepared.invitationRecipient.invitationSiteId,
+            workspaceId: snapshot.workspace_id!,
+          },
+        }),
+      ]);
+      if (
+        !currentCampaign ||
+        !["QUEUED", "SENDING"].includes(currentCampaign.status) ||
+        !currentCampaignRecipient ||
+        !["PENDING", "QUEUED"].includes(currentCampaignRecipient.status) ||
+        !currentRecipient ||
+        !site ||
+        site.status !== "PUBLISHED" ||
+        !site.publishedVersionId
+      )
+        throw new PermanentJobError(
+          "Campaign delivery target is no longer publishable",
+          "CAMPAIGN_TARGET_INACTIVE",
+        );
+      if (
+        currentCampaign.purpose === "RSVP_REMINDER" &&
+        !["READY", "SENT", "OPENED", "PARTIALLY_RESPONDED"].includes(
+          currentRecipient.status,
+        )
+      ) {
+        await transaction.campaignRecipient.update({
+          where: { id: currentCampaignRecipient.id },
+          data: { status: "CANCELLED", version: { increment: 1 } },
+        });
+        await finalizeCampaignIfSettled(
+          transaction,
+          snapshot,
+          currentCampaign.id,
+        );
+        return {
+          campaignId: currentCampaign.id,
+          campaignRecipientId: currentCampaignRecipient.id,
+          skipped: true,
+          status: "rsvp_completed",
+        };
+      }
+      const deliveryTarget = await lockAndResolveCampaignTarget(
+        transaction,
+        snapshot.workspace_id!,
+        currentRecipient,
+      );
+      if (
+        !deliveryTarget ||
+        deliveryTarget.address !==
+          normalizeCampaignAddress(prepared.recipient.address)
+      )
+        throw new PermanentJobError(
+          "Campaign delivery address changed after audience confirmation",
+          "CAMPAIGN_ADDRESS_CHANGED",
+        );
+      await transaction.guestAccessGrant.updateMany({
+        where: {
+          invitationRecipientId: currentRecipient.id,
+          channel: "EMAIL",
+          revokedAt: null,
         },
-      },
-      create: {
-        consumerExecutionId: snapshot.execution_id,
-        workspaceId: snapshot.workspace_id,
-        vendorOrganizationId: snapshot.vendor_organization_id,
-        sourceType: "campaign_recipient",
-        sourceId: prepared.recipient.id,
-        provider: environment.EMAIL_PROVIDER,
-        recipientReference: recipientReference(prepared.recipient.address),
-        attemptNumber: snapshot.attempt_number,
-        outcome: "SUCCEEDED",
-        providerMessageId: sent.messageId,
-      },
-      update: {
-        outcome: "SUCCEEDED",
-        providerMessageId: sent.messageId,
-        finishedAt: new Date(),
-        errorCode: null,
-        errorMessage: null,
-      },
-    });
-    await transaction.campaignRecipient.update({
-      where: { id: prepared.recipient.id },
-      data: {
-        status: "SENT",
-        sentAt: new Date(),
-        providerMessageId: sent.messageId,
-        failureCode: null,
-        failedAt: null,
-        version: { increment: 1 },
-      },
-    });
-    await transaction.invitationRecipient.update({
-      where: { id: prepared.invitationRecipient.id },
-      data: { status: "SENT", version: { increment: 1 } },
-    });
-    await transaction.guestContactLog.upsert({
-      where: { sourceEventId: snapshot.outbox_message_id },
-      create: {
-        workspaceId: snapshot.workspace_id!,
-        guestId:
-          prepared.recipient.guestId ??
-          (
-            await transaction.guest.findFirstOrThrow({
-              where: { householdId: prepared.householdId, status: "ACTIVE" },
-              orderBy: { createdAt: "asc" },
-            })
-          ).id,
-        householdId: prepared.householdId,
-        channel: "EMAIL",
-        direction: "OUTBOUND",
+        data: {
+          householdId: deliveryTarget.householdId,
+          version: { increment: 1 },
+        },
+      });
+      const sent = await sendCampaignEmail(
+        prepared.recipient.address,
+        String(prepared.template.subject ?? "Invitația voastră Sarbato"),
+        String(
+          prepared.template.body ??
+            "Vă așteptăm cu drag. Confirmați participarea folosind linkul personal.",
+        ),
+        prepared.token,
+        snapshot.execution_id,
+      );
+      await transaction.deliveryAttempt.upsert({
+        where: {
+          consumerExecutionId_attemptNumber: {
+            consumerExecutionId: snapshot.execution_id,
+            attemptNumber: snapshot.attempt_number,
+          },
+        },
+        create: {
+          consumerExecutionId: snapshot.execution_id,
+          workspaceId: snapshot.workspace_id,
+          vendorOrganizationId: snapshot.vendor_organization_id,
+          sourceType: "campaign_recipient",
+          sourceId: prepared.recipient.id,
+          provider: environment.EMAIL_PROVIDER,
+          recipientReference: recipientReference(prepared.recipient.address),
+          attemptNumber: snapshot.attempt_number,
+          outcome: "SUCCEEDED",
+          providerMessageId: sent.messageId,
+        },
+        update: {
+          outcome: "SUCCEEDED",
+          providerMessageId: sent.messageId,
+          finishedAt: new Date(),
+          errorCode: null,
+          errorMessage: null,
+        },
+      });
+      await transaction.campaignRecipient.update({
+        where: { id: prepared.recipient.id },
+        data: {
+          status: "SENT",
+          sentAt: new Date(),
+          providerMessageId: sent.messageId,
+          failureCode: null,
+          failedAt: null,
+          version: { increment: 1 },
+        },
+      });
+      await transaction.invitationRecipient.updateMany({
+        where: {
+          workspaceId: snapshot.workspace_id!,
+          invitationSiteId: currentRecipient.invitationSiteId,
+          revokedAt: null,
+          status: { in: ["READY", "QUEUED"] },
+          ...(currentRecipient.householdId
+            ? { householdId: currentRecipient.householdId }
+            : { guestId: currentRecipient.guestId }),
+        },
+        data: { status: "SENT" },
+      });
+      await transaction.guestContactLog.upsert({
+        where: { sourceEventId: snapshot.outbox_message_id },
+        create: {
+          workspaceId: snapshot.workspace_id!,
+          guestId: deliveryTarget.guestId,
+          householdId: deliveryTarget.householdId,
+          channel: "EMAIL",
+          direction: "OUTBOUND",
+          campaignId: prepared.campaignId,
+          summaryRedacted: "Invitație trimisă prin campanie.",
+          occurredAt: new Date(),
+          sourceEventId: snapshot.outbox_message_id,
+        },
+        update: {},
+      });
+      await finalizeCampaignIfSettled(
+        transaction,
+        snapshot,
+        prepared.campaignId,
+      );
+      return {
         campaignId: prepared.campaignId,
-        summaryRedacted: "Invitație trimisă prin campanie.",
-        occurredAt: new Date(),
-        sourceEventId: snapshot.outbox_message_id,
-      },
-      update: {},
-    });
-    await finalizeCampaignIfSettled(transaction, snapshot, prepared.campaignId);
-    return {
-      campaignId: prepared.campaignId,
-      campaignRecipientId: prepared.recipient.id,
-      status: "sent",
-      providerMessageId: sent.messageId,
-    };
+        campaignRecipientId: prepared.recipient.id,
+        status: "sent",
+        providerMessageId: sent.messageId,
+      };
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
+}
+
+function normalizeCampaignAddress(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+async function lockAndResolveCampaignTarget(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  recipient: { householdId: string | null; guestId: string | null },
+): Promise<{ address: string; householdId: string; guestId: string } | null> {
+  const directGuest = recipient.guestId
+    ? ((
+        await transaction.$queryRaw<
+          Array<{
+            household_id: string;
+            status: string;
+            deleted_at: Date | null;
+            email_normalized: string | null;
+          }>
+        >`
+          SELECT "household_id", "status"::text, "deleted_at", "email_normalized"
+          FROM "guests"
+          WHERE "id" = ${recipient.guestId}::uuid
+            AND "workspace_id" = ${workspaceId}::uuid
+          FOR SHARE
+        `
+      )[0] ?? null)
+    : null;
+  const householdId = recipient.householdId ?? directGuest?.household_id;
+  if (!householdId) {
+    return recipient.guestId &&
+      directGuest?.status === "ACTIVE" &&
+      !directGuest.deleted_at &&
+      directGuest.email_normalized
+      ? {
+          address: normalizeCampaignAddress(directGuest.email_normalized),
+          householdId: directGuest.household_id,
+          guestId: recipient.guestId,
+        }
+      : null;
+  }
+  await transaction.$queryRaw`
+    SELECT "id"
+    FROM "guests"
+    WHERE "household_id" = ${householdId}::uuid
+      AND "workspace_id" = ${workspaceId}::uuid
+    ORDER BY "created_at" ASC, "id" ASC
+    FOR SHARE
+  `;
+  await transaction.$queryRaw`
+    SELECT "id"
+    FROM "households"
+    WHERE "id" = ${householdId}::uuid
+      AND "workspace_id" = ${workspaceId}::uuid
+    FOR SHARE
+  `;
+  const household = await transaction.household.findFirst({
+    where: {
+      id: householdId,
+      workspaceId,
+      deletedAt: null,
+    },
+    select: { primaryGuestId: true },
   });
+  if (!household) return null;
+  const guest = await transaction.guest.findFirst({
+    where: {
+      workspaceId,
+      householdId,
+      status: "ACTIVE",
+      deletedAt: null,
+      emailNormalized: { not: null },
+      ...(household.primaryGuestId ? { id: household.primaryGuestId } : {}),
+    },
+    select: { id: true, emailNormalized: true },
+  });
+  const fallback = guest
+    ? null
+    : await transaction.guest.findFirst({
+        where: {
+          workspaceId,
+          householdId,
+          status: "ACTIVE",
+          deletedAt: null,
+          emailNormalized: { not: null },
+        },
+        orderBy: [{ isChild: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, emailNormalized: true },
+      });
+  const target = guest ?? fallback;
+  return target?.emailNormalized
+    ? {
+        address: normalizeCampaignAddress(target.emailNormalized),
+        householdId,
+        guestId: target.id,
+      }
+    : null;
 }
 
 async function processCampaignSummary(
@@ -4599,6 +4847,7 @@ async function prepareGuestExport(
             where: {
               workspaceId: snapshot.workspace_id!,
               guestId: { in: guests.map((guest) => guest.id) },
+              active: true,
             },
           })
         : Promise.resolve([]),
@@ -4691,6 +4940,7 @@ async function prepareMenuExport(
             where: {
               workspaceId: snapshot.workspace_id!,
               guestId: { in: guestIds },
+              active: true,
             },
           })
         : Promise.resolve([]),
@@ -7302,8 +7552,12 @@ async function failConsumer(
         },
       });
       if (terminal && recipient) {
-        await transaction.campaignRecipient.update({
-          where: { id: recipient.id },
+        const failedRecipient = await transaction.campaignRecipient.updateMany({
+          where: {
+            id: recipient.id,
+            workspaceId: snapshot.workspace_id!,
+            status: { in: ["PENDING", "QUEUED"] },
+          },
           data: {
             status: "FAILED",
             failedAt: new Date(),
@@ -7311,11 +7565,12 @@ async function failConsumer(
             version: { increment: 1 },
           },
         });
-        await finalizeCampaignIfSettled(
-          transaction,
-          snapshot,
-          recipient.campaignId,
-        );
+        if (failedRecipient.count)
+          await finalizeCampaignIfSettled(
+            transaction,
+            snapshot,
+            recipient.campaignId,
+          );
       }
     }
     if (terminal && snapshot.consumer_name === "rfq_delivery") {
@@ -7437,6 +7692,9 @@ async function sendEmail(
     host: environment.SMTP_HOST,
     port: environment.SMTP_PORT,
     secure: false,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
     ...(environment.SMTP_USER && environment.SMTP_PASSWORD
       ? {
           auth: {
@@ -7471,6 +7729,9 @@ async function sendCampaignEmail(
     host: environment.SMTP_HOST,
     port: environment.SMTP_PORT,
     secure: false,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
     ...(environment.SMTP_USER && environment.SMTP_PASSWORD
       ? {
           auth: {
@@ -7486,6 +7747,9 @@ async function sendCampaignEmail(
     from: environment.EMAIL_FROM,
     to: recipient,
     messageId: `<campaign-${executionId}@weddingos.local>`,
+    // Resend SMTP honors this provider-side idempotency key for 24 hours, so
+    // a crash after provider acceptance can safely retry without a duplicate.
+    headers: { "Resend-Idempotency-Key": `campaign/${executionId}` },
     subject: subject.slice(0, 180),
     text,
     html: `<p>${escapeHtml(body)}</p><p><a href="${escapeHtml(url)}">Deschide invitația și răspunde</a></p>`,

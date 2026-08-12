@@ -19,6 +19,19 @@ Development, test, staging and production use separate databases, Redis instance
 5. Run `/health`, `/ready`, internal metrics, authentication and representative workspace/provider smoke tests. Webhooks must retain raw-body signature verification and event dedupe.
 6. Promote only after two-person approval for production. Roll back application artifacts if checks fail; database rollback uses an explicit forward repair or validated restore, never an unreviewed down migration.
 
+### Invitation Studio V2 rollback boundary
+
+`20260812120000_invitation_studio_v2` changes the guest-media RLS contract as
+well as the invitation schema. After this migration is applied, rolling back
+only API, worker, or web images is forbidden: the previous API does not set the
+object-scoped invitation-media transaction context and would deny guest media.
+Keep public mutations closed until the V2 API, worker, web, media, invitation,
+and RSVP probes pass. If the post-migration gate fails before traffic reopens,
+stop the new services, restore the exact verified pre-deploy database and object
+backup, and only then start the previous release. After new writes are accepted,
+prefer a forward repair; restoring the old backup is an explicit data-loss
+decision.
+
 ## Required external gates
 
 - staging domain and TLS proof;

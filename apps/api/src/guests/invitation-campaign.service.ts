@@ -1,15 +1,28 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
-import type { CreateCampaign, SaveInvitationDraft } from "@weddingos/contracts";
+import {
+  invitationContainsStarterContent,
+  type ApplyInvitationSync,
+  type CreateCampaign,
+  type CreateInvitationVariant,
+  type InvitationVariantOverrides,
+  type SaveInvitationDraft,
+  type SaveInvitationVariantDraft,
+} from "@weddingos/contracts";
 import type { ApiEnvironment } from "@weddingos/config";
-import type { Prisma } from "@weddingos/database";
+import { Prisma } from "@weddingos/database";
 import QRCode from "qrcode";
 import { AsyncService } from "../async/async.service";
 import { DatabaseService } from "../common/database.service";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
 import { mapJob } from "../jobs/jobs.service";
-import { createOpaqueToken, hashToken, stableHash } from "./sensitive.crypto";
+import {
+  invitationMediaReferences,
+  resolveInvitationVariant,
+  visibleInvitationDocument,
+} from "./invitation-resolution";
+import { hashToken, stableHash } from "./sensitive.crypto";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -43,6 +56,7 @@ export class InvitationCampaignService {
     return this.database.withContext(
       { userId, workspaceId, correlationId },
       async (tx) => {
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
         let site = await tx.invitationSite.findUnique({
           where: { workspaceId },
         });
@@ -128,6 +142,7 @@ export class InvitationCampaignService {
           { workspaceId, expectedVersion },
         );
         if (prior) return prior;
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
         const site = await tx.invitationSite.findUnique({
           where: { workspaceId },
         });
@@ -135,6 +150,9 @@ export class InvitationCampaignService {
         if (site.version !== expectedVersion) conflict(site.version);
         if (!site.currentDraftVersionId)
           validation("Save an invitation draft before publishing");
+        const preflight = await this.preflightInTransaction(tx, workspaceId);
+        if (!preflight.ready)
+          validation(preflight.errors.map((issue) => issue.message).join(" "));
         const [draft, form, eventCount] = await Promise.all([
           tx.invitationVersion.findUnique({
             where: { id: site.currentDraftVersionId },
@@ -160,6 +178,61 @@ export class InvitationCampaignService {
           where: { id: draft.id },
           data: { publishedAt: now },
         });
+        const activeVariants = await tx.invitationVariant.findMany({
+          where: { invitationSiteId: site.id, workspaceId, status: "ACTIVE" },
+          orderBy: { createdAt: "asc" },
+        });
+        for (const variant of activeVariants) {
+          const sourceVersionId =
+            variant.currentDraftVersionId ?? variant.publishedVersionId;
+          if (!sourceVersionId)
+            validation(`Variant ${variant.name} has no publishable draft`);
+          const source = await tx.invitationVariantVersion.findFirst({
+            where: {
+              id: sourceVersionId,
+              workspaceId,
+              invitationVariantId: variant.id,
+            },
+          });
+          if (!source)
+            validation(`Variant ${variant.name} has no publishable draft`);
+          let publishedVariantVersionId = source.id;
+          if (source.baseInvitationVersionId !== draft.id) {
+            const latest = await tx.invitationVariantVersion.findFirst({
+              where: { invitationVariantId: variant.id },
+              orderBy: { versionNumber: "desc" },
+            });
+            const snapshot = await tx.invitationVariantVersion.create({
+              data: {
+                workspaceId,
+                invitationVariantId: variant.id,
+                baseInvitationVersionId: draft.id,
+                versionNumber: (latest?.versionNumber ?? 0) + 1,
+                overrides: source.overrides as Prisma.InputJsonValue,
+                createdById: userId,
+                publishedAt: now,
+                contentHash: stableHash({
+                  baseInvitationVersionId: draft.id,
+                  overrides: source.overrides,
+                }),
+              },
+            });
+            publishedVariantVersionId = snapshot.id;
+          } else {
+            await tx.invitationVariantVersion.update({
+              where: { id: source.id },
+              data: { publishedAt: now },
+            });
+          }
+          await tx.invitationVariant.update({
+            where: { id: variant.id },
+            data: {
+              currentDraftVersionId: publishedVariantVersionId,
+              publishedVersionId: publishedVariantVersionId,
+              version: { increment: 1 },
+            },
+          });
+        }
         const updated = await tx.invitationSite.update({
           where: { id: site.id },
           data: {
@@ -167,6 +240,13 @@ export class InvitationCampaignService {
             status: "PUBLISHED",
             publishedAt: now,
             version: { increment: 1 },
+          },
+        });
+        const recipientCount = await tx.invitationRecipient.count({
+          where: {
+            workspaceId,
+            invitationSiteId: site.id,
+            revokedAt: null,
           },
         });
         await this.event(tx, {
@@ -179,7 +259,14 @@ export class InvitationCampaignService {
           action: "invitation_published",
           summary: "Invitația digitală a fost publicată.",
         });
-        const response = await this.siteInTransaction(tx, workspaceId);
+        const response = {
+          ...(await this.siteInTransaction(tx, workspaceId)),
+          publication: {
+            baseVersionId: draft.id,
+            variantCount: activeVariants.length,
+            recipientCount,
+          },
+        };
         await saveReplay(
           tx,
           userId,
@@ -203,6 +290,7 @@ export class InvitationCampaignService {
     return this.database.withContext(
       { userId, workspaceId, correlationId },
       async (tx) => {
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
         const site = await tx.invitationSite.findUnique({
           where: { workspaceId },
         });
@@ -239,6 +327,440 @@ export class InvitationCampaignService {
     });
   }
 
+  async versions(userId: string, workspaceId: string, cursor?: string) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const site = await tx.invitationSite.findUnique({
+        where: { workspaceId },
+      });
+      if (!site) notFound("Invitation site not found");
+      const rows = await tx.invitationVersion.findMany({
+        where: { workspaceId, invitationSiteId: site.id },
+        orderBy: [{ versionNumber: "desc" }, { id: "desc" }],
+        take: 21,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+      return {
+        items: rows.slice(0, 20).map((row) => ({
+          id: row.id,
+          versionNumber: row.versionNumber,
+          document: row.document,
+          settings: row.settings,
+          language: row.language,
+          contentHash: row.contentHash,
+          createdAt: row.createdAt.toISOString(),
+          publishedAt: iso(row.publishedAt),
+          isCurrentDraft: site.currentDraftVersionId === row.id,
+          isPublished: site.publishedVersionId === row.id,
+        })),
+        nextCursor: rows.length > 20 ? rows[19]!.id : null,
+      };
+    });
+  }
+
+  async restoreVersion(
+    userId: string,
+    workspaceId: string,
+    versionId: string,
+    expectedVersion: number,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const input = { workspaceId, versionId, expectedVersion };
+        const prior = await replay(
+          tx,
+          userId,
+          "invitation.version.restore",
+          idempotencyKey,
+          input,
+        );
+        if (prior) return prior;
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
+        const site = await tx.invitationSite.findUnique({
+          where: { workspaceId },
+        });
+        if (!site) notFound("Invitation site not found");
+        if (site.version !== expectedVersion) conflict(site.version);
+        const source = await tx.invitationVersion.findFirst({
+          where: { id: versionId, workspaceId, invitationSiteId: site.id },
+        });
+        if (!source) notFound("Invitation version not found");
+        const latest = await tx.invitationVersion.findFirst({
+          where: { invitationSiteId: site.id },
+          orderBy: { versionNumber: "desc" },
+        });
+        const restored = await tx.invitationVersion.create({
+          data: {
+            workspaceId,
+            invitationSiteId: site.id,
+            versionNumber: (latest?.versionNumber ?? 0) + 1,
+            document: source.document as Prisma.InputJsonValue,
+            settings: source.settings as Prisma.InputJsonValue,
+            language: source.language,
+            createdById: userId,
+            contentHash: source.contentHash,
+          },
+        });
+        const updated = await tx.invitationSite.update({
+          where: { id: site.id },
+          data: {
+            currentDraftVersionId: restored.id,
+            version: { increment: 1 },
+          },
+        });
+        await this.event(tx, {
+          eventName: "invitation.version_restored.v1",
+          aggregateId: site.id,
+          aggregateVersion: updated.version,
+          workspaceId,
+          actorUserId: userId,
+          correlationId,
+          action: "invitation_version_restored",
+          summary: `Versiunea ${source.versionNumber} a fost copiată într-un draft nou.`,
+        });
+        const response = await this.siteInTransaction(tx, workspaceId);
+        await saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          "invitation.version.restore",
+          idempotencyKey,
+          input,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async variants(userId: string, workspaceId: string) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => ({
+      items: await this.variantsInTransaction(tx, workspaceId),
+    }));
+  }
+
+  async createVariant(
+    userId: string,
+    workspaceId: string,
+    idempotencyKey: string,
+    input: CreateInvitationVariant,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const prior = await replay(
+          tx,
+          userId,
+          "invitation.variant.create",
+          idempotencyKey,
+          input,
+        );
+        if (prior) return prior;
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
+        const site = await tx.invitationSite.findUnique({
+          where: { workspaceId },
+        });
+        if (!site?.currentDraftVersionId)
+          validation("Save an invitation draft before creating variants");
+        const duplicate = await tx.invitationVariant.findFirst({
+          where: { invitationSiteId: site.id, code: input.code },
+        });
+        if (duplicate) validation("Invitation variant code is already in use");
+        this.validateVariantOverrides(
+          input.overrides,
+          await this.draftSectionIds(tx, site),
+        );
+        const variant = await tx.invitationVariant.create({
+          data: {
+            workspaceId,
+            invitationSiteId: site.id,
+            name: input.name,
+            code: input.code,
+            createdById: userId,
+          },
+        });
+        const draft = await tx.invitationVariantVersion.create({
+          data: {
+            workspaceId,
+            invitationVariantId: variant.id,
+            baseInvitationVersionId: site.currentDraftVersionId,
+            versionNumber: 1,
+            overrides: input.overrides as Prisma.InputJsonValue,
+            createdById: userId,
+            contentHash: stableHash(input.overrides),
+          },
+        });
+        const updated = await tx.invitationVariant.update({
+          where: { id: variant.id },
+          data: { currentDraftVersionId: draft.id, version: { increment: 1 } },
+        });
+        await this.event(tx, {
+          eventName: "invitation.variant_created.v1",
+          aggregateType: "InvitationVariant",
+          aggregateId: updated.id,
+          invitationSiteId: site.id,
+          aggregateVersion: updated.version,
+          workspaceId,
+          actorUserId: userId,
+          correlationId,
+          action: "invitation_variant_created",
+          summary: `Varianta ${updated.name} a fost creată.`,
+        });
+        const response = await this.mapVariant(tx, updated);
+        await saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          "invitation.variant.create",
+          idempotencyKey,
+          input,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async saveVariantDraft(
+    userId: string,
+    workspaceId: string,
+    variantId: string,
+    expectedVersion: number,
+    input: SaveInvitationVariantDraft,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
+        const variant = await tx.invitationVariant.findFirst({
+          where: { id: variantId, workspaceId },
+        });
+        if (!variant) notFound("Invitation variant not found");
+        if (variant.version !== expectedVersion) conflict(variant.version);
+        if (variant.status !== "ACTIVE")
+          validation("Archived variants cannot be edited");
+        const site = await tx.invitationSite.findFirst({
+          where: { id: variant.invitationSiteId, workspaceId },
+        });
+        if (!site?.currentDraftVersionId)
+          validation("Save an invitation draft before editing variants");
+        this.validateVariantOverrides(
+          input.overrides,
+          await this.draftSectionIds(tx, site),
+        );
+        const latest = await tx.invitationVariantVersion.findFirst({
+          where: { invitationVariantId: variant.id },
+          orderBy: { versionNumber: "desc" },
+        });
+        const draft = await tx.invitationVariantVersion.create({
+          data: {
+            workspaceId,
+            invitationVariantId: variant.id,
+            baseInvitationVersionId: site.currentDraftVersionId,
+            versionNumber: (latest?.versionNumber ?? 0) + 1,
+            overrides: input.overrides as Prisma.InputJsonValue,
+            createdById: userId,
+            contentHash: stableHash(input.overrides),
+          },
+        });
+        const updated = await tx.invitationVariant.update({
+          where: { id: variant.id },
+          data: {
+            ...(input.name === undefined ? {} : { name: input.name }),
+            currentDraftVersionId: draft.id,
+            version: { increment: 1 },
+          },
+        });
+        await this.event(tx, {
+          eventName: "invitation.variant_draft_updated.v1",
+          aggregateType: "InvitationVariant",
+          aggregateId: updated.id,
+          invitationSiteId: site.id,
+          aggregateVersion: updated.version,
+          workspaceId,
+          actorUserId: userId,
+          correlationId,
+          action: "invitation_variant_draft_updated",
+          summary: `Draftul variantei ${updated.name} a fost salvat.`,
+        });
+        return this.mapVariant(tx, updated);
+      },
+    );
+  }
+
+  async archiveVariant(
+    userId: string,
+    workspaceId: string,
+    variantId: string,
+    expectedVersion: number,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
+        const variant = await tx.invitationVariant.findFirst({
+          where: { id: variantId, workspaceId },
+        });
+        if (!variant) notFound("Invitation variant not found");
+        if (variant.version !== expectedVersion) conflict(variant.version);
+        const assignedRecipients = await tx.invitationRecipient.count({
+          where: {
+            workspaceId,
+            invitationVariantId: variant.id,
+            revokedAt: null,
+          },
+        });
+        if (assignedRecipients)
+          validation(
+            `Mută cei ${assignedRecipients} destinatari pe invitația de bază sau pe altă variantă înainte de arhivare.`,
+          );
+        const updated = await tx.invitationVariant.update({
+          where: { id: variant.id },
+          data: { status: "ARCHIVED", version: { increment: 1 } },
+        });
+        await this.event(tx, {
+          eventName: "invitation.variant_archived.v1",
+          aggregateType: "InvitationVariant",
+          aggregateId: updated.id,
+          invitationSiteId: variant.invitationSiteId,
+          aggregateVersion: updated.version,
+          workspaceId,
+          actorUserId: userId,
+          correlationId,
+          action: "invitation_variant_archived",
+          summary: `Varianta ${updated.name} a fost arhivată.`,
+        });
+        return this.mapVariant(tx, updated);
+      },
+    );
+  }
+
+  async preflight(userId: string, workspaceId: string) {
+    return this.database.withContext({ userId, workspaceId }, (tx) =>
+      this.preflightInTransaction(tx, workspaceId),
+    );
+  }
+
+  async syncPreview(userId: string, workspaceId: string) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const site = await tx.invitationSite.findUnique({
+        where: { workspaceId },
+      });
+      if (!site?.currentDraftVersionId) notFound("Invitation draft not found");
+      return this.syncPreviewInTransaction(
+        tx,
+        workspaceId,
+        site.currentDraftVersionId,
+      );
+    });
+  }
+
+  async syncApply(
+    userId: string,
+    workspaceId: string,
+    expectedVersion: number,
+    idempotencyKey: string,
+    input: ApplyInvitationSync,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const replayInput = { workspaceId, expectedVersion, ...input };
+        const prior = await replay(
+          tx,
+          userId,
+          "invitation.sync.apply",
+          idempotencyKey,
+          replayInput,
+        );
+        if (prior) return prior;
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
+        const site = await tx.invitationSite.findUnique({
+          where: { workspaceId },
+        });
+        if (!site?.currentDraftVersionId)
+          notFound("Invitation draft not found");
+        if (site.version !== expectedVersion) conflict(site.version);
+        const preview = await this.syncPreviewInTransaction(
+          tx,
+          workspaceId,
+          site.currentDraftVersionId,
+        );
+        if (preview.sourceRevision !== input.sourceRevision)
+          problem(
+            "VERSION_CONFLICT",
+            HttpStatus.CONFLICT,
+            "Connected invitation sources changed; review the preview again",
+          );
+        const selected = new Set(input.paths);
+        const applicable = preview.differences.filter((item) =>
+          selected.has(item.path),
+        );
+        if (applicable.length !== selected.size)
+          validation("One or more selected sync paths are no longer available");
+        const draft = await tx.invitationVersion.findUniqueOrThrow({
+          where: { id: site.currentDraftVersionId },
+        });
+        const document = cloneRecord(draft.document);
+        applySyncDifferences(document, applicable);
+        const latest = await tx.invitationVersion.findFirst({
+          where: { invitationSiteId: site.id },
+          orderBy: { versionNumber: "desc" },
+        });
+        const synced = await tx.invitationVersion.create({
+          data: {
+            workspaceId,
+            invitationSiteId: site.id,
+            versionNumber: (latest?.versionNumber ?? 0) + 1,
+            document: document as Prisma.InputJsonValue,
+            settings: draft.settings as Prisma.InputJsonValue,
+            language: draft.language,
+            createdById: userId,
+            contentHash: stableHash({
+              document,
+              settings: draft.settings,
+              language: draft.language,
+            }),
+          },
+        });
+        const updated = await tx.invitationSite.update({
+          where: { id: site.id },
+          data: {
+            currentDraftVersionId: synced.id,
+            version: { increment: 1 },
+          },
+        });
+        await this.event(tx, {
+          eventName: "invitation.connected_data_applied.v1",
+          aggregateId: site.id,
+          aggregateVersion: updated.version,
+          workspaceId,
+          actorUserId: userId,
+          correlationId,
+          action: "invitation_connected_data_applied",
+          summary: `${applicable.length} câmpuri conectate au fost aplicate într-un draft nou.`,
+        });
+        const response = await this.siteInTransaction(tx, workspaceId);
+        await saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          "invitation.sync.apply",
+          idempotencyKey,
+          replayInput,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
   async createRecipients(
     userId: string,
     workspaceId: string,
@@ -246,12 +768,18 @@ export class InvitationCampaignService {
     householdIds: string[],
     guestIds: string[],
     invitationVersionId: string | undefined,
+    invitationVariantId: string | null | undefined,
     correlationId: string,
   ) {
     return this.database.withContext(
       { userId, workspaceId, correlationId },
       async (tx) => {
-        const input = { householdIds, guestIds, invitationVersionId };
+        const input = {
+          householdIds,
+          guestIds,
+          invitationVersionId,
+          invitationVariantId,
+        };
         const prior = await replay(
           tx,
           userId,
@@ -260,6 +788,7 @@ export class InvitationCampaignService {
           input,
         );
         if (prior) return prior;
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
         const site = await tx.invitationSite.findUnique({
           where: { workspaceId },
         });
@@ -269,73 +798,208 @@ export class InvitationCampaignService {
           where: { id: versionId, workspaceId, publishedAt: { not: null } },
         });
         if (!version) validation("Invitation version is not published");
+        if (!site || version.invitationSiteId !== site.id)
+          validation("Invitation version does not belong to the active site");
+        if (invitationVariantId) {
+          const variant = await tx.invitationVariant.findFirst({
+            where: {
+              id: invitationVariantId,
+              workspaceId,
+              invitationSiteId: site.id,
+              status: "ACTIVE",
+            },
+          });
+          if (!variant) validation("Invitation variant is unavailable");
+          const publishedVariant = variant.publishedVersionId
+            ? await tx.invitationVariantVersion.findFirst({
+                where: {
+                  id: variant.publishedVersionId,
+                  invitationVariantId: variant.id,
+                  workspaceId,
+                  baseInvitationVersionId: version.id,
+                  publishedAt: { not: null },
+                },
+              })
+            : null;
+          if (!publishedVariant)
+            validation(
+              "Publică varianta împreună cu invitația curentă înainte să o atribui destinatarilor.",
+            );
+        }
+        const uniqueHouseholdIds = [...new Set(householdIds)];
+        const uniqueGuestIds = [...new Set(guestIds)];
+        const guests = await tx.guest.findMany({
+          where: {
+            id: { in: uniqueGuestIds },
+            workspaceId,
+            status: "ACTIVE",
+          },
+        });
+        const guestsById = new Map(guests.map((guest) => [guest.id, guest]));
+        for (const guestId of uniqueGuestIds)
+          if (!guestsById.has(guestId)) notFound("Guest not found");
+
+        const resolvedHouseholdIds = [
+          ...new Set([
+            ...uniqueHouseholdIds,
+            ...guests.map((guest) => guest.householdId).filter(Boolean),
+          ]),
+        ];
+        const households = await tx.household.findMany({
+          where: { id: { in: resolvedHouseholdIds }, workspaceId },
+        });
+        const householdsById = new Map(
+          households.map((household) => [household.id, household]),
+        );
+        for (const householdId of uniqueHouseholdIds) {
+          const household = householdsById.get(householdId);
+          if (!household || household.deletedAt)
+            notFound("Household not found");
+        }
+
+        type RecipientTarget =
+          { kind: "household"; id: string } | { kind: "guest"; id: string };
+        const targets: RecipientTarget[] = [];
+        const targetKeys = new Set<string>();
+        const addTarget = (target: RecipientTarget) => {
+          const key = `${target.kind}:${target.id}`;
+          if (targetKeys.has(key)) return;
+          targetKeys.add(key);
+          targets.push(target);
+        };
+        for (const householdId of uniqueHouseholdIds)
+          addTarget({ kind: "household", id: householdId });
+        for (const guestId of uniqueGuestIds) {
+          const guest = guestsById.get(guestId)!;
+          const household = householdsById.get(guest.householdId);
+          addTarget(
+            household
+              ? { kind: "household", id: household.id }
+              : { kind: "guest", id: guest.id },
+          );
+        }
+        if (targets.length > 500)
+          validation(
+            "Poți pregăti cel mult 500 de destinatari într-o singură operațiune.",
+          );
+
+        // Nullable identity columns cannot provide cross-column uniqueness in
+        // PostgreSQL. Serialize every canonical site-scoped identity before
+        // looking it up so concurrent household/member requests cannot create
+        // two active delivery rows. Sorting prevents overlapping batches from
+        // taking the same advisory locks in a different order.
+        for (const targetKey of [...targetKeys].sort())
+          await tx.$executeRaw`
+            SELECT pg_advisory_xact_lock(
+              hashtextextended(${`invitation-recipient:${site.id}:${targetKey}`}, 0)
+            )
+          `;
+
+        const targetHouseholdIds = targets
+          .filter(
+            (
+              target,
+            ): target is Extract<RecipientTarget, { kind: "household" }> =>
+              target.kind === "household",
+          )
+          .map((target) => target.id);
+        const householdMembers = targetHouseholdIds.length
+          ? await tx.guest.findMany({
+              where: {
+                workspaceId,
+                householdId: { in: targetHouseholdIds },
+              },
+              select: { id: true, householdId: true },
+            })
+          : [];
+        const memberIdsByHousehold = new Map<string, string[]>();
+        for (const member of householdMembers) {
+          const memberIds = memberIdsByHousehold.get(member.householdId) ?? [];
+          memberIds.push(member.id);
+          memberIdsByHousehold.set(member.householdId, memberIds);
+        }
+
         let created = 0;
         const recipientIds: string[] = [];
-        for (const householdId of [...new Set(householdIds)]) {
-          const household = await tx.household.findFirst({
-            where: { id: householdId, workspaceId, deletedAt: null },
+        for (const target of targets) {
+          const household =
+            target.kind === "household" ? householdsById.get(target.id)! : null;
+          const guest =
+            target.kind === "guest" ? guestsById.get(target.id)! : null;
+          const memberGuestIds = household
+            ? (memberIdsByHousehold.get(household.id) ?? [])
+            : [];
+          const identityWhere = household
+            ? {
+                OR: [
+                  { householdId: household.id },
+                  { guestId: { in: memberGuestIds } },
+                ],
+              }
+            : { guestId: guest!.id };
+          const identityRows = await tx.invitationRecipient.findMany({
+            where: {
+              workspaceId,
+              invitationSiteId: site.id,
+              revokedAt: null,
+              ...identityWhere,
+            },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           });
-          if (!household) notFound("Household not found");
-          const existing = await tx.invitationRecipient.findFirst({
-            where: { invitationVersionId: versionId, householdId },
-          });
-          const recipient =
-            existing ??
-            (await tx.invitationRecipient.create({
+          const directHouseholdRecipient = household
+            ? identityRows.find(
+                (recipient) => recipient.householdId === household.id,
+              )
+            : null;
+          const existing = directHouseholdRecipient ?? identityRows[0];
+          const preferredLanguage =
+            household?.preferredLanguage ?? guest!.preferredLanguage;
+          if (household && existing && !directHouseholdRecipient)
+            await tx.invitationRecipient.update({
+              where: { id: existing.id },
               data: {
-                workspaceId,
-                householdId,
-                invitationVersionId: versionId,
-                preferredLanguage: household.preferredLanguage,
-                personalizationSnapshot: {
-                  householdName: household.name,
-                },
-              },
-            }));
-          if (!existing) created += 1;
-          recipientIds.push(recipient.id);
-          if (!existing)
-            await tx.guestAccessGrant.create({
-              data: {
-                workspaceId,
-                invitationRecipientId: recipient.id,
-                householdId,
-                tokenHash: hashToken(createOpaqueToken()),
-              },
-            });
-        }
-        for (const guestId of [...new Set(guestIds)]) {
-          const guest = await tx.guest.findFirst({
-            where: { id: guestId, workspaceId, status: "ACTIVE" },
-          });
-          if (!guest) notFound("Guest not found");
-          const existing = await tx.invitationRecipient.findFirst({
-            where: { invitationVersionId: versionId, guestId },
-          });
-          const recipient =
-            existing ??
-            (await tx.invitationRecipient.create({
-              data: {
-                workspaceId,
-                guestId,
-                invitationVersionId: versionId,
-                preferredLanguage: guest.preferredLanguage,
-                personalizationSnapshot: {
-                  guestName: `${guest.firstName} ${guest.lastName}`.trim(),
-                },
-              },
-            }));
-          if (!existing) created += 1;
-          recipientIds.push(recipient.id);
-          if (!existing)
-            await tx.guestAccessGrant.create({
-              data: {
-                workspaceId,
-                invitationRecipientId: recipient.id,
-                householdId: guest.householdId,
-                tokenHash: hashToken(createOpaqueToken()),
+                householdId: household.id,
+                guestId: null,
+                personalizationSnapshot: { householdName: household.name },
               },
             });
+          if (existing)
+            await tx.invitationRecipient.updateMany({
+              where: {
+                id: { in: identityRows.map((recipient) => recipient.id) },
+              },
+              data: {
+                invitationVersionId: versionId,
+                ...(invitationVariantId === undefined
+                  ? {}
+                  : { invitationVariantId }),
+                preferredLanguage,
+                version: { increment: 1 },
+              },
+            });
+          const recipient = existing
+            ? await tx.invitationRecipient.findUniqueOrThrow({
+                where: { id: existing.id },
+              })
+            : await tx.invitationRecipient.create({
+                data: {
+                  workspaceId,
+                  householdId: household?.id,
+                  guestId: guest?.id,
+                  invitationSiteId: site.id,
+                  invitationVersionId: versionId,
+                  invitationVariantId: invitationVariantId ?? null,
+                  preferredLanguage,
+                  personalizationSnapshot: household
+                    ? { householdName: household.name }
+                    : {
+                        guestName:
+                          `${guest!.firstName} ${guest!.lastName}`.trim(),
+                      },
+                },
+              });
+          if (!existing) created += 1;
+          recipientIds.push(recipient.id);
         }
         await this.event(tx, {
           eventName: "invitation.recipients_created.v1",
@@ -359,6 +1023,7 @@ export class InvitationCampaignService {
         );
         return response;
       },
+      { timeout: 60_000, maxWait: 10_000 },
     );
   }
 
@@ -382,6 +1047,7 @@ export class InvitationCampaignService {
           input,
         );
         if (prior) return prior;
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
         const campaign = await tx.campaign.findFirst({
           where: { id: campaignId, workspaceId },
         });
@@ -434,7 +1100,7 @@ export class InvitationCampaignService {
     );
   }
 
-  async sendRsvpReminder(
+  async prepareRsvpReminder(
     userId: string,
     workspaceId: string,
     guestIds: string[],
@@ -471,50 +1137,270 @@ export class InvitationCampaignService {
       typeof campaign.version !== "number"
     )
       throw new Error("Campaign replay response is invalid");
-    return this.transition(
+    const audience = await this.audiencePreview(
       userId,
       workspaceId,
       campaign.id,
-      campaign.version,
-      `${idempotencyKey}:send`,
-      "SEND_NOW",
-      undefined,
-      correlationId,
     );
+    return { campaign, audience };
   }
 
   async recipients(userId: string, workspaceId: string, cursor?: string) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
-      const rows = await tx.invitationRecipient.findMany({
-        where: { workspaceId },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 51,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      const cursorRow = cursor
+        ? await tx.invitationRecipient.findFirst({
+            where: { id: cursor, workspaceId, revokedAt: null },
+            select: { id: true, createdAt: true },
+          })
+        : null;
+      if (cursor && !cursorRow) validation("Recipient cursor is invalid");
+      const afterCursor = cursorRow
+        ? Prisma.sql`AND (ranked."created_at", ranked."id") > (${cursorRow.createdAt}, ${cursorRow.id}::uuid)`
+        : Prisma.empty;
+      const canonicalIds = await tx.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`
+          WITH ranked AS (
+            SELECT
+              recipient."id",
+              recipient."created_at",
+              ROW_NUMBER() OVER (
+                PARTITION BY
+                  recipient."invitation_site_id",
+                  CASE
+                    WHEN COALESCE(recipient."household_id", member."household_id") IS NOT NULL
+                      THEN 'household:' || COALESCE(recipient."household_id", member."household_id")::text
+                    WHEN recipient."guest_id" IS NOT NULL
+                      THEN 'guest:' || recipient."guest_id"::text
+                    ELSE 'recipient:' || recipient."id"::text
+                  END
+                ORDER BY
+                  CASE WHEN recipient."household_id" IS NOT NULL THEN 0 ELSE 1 END ASC,
+                  recipient."created_at" ASC,
+                  recipient."id" ASC
+              ) AS identity_position
+            FROM "invitation_recipients" recipient
+            LEFT JOIN "guests" member
+              ON member."id" = recipient."guest_id"
+              AND member."workspace_id" = recipient."workspace_id"
+            WHERE recipient."workspace_id" = ${workspaceId}::uuid
+              AND recipient."revoked_at" IS NULL
+          )
+          SELECT ranked."id"
+          FROM ranked
+          WHERE ranked.identity_position = 1
+            ${afterCursor}
+          ORDER BY ranked."created_at" ASC, ranked."id" ASC
+          LIMIT 51
+        `,
+      );
+      const pageIds = canonicalIds.slice(0, 50).map((row) => row.id);
+      const unorderedRows = await tx.invitationRecipient.findMany({
+        where: { id: { in: pageIds }, workspaceId, revokedAt: null },
       });
+      const byId = new Map(unorderedRows.map((row) => [row.id, row]));
+      const rows = pageIds
+        .map((id) => byId.get(id))
+        .filter((row): row is NonNullable<typeof row> => Boolean(row));
+      const guestIds = rows
+        .map((row) => row.guestId)
+        .filter((id): id is string => Boolean(id));
+      const guestRows = await tx.guest.findMany({
+        where: { id: { in: guestIds }, workspaceId },
+        select: {
+          id: true,
+          householdId: true,
+          firstName: true,
+          lastName: true,
+          displayName: true,
+        },
+      });
+      const guests = new Map(guestRows.map((row) => [row.id, row]));
+      const canonicalHouseholdId = (row: (typeof rows)[number]) =>
+        row.householdId ??
+        (row.guestId ? guests.get(row.guestId)?.householdId : null) ??
+        null;
       const householdIds = rows
-        .map((row) => row.householdId)
+        .map(canonicalHouseholdId)
         .filter((id): id is string => Boolean(id));
       const households = new Map(
         (
-          await tx.household.findMany({ where: { id: { in: householdIds } } })
+          await tx.household.findMany({
+            where: { id: { in: householdIds }, workspaceId },
+          })
+        ).map((row) => [row.id, row.name]),
+      );
+      const variantIds = rows
+        .map((row) => row.invitationVariantId)
+        .filter((id): id is string => Boolean(id));
+      const variants = new Map(
+        (
+          await tx.invitationVariant.findMany({
+            where: { id: { in: variantIds }, workspaceId },
+          })
         ).map((row) => [row.id, row.name]),
       );
       return {
-        items: rows.slice(0, 50).map((row) => ({
-          id: row.id,
-          householdId: row.householdId,
-          guestId: row.guestId,
-          householdName: row.householdId
-            ? households.get(row.householdId)
-            : undefined,
-          invitationVersionId: row.invitationVersionId,
-          status: row.status.toLowerCase(),
-          openedAt: iso(row.openedAt),
-          rsvpCompletedAt: iso(row.rsvpCompletedAt),
-          version: row.version,
-        })),
-        nextCursor: rows.length > 50 ? rows[49]!.id : null,
+        items: rows.map((row) => {
+          const householdId = canonicalHouseholdId(row);
+          const guest = row.guestId ? guests.get(row.guestId) : null;
+          return {
+            id: row.id,
+            invitationSiteId: row.invitationSiteId,
+            householdId,
+            guestId: householdId ? null : row.guestId,
+            householdName: householdId
+              ? (households.get(householdId) ?? null)
+              : null,
+            guestName:
+              !householdId && guest
+                ? (guest.displayName ??
+                  `${guest.firstName} ${guest.lastName}`.trim())
+                : null,
+            invitationVersionId: row.invitationVersionId,
+            invitationVariantId: row.invitationVariantId,
+            invitationVariantName: row.invitationVariantId
+              ? (variants.get(row.invitationVariantId) ?? null)
+              : null,
+            preferredLanguage: row.preferredLanguage,
+            status: row.status.toLowerCase(),
+            openedAt: iso(row.openedAt),
+            lastAccessedAt: iso(row.lastAccessedAt),
+            rsvpCompletedAt: iso(row.rsvpCompletedAt),
+            version: row.version,
+          };
+        }),
+        nextCursor: canonicalIds.length > 50 ? pageIds[49]! : null,
       };
+    });
+  }
+
+  async assignVariant(
+    userId: string,
+    workspaceId: string,
+    recipientId: string,
+    expectedVersion: number,
+    variantId: string | null,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
+        const recipient = await tx.invitationRecipient.findFirst({
+          where: { id: recipientId, workspaceId, revokedAt: null },
+        });
+        if (!recipient) notFound("Invitation recipient not found");
+        if (recipient.version !== expectedVersion) conflict(recipient.version);
+        let variantName: string | null = null;
+        if (variantId) {
+          const variant = await tx.invitationVariant.findFirst({
+            where: {
+              id: variantId,
+              workspaceId,
+              invitationSiteId: recipient.invitationSiteId,
+              status: "ACTIVE",
+            },
+          });
+          if (!variant) validation("Invitation variant is unavailable");
+          const site = await tx.invitationSite.findFirst({
+            where: {
+              id: recipient.invitationSiteId,
+              workspaceId,
+              status: "PUBLISHED",
+            },
+          });
+          const publishedVariant =
+            site?.publishedVersionId && variant.publishedVersionId
+              ? await tx.invitationVariantVersion.findFirst({
+                  where: {
+                    id: variant.publishedVersionId,
+                    invitationVariantId: variant.id,
+                    workspaceId,
+                    baseInvitationVersionId: site.publishedVersionId,
+                    publishedAt: { not: null },
+                  },
+                })
+              : null;
+          if (!publishedVariant)
+            validation(
+              "Publică varianta împreună cu invitația curentă înainte să o atribui destinatarului.",
+            );
+          variantName = variant.name;
+        }
+        const identityRows = await this.recipientIdentityRows(tx, recipient);
+        await tx.invitationRecipient.updateMany({
+          where: { id: { in: identityRows.map((row) => row.id) } },
+          data: {
+            invitationVariantId: variantId,
+            version: { increment: 1 },
+          },
+        });
+        const updated = await tx.invitationRecipient.findUniqueOrThrow({
+          where: { id: recipient.id },
+        });
+        await this.event(tx, {
+          eventName: "invitation.recipient_variant_assigned.v1",
+          aggregateType: "InvitationRecipient",
+          aggregateId: recipient.id,
+          invitationSiteId: recipient.invitationSiteId,
+          aggregateVersion: updated.version,
+          workspaceId,
+          actorUserId: userId,
+          correlationId,
+          action: "invitation_recipient_variant_assigned",
+          summary: variantName
+            ? `Destinatarul folosește varianta ${variantName}.`
+            : "Destinatarul folosește invitația de bază.",
+        });
+        return {
+          id: updated.id,
+          invitationSiteId: updated.invitationSiteId,
+          householdId: updated.householdId,
+          guestId: updated.guestId,
+          invitationVersionId: updated.invitationVersionId,
+          invitationVariantId: updated.invitationVariantId,
+          invitationVariantName: variantName,
+          preferredLanguage: updated.preferredLanguage,
+          status: updated.status.toLowerCase(),
+          openedAt: iso(updated.openedAt),
+          lastAccessedAt: iso(updated.lastAccessedAt),
+          rsvpCompletedAt: iso(updated.rsvpCompletedAt),
+          version: updated.version,
+        };
+      },
+    );
+  }
+
+  async accessLinks(
+    userId: string,
+    workspaceId: string,
+    recipientId: string,
+    channels: Array<"MANUAL" | "WHATSAPP">,
+  ) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const recipient = await tx.invitationRecipient.findFirst({
+        where: { id: recipientId, workspaceId, revokedAt: null },
+      });
+      if (!recipient) notFound("Invitation recipient not found");
+      const householdId = await this.recipientHouseholdId(
+        tx,
+        workspaceId,
+        recipient,
+      );
+      const items = [];
+      for (const channel of [...new Set(channels)]) {
+        const grant = await this.ensureChannelGrant(
+          tx,
+          workspaceId,
+          recipient.id,
+          householdId,
+          channel,
+        );
+        const url = new URL("/guest", this.webUrl);
+        url.searchParams.set("token", grant.token);
+        items.push({ channel, url: url.toString(), reused: grant.reused });
+      }
+      return { items };
     });
   }
 
@@ -524,35 +1410,29 @@ export class InvitationCampaignService {
     recipientId: string,
     format: "svg" | "png",
   ) {
-    const token = createOpaqueToken();
+    let token = "";
     const url = new URL("/guest", this.webUrl);
-    url.searchParams.set("token", token);
     await this.database.withContext({ userId, workspaceId }, async (tx) => {
       const recipient = await tx.invitationRecipient.findFirst({
         where: { id: recipientId, workspaceId, revokedAt: null },
       });
       if (!recipient) notFound("Invitation recipient not found");
-      const householdId =
-        recipient.householdId ??
-        (
-          await tx.guest.findFirst({
-            where: { id: recipient.guestId ?? "", workspaceId },
-          })
-        )?.householdId;
-      if (!householdId) validation("Recipient has no household scope");
-      await tx.guestAccessGrant.updateMany({
-        where: { invitationRecipientId: recipient.id, revokedAt: null },
-        data: { revokedAt: new Date(), version: { increment: 1 } },
-      });
-      await tx.guestAccessGrant.create({
-        data: {
+      const householdId = await this.recipientHouseholdId(
+        tx,
+        workspaceId,
+        recipient,
+      );
+      token = (
+        await this.ensureChannelGrant(
+          tx,
           workspaceId,
-          invitationRecipientId: recipient.id,
+          recipient.id,
           householdId,
-          tokenHash: hashToken(token),
-        },
-      });
+          "QR",
+        )
+      ).token;
     });
+    url.searchParams.set("token", token);
     if (format === "png") {
       return {
         body: await QRCode.toBuffer(url.toString(), {
@@ -665,6 +1545,7 @@ export class InvitationCampaignService {
     input: Partial<CreateCampaign>,
   ) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      await this.lockInvitationSiteLifecycle(tx, workspaceId);
       const row = await tx.campaign.findFirst({
         where: { id: campaignId, workspaceId },
       });
@@ -707,43 +1588,24 @@ export class InvitationCampaignService {
     workspaceId: string,
     campaignId: string,
   ) {
-    return this.database.withContext({ userId, workspaceId }, async (tx) => {
-      const campaign = await tx.campaign.findFirst({
-        where: { id: campaignId, workspaceId },
-      });
-      if (!campaign) notFound("Campaign not found");
-      const candidates = await tx.invitationRecipient.findMany({
-        where: {
-          workspaceId,
-          revokedAt: null,
-          ...(campaign.invitationVersionId
-            ? { invitationVersionId: campaign.invitationVersionId }
-            : {}),
-          ...(campaign.purpose === "RSVP_REMINDER"
-            ? {
-                status: {
-                  in: ["READY", "SENT", "OPENED", "PARTIALLY_RESPONDED"],
-                },
-              }
-            : {}),
-        },
-      });
-      const recipients = await this.filterAudience(tx, campaign, candidates);
-      let valid = 0;
-      const invalid: Array<{ recipientId: string; reason: string }> = [];
-      for (const recipient of recipients) {
-        const address = await this.recipientAddress(tx, recipient);
-        if (address) valid += 1;
-        else
-          invalid.push({ recipientId: recipient.id, reason: "missing_email" });
-      }
-      return {
-        total: recipients.length,
-        valid,
-        invalid: invalid.length,
-        invalidRecipients: invalid,
-      };
-    });
+    return this.database.withContext(
+      { userId, workspaceId },
+      async (tx) => {
+        const campaign = await tx.campaign.findFirst({
+          where: { id: campaignId, workspaceId },
+        });
+        if (!campaign) notFound("Campaign not found");
+        const audience = await this.resolveCampaignAudience(tx, campaign);
+        return {
+          total: audience.total,
+          valid: audience.valid.length,
+          invalid: audience.invalid.length,
+          invalidRecipients: audience.invalid,
+          audienceRevision: audience.revision,
+        };
+      },
+      { timeout: 60_000, maxWait: 10_000 },
+    );
   }
 
   async transition(
@@ -754,12 +1616,19 @@ export class InvitationCampaignService {
     idempotencyKey: string,
     transition: string,
     scheduledAt: string | undefined,
+    audienceRevision: string | undefined,
     correlationId: string,
   ) {
     return this.database.withContext(
       { userId, workspaceId, correlationId },
       async (tx) => {
-        const input = { campaignId, expectedVersion, transition, scheduledAt };
+        const input = {
+          campaignId,
+          expectedVersion,
+          transition,
+          scheduledAt,
+          audienceRevision,
+        };
         const prior = await replay(
           tx,
           userId,
@@ -768,6 +1637,7 @@ export class InvitationCampaignService {
           input,
         );
         if (prior) return prior;
+        await this.lockInvitationSiteLifecycle(tx, workspaceId);
         const campaign = await tx.campaign.findFirst({
           where: { id: campaignId, workspaceId },
         });
@@ -780,9 +1650,20 @@ export class InvitationCampaignService {
               : !["DRAFT", "FAILED", "PARTIAL"].includes(campaign.status)
           )
             validation("Campaign cannot be queued from its current state");
-          const preview = await this.snapshotAudience(tx, campaign);
-          if (["FAILED", "PARTIAL"].includes(campaign.status)) {
-            await tx.campaignRecipient.updateMany({
+          let newRecipients = 0;
+          let queuedRecipients = 0;
+          if (transition === "RETRY_FAILED") {
+            const activeRecipients = await tx.campaignRecipient.count({
+              where: {
+                campaignId: campaign.id,
+                status: { in: ["PENDING", "QUEUED"] },
+              },
+            });
+            if (activeRecipients)
+              validation(
+                "Campaign still has active deliveries and cannot be retried yet",
+              );
+            const retried = await tx.campaignRecipient.updateMany({
               where: { campaignId: campaign.id, status: "FAILED" },
               data: {
                 status: "PENDING",
@@ -791,10 +1672,42 @@ export class InvitationCampaignService {
                 version: { increment: 1 },
               },
             });
+            queuedRecipients = retried.count;
+          } else {
+            const resolvedAudience = await this.resolveCampaignAudience(
+              tx,
+              campaign,
+            );
+            if (audienceRevision !== resolvedAudience.revision)
+              audienceChanged();
+            const preview = await this.snapshotAudience(
+              tx,
+              campaign,
+              resolvedAudience,
+            );
+            newRecipients = preview.created;
+            if (["FAILED", "PARTIAL"].includes(campaign.status)) {
+              const confirmedRecipientIds = resolvedAudience.valid.map(
+                ({ recipient }) => recipient.id,
+              );
+              await tx.campaignRecipient.updateMany({
+                where: {
+                  campaignId: campaign.id,
+                  invitationRecipientId: { in: confirmedRecipientIds },
+                  status: "FAILED",
+                },
+                data: {
+                  status: "PENDING",
+                  failureCode: null,
+                  failedAt: null,
+                  version: { increment: 1 },
+                },
+              });
+            }
+            queuedRecipients = await tx.campaignRecipient.count({
+              where: { campaignId: campaign.id, status: "PENDING" },
+            });
           }
-          const queuedRecipients = await tx.campaignRecipient.count({
-            where: { campaignId: campaign.id, status: "PENDING" },
-          });
           if (!queuedRecipients)
             validation("Campaign has no valid e-mail recipients");
           const availableAt =
@@ -856,7 +1769,7 @@ export class InvitationCampaignService {
             campaign: await this.mapCampaign(tx, updated),
             job: mapJob(job),
             queuedRecipients,
-            newRecipients: preview.created,
+            newRecipients,
           };
           await saveReplay(
             tx,
@@ -891,6 +1804,7 @@ export class InvitationCampaignService {
         );
         return response;
       },
+      { timeout: 60_000, maxWait: 10_000 },
     );
   }
 
@@ -1061,14 +1975,58 @@ export class InvitationCampaignService {
       purpose: string;
       audienceFilter: unknown;
     },
+    audience: Awaited<
+      ReturnType<InvitationCampaignService["resolveCampaignAudience"]>
+    >,
   ) {
+    const result = audience.valid.length
+      ? await tx.campaignRecipient.createMany({
+          data: audience.valid.map(
+            ({ recipient, address, invitationVariantVersionId }) => ({
+              workspaceId: campaign.workspaceId,
+              campaignId: campaign.id,
+              invitationRecipientId: recipient.id,
+              invitationVariantVersionId,
+              guestId: recipient.guestId,
+              householdId: recipient.householdId,
+              address,
+              personalizationSnapshot:
+                recipient.personalizationSnapshot as Prisma.InputJsonValue,
+              dedupeKey: `${campaign.id}:${recipient.id}:EMAIL`,
+            }),
+          ),
+          skipDuplicates: true,
+        })
+      : { count: 0 };
+    return { created: result.count, total: audience.total };
+  }
+
+  private async resolveCampaignAudience(
+    tx: Transaction,
+    campaign: {
+      id: string;
+      workspaceId: string;
+      invitationVersionId: string | null;
+      purpose: string;
+      audienceFilter: unknown;
+    },
+  ) {
+    const invitationSiteId = campaign.invitationVersionId
+      ? (
+          await tx.invitationVersion.findFirst({
+            where: {
+              id: campaign.invitationVersionId,
+              workspaceId: campaign.workspaceId,
+            },
+            select: { invitationSiteId: true },
+          })
+        )?.invitationSiteId
+      : null;
     const candidates = await tx.invitationRecipient.findMany({
       where: {
         workspaceId: campaign.workspaceId,
         revokedAt: null,
-        ...(campaign.invitationVersionId
-          ? { invitationVersionId: campaign.invitationVersionId }
-          : {}),
+        ...(invitationSiteId ? { invitationSiteId } : {}),
         ...(campaign.purpose === "RSVP_REMINDER"
           ? {
               status: {
@@ -1077,31 +2035,148 @@ export class InvitationCampaignService {
             }
           : {}),
       },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
-    const recipients = await this.filterAudience(tx, campaign, candidates);
-    let created = 0;
+    const guestHouseholds = await this.recipientGuestHouseholds(
+      tx,
+      campaign.workspaceId,
+      candidates,
+    );
+    const recipients = dedupeRecipientsByIdentity(
+      await this.filterAudience(tx, campaign, candidates, guestHouseholds),
+      guestHouseholds,
+    );
+    const directGuestIds = recipients
+      .map((recipient) => recipient.guestId)
+      .filter((id): id is string => Boolean(id));
+    const householdIds = [
+      ...new Set(
+        recipients
+          .map(
+            (recipient) =>
+              recipient.householdId ??
+              (recipient.guestId
+                ? guestHouseholds.get(recipient.guestId)
+                : undefined),
+          )
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const variantIds = [
+      ...new Set(
+        recipients
+          .map((recipient) => recipient.invitationVariantId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const [audienceGuests, households, variants] = await Promise.all([
+      tx.guest.findMany({
+        where: {
+          workspaceId: campaign.workspaceId,
+          OR: [
+            { id: { in: directGuestIds } },
+            { householdId: { in: householdIds } },
+          ],
+        },
+        orderBy: [{ isChild: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      }),
+      tx.household.findMany({
+        where: { workspaceId: campaign.workspaceId, id: { in: householdIds } },
+        select: { id: true, primaryGuestId: true, deletedAt: true },
+      }),
+      tx.invitationVariant.findMany({
+        where: {
+          workspaceId: campaign.workspaceId,
+          id: { in: variantIds },
+          status: "ACTIVE",
+        },
+        select: { id: true, invitationSiteId: true, publishedVersionId: true },
+      }),
+    ]);
+    const guestById = new Map(audienceGuests.map((guest) => [guest.id, guest]));
+    const guestsByHousehold = new Map<string, typeof audienceGuests>();
+    for (const guest of audienceGuests) {
+      const rows = guestsByHousehold.get(guest.householdId) ?? [];
+      rows.push(guest);
+      guestsByHousehold.set(guest.householdId, rows);
+    }
+    const householdById = new Map(
+      households.map((household) => [household.id, household]),
+    );
+    const variantById = new Map(
+      variants.map((variant) => [variant.id, variant]),
+    );
+    const valid: Array<{
+      recipient: (typeof recipients)[number];
+      address: string;
+      invitationVariantVersionId: string | null;
+    }> = [];
+    const invalid: Array<{ recipientId: string; reason: string }> = [];
     for (const recipient of recipients) {
-      const address = await this.recipientAddress(tx, recipient);
-      if (!address) continue;
-      const result = await tx.campaignRecipient.createMany({
-        data: [
-          {
-            workspaceId: campaign.workspaceId,
-            campaignId: campaign.id,
-            invitationRecipientId: recipient.id,
+      const directGuest = recipient.guestId
+        ? guestById.get(recipient.guestId)
+        : undefined;
+      const householdId = recipient.householdId ?? directGuest?.householdId;
+      const household = householdId
+        ? householdById.get(householdId)
+        : undefined;
+      const members = householdId
+        ? (guestsByHousehold.get(householdId) ?? [])
+        : [];
+      const primary = household?.primaryGuestId
+        ? guestById.get(household.primaryGuestId)
+        : undefined;
+      const target =
+        householdId && !household?.deletedAt
+          ? primary?.householdId === householdId &&
+            primary.status === "ACTIVE" &&
+            !primary.deletedAt &&
+            primary.emailNormalized
+            ? primary
+            : members.find(
+                (guest) =>
+                  guest.status === "ACTIVE" &&
+                  !guest.deletedAt &&
+                  Boolean(guest.emailNormalized),
+              )
+          : directGuest?.status === "ACTIVE" && !directGuest.deletedAt
+            ? directGuest
+            : undefined;
+      const address = target?.emailNormalized ?? null;
+      if (!address) {
+        invalid.push({ recipientId: recipient.id, reason: "missing_email" });
+        continue;
+      }
+      const variant = recipient.invitationVariantId
+        ? variantById.get(recipient.invitationVariantId)
+        : undefined;
+      const invitationVariantVersionId =
+        variant?.invitationSiteId === recipient.invitationSiteId
+          ? (variant.publishedVersionId ?? null)
+          : null;
+      valid.push({ recipient, address, invitationVariantVersionId });
+    }
+    return {
+      total: recipients.length,
+      valid,
+      invalid,
+      revision: stableHash({
+        campaignId: campaign.id,
+        invitationVersionId: campaign.invitationVersionId,
+        purpose: campaign.purpose,
+        valid: valid.map(
+          ({ recipient, address, invitationVariantVersionId }) => ({
+            recipientId: recipient.id,
             guestId: recipient.guestId,
             householdId: recipient.householdId,
             address,
-            personalizationSnapshot:
-              recipient.personalizationSnapshot as Prisma.InputJsonValue,
-            dedupeKey: `${campaign.id}:${recipient.id}:EMAIL`,
-          },
-        ],
-        skipDuplicates: true,
-      });
-      created += result.count;
-    }
-    return { created, total: recipients.length };
+            invitationVariantVersionId,
+            personalizationSnapshot: recipient.personalizationSnapshot,
+          }),
+        ),
+        invalid,
+      }),
+    };
   }
 
   private async filterAudience<
@@ -1116,6 +2191,7 @@ export class InvitationCampaignService {
     tx: Transaction,
     campaign: { workspaceId: string; audienceFilter: unknown },
     recipients: T[],
+    recipientGuestHouseholds: ReadonlyMap<string, string>,
   ): Promise<T[]> {
     const filter = jsonRecord(campaign.audienceFilter);
     if (!Object.keys(filter).length) return recipients;
@@ -1168,10 +2244,15 @@ export class InvitationCampaignService {
     const rsvpStatuses = new Set(stringArray(filter.rsvpStatuses));
 
     return recipients.filter((recipient) => {
+      const householdId =
+        recipient.householdId ??
+        (recipient.guestId
+          ? recipientGuestHouseholds.get(recipient.guestId)
+          : undefined);
       const members = guests.filter((guest) =>
-        recipient.guestId
-          ? guest.id === recipient.guestId
-          : guest.householdId === recipient.householdId,
+        householdId
+          ? guest.householdId === householdId
+          : guest.id === recipient.guestId,
       );
       if (
         selectedGuestIds.size &&
@@ -1180,8 +2261,7 @@ export class InvitationCampaignService {
         return false;
       if (
         selectedHouseholdIds.size &&
-        (!recipient.householdId ||
-          !selectedHouseholdIds.has(recipient.householdId))
+        (!householdId || !selectedHouseholdIds.has(householdId))
       )
         return false;
       if (
@@ -1230,37 +2310,70 @@ export class InvitationCampaignService {
     });
   }
 
-  private async recipientAddress(
+  private async recipientGuestHouseholds<T extends { guestId: string | null }>(
     tx: Transaction,
-    recipient: { guestId: string | null; householdId: string | null },
-  ) {
-    if (recipient.guestId)
-      return (
-        (await tx.guest.findUnique({ where: { id: recipient.guestId } }))
-          ?.emailNormalized ?? null
-      );
-    if (!recipient.householdId) return null;
-    const household = await tx.household.findUnique({
-      where: { id: recipient.householdId },
+    workspaceId: string,
+    recipients: T[],
+  ): Promise<Map<string, string>> {
+    const guestIds = [
+      ...new Set(
+        recipients
+          .map((recipient) => recipient.guestId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (!guestIds.length) return new Map();
+    const guests = await tx.guest.findMany({
+      where: { workspaceId, id: { in: guestIds } },
+      select: { id: true, householdId: true },
     });
-    if (household?.primaryGuestId) {
-      const primary = await tx.guest.findUnique({
-        where: { id: household.primaryGuestId },
-      });
-      if (primary?.emailNormalized) return primary.emailNormalized;
-    }
-    return (
-      (
-        await tx.guest.findFirst({
-          where: {
-            householdId: recipient.householdId,
-            status: "ACTIVE",
-            emailNormalized: { not: null },
-          },
-          orderBy: [{ isChild: "asc" }, { createdAt: "asc" }],
+    return new Map(guests.map((guest) => [guest.id, guest.householdId]));
+  }
+
+  private async recipientIdentityRows(
+    tx: Transaction,
+    recipient: {
+      id: string;
+      workspaceId: string;
+      invitationSiteId: string;
+      householdId: string | null;
+      guestId: string | null;
+    },
+  ) {
+    const guest = recipient.guestId
+      ? await tx.guest.findFirst({
+          where: { id: recipient.guestId, workspaceId: recipient.workspaceId },
+          select: { householdId: true },
         })
-      )?.emailNormalized ?? null
-    );
+      : null;
+    const householdId = recipient.householdId ?? guest?.householdId;
+    const memberIds = householdId
+      ? (
+          await tx.guest.findMany({
+            where: { workspaceId: recipient.workspaceId, householdId },
+            select: { id: true },
+          })
+        ).map((member) => member.id)
+      : [];
+    const rows = await tx.invitationRecipient.findMany({
+      where: {
+        workspaceId: recipient.workspaceId,
+        invitationSiteId: recipient.invitationSiteId,
+        revokedAt: null,
+        ...(householdId
+          ? {
+              OR: [{ householdId }, { guestId: { in: memberIds } }],
+            }
+          : { guestId: recipient.guestId }),
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    if (!householdId) return rows.length ? rows : [recipient];
+    return rows.sort((left, right) => {
+      const leftIsHousehold = left.householdId === householdId ? 0 : 1;
+      const rightIsHousehold = right.householdId === householdId ? 0 : 1;
+      return leftIsHousehold - rightIsHousehold;
+    });
   }
 
   private async mapCampaign(
@@ -1315,11 +2428,472 @@ export class InvitationCampaignService {
     };
   }
 
+  private async variantsInTransaction(tx: Transaction, workspaceId: string) {
+    const rows = await tx.invitationVariant.findMany({
+      where: { workspaceId },
+      orderBy: [{ status: "asc" }, { createdAt: "asc" }],
+    });
+    return Promise.all(rows.map((row) => this.mapVariant(tx, row)));
+  }
+
+  private async mapVariant(
+    tx: Transaction,
+    row: {
+      id: string;
+      workspaceId: string;
+      invitationSiteId: string;
+      name: string;
+      code: string;
+      status: string;
+      currentDraftVersionId: string | null;
+      publishedVersionId: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      version: number;
+    },
+  ) {
+    const [draft, published, assignedRecipients] = await Promise.all([
+      row.currentDraftVersionId
+        ? tx.invitationVariantVersion.findUnique({
+            where: { id: row.currentDraftVersionId },
+          })
+        : null,
+      row.publishedVersionId
+        ? tx.invitationVariantVersion.findUnique({
+            where: { id: row.publishedVersionId },
+          })
+        : null,
+      tx.invitationRecipient.count({
+        where: {
+          workspaceId: row.workspaceId,
+          invitationVariantId: row.id,
+          revokedAt: null,
+        },
+      }),
+    ]);
+    return {
+      id: row.id,
+      workspaceId: row.workspaceId,
+      invitationSiteId: row.invitationSiteId,
+      name: row.name,
+      code: row.code,
+      status: row.status.toLowerCase(),
+      assignedRecipients,
+      draft: draft ? mapVariantVersion(draft) : null,
+      published: published ? mapVariantVersion(published) : null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      version: row.version,
+    };
+  }
+
+  private async preflightInTransaction(tx: Transaction, workspaceId: string) {
+    const errors: PreflightIssue[] = [];
+    const warnings: PreflightIssue[] = [];
+    const site = await tx.invitationSite.findUnique({ where: { workspaceId } });
+    if (!site) {
+      errors.push({
+        code: "INVITATION_SITE_MISSING",
+        message: "Invitation site not found",
+      });
+      return {
+        ready: false,
+        errors,
+        warnings,
+        baseVersionId: null,
+        activeVariants: 0,
+        assignedRecipients: 0,
+      };
+    }
+    if (!site.currentDraftVersionId)
+      errors.push({
+        code: "INVITATION_DRAFT_MISSING",
+        message: "Save an invitation draft before publishing",
+      });
+    const [form, eventCount, activeVariants, recipientRows, draft] =
+      await Promise.all([
+        tx.rsvpFormDefinition.findUnique({ where: { workspaceId } }),
+        tx.weddingEvent.count({
+          where: {
+            workspaceId,
+            guestVisible: true,
+            rsvpEnabled: true,
+            status: { not: "CANCELLED" },
+            deletedAt: null,
+          },
+        }),
+        tx.invitationVariant.findMany({
+          where: { workspaceId, invitationSiteId: site.id, status: "ACTIVE" },
+        }),
+        tx.invitationRecipient.findMany({
+          where: { workspaceId, invitationSiteId: site.id, revokedAt: null },
+          select: {
+            id: true,
+            invitationSiteId: true,
+            householdId: true,
+            guestId: true,
+            invitationVariantId: true,
+          },
+        }),
+        site.currentDraftVersionId
+          ? tx.invitationVersion.findFirst({
+              where: {
+                id: site.currentDraftVersionId,
+                workspaceId,
+                invitationSiteId: site.id,
+              },
+            })
+          : Promise.resolve(null),
+      ]);
+    const recipientGuestHouseholds = await this.recipientGuestHouseholds(
+      tx,
+      workspaceId,
+      recipientRows,
+    );
+    const assignedRecipients = dedupeRecipientsByIdentity(
+      recipientRows,
+      recipientGuestHouseholds,
+    );
+    const mediaScopes: Array<{
+      variantId?: string;
+      references: Set<string>;
+    }> = [];
+    if (!form?.publishedVersionId)
+      errors.push({
+        code: "RSVP_FORM_NOT_PUBLISHED",
+        message: "Publish the RSVP form before the invitation",
+      });
+    if (!eventCount)
+      errors.push({
+        code: "GUEST_EVENT_MISSING",
+        message: "At least one guest-visible RSVP event is required",
+      });
+    if (
+      draft &&
+      invitationContainsStarterContent(
+        visibleInvitationDocument(draft.document),
+      )
+    )
+      errors.push({
+        code: "INVITATION_STARTER_CONTENT",
+        message:
+          "Înlocuiește sau ascunde conținutul demonstrativ înainte de publicare.",
+      });
+    if (draft)
+      mediaScopes.push({
+        references: invitationMediaReferences(draft.document, draft.settings),
+      });
+    const sectionIds = new Set(
+      invitationSections(draft?.document).map((section) => section.id),
+    );
+    const variantsById = new Map(activeVariants.map((row) => [row.id, row]));
+    for (const variant of activeVariants) {
+      const sourceId =
+        variant.currentDraftVersionId ?? variant.publishedVersionId;
+      const source = sourceId
+        ? await tx.invitationVariantVersion.findFirst({
+            where: {
+              id: sourceId,
+              workspaceId,
+              invitationVariantId: variant.id,
+            },
+          })
+        : null;
+      if (!source) {
+        errors.push({
+          code: "VARIANT_DRAFT_MISSING",
+          message: `Variant ${variant.name} has no publishable draft`,
+          variantId: variant.id,
+        });
+        continue;
+      }
+      const resolvedVariant = draft
+        ? resolveInvitationVariant(
+            draft.document,
+            draft.settings,
+            source.overrides,
+          )
+        : null;
+      if (
+        resolvedVariant &&
+        invitationContainsStarterContent({
+          document: visibleInvitationDocument(resolvedVariant.document),
+          settings: resolvedVariant.settings,
+        })
+      )
+        errors.push({
+          code: "VARIANT_STARTER_CONTENT",
+          message: `Varianta ${variant.name} conține încă exemple demonstrative.`,
+          variantId: variant.id,
+        });
+      if (draft)
+        mediaScopes.push({
+          variantId: variant.id,
+          references: invitationMediaReferences(
+            draft.document,
+            draft.settings,
+            source.overrides,
+          ),
+        });
+      const invalidSectionIds = variantOverrideSectionIds(
+        source.overrides,
+      ).filter((id) => !sectionIds.has(id));
+      if (invalidSectionIds.length)
+        errors.push({
+          code: "VARIANT_SECTION_MISSING",
+          message: `Variant ${variant.name} references missing sections: ${invalidSectionIds.join(", ")}`,
+          variantId: variant.id,
+        });
+    }
+    for (const recipient of assignedRecipients) {
+      if (
+        recipient.invitationVariantId &&
+        !variantsById.has(recipient.invitationVariantId)
+      )
+        errors.push({
+          code: "RECIPIENT_VARIANT_UNAVAILABLE",
+          message:
+            "A recipient is assigned to an archived or unavailable variant",
+          recipientId: recipient.id,
+          variantId: recipient.invitationVariantId,
+        });
+    }
+    if (!assignedRecipients.length)
+      warnings.push({
+        code: "NO_RECIPIENTS",
+        message: "Invitation has no recipients yet",
+      });
+    for (const scope of mediaScopes) {
+      if (![...scope.references].some((id) => !isUuid(id))) continue;
+      errors.push({
+        code: scope.variantId
+          ? "VARIANT_MEDIA_INVALID"
+          : "INVITATION_MEDIA_INVALID",
+        message: scope.variantId
+          ? "Varianta conține o referință de imagine invalidă."
+          : "Invitația conține o referință de imagine invalidă.",
+        ...(scope.variantId ? { variantId: scope.variantId } : {}),
+      });
+    }
+    const referencedMediaIds = [
+      ...new Set(
+        mediaScopes.flatMap((scope) => [...scope.references]).filter(isUuid),
+      ),
+    ];
+    if (referencedMediaIds.length) {
+      const [objects, sessions] = await Promise.all([
+        tx.storedObject.findMany({
+          where: {
+            id: { in: referencedMediaIds },
+            workspaceId,
+            status: "AVAILABLE",
+            deletedAt: null,
+          },
+          select: { id: true },
+        }),
+        tx.fileUploadSession.findMany({
+          where: {
+            storageObjectId: { in: referencedMediaIds },
+            workspaceId,
+            purpose: "INVITATION_MEDIA",
+            status: "COMPLETED",
+          },
+          select: { storageObjectId: true },
+        }),
+      ]);
+      const availableObjects = new Set(objects.map((row) => row.id));
+      const invitationUploads = new Set(
+        sessions
+          .map((row) => row.storageObjectId)
+          .filter((id): id is string => Boolean(id)),
+      );
+      for (const scope of mediaScopes) {
+        const invalid = [...scope.references].filter(
+          (id) => !availableObjects.has(id) || !invitationUploads.has(id),
+        );
+        if (!invalid.length) continue;
+        errors.push({
+          code: scope.variantId
+            ? "VARIANT_MEDIA_UNAVAILABLE"
+            : "INVITATION_MEDIA_UNAVAILABLE",
+          message: scope.variantId
+            ? "Varianta folosește imagini care nu sunt încă disponibile sau nu provin din biblioteca invitației."
+            : "Invitația folosește imagini care nu sunt încă disponibile sau nu provin din biblioteca invitației.",
+          ...(scope.variantId ? { variantId: scope.variantId } : {}),
+        });
+      }
+    }
+    return {
+      ready: errors.length === 0,
+      errors,
+      warnings,
+      baseVersionId: site.currentDraftVersionId,
+      activeVariants: activeVariants.length,
+      assignedRecipients: assignedRecipients.length,
+    };
+  }
+
+  private async draftSectionIds(
+    tx: Transaction,
+    site: { currentDraftVersionId: string | null },
+  ) {
+    if (!site.currentDraftVersionId) return new Set<string>();
+    const draft = await tx.invitationVersion.findUnique({
+      where: { id: site.currentDraftVersionId },
+    });
+    return new Set(
+      invitationSections(draft?.document).map((section) => section.id),
+    );
+  }
+
+  private validateVariantOverrides(
+    overrides: InvitationVariantOverrides,
+    baseSectionIds: Set<string>,
+  ) {
+    const sectionIds = variantOverrideSectionIds(overrides);
+    if (new Set(sectionIds).size !== sectionIds.length)
+      validation("Invitation variant section overrides must be unique");
+    const unavailable = sectionIds.filter((id) => !baseSectionIds.has(id));
+    if (unavailable.length)
+      validation(
+        `Variant references missing sections: ${unavailable.join(", ")}`,
+      );
+  }
+
+  private async syncPreviewInTransaction(
+    tx: Transaction,
+    workspaceId: string,
+    draftVersionId: string,
+  ) {
+    const draft = await tx.invitationVersion.findFirst({
+      where: { id: draftVersionId, workspaceId },
+    });
+    if (!draft) notFound("Invitation draft not found");
+    const source = await connectedInvitationSources(tx, workspaceId);
+    const sections = invitationSections(draft.document);
+    const differences: SyncDifference[] = [];
+    for (const candidate of source.values) {
+      const section = sections.find(
+        (item) => item.type === candidate.sectionType,
+      );
+      if (!section) continue;
+      const currentValue = jsonRecord(section.content)[candidate.field];
+      if (
+        stableHash(currentValue ?? null) === stableHash(candidate.value ?? null)
+      )
+        continue;
+      differences.push({
+        path: candidate.path,
+        sectionId: section.id,
+        source: candidate.source,
+        currentValue,
+        sourceValue: candidate.value,
+      });
+    }
+    return {
+      sourceRevision: source.revision,
+      draftVersionId,
+      differences,
+    };
+  }
+
+  private async recipientHouseholdId(
+    tx: Transaction,
+    workspaceId: string,
+    recipient: { householdId: string | null; guestId: string | null },
+  ) {
+    const householdId =
+      recipient.householdId ??
+      (
+        await tx.guest.findFirst({
+          where: { id: recipient.guestId ?? "", workspaceId },
+        })
+      )?.householdId;
+    if (!householdId) validation("Recipient has no household scope");
+    return householdId;
+  }
+
+  private async lockInvitationSiteLifecycle(
+    tx: Transaction,
+    workspaceId: string,
+  ) {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(${`invitation-site-workspace:${workspaceId}`}, 0)
+      )
+    `;
+  }
+
+  private async ensureChannelGrant(
+    tx: Transaction,
+    workspaceId: string,
+    recipientId: string,
+    householdId: string,
+    channel: "EMAIL" | "QR" | "MANUAL" | "WHATSAPP",
+  ) {
+    const token = createHmac("sha256", this.webhookSecret)
+      .update(`guest-access:v2:${recipientId}:${channel}`)
+      .digest("base64url");
+    const tokenHash = hashToken(token);
+    const existing = await tx.guestAccessGrant.findUnique({
+      where: { tokenHash },
+    });
+    if (
+      existing &&
+      existing.workspaceId === workspaceId &&
+      existing.invitationRecipientId === recipientId &&
+      existing.channel === channel &&
+      existing.householdId === householdId &&
+      !existing.expiresAt &&
+      !existing.revokedAt
+    )
+      return { token, reused: true };
+    await tx.guestAccessGrant.updateMany({
+      where: {
+        invitationRecipientId: recipientId,
+        channel,
+        revokedAt: null,
+        tokenHash: { not: tokenHash },
+      },
+      data: { revokedAt: new Date(), version: { increment: 1 } },
+    });
+    if (existing) {
+      if (
+        existing.invitationRecipientId !== recipientId ||
+        existing.workspaceId !== workspaceId
+      )
+        throw new Error("Deterministic guest grant collision");
+      await tx.guestAccessGrant.update({
+        where: { id: existing.id },
+        data: {
+          channel,
+          householdId,
+          revokedAt: null,
+          expiresAt: null,
+          version: { increment: 1 },
+        },
+      });
+      return { token, reused: false };
+    }
+    await tx.guestAccessGrant.create({
+      data: {
+        workspaceId,
+        invitationRecipientId: recipientId,
+        householdId,
+        channel,
+        tokenHash,
+      },
+    });
+    return { token, reused: false };
+  }
+
   private async event(
     tx: Transaction,
     input: {
       eventName: string;
+      aggregateType?: string;
       aggregateId: string;
+      invitationSiteId?: string;
       aggregateVersion?: number;
       deduplicationKey?: string;
       workspaceId: string;
@@ -1331,9 +2905,11 @@ export class InvitationCampaignService {
   ) {
     await this.asyncEvents.record(tx, {
       eventName: input.eventName,
-      aggregateType: input.eventName.startsWith("campaign")
-        ? "Campaign"
-        : "InvitationSite",
+      aggregateType:
+        input.aggregateType ??
+        (input.eventName.startsWith("campaign")
+          ? "Campaign"
+          : "InvitationSite"),
       aggregateId: input.aggregateId,
       aggregateVersion: input.aggregateVersion,
       workspaceId: input.workspaceId,
@@ -1343,7 +2919,12 @@ export class InvitationCampaignService {
         input.deduplicationKey ??
         `${input.eventName}:${input.aggregateId}:v${input.aggregateVersion ?? 1}`,
       payload: {
-        subject: { entityId: input.aggregateId },
+        subject: {
+          entityId: input.aggregateId,
+          ...(input.invitationSiteId
+            ? { invitationSiteId: input.invitationSiteId }
+            : {}),
+        },
         activity: {
           category: input.eventName.startsWith("campaign")
             ? "campaigns"
@@ -1355,6 +2936,286 @@ export class InvitationCampaignService {
       },
     });
   }
+}
+
+type PreflightIssue = {
+  code: string;
+  message: string;
+  recipientId?: string;
+  variantId?: string;
+};
+
+type SyncPath =
+  | "hero.names"
+  | "hero.date"
+  | "hero.venue"
+  | "schedule.items"
+  | "locations.items"
+  | "rsvp.deadline"
+  | "accommodation.items";
+type SyncSource =
+  | "wedding_profile"
+  | "wedding_events"
+  | "rsvp_form"
+  | "accommodation_recommendations";
+type SyncDifference = {
+  path: SyncPath;
+  sectionId: string;
+  source: SyncSource;
+  currentValue: unknown;
+  sourceValue: unknown;
+};
+type SyncCandidate = {
+  path: SyncPath;
+  sectionType: string;
+  field: string;
+  source: SyncSource;
+  value: unknown;
+};
+
+async function connectedInvitationSources(
+  tx: Transaction,
+  workspaceId: string,
+) {
+  const [profile, events, form] = await Promise.all([
+    tx.weddingProfile.findUnique({ where: { workspaceId } }),
+    tx.weddingEvent.findMany({
+      where: {
+        workspaceId,
+        status: "CONFIRMED",
+        guestVisible: true,
+        deletedAt: null,
+      },
+      orderBy: [{ position: "asc" }, { startAt: "asc" }, { id: "asc" }],
+    }),
+    tx.rsvpFormDefinition.findUnique({ where: { workspaceId } }),
+  ]);
+  const [formVersion, accommodations] = await Promise.all([
+    form?.publishedVersionId
+      ? tx.rsvpFormVersion.findUnique({
+          where: { id: form.publishedVersionId },
+        })
+      : null,
+    tx.accommodationRecommendation.findMany({
+      where: {
+        workspaceId,
+        weddingEventId: { in: events.map((event) => event.id) },
+        status: "PUBLISHED",
+        deletedAt: null,
+      },
+      orderBy: [
+        { weddingEventId: "asc" },
+        { position: "asc" },
+        { createdAt: "asc" },
+      ],
+    }),
+  ]);
+  const values: SyncCandidate[] = [];
+  const names = [profile?.partnerOneName, profile?.partnerTwoName]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(" & ");
+  if (names)
+    values.push({
+      path: "hero.names",
+      sectionType: "hero",
+      field: "names",
+      source: "wedding_profile",
+      value: names,
+    });
+  if (profile?.weddingDate)
+    values.push({
+      path: "hero.date",
+      sectionType: "hero",
+      field: "date",
+      source: "wedding_profile",
+      value: profile.weddingDate.toISOString().slice(0, 10),
+    });
+  if (profile?.location)
+    values.push({
+      path: "hero.venue",
+      sectionType: "hero",
+      field: "venue",
+      source: "wedding_profile",
+      value: profile.location,
+    });
+  if (events.length) {
+    values.push({
+      path: "schedule.items",
+      sectionType: "schedule",
+      field: "items",
+      source: "wedding_events",
+      value: events.map((event) => ({
+        id: event.id,
+        time: event.startAt?.toISOString() ?? "",
+        title: event.title,
+        detail: event.locationName ?? event.locationAddress ?? "",
+        startAt: event.startAt?.toISOString() ?? null,
+        endAt: event.endAt?.toISOString() ?? null,
+        timezone: event.timezone,
+        dressCode: event.dressCode,
+      })),
+    });
+    const locations = events
+      .filter((event) => event.locationName || event.locationAddress)
+      .map((event) => ({
+        eventId: event.id,
+        name: event.locationName ?? event.title,
+        address: event.locationAddress ?? "",
+      }));
+    if (locations.length)
+      values.push({
+        path: "locations.items",
+        sectionType: "locations",
+        field: "items",
+        source: "wedding_events",
+        value: locations,
+      });
+  }
+  const deadline = jsonRecord(formVersion?.config).deadline;
+  if (typeof deadline === "string" && deadline)
+    values.push({
+      path: "rsvp.deadline",
+      sectionType: "rsvp",
+      field: "deadline",
+      source: "rsvp_form",
+      value: deadline,
+    });
+  if (accommodations.length)
+    values.push({
+      path: "accommodation.items",
+      sectionType: "accommodation",
+      field: "items",
+      source: "accommodation_recommendations",
+      value: accommodations.map((item) => ({
+        id: item.id,
+        name: item.name,
+        detail: item.organizerNote ?? item.address ?? "",
+        address: item.address,
+        city: item.city,
+        distanceKm: item.distanceKm?.toString() ?? null,
+        url: item.bookingUrl ?? item.contactUrl ?? item.sourceUrl,
+        contactPhone: item.contactPhone,
+        groupCode: item.groupCode,
+        deadline: item.deadline?.toISOString() ?? null,
+      })),
+    });
+  const revision = stableHash({
+    profile: profile
+      ? {
+          id: profile.id,
+          version: profile.version,
+          updatedAt: profile.updatedAt.toISOString(),
+        }
+      : null,
+    events: events.map((event) => ({
+      id: event.id,
+      version: event.version,
+      updatedAt: event.updatedAt.toISOString(),
+    })),
+    rsvpForm: formVersion
+      ? { id: formVersion.id, contentHash: formVersion.contentHash }
+      : null,
+    accommodations: accommodations.map((item) => ({
+      id: item.id,
+      version: item.version,
+      updatedAt: item.updatedAt.toISOString(),
+    })),
+    values,
+  });
+  return { revision, values };
+}
+
+function invitationSections(value: unknown) {
+  const sections = jsonRecord(value).sections;
+  if (!Array.isArray(sections)) return [];
+  return sections.flatMap((section) => {
+    const record = jsonRecord(section);
+    const id = string(record.id);
+    const type = string(record.type);
+    if (!id || !type) return [];
+    return [{ id, type, content: jsonRecord(record.content) }];
+  });
+}
+
+function variantOverrideSectionIds(value: unknown) {
+  const sections = jsonRecord(jsonRecord(value).document).sections;
+  if (!Array.isArray(sections)) return [];
+  return sections
+    .map((section) => string(jsonRecord(section).id))
+    .filter(Boolean);
+}
+
+function applySyncDifferences(
+  document: Record<string, unknown>,
+  differences: SyncDifference[],
+) {
+  const sections = Array.isArray(document.sections)
+    ? document.sections.map((section) => cloneRecord(section))
+    : [];
+  for (const difference of differences) {
+    const index = sections.findIndex(
+      (section) => string(section.id) === difference.sectionId,
+    );
+    if (index < 0) continue;
+    const section = sections[index]!;
+    const content = cloneRecord(section.content);
+    const field = difference.path.split(".")[1]!;
+    content[field] = difference.sourceValue;
+    section.content = content;
+  }
+  document.sections = sections;
+}
+
+function cloneRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return structuredClone(value as Record<string, unknown>);
+}
+
+function mapVariantVersion(row: {
+  id: string;
+  versionNumber: number;
+  baseInvitationVersionId: string;
+  overrides: unknown;
+  contentHash: string;
+  publishedAt: Date | null;
+}) {
+  return {
+    id: row.id,
+    versionNumber: row.versionNumber,
+    baseInvitationVersionId: row.baseInvitationVersionId,
+    overrides: row.overrides,
+    contentHash: row.contentHash,
+    publishedAt: iso(row.publishedAt),
+  };
+}
+
+function dedupeRecipientsByIdentity<
+  T extends {
+    id: string;
+    invitationSiteId: string;
+    householdId: string | null;
+    guestId: string | null;
+  },
+>(
+  recipients: T[],
+  recipientGuestHouseholds: ReadonlyMap<string, string> = new Map(),
+) {
+  const selected = new Map<string, T>();
+  for (const recipient of recipients) {
+    const householdId =
+      recipient.householdId ??
+      (recipient.guestId
+        ? recipientGuestHouseholds.get(recipient.guestId)
+        : undefined);
+    const target = householdId
+      ? `household:${householdId}`
+      : `guest:${recipient.guestId ?? recipient.id}`;
+    const key = `${recipient.invitationSiteId}:${target}`;
+    const existing = selected.get(key);
+    if (!existing || (!existing.householdId && recipient.householdId))
+      selected.set(key, recipient);
+  }
+  return [...selected.values()];
 }
 
 function mapVersion(row: {
@@ -1414,15 +3275,12 @@ function redactAddress(value: string) {
 export function campaignTransition(
   status: string,
   transition: string,
-): "PAUSED" | "QUEUED" | "CANCELLED" | "ARCHIVED" {
-  const allowed: Record<
-    string,
-    Record<string, "PAUSED" | "QUEUED" | "CANCELLED" | "ARCHIVED">
-  > = {
-    SENDING: { PAUSE: "PAUSED", CANCEL: "CANCELLED" },
-    QUEUED: { PAUSE: "PAUSED", CANCEL: "CANCELLED" },
-    SCHEDULED: { PAUSE: "PAUSED", CANCEL: "CANCELLED" },
-    PAUSED: { RESUME: "QUEUED", CANCEL: "CANCELLED" },
+): "CANCELLED" | "ARCHIVED" {
+  const allowed: Record<string, Record<string, "CANCELLED" | "ARCHIVED">> = {
+    SENDING: { CANCEL: "CANCELLED" },
+    QUEUED: { CANCEL: "CANCELLED" },
+    SCHEDULED: { CANCEL: "CANCELLED" },
+    PAUSED: { CANCEL: "CANCELLED" },
     COMPLETED: { ARCHIVE: "ARCHIVED" },
     PARTIAL: { ARCHIVE: "ARCHIVED" },
     FAILED: { ARCHIVE: "ARCHIVED" },
@@ -1485,6 +3343,11 @@ function jsonRecord(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
 function iso(value: Date | null | undefined) {
   return value?.toISOString() ?? null;
 }
@@ -1515,5 +3378,13 @@ function precondition(detail: string): never {
     HttpStatus.PRECONDITION_REQUIRED,
     "Precondition required",
     detail,
+  );
+}
+function audienceChanged(): never {
+  problem(
+    "CAMPAIGN_AUDIENCE_CHANGED",
+    HttpStatus.CONFLICT,
+    "Campaign audience changed",
+    "Destinatarii s-au modificat după verificare. Verifică din nou audiența înainte de trimitere.",
   );
 }

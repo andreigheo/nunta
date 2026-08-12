@@ -68,7 +68,7 @@ export function proxy(request: NextRequest) {
   const authCookie = sessionCookieName();
   const production = process.env.NODE_ENV === "production";
   const demoEnabled =
-    !production &&
+    (!production || process.env.WEDDINGOS_E2E === "true") &&
     process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true";
 
   if (

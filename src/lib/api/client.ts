@@ -51,6 +51,8 @@ import type {
   CreateHousehold,
   CreateMenu,
   GuestCompanionBootstrapResource,
+  GuestInvitationOpen,
+  GuestLinkAccess,
   GuestImportResource,
   GuestImportRowResource,
   GuestListResource,
@@ -58,7 +60,16 @@ import type {
   GuestTagResource,
   HouseholdListResource,
   HouseholdResource,
+  ApplyInvitationSync,
+  CreateInvitationVariant,
+  InvitationPreflightResource,
+  InvitationRecipientResource,
   InvitationSiteResource,
+  InvitationSyncPreviewResource,
+  InvitationVariantResource,
+  InvitationVersionHistoryResource,
+  RecipientAccessLinkResource,
+  SaveInvitationVariantDraft,
   MenuResource,
   RsvpFormResource,
   RsvpSubmissionResource,
@@ -1864,9 +1875,9 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
-  households: (workspaceId: string, search?: string) =>
+  households: (workspaceId: string, search?: string, cursor?: string) =>
     request<HouseholdListResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/households${queryString({ search })}`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/households${queryString({ search, cursor })}`,
     ),
   household: (workspaceId: string, householdId: string) =>
     request<HouseholdResource>(
@@ -2002,6 +2013,21 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/guest-bulk-commands`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
+  prepareBulkRsvpReminder: (workspaceId: string, guestIds: string[]) =>
+    request<{
+      campaign: CampaignResource;
+      audience: {
+        total: number;
+        valid: number;
+        invalid: number;
+        invalidRecipients: Array<{ recipientId: string; reason: string }>;
+        audienceRevision: string;
+      };
+    }>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-bulk-commands`, {
+      method: "POST",
+      body: { command: "SEND_RSVP_REMINDER", guestIds },
+      idempotencyKey: crypto.randomUUID(),
+    }),
   uploadGuestImport: (workspaceId: string, file: File) => {
     const form = new FormData();
     form.set("file", file);
@@ -2071,25 +2097,121 @@ export const weddingOsApi = {
     request<InvitationSiteResource | null>(
       `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site`,
     ),
-  invitationRecipients: (workspaceId: string) =>
-    request<{
-      items: Array<Record<string, unknown>>;
-      nextCursor: string | null;
-    }>(`/workspaces/${encodeURIComponent(workspaceId)}/invitation-recipients`),
+  invitationRecipients: (workspaceId: string, cursor?: string) =>
+    request<{ items: InvitationRecipientResource[]; nextCursor: string | null }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-recipients${queryString({ cursor })}`,
+    ),
+  invitationVersions: (workspaceId: string, cursor?: string) =>
+    request<InvitationVersionHistoryResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/versions${queryString({ cursor })}`,
+    ),
+  restoreInvitationVersion: (
+    workspaceId: string,
+    versionId: string,
+    version: number,
+  ) =>
+    request<InvitationSiteResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/versions/${encodeURIComponent(versionId)}/restore`,
+      {
+        method: "POST",
+        body: {},
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  invitationPreflight: (workspaceId: string) =>
+    request<InvitationPreflightResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/preflight`,
+      { method: "POST", body: {} },
+    ),
+  invitationSyncPreview: (workspaceId: string) =>
+    request<InvitationSyncPreviewResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/sync-preview`,
+    ),
+  applyInvitationSync: (
+    workspaceId: string,
+    version: number,
+    input: ApplyInvitationSync,
+  ) =>
+    request<InvitationSiteResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/sync-apply`,
+      {
+        method: "POST",
+        body: input,
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  invitationVariants: (workspaceId: string) =>
+    request<{ items: InvitationVariantResource[] }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/variants`,
+    ),
+  createInvitationVariant: (
+    workspaceId: string,
+    input: CreateInvitationVariant,
+  ) =>
+    request<InvitationVariantResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/variants`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  saveInvitationVariantDraft: (
+    workspaceId: string,
+    variantId: string,
+    version: number,
+    input: SaveInvitationVariantDraft,
+  ) =>
+    request<InvitationVariantResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/variants/${encodeURIComponent(variantId)}/draft`,
+      { method: "PUT", body: input, ifMatch: version },
+    ),
+  archiveInvitationVariant: (
+    workspaceId: string,
+    variantId: string,
+    version: number,
+  ) =>
+    request<InvitationVariantResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site/variants/${encodeURIComponent(variantId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
+  assignInvitationRecipientVariant: (
+    workspaceId: string,
+    recipientId: string,
+    version: number,
+    variantId: string | null,
+  ) =>
+    request<InvitationRecipientResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-recipients/${encodeURIComponent(recipientId)}/variant`,
+      { method: "PUT", body: { variantId }, ifMatch: version },
+    ),
+  recipientAccessLinks: (
+    workspaceId: string,
+    recipientId: string,
+    channels: Array<"MANUAL" | "WHATSAPP">,
+  ) =>
+    request<{ items: RecipientAccessLinkResource[] }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/invitation-recipients/${encodeURIComponent(recipientId)}/access-links`,
+      { method: "POST", body: { channels } },
+    ),
   createInvitationRecipients: (
     workspaceId: string,
     input: {
       householdIds: string[];
       guestIds: string[];
       invitationVersionId?: string;
+      invitationVariantId?: string | null;
     },
+    idempotencyKey = crypto.randomUUID(),
   ) =>
     request<{ created: number; recipientIds: string[] }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/invitation-recipients`,
       {
         method: "POST",
         body: input,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey,
       },
     ),
   downloadRecipientQr: (
@@ -2136,18 +2258,29 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  campaignAudiencePreview: (workspaceId: string, campaignId: string) =>
+    request<{
+      total: number;
+      valid: number;
+      invalid: number;
+      invalidRecipients: Array<{ recipientId: string; reason: string }>;
+      audienceRevision: string;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}/audience-preview`,
+    ),
   transitionCampaign: (
     workspaceId: string,
     campaignId: string,
     version: number,
     transition: string,
     scheduledAt?: string,
+    audienceRevision?: string,
   ) =>
     request<{ campaign: CampaignResource; job?: BackgroundJobResource }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}/transitions`,
       {
         method: "POST",
-        body: { transition, scheduledAt },
+        body: { transition, scheduledAt, audienceRevision },
         ifMatch: version,
         idempotencyKey: crypto.randomUUID(),
       },
@@ -3459,6 +3592,24 @@ export const weddingOsApi = {
     publicRequest<GuestCompanionBootstrapResource>(
       `/guest/bootstrap?token=${encodeURIComponent(token)}`,
     ),
+  markGuestInvitationOpen: (input: GuestInvitationOpen) =>
+    publicRequest<{
+      recipientId: string;
+      invitationOpenedAt: string;
+      duplicate: boolean;
+    }>("/guest/invitation-open", {
+      method: "POST",
+      body: input,
+    }),
+  markGuestLinkAccess: (input: GuestLinkAccess) =>
+    publicRequest<{
+      recipientId: string;
+      linkAccessedAt: string;
+      duplicate: boolean;
+    }>("/guest/link-access", {
+      method: "POST",
+      body: input,
+    }),
   guestRsvp: (token: string) =>
     publicRequest<RsvpSubmissionResource>(
       `/guest/rsvp?token=${encodeURIComponent(token)}`,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyInvitationSyncSchema,
   campaignTransitionSchema,
   campaignAudienceFilterSchema,
   capabilityKeys,
@@ -8,8 +9,15 @@ import {
   createInvitationRecipientsSchema,
   defaultRoleTemplates,
   guestBulkCommandSchema,
+  guestCompanionBootstrapSchema,
   guestRsvpRequestSchema,
   invitationDocumentSchema,
+  invitationRecipientSchema,
+  invitationSettingsSchema,
+  invitationVariantOverridesSchema,
+  guestInvitationOpenSchema,
+  guestLinkAccessSchema,
+  invitationContainsStarterContent,
   saveInvitationDraftSchema,
 } from "@weddingos/contracts";
 import {
@@ -19,12 +27,19 @@ import {
   hashToken,
   stableHash,
 } from "../src/guests/sensitive.crypto";
+import { asyncEventNameSchema } from "@weddingos/jobs";
 import {
   normalizeEmail,
   normalizePhone,
 } from "../src/guests/guest-crm.service";
 import { campaignTransition } from "../src/guests/invitation-campaign.service";
 import { nextGuestAction } from "../src/planning/planning.service";
+import {
+  invitationMediaReferences,
+  resolvedInvitationContainsMedia,
+  resolveInvitationVariant,
+  visibleInvitationDocument,
+} from "../src/guests/invitation-resolution";
 
 const uuid = "00000000-0000-4000-8000-000000000001";
 const eventId = "00000000-0000-4000-8000-000000000002";
@@ -96,6 +111,340 @@ describe("Slice 3 guest, invitation, RSVP and menu rules", () => {
     ).toThrow();
   });
 
+  it("validates cinematic cover media and bounded motion settings", () => {
+    const settings = invitationSettingsSchema.parse({
+      experience: {
+        enabled: true,
+        style: "split_panels",
+        replay: "first_visit",
+        panelColor: "#3b183f",
+        backgroundColor: "#f7f7f3",
+        accentColor: "#f06449",
+        texture: "paper",
+        monogram: "A & M",
+        frontMessage: "Pentru familia Pop",
+        coverImageUrl: null,
+        coverMediaId: uuid,
+        durationMs: 1400,
+      },
+    });
+    expect(settings.experience?.coverMediaId).toBe(uuid);
+    expect(() =>
+      invitationSettingsSchema.parse({
+        experience: { coverMediaId: "not-a-media-id" },
+      }),
+    ).toThrow();
+    expect(() =>
+      invitationSettingsSchema.parse({
+        experience: { durationMs: 5000 },
+      }),
+    ).toThrow();
+  });
+
+  it("distinguishes starter examples from reviewed invitation content", () => {
+    expect(
+      invitationContainsStarterContent({
+        sections: [
+          {
+            content: {
+              names: "Ana & Mihai",
+              date: "12 septembrie 2027",
+            },
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      invitationContainsStarterContent({
+        sections: [{ content: { names: "Andrei & Andreea" } }],
+      }),
+    ).toBe(false);
+    expect(
+      invitationContainsStarterContent(
+        visibleInvitationDocument({
+          sections: [
+            {
+              id: "hero",
+              visible: false,
+              content: {
+                names: "Ana & Mihai",
+                date: "12 septembrie 2027",
+              },
+            },
+          ],
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      invitationContainsStarterContent(
+        resolveInvitationVariant(
+          {
+            sections: [
+              {
+                id: "hero",
+                type: "hero",
+                visible: true,
+                content: { names: "Ana & Mihai" },
+              },
+            ],
+          },
+          {},
+          {
+            document: {
+              sections: [
+                {
+                  id: "hero",
+                  content: { venue: "Conacul Ambient · Cristian" },
+                },
+              ],
+            },
+          },
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("authorizes every explicit invitation media reference used by V2", () => {
+    const baseDocument = {
+      sections: [
+        {
+          id: "hero",
+          type: "hero",
+          visible: true,
+          content: {
+            mediaId: "artwork",
+            backgroundMediaId: "background",
+            sectionStyle: { backgroundMode: "image" },
+            unrelatedMediaId: "must-not-be-authorized",
+            decorations: [
+              { kind: "image", mediaId: "decoration" },
+              { kind: "shape", mediaId: "must-not-be-authorized" },
+            ],
+          },
+        },
+        {
+          id: "video",
+          type: "custom",
+          visible: true,
+          content: {
+            blockKind: "video",
+            url: "https://cdn.example.test/invitation.mp4",
+            posterMediaId: "poster",
+          },
+        },
+      ],
+    };
+    const references = invitationMediaReferences(baseDocument, {
+      experience: { enabled: true, coverMediaId: "cover" },
+    });
+
+    expect([...references].sort()).toEqual(
+      ["artwork", "background", "cover", "decoration", "poster"].sort(),
+    );
+    expect(references.has("must-not-be-authorized")).toBe(false);
+  });
+
+  it("authorizes only media in the effective visible invitation variant", () => {
+    const baseDocument = {
+      sections: [
+        {
+          id: "hero",
+          type: "hero",
+          visible: true,
+          content: {
+            backgroundMediaId: "base-hero",
+            sectionStyle: { backgroundMode: "image" },
+          },
+        },
+        {
+          id: "story",
+          type: "story",
+          visible: true,
+          content: { mediaId: "base-story" },
+        },
+      ],
+    };
+    const overrides = {
+      document: {
+        sections: [
+          {
+            id: "hero",
+            content: { backgroundMediaId: "variant-hero" },
+          },
+          { id: "story", visible: false },
+        ],
+      },
+    };
+
+    expect(
+      resolvedInvitationContainsMedia(
+        baseDocument,
+        {},
+        overrides,
+        "variant-hero",
+      ),
+    ).toBe(true);
+    expect(
+      resolvedInvitationContainsMedia(baseDocument, {}, overrides, "base-hero"),
+    ).toBe(false);
+    expect(
+      resolvedInvitationContainsMedia(
+        baseDocument,
+        {},
+        overrides,
+        "base-story",
+      ),
+    ).toBe(false);
+  });
+
+  it("does not authorize retained media that the renderer does not display", () => {
+    const references = invitationMediaReferences(
+      {
+        sections: [
+          {
+            id: "story",
+            type: "story",
+            visible: true,
+            content: {
+              backgroundMediaId: "solid-background",
+              sectionStyle: { backgroundMode: "solid" },
+            },
+          },
+        ],
+      },
+      {
+        experience: { enabled: false, coverMediaId: "disabled-cover" },
+      },
+    );
+
+    expect(references.has("solid-background")).toBe(false);
+    expect(references.has("disabled-cover")).toBe(false);
+  });
+
+  it("keeps variant overrides and connected sync paths closed and typed", () => {
+    expect(
+      invitationVariantOverridesSchema.parse({
+        document: {
+          sections: [{ id: "hero", content: { names: "Ana & Mihai" } }],
+        },
+        settings: { colors: { accent: "#f06449" } },
+      }),
+    ).toBeTruthy();
+    expect(
+      applyInvitationSyncSchema.parse({
+        sourceRevision: "a".repeat(64),
+        paths: ["hero.names", "schedule.items"],
+      }).paths,
+    ).toEqual(["hero.names", "schedule.items"]);
+    expect(() =>
+      applyInvitationSyncSchema.parse({
+        sourceRevision: "a".repeat(64),
+        paths: ["custom.body"],
+      }),
+    ).toThrow();
+  });
+
+  it("separates link access from explicit invitation opening", () => {
+    expect(
+      guestLinkAccessSchema.parse({
+        token: "a".repeat(40),
+        idempotencyKey: "link-access-1",
+      }).source,
+    ).toBe("guest_page");
+    expect(
+      guestInvitationOpenSchema.parse({
+        token: "a".repeat(40),
+        idempotencyKey: "open-cover-1",
+        source: "cover",
+      }).source,
+    ).toBe("cover");
+  });
+
+  it("registers every Invitation Studio workflow event in the outbox contract", () => {
+    for (const eventName of [
+      "invitation.version_restored.v1",
+      "invitation.variant_created.v1",
+      "invitation.variant_draft_updated.v1",
+      "invitation.variant_archived.v1",
+      "invitation.connected_data_applied.v1",
+      "invitation.recipient_variant_assigned.v1",
+    ])
+      expect(asyncEventNameSchema.safeParse(eventName).success).toBe(true);
+  });
+
+  it("keeps recipient labels and language in the distribution contract", () => {
+    expect(
+      invitationRecipientSchema.parse({
+        id: uuid,
+        invitationSiteId: "00000000-0000-4000-8000-000000000003",
+        householdId: "00000000-0000-4000-8000-000000000004",
+        householdName: "Familia Pop",
+        guestId: null,
+        guestName: null,
+        invitationVersionId: "00000000-0000-4000-8000-000000000005",
+        invitationVariantId: null,
+        preferredLanguage: "ro",
+        status: "ready",
+        openedAt: null,
+        lastAccessedAt: null,
+        rsvpCompletedAt: null,
+        version: 1,
+      }),
+    ).toMatchObject({
+      householdName: "Familia Pop",
+      guestName: null,
+      preferredLanguage: "ro",
+    });
+  });
+
+  it("contracts invitation experience and interaction state in guest bootstrap", () => {
+    const bootstrap = guestCompanionBootstrapSchema.parse({
+      couple: {},
+      invitation: {
+        siteId: "00000000-0000-4000-8000-000000000003",
+        document: {
+          sections: [{ id: "hero", type: "hero", visible: true, content: {} }],
+        },
+        settings: { experience: { coverMediaId: uuid } },
+        language: "ro",
+        baseVersionId: "00000000-0000-4000-8000-000000000005",
+        variant: null,
+        experience: { coverMediaId: uuid },
+      },
+      interaction: {
+        invitationOpenedAt: null,
+        lastAccessedAt: null,
+        shouldPlayReveal: true,
+      },
+      events: [],
+      household: { id: uuid, name: "Familia Pop", members: [] },
+      rsvp: {},
+      rsvpConfig: {
+        deadline: null,
+        attendanceEnabled: true,
+        perEventAttendance: true,
+        plusOneQuestion: true,
+        childrenConfirmation: true,
+        menuSelection: true,
+        allergyCollection: true,
+        accessibilityCollection: true,
+        transportQuestion: true,
+        accommodationQuestion: true,
+        guestMessage: true,
+        allowEdits: true,
+        closedMessage: "RSVP închis",
+        languages: ["ro"],
+      },
+      menus: [],
+      accommodationRecommendations: [],
+      deadline: null,
+      allowEdits: true,
+      closedMessage: "RSVP închis",
+    });
+    expect(bootstrap.invitation.experience?.coverMediaId).toBe(uuid);
+    expect(bootstrap.interaction.shouldPlayReveal).toBe(true);
+  });
+
   it("rejects script and protocol-relative URLs in invitation content", () => {
     expect(() =>
       invitationDocumentSchema.parse({
@@ -145,9 +494,15 @@ describe("Slice 3 guest, invitation, RSVP and menu rules", () => {
   });
 
   it("accepts only declared campaign transitions", () => {
-    expect(campaignTransition("QUEUED", "PAUSE")).toBe("PAUSED");
-    expect(campaignTransition("PAUSED", "RESUME")).toBe("QUEUED");
+    expect(() => campaignTransition("QUEUED", "PAUSE")).toThrow();
+    expect(() => campaignTransition("PAUSED", "RESUME")).toThrow();
     expect(() => campaignTransition("COMPLETED", "SEND_NOW")).toThrow();
+    expect(() =>
+      campaignTransitionSchema.parse({ transition: "SEND_NOW" }),
+    ).toThrow(/current campaign audience/i);
+    expect(
+      campaignTransitionSchema.parse({ transition: "RETRY_FAILED" }),
+    ).toEqual({ transition: "RETRY_FAILED" });
     expect(() =>
       campaignTransitionSchema.parse({ transition: "SEND_SMS" }),
     ).toThrow();

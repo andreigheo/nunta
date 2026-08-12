@@ -28,6 +28,7 @@ import {
   type VerifiedProviderEvent,
 } from "./providers";
 import { hashToken } from "../guests/sensitive.crypto";
+import { resolvedInvitationContainsMedia } from "../guests/invitation-resolution";
 
 type Owner = { workspaceId?: string; vendorOrganizationId?: string };
 type DocumentInput = {
@@ -105,22 +106,6 @@ function jsonSafe<T>(value: T): T {
       typeof item === "bigint" ? item.toString() : item,
     ),
   ) as T;
-}
-
-function invitationDocumentContainsMedia(
-  value: unknown,
-  objectId: string,
-): boolean {
-  if (Array.isArray(value))
-    return value.some((item) =>
-      invitationDocumentContainsMedia(item, objectId),
-    );
-  if (!value || typeof value !== "object") return false;
-  return Object.entries(value as Record<string, unknown>).some(
-    ([key, child]) =>
-      (key === "mediaId" && child === objectId) ||
-      invitationDocumentContainsMedia(child, objectId),
-  );
 }
 
 function onboardingCoupleContainsMedia(value: unknown, objectId: string) {
@@ -595,20 +580,60 @@ export class SecureCommerceService {
         const recipient = await tx.invitationRecipient.findUnique({
           where: { id: grant.invitationRecipientId },
         });
-        const version = recipient
+        const site = recipient
+          ? await tx.invitationSite.findFirst({
+              where: {
+                id: recipient.invitationSiteId,
+                workspaceId: grant.workspaceId,
+                status: "PUBLISHED",
+              },
+            })
+          : null;
+        const version = site?.publishedVersionId
           ? await tx.invitationVersion.findUnique({
-              where: { id: recipient.invitationVersionId },
+              where: { id: site.publishedVersionId },
+            })
+          : null;
+        const variant = recipient?.invitationVariantId
+          ? await tx.invitationVariant.findFirst({
+              where: {
+                id: recipient.invitationVariantId,
+                invitationSiteId: recipient.invitationSiteId,
+                workspaceId: grant.workspaceId,
+                status: "ACTIVE",
+              },
+            })
+          : null;
+        const variantVersion = variant?.publishedVersionId
+          ? await tx.invitationVariantVersion.findUnique({
+              where: { id: variant.publishedVersionId },
             })
           : null;
         if (
           !version ||
-          !invitationDocumentContainsMedia(version.document, objectId)
+          (variantVersion &&
+            (variantVersion.invitationVariantId !== variant?.id ||
+              variantVersion.baseInvitationVersionId !== version.id ||
+              variantVersion.workspaceId !== grant.workspaceId ||
+              !variantVersion.publishedAt)) ||
+          !resolvedInvitationContainsMedia(
+            version.document,
+            version.settings,
+            variantVersion?.overrides,
+            objectId,
+          )
         )
           problem(
             "NOT_FOUND",
             HttpStatus.NOT_FOUND,
             "Invitation media not found",
           );
+        await this.database.setTransactionContext(tx, {
+          workspaceId: grant.workspaceId,
+          guestTokenHash: tokenHash,
+          guestAccessGrantId: grant.id,
+          invitationMediaObjectId: objectId,
+        });
         return tx.storedObject.findFirst({
           where: {
             id: objectId,

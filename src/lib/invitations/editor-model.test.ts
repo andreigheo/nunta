@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyInvitationVariant,
+  createAdvancedSection,
   createDefaultSection,
   createInitialSnapshot,
+  invitationVariantOverrides,
   invitationReadiness,
   serializeSnapshot,
   snapshotFromPersisted,
@@ -14,6 +17,8 @@ describe("invitation editor model", () => {
     hero.content.names = "Iulia & Radu";
     hero.content.mediaId = "b27a62b6-1b40-4ce8-ac21-a6c5e0aced10";
     hero.content.layout = "immersive";
+    hero.content.focalX = 0;
+    hero.content.overlayOpacity = 0;
     hero.style.tone = "soft";
     hero.style.backgroundMode = "gradient";
     hero.style.gradientFrom = "#123456";
@@ -32,6 +37,8 @@ describe("invitation editor model", () => {
       "b27a62b6-1b40-4ce8-ac21-a6c5e0aced10",
     );
     expect(restored.sections[0].content.layout).toBe("immersive");
+    expect(restored.sections[0].content.focalX).toBe(0);
+    expect(restored.sections[0].content.overlayOpacity).toBe(0);
     expect(restored.sections[0].style.tone).toBe("soft");
     expect(restored.sections[0].style.backgroundMode).toBe("gradient");
     expect(restored.sections[0].style.gradientFrom).toBe("#123456");
@@ -69,10 +76,113 @@ describe("invitation editor model", () => {
     const snapshot = createInitialSnapshot();
     expect(invitationReadiness(snapshot)).toMatchObject({
       completed: 5,
-      total: 5,
+      total: 6,
     });
 
-    snapshot.sections.find((section) => section.type === "rsvp")!.visible = false;
-    expect(invitationReadiness(snapshot).completed).toBe(4);
+    const hero = snapshot.sections.find((section) => section.type === "hero")!;
+    hero.content.names = "Andrei & Andreea";
+    hero.content.date = "8 august 2028";
+    hero.content.venue = "Grădina noastră";
+    snapshot.sections.find((section) => section.type === "schedule")!.content.items = [
+      { time: "15:00", title: "Ceremonia", detail: "Grădina noastră" },
+    ];
+    snapshot.sections.find((section) => section.type === "locations")!.content.items = [
+      { name: "Grădina noastră", address: "Strada Florilor 8", url: "" },
+    ];
+    const rsvp = snapshot.sections.find((section) => section.type === "rsvp")!;
+    rsvp.content.title = "Confirmați până la începutul verii";
+    rsvp.content.body = "Spuneți-ne câți dintre voi pot ajunge.";
+    rsvp.content.deadline = "1 iulie 2028";
+    for (const type of ["story", "countdown", "dress_code", "faq"])
+      snapshot.sections.find((section) => section.type === type)!.visible = false;
+
+    expect(invitationReadiness(snapshot)).toMatchObject({
+      completed: 6,
+      total: 6,
+    });
+  });
+
+  it("persists the cinematic cover and device art direction", () => {
+    const snapshot = createInitialSnapshot();
+    snapshot.experience = {
+      ...snapshot.experience,
+      enabled: true,
+      monogram: "I & R",
+      texture: "linen",
+      coverMediaId: "b27a62b6-1b40-4ce8-ac21-a6c5e0aced10",
+      durationMs: 1200,
+    };
+    const hero = snapshot.sections[0];
+    hero.content.artDirection = {
+      desktop: { focalX: 44, focalY: 38, headingScale: 100, hideDecorations: false },
+      tablet: { focalX: 50, focalY: 42, headingScale: 92, hideDecorations: false },
+      mobile: { focalX: 64, focalY: 40, headingScale: 76, hideDecorations: true },
+    };
+
+    const serialized = serializeSnapshot(snapshot);
+    const restored = snapshotFromPersisted(
+      serialized.document.sections,
+      serialized.settings,
+    );
+
+    expect(restored.experience).toMatchObject({
+      enabled: true,
+      monogram: "I & R",
+      texture: "linen",
+      coverMediaId: "b27a62b6-1b40-4ce8-ac21-a6c5e0aced10",
+      durationMs: 1200,
+    });
+    expect(restored.sections[0].content.artDirection).toEqual(
+      hero.content.artDirection,
+    );
+  });
+
+  it("creates advanced blocks inside the compatible custom contract", () => {
+    const mediaText = createAdvancedSection("media_text", "media-story");
+    const snapshot = createInitialSnapshot();
+    snapshot.sections.push(mediaText);
+
+    const persisted = serializeSnapshot(snapshot).document.sections.at(-1);
+
+    expect(mediaText.type).toBe("custom");
+    expect(mediaText.content.blockKind).toBe("media_text");
+    expect(persisted).toMatchObject({
+      id: "media-story",
+      type: "custom",
+      content: { blockKind: "media_text" },
+    });
+  });
+
+  it("stores only named variant differences and can resolve them over the base", () => {
+    const base = createInitialSnapshot();
+    const variant = structuredClone(base);
+    variant.sections[0].content.subtitle = "Un mesaj numai pentru familie.";
+    variant.sections.find((section) => section.type === "dress_code")!.visible = false;
+    variant.experience.frontMessage = "Familia noastră";
+
+    const overrides = invitationVariantOverrides(base, variant);
+    const resolved = applyInvitationVariant(base, overrides);
+
+    expect(overrides.document?.sections).toHaveLength(2);
+    expect(resolved.sections[0].content.subtitle).toBe(
+      "Un mesaj numai pentru familie.",
+    );
+    expect(
+      resolved.sections.find((section) => section.type === "dress_code")?.visible,
+    ).toBe(false);
+    expect(resolved.experience.frontMessage).toBe("Familia noastră");
+    expect(base.sections[0].content.subtitle).not.toBe(
+      "Un mesaj numai pentru familie.",
+    );
+  });
+
+  it("rejects structural drift in a named variant instead of losing it silently", () => {
+    const base = createInitialSnapshot();
+    const variant = structuredClone(base);
+    variant.sections.push(createAdvancedSection("divider", "variant-divider"));
+
+    expect(() => invitationVariantOverrides(base, variant)).toThrow(
+      "Structura unei variante trebuie modificată în invitația de bază.",
+    );
   });
 });

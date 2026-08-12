@@ -1,8 +1,9 @@
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import request from "supertest";
+import type { Prisma } from "@weddingos/database";
 import { PrismaClient } from "@weddingos/database";
 import { assertDestructiveDatabasePurpose } from "./database-identity";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -13,6 +14,9 @@ import { hashToken } from "../src/guests/sensitive.crypto";
 const origin = process.env.WEB_URL!;
 const database = new PrismaClient({
   datasourceUrl: process.env.DATABASE_OWNER_URL!,
+});
+const appDatabase = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL!,
 });
 const webhookSecret = "weddingos-local-outbox-encryption-key-change-production";
 
@@ -32,6 +36,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
   let childGuestId = "";
   let recipientId = "";
   let guestToken = "";
+  let legacyGuestToken = "";
   let eventIds: string[] = [];
   let menuId = "";
   let submissionId = "";
@@ -53,6 +58,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
 
   afterAll(async () => {
     await application?.close();
+    await appDatabase.$disconnect();
     await database.$disconnect();
   });
 
@@ -386,16 +392,29 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("Idempotency-Key", `publish-${randomUUID()}`)
       .expect(201);
     const recipientKey = `recipients-${randomUUID()}`;
-    const recipients = await owner.agent
-      .post(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
-      .set("Origin", origin)
-      .set("Idempotency-Key", recipientKey)
-      .send({
-        householdIds: [householdId],
-        guestIds: [],
-        invitationVersionId: published.body.data.published.id,
-      })
-      .expect(201);
+    const secondBatchKey = `recipients-second-${randomUUID()}`;
+    const [recipients, secondBatch] = await Promise.all([
+      owner.agent
+        .post(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
+        .set("Origin", origin)
+        .set("Idempotency-Key", recipientKey)
+        .send({
+          householdIds: [householdId],
+          guestIds: [],
+          invitationVersionId: published.body.data.published.id,
+        })
+        .expect(201),
+      owner.agent
+        .post(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
+        .set("Origin", origin)
+        .set("Idempotency-Key", secondBatchKey)
+        .send({
+          householdIds: [],
+          guestIds: [childGuestId],
+          invitationVersionId: published.body.data.published.id,
+        })
+        .expect(201),
+    ]);
     const replay = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
       .set("Origin", origin)
@@ -409,17 +428,6 @@ describe.sequential("Slice 3 guest journey integration", () => {
     expect(replay.body.data.recipientIds).toEqual(
       recipients.body.data.recipientIds,
     );
-    const secondBatchKey = `recipients-second-${randomUUID()}`;
-    const secondBatch = await owner.agent
-      .post(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
-      .set("Origin", origin)
-      .set("Idempotency-Key", secondBatchKey)
-      .send({
-        householdIds: [],
-        guestIds: [childGuestId],
-        invitationVersionId: published.body.data.published.id,
-      })
-      .expect(201);
     const secondReplay = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
       .set("Origin", origin)
@@ -433,9 +441,15 @@ describe.sequential("Slice 3 guest journey integration", () => {
     expect(secondReplay.body.data.recipientIds).toEqual(
       secondBatch.body.data.recipientIds,
     );
+    expect(recipients.body.data.created + secondBatch.body.data.created).toBe(
+      1,
+    );
+    expect(secondBatch.body.data.recipientIds).toEqual(
+      recipients.body.data.recipientIds,
+    );
     expect(
       await database.invitationRecipient.count({ where: { workspaceId } }),
-    ).toBe(2);
+    ).toBe(1);
     recipientId = recipients.body.data.recipientIds[0];
     guestToken = `slice3-${randomUUID()}-${randomUUID()}`;
     await database.guestAccessGrant.updateMany({
@@ -464,6 +478,33 @@ describe.sequential("Slice 3 guest journey integration", () => {
       await database.invitationRecipient
         .findUniqueOrThrow({ where: { id: recipientId } })
         .then((row) => row.status),
+    ).toBe("READY");
+    const linkKey = `link-${randomUUID()}`;
+    const linkAccess = await request(application.getHttpServer())
+      .post("/api/v1/guest/link-access")
+      .send({ token: guestToken, idempotencyKey: linkKey })
+      .expect(201);
+    expect(linkAccess.body.duplicate).toBe(false);
+    expect(
+      await database.invitationRecipient
+        .findUniqueOrThrow({ where: { id: recipientId } })
+        .then((row) => row.status),
+    ).toBe("READY");
+    const openKey = `open-${randomUUID()}`;
+    const opened = await request(application.getHttpServer())
+      .post("/api/v1/guest/invitation-open")
+      .send({ token: guestToken, idempotencyKey: openKey, source: "cover" })
+      .expect(201);
+    const openedReplay = await request(application.getHttpServer())
+      .post("/api/v1/guest/invitation-open")
+      .send({ token: guestToken, idempotencyKey: openKey, source: "cover" })
+      .expect(201);
+    expect(opened.body.duplicate).toBe(false);
+    expect(openedReplay.body.duplicate).toBe(true);
+    expect(
+      await database.invitationRecipient
+        .findUniqueOrThrow({ where: { id: recipientId } })
+        .then((row) => row.status),
     ).toBe("OPENED");
     await database.guestAccessGrant.update({
       where: { id: grant.id },
@@ -484,6 +525,894 @@ describe.sequential("Slice 3 guest journey integration", () => {
     });
   });
 
+  it("keeps legacy recipient links valid across republish and isolates deterministic access channels", async () => {
+    const site = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/invitation-site`)
+      .expect(200);
+    const invitationMedia = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const invitationMediaChecksum = createHash("sha256")
+      .update(invitationMedia)
+      .digest("hex");
+    const upload = await owner.agent
+      .post("/api/v1/uploads")
+      .set("Origin", origin)
+      .set("Idempotency-Key", `invitation-media-${randomUUID()}`)
+      .send({
+        workspaceId,
+        purpose: "INVITATION_MEDIA",
+        originalFileName: "invitation-pixel.png",
+        contentType: "image/png",
+        sizeBytes: invitationMedia.length,
+        checksumSha256: invitationMediaChecksum,
+      })
+      .expect(201);
+    const uploadResponse = await fetch(upload.body.data.upload.url, {
+      method: "PUT",
+      headers: upload.body.data.upload.headers,
+      body: invitationMedia,
+    });
+    expect(uploadResponse.ok).toBe(true);
+    const completedUpload = await owner.agent
+      .post(`/api/v1/uploads/${upload.body.data.id}/complete`)
+      .set("Origin", origin)
+      .send({ checksumSha256: invitationMediaChecksum })
+      .expect(201);
+    const invitationMediaId = completedUpload.body.data.storageObjectId;
+    await expect
+      .poll(
+        async () =>
+          (
+            await database.storedObject.findUniqueOrThrow({
+              where: { id: invitationMediaId },
+            })
+          ).status,
+        { timeout: 60_000 },
+      )
+      .toBe("AVAILABLE");
+    const rollbackCompatibleRecipientId = randomUUID();
+    const explicitSiteRecipientId = randomUUID();
+    const publishedVersion = await database.invitationVersion.findUniqueOrThrow(
+      {
+        where: { id: site.body.data.published.id },
+      },
+    );
+    const alternateVersion = await database.invitationVersion.create({
+      data: {
+        workspaceId,
+        invitationSiteId: site.body.data.id,
+        versionNumber:
+          (
+            await database.invitationVersion.aggregate({
+              where: { invitationSiteId: site.body.data.id },
+              _max: { versionNumber: true },
+            })
+          )._max.versionNumber! + 1,
+        document: publishedVersion.document as Prisma.InputJsonValue,
+        settings: publishedVersion.settings as Prisma.InputJsonValue,
+        language: publishedVersion.language,
+        createdById: owner.userId,
+        contentHash: "0".repeat(64),
+      },
+    });
+    try {
+      // Exercise the compatibility trigger through the restricted application
+      // role with forced RLS, not only through the migration-owner connection.
+      await appDatabase.$transaction(async (transaction) => {
+        await transaction.$executeRaw`
+          SELECT
+            set_config('app.current_user_id', ${owner.userId}, true),
+            set_config('app.current_workspace_id', ${workspaceId}, true)
+        `;
+        await transaction.$executeRaw`
+          INSERT INTO "invitation_recipients" (
+            "id", "workspace_id", "guest_id", "invitation_version_id", "updated_at"
+          ) VALUES (
+            ${rollbackCompatibleRecipientId}::uuid,
+            ${workspaceId}::uuid,
+            ${childGuestId}::uuid,
+            ${site.body.data.published.id}::uuid,
+            CURRENT_TIMESTAMP
+          )
+        `;
+        await transaction.$executeRaw`
+          INSERT INTO "invitation_recipients" (
+            "id", "workspace_id", "guest_id", "invitation_site_id",
+            "invitation_version_id", "updated_at"
+          ) VALUES (
+            ${explicitSiteRecipientId}::uuid,
+            ${workspaceId}::uuid,
+            ${primaryGuestId}::uuid,
+            ${site.body.data.id}::uuid,
+            ${site.body.data.published.id}::uuid,
+            CURRENT_TIMESTAMP
+          )
+        `;
+        await transaction.$executeRaw`
+          UPDATE "invitation_recipients"
+          SET "invitation_version_id" = ${alternateVersion.id}::uuid,
+              "updated_at" = CURRENT_TIMESTAMP
+          WHERE "id" = ${rollbackCompatibleRecipientId}::uuid
+        `;
+      });
+      expect(
+        await database.invitationRecipient
+          .findUniqueOrThrow({ where: { id: rollbackCompatibleRecipientId } })
+          .then((row) => ({
+            siteId: row.invitationSiteId,
+            versionId: row.invitationVersionId,
+          })),
+      ).toEqual({
+        siteId: site.body.data.id,
+        versionId: alternateVersion.id,
+      });
+      expect(
+        await database.invitationRecipient
+          .findUniqueOrThrow({ where: { id: explicitSiteRecipientId } })
+          .then((row) => row.invitationSiteId),
+      ).toBe(site.body.data.id);
+
+      await expect(
+        database.$executeRaw`
+          INSERT INTO "invitation_recipients" (
+            "id", "workspace_id", "guest_id", "invitation_site_id",
+            "invitation_version_id", "updated_at"
+          ) VALUES (
+            ${randomUUID()}::uuid,
+            ${randomUUID()}::uuid,
+            ${childGuestId}::uuid,
+            ${site.body.data.id}::uuid,
+            ${site.body.data.published.id}::uuid,
+            CURRENT_TIMESTAMP
+          )
+        `,
+      ).rejects.toThrow(/workspace does not match invitation version/i);
+    } finally {
+      await database.invitationRecipient.deleteMany({
+        where: {
+          id: { in: [rollbackCompatibleRecipientId, explicitSiteRecipientId] },
+        },
+      });
+      await database.invitationVersion.delete({
+        where: { id: alternateVersion.id },
+      });
+    }
+    const legacyRecipient = await database.invitationRecipient.create({
+      data: {
+        workspaceId,
+        invitationSiteId: site.body.data.id,
+        invitationVersionId: site.body.data.published.id,
+        guestId: childGuestId,
+        preferredLanguage: "ro",
+        personalizationSnapshot: { guestName: "Mara Pop" },
+      },
+    });
+    legacyGuestToken = `legacy-${randomUUID()}-${randomUUID()}`;
+    await database.guestAccessGrant.create({
+      data: {
+        workspaceId,
+        invitationRecipientId: legacyRecipient.id,
+        householdId,
+        channel: "LEGACY",
+        tokenHash: hashToken(legacyGuestToken),
+      },
+    });
+
+    const concurrentHousehold = await database.household.create({
+      data: {
+        workspaceId,
+        name: "Familia cursă revocare",
+        preferredLanguage: "ro",
+      },
+    });
+    const concurrentRecipient = await database.invitationRecipient.create({
+      data: {
+        workspaceId,
+        householdId: concurrentHousehold.id,
+        invitationSiteId: site.body.data.id,
+        invitationVersionId: site.body.data.published.id,
+        preferredLanguage: "ro",
+      },
+    });
+    const concurrentGrantId = randomUUID();
+    let markGrantInserted!: () => void;
+    const grantInserted = new Promise<void>((resolve) => {
+      markGrantInserted = resolve;
+    });
+    let releaseGrantTransaction!: () => void;
+    const grantTransactionReleased = new Promise<void>((resolve) => {
+      releaseGrantTransaction = resolve;
+    });
+    const grantTransaction = database.$transaction(async (transaction) => {
+      await transaction.guestAccessGrant.create({
+        data: {
+          id: concurrentGrantId,
+          workspaceId,
+          invitationRecipientId: concurrentRecipient.id,
+          householdId: concurrentHousehold.id,
+          tokenHash: hashToken(`concurrent-${randomUUID()}-${randomUUID()}`),
+        },
+      });
+      markGrantInserted();
+      await grantTransactionReleased;
+    });
+    await Promise.race([grantInserted, grantTransaction]);
+    let revocationFinished = false;
+    const concurrentRevocation = database
+      .$transaction(async (transaction) => {
+        await transaction.invitationRecipient.update({
+          where: { id: concurrentRecipient.id },
+          data: { revokedAt: new Date() },
+        });
+      })
+      .then(() => {
+        revocationFinished = true;
+      });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(revocationFinished).toBe(false);
+    } finally {
+      releaseGrantTransaction();
+    }
+    await Promise.all([grantTransaction, concurrentRevocation]);
+    expect(
+      await database.guestAccessGrant
+        .findUniqueOrThrow({ where: { id: concurrentGrantId } })
+        .then((grant) => grant.revokedAt),
+    ).not.toBeNull();
+    await database.invitationRecipient.delete({
+      where: { id: concurrentRecipient.id },
+    });
+    await database.household.delete({
+      where: { id: concurrentHousehold.id },
+    });
+
+    const variant = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/invitation-site/variants`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `variant-${randomUUID()}`)
+      .send({
+        name: "Familie apropiată",
+        code: `familie-${randomUUID().slice(0, 8)}`,
+        overrides: {
+          document: {
+            sections: [
+              {
+                id: "hero",
+                content: { variantMarker: "family-variant" },
+              },
+            ],
+          },
+        },
+      })
+      .expect(201);
+    const recipientBeforeVariant =
+      await database.invitationRecipient.findUniqueOrThrow({
+        where: { id: recipientId },
+      });
+    await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/invitation-recipients/${recipientId}/variant`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${recipientBeforeVariant.version}"`)
+      .send({ variantId: variant.body.data.id })
+      .expect(422);
+
+    const links = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/invitation-recipients/${recipientId}/access-links`,
+      )
+      .set("Origin", origin)
+      .send({ channels: ["MANUAL", "WHATSAPP"] })
+      .expect(201);
+    const manualUrl = links.body.data.items.find(
+      (item: { channel: string }) => item.channel === "MANUAL",
+    ).url;
+    const manualGrant = await database.guestAccessGrant.findFirstOrThrow({
+      where: {
+        invitationRecipientId: recipientId,
+        channel: "MANUAL",
+        revokedAt: null,
+      },
+    });
+    await database.guestAccessGrant.update({
+      where: { id: manualGrant.id },
+      data: { revokedAt: new Date() },
+    });
+    const reactivated = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/invitation-recipients/${recipientId}/access-links`,
+      )
+      .set("Origin", origin)
+      .send({ channels: ["MANUAL"] })
+      .expect(201);
+    expect(reactivated.body.data.items[0].url).toBe(manualUrl);
+    expect(reactivated.body.data.items[0].reused).toBe(false);
+    expect(
+      await database.guestAccessGrant.count({
+        where: {
+          invitationRecipientId: recipientId,
+          channel: "MANUAL",
+          revokedAt: null,
+        },
+      }),
+    ).toBe(1);
+    await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/invitation-recipients/${recipientId}/qr?format=svg`,
+      )
+      .expect(200);
+    expect(
+      await database.guestAccessGrant.count({
+        where: {
+          invitationRecipientId: recipientId,
+          channel: { in: ["MANUAL", "WHATSAPP", "QR"] },
+          revokedAt: null,
+        },
+      }),
+    ).toBe(3);
+
+    const nextDraft = await owner.agent
+      .put(`/api/v1/workspaces/${workspaceId}/invitation-site/draft`)
+      .set("Origin", origin)
+      .set("If-Match", `"${site.body.data.version}"`)
+      .send({
+        slug: site.body.data.slug,
+        defaultLanguage: site.body.data.defaultLanguage,
+        availableLanguages: site.body.data.availableLanguages,
+        accessPolicy: "TOKEN_ONLY",
+        document: {
+          sections: [
+            {
+              id: "hero",
+              type: "hero",
+              title: "Ana & Mihai",
+              visible: true,
+              content: {
+                names: "Ana & Mihai",
+                actionUrl: "https://weddingos.local/rsvp",
+                revisionMarker: "republished",
+                mediaId: invitationMediaId,
+              },
+            },
+          ],
+        },
+        settings: site.body.data.published.settings,
+      })
+      .expect(200);
+    const republished = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/invitation-site/publish`)
+      .set("Origin", origin)
+      .set("If-Match", `"${nextDraft.body.data.version}"`)
+      .set("Idempotency-Key", `republish-${randomUUID()}`)
+      .expect(201);
+    const recipientBeforePublishedVariant =
+      await database.invitationRecipient.findUniqueOrThrow({
+        where: { id: recipientId },
+      });
+    await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/invitation-recipients/${recipientId}/variant`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${recipientBeforePublishedVariant.version}"`)
+      .send({ variantId: variant.body.data.id })
+      .expect(200);
+    const legacyBootstrap = await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect(200);
+    expect(legacyBootstrap.body.invitation.baseVersionId).toBe(
+      republished.body.data.published.id,
+    );
+    expect(
+      legacyBootstrap.body.invitation.document.sections[0].content
+        .revisionMarker,
+    ).toBe("republished");
+    expect(
+      legacyBootstrap.body.invitation.document.sections[0].content
+        .variantMarker,
+    ).toBe("family-variant");
+    const guestMedia = await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/invitation-media/${invitationMediaId}?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect("Content-Type", /image\/png/)
+      .expect(200);
+    expect(Buffer.compare(guestMedia.body, invitationMedia)).toBe(0);
+
+    const publishedVariant = (
+      await owner.agent
+        .get(`/api/v1/workspaces/${workspaceId}/invitation-site/variants`)
+        .expect(200)
+    ).body.data.items.find(
+      (item: { id: string }) => item.id === variant.body.data.id,
+    );
+    const editedVariant = await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/invitation-site/variants/${publishedVariant.id}/draft`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${publishedVariant.version}"`)
+      .send({
+        overrides: {
+          document: {
+            sections: [
+              {
+                id: "hero",
+                content: { variantMarker: "family-variant-next" },
+              },
+            ],
+          },
+        },
+      })
+      .expect(200);
+    await owner.agent
+      .delete(
+        `/api/v1/workspaces/${workspaceId}/invitation-site/variants/${publishedVariant.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${editedVariant.body.data.version}"`)
+      .expect(422);
+    const bootstrapAfterBlockedArchive = await request(
+      application.getHttpServer(),
+    )
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect(200);
+    expect(
+      bootstrapAfterBlockedArchive.body.invitation.document.sections[0].content
+        .variantMarker,
+    ).toBe("family-variant");
+    const recipientBeforeBaseAssignment =
+      await database.invitationRecipient.findUniqueOrThrow({
+        where: { id: recipientId },
+      });
+    await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/invitation-recipients/${recipientId}/variant`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${recipientBeforeBaseAssignment.version}"`)
+      .send({ variantId: null })
+      .expect(200);
+    await owner.agent
+      .delete(
+        `/api/v1/workspaces/${workspaceId}/invitation-site/variants/${publishedVariant.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${editedVariant.body.data.version}"`)
+      .expect(200);
+
+    await request(application.getHttpServer())
+      .post("/api/v1/guest/link-access")
+      .send({
+        token: legacyGuestToken,
+        idempotencyKey: `legacy-link-${randomUUID()}`,
+      })
+      .expect(201);
+    const identityRows = await database.invitationRecipient.findMany({
+      where: {
+        workspaceId,
+        invitationSiteId: site.body.data.id,
+        revokedAt: null,
+        OR: [{ householdId }, { guestId: childGuestId }],
+      },
+    });
+    expect(identityRows).toHaveLength(2);
+    expect(identityRows.every((row) => row.lastAccessedAt)).toBe(true);
+    const legacyRecipientRow =
+      await database.invitationRecipient.findUniqueOrThrow({
+        where: { id: legacyRecipient.id },
+      });
+    const grantsBeforeRecipientRevocation =
+      await database.guestAccessGrant.findMany({
+        where: { invitationRecipientId: legacyRecipient.id, revokedAt: null },
+        select: { id: true },
+      });
+    expect(grantsBeforeRecipientRevocation.length).toBeGreaterThan(0);
+    const recipientRevokedAt = new Date();
+    await database.invitationRecipient.update({
+      where: { id: legacyRecipient.id },
+      data: { revokedAt: recipientRevokedAt },
+    });
+    expect(
+      await database.guestAccessGrant.count({
+        where: {
+          id: { in: grantsBeforeRecipientRevocation.map((grant) => grant.id) },
+          revokedAt: null,
+        },
+      }),
+    ).toBe(0);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect(401);
+    await request(application.getHttpServer())
+      .get(`/api/v1/guest/rsvp?token=${encodeURIComponent(legacyGuestToken)}`)
+      .expect(401);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/wedding-day/live?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect(401);
+
+    const revokedGrant = await database.guestAccessGrant.findFirstOrThrow({
+      where: { tokenHash: hashToken(legacyGuestToken) },
+    });
+    await database.guestAccessGrant.update({
+      where: { id: revokedGrant.id },
+      data: { revokedAt: null },
+    });
+    expect(
+      await database.guestAccessGrant
+        .findUniqueOrThrow({ where: { id: revokedGrant.id } })
+        .then((grant) => grant.revokedAt),
+    ).not.toBeNull();
+
+    const grantCreatedAfterRevocationToken = `revoked-${randomUUID()}-${randomUUID()}`;
+    const grantCreatedAfterRevocation = await database.guestAccessGrant.create({
+      data: {
+        workspaceId,
+        invitationRecipientId: legacyRecipient.id,
+        householdId,
+        tokenHash: hashToken(grantCreatedAfterRevocationToken),
+      },
+    });
+    expect(grantCreatedAfterRevocation.revokedAt).not.toBeNull();
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(grantCreatedAfterRevocationToken)}`,
+      )
+      .expect(401);
+
+    await database.invitationRecipient.update({
+      where: { id: legacyRecipient.id },
+      data: { revokedAt: null, version: legacyRecipientRow.version },
+    });
+    legacyGuestToken = `legacy-restored-${randomUUID()}-${randomUUID()}`;
+    await database.guestAccessGrant.create({
+      data: {
+        workspaceId,
+        invitationRecipientId: legacyRecipient.id,
+        householdId,
+        tokenHash: hashToken(legacyGuestToken),
+      },
+    });
+    const futureAccess = new Date(Date.now() + 60_000);
+    await database.invitationRecipient.updateMany({
+      where: {
+        workspaceId,
+        invitationSiteId: site.body.data.id,
+        OR: [{ householdId }, { guestId: childGuestId }],
+      },
+      data: { lastAccessedAt: futureAccess },
+    });
+    const legacyGrant = await database.guestAccessGrant.findFirstOrThrow({
+      where: { tokenHash: hashToken(legacyGuestToken) },
+    });
+    await database.guestAccessGrant.update({
+      where: { id: legacyGrant.id },
+      data: { lastUsedAt: futureAccess },
+    });
+    await request(application.getHttpServer())
+      .post("/api/v1/guest/link-access")
+      .send({
+        token: legacyGuestToken,
+        idempotencyKey: `legacy-out-of-order-${randomUUID()}`,
+      })
+      .expect(201);
+    expect(
+      (
+        await database.invitationRecipient.findUniqueOrThrow({
+          where: { id: legacyRecipient.id },
+        })
+      ).lastAccessedAt?.toISOString(),
+    ).toBe(futureAccess.toISOString());
+    expect(
+      (
+        await database.guestAccessGrant.findUniqueOrThrow({
+          where: { id: legacyGrant.id },
+        })
+      ).lastUsedAt?.toISOString(),
+    ).toBe(futureAccess.toISOString());
+
+    const archivedHousehold = await database.household.create({
+      data: {
+        workspaceId,
+        name: "Familia arhivată cu toate identitățile",
+        preferredLanguage: "ro",
+      },
+    });
+    const archivedHouseholdMember = await database.guest.create({
+      data: {
+        workspaceId,
+        householdId: archivedHousehold.id,
+        firstName: "Familie",
+        lastName: "Arhivată",
+        preferredLanguage: "ro",
+      },
+    });
+    await database.household.update({
+      where: { id: archivedHousehold.id },
+      data: { primaryGuestId: archivedHouseholdMember.id },
+    });
+    const [archivedHouseholdRecipient, archivedMemberRecipient] =
+      await Promise.all([
+        database.invitationRecipient.create({
+          data: {
+            workspaceId,
+            invitationSiteId: site.body.data.id,
+            invitationVersionId: republished.body.data.published.id,
+            householdId: archivedHousehold.id,
+            preferredLanguage: "ro",
+          },
+        }),
+        database.invitationRecipient.create({
+          data: {
+            workspaceId,
+            invitationSiteId: site.body.data.id,
+            invitationVersionId: republished.body.data.published.id,
+            guestId: archivedHouseholdMember.id,
+            preferredLanguage: "ro",
+          },
+        }),
+      ]);
+    const archivedHouseholdToken = `archive-household-${randomUUID()}-${randomUUID()}`;
+    const archivedMemberToken = `archive-member-${randomUUID()}-${randomUUID()}`;
+    await database.guestAccessGrant.createMany({
+      data: [
+        {
+          workspaceId,
+          invitationRecipientId: archivedHouseholdRecipient.id,
+          householdId: archivedHousehold.id,
+          tokenHash: hashToken(archivedHouseholdToken),
+        },
+        {
+          workspaceId,
+          invitationRecipientId: archivedMemberRecipient.id,
+          householdId: archivedHousehold.id,
+          tokenHash: hashToken(archivedMemberToken),
+        },
+      ],
+    });
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(archivedHouseholdToken)}`,
+      )
+      .expect(200);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(archivedMemberToken)}`,
+      )
+      .expect(200);
+    await owner.agent
+      .delete(
+        `/api/v1/workspaces/${workspaceId}/households/${archivedHousehold.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${archivedHousehold.version}"`)
+      .expect(200);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(archivedHouseholdToken)}`,
+      )
+      .expect(401);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(archivedMemberToken)}`,
+      )
+      .expect(401);
+
+    const memberOnlyHousehold = await database.household.create({
+      data: {
+        workspaceId,
+        name: "Familia cu un singur membru arhivat",
+        preferredLanguage: "ro",
+      },
+    });
+    const archivedMemberOnly = await database.guest.create({
+      data: {
+        workspaceId,
+        householdId: memberOnlyHousehold.id,
+        firstName: "Membru",
+        lastName: "Arhivat",
+        preferredLanguage: "ro",
+      },
+    });
+    await database.household.update({
+      where: { id: memberOnlyHousehold.id },
+      data: { primaryGuestId: archivedMemberOnly.id },
+    });
+    const [unrelatedHouseholdRecipient, archivedMemberOnlyRecipient] =
+      await Promise.all([
+        database.invitationRecipient.create({
+          data: {
+            workspaceId,
+            invitationSiteId: site.body.data.id,
+            invitationVersionId: republished.body.data.published.id,
+            householdId: memberOnlyHousehold.id,
+            preferredLanguage: "ro",
+          },
+        }),
+        database.invitationRecipient.create({
+          data: {
+            workspaceId,
+            invitationSiteId: site.body.data.id,
+            invitationVersionId: republished.body.data.published.id,
+            guestId: archivedMemberOnly.id,
+            preferredLanguage: "ro",
+          },
+        }),
+      ]);
+    const unrelatedHouseholdToken = `unrelated-household-${randomUUID()}-${randomUUID()}`;
+    const archivedMemberOnlyToken = `archive-one-member-${randomUUID()}-${randomUUID()}`;
+    await database.guestAccessGrant.createMany({
+      data: [
+        {
+          workspaceId,
+          invitationRecipientId: unrelatedHouseholdRecipient.id,
+          householdId: memberOnlyHousehold.id,
+          tokenHash: hashToken(unrelatedHouseholdToken),
+        },
+        {
+          workspaceId,
+          invitationRecipientId: archivedMemberOnlyRecipient.id,
+          householdId: memberOnlyHousehold.id,
+          tokenHash: hashToken(archivedMemberOnlyToken),
+        },
+      ],
+    });
+    await owner.agent
+      .delete(
+        `/api/v1/workspaces/${workspaceId}/guests/${archivedMemberOnly.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${archivedMemberOnly.version}"`)
+      .expect(200);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(archivedMemberOnlyToken)}`,
+      )
+      .expect(401);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(unrelatedHouseholdToken)}`,
+      )
+      .expect(200);
+
+    const moveSourceHousehold = await database.household.create({
+      data: {
+        workspaceId,
+        name: "Familia înainte de mutare",
+        preferredLanguage: "ro",
+      },
+    });
+    const moveTargetHousehold = await database.household.create({
+      data: {
+        workspaceId,
+        name: "Familia după mutare",
+        preferredLanguage: "ro",
+      },
+    });
+    const movedGuest = await database.guest.create({
+      data: {
+        workspaceId,
+        householdId: moveSourceHousehold.id,
+        firstName: "Invitat",
+        lastName: "Mutat",
+        preferredLanguage: "ro",
+      },
+    });
+    const movedGuestRecipient = await database.invitationRecipient.create({
+      data: {
+        workspaceId,
+        invitationSiteId: site.body.data.id,
+        invitationVersionId: republished.body.data.published.id,
+        guestId: movedGuest.id,
+        preferredLanguage: "ro",
+      },
+    });
+    const stableMovedGuestToken = `stable-moved-guest-${randomUUID()}-${randomUUID()}`;
+    const movedGuestGrant = await database.guestAccessGrant.create({
+      data: {
+        workspaceId,
+        invitationRecipientId: movedGuestRecipient.id,
+        householdId: moveSourceHousehold.id,
+        tokenHash: hashToken(stableMovedGuestToken),
+      },
+    });
+    const beforeGuestMove = await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(stableMovedGuestToken)}`,
+      )
+      .expect(200);
+    expect(beforeGuestMove.body.household.id).toBe(moveSourceHousehold.id);
+    await owner.agent
+      .patch(`/api/v1/workspaces/${workspaceId}/guests/${movedGuest.id}`)
+      .set("Origin", origin)
+      .set("If-Match", `"${movedGuest.version}"`)
+      .send({ householdId: moveTargetHousehold.id })
+      .expect(200);
+    const afterGuestMove = await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(stableMovedGuestToken)}`,
+      )
+      .expect(200);
+    expect(afterGuestMove.body.household.id).toBe(moveTargetHousehold.id);
+    expect(
+      await database.guestAccessGrant.findUniqueOrThrow({
+        where: { id: movedGuestGrant.id },
+      }),
+    ).toMatchObject({
+      invitationRecipientId: movedGuestRecipient.id,
+      householdId: moveTargetHousehold.id,
+      revokedAt: null,
+    });
+    await database.invitationRecipient.updateMany({
+      where: {
+        id: { in: [unrelatedHouseholdRecipient.id, movedGuestRecipient.id] },
+      },
+      data: { revokedAt: new Date(), version: { increment: 1 } },
+    });
+
+    const listed = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
+      .expect(200);
+    expect(
+      listed.body.data.items.filter(
+        (item: { householdId: string | null }) =>
+          item.householdId === householdId,
+      ),
+    ).toHaveLength(1);
+    expect(listed.body.data.items[0].preferredLanguage).toBeTruthy();
+    expect(listed.body.data.items[0].householdName).toBeTruthy();
+
+    const pagingHouseholds = Array.from({ length: 51 }, (_, index) => ({
+      id: randomUUID(),
+      workspaceId,
+      name: `Familia paginată ${index + 1}`,
+    }));
+    await database.household.createMany({ data: pagingHouseholds });
+    const pagingRecipientIds = pagingHouseholds.map(() => randomUUID());
+    await database.invitationRecipient.createMany({
+      data: pagingHouseholds.map((household, index) => ({
+        id: pagingRecipientIds[index]!,
+        workspaceId,
+        invitationSiteId: site.body.data.id,
+        invitationVersionId: republished.body.data.published.id,
+        householdId: household.id,
+      })),
+    });
+    const firstPage = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/invitation-recipients`)
+      .expect(200);
+    expect(firstPage.body.data.items).toHaveLength(50);
+    expect(firstPage.body.data.nextCursor).toBeTruthy();
+    const secondPage = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/invitation-recipients?cursor=${firstPage.body.data.nextCursor}`,
+      )
+      .expect(200);
+    expect(secondPage.body.data.items).toHaveLength(2);
+    expect(secondPage.body.data.nextCursor).toBeNull();
+    const pagedIds = [
+      ...firstPage.body.data.items,
+      ...secondPage.body.data.items,
+    ].map((item: { id: string }) => item.id);
+    expect(new Set(pagedIds).size).toBe(52);
+    await database.invitationRecipient.updateMany({
+      where: { id: { in: pagingRecipientIds } },
+      data: { revokedAt: new Date() },
+    });
+  }, 120_000);
+
   it("submits and updates household RSVP with menus, plus-one, allergy workflow, decline cleanup and conflict protection", async () => {
     const menu = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/menus`)
@@ -500,17 +1429,74 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(201);
     menuId = menu.body.data.id;
+    const disabledEvent = await database.weddingEvent.findFirstOrThrow({
+      where: { workspaceId, rsvpEnabled: true, deletedAt: null },
+      orderBy: { position: "desc" },
+    });
+    await database.weddingEvent.update({
+      where: { id: disabledEvent.id },
+      data: { rsvpEnabled: false },
+    });
     const bootstrap = await request(application.getHttpServer())
       .get(`/api/v1/guest/bootstrap?token=${encodeURIComponent(guestToken)}`)
       .expect(200);
-    eventIds = bootstrap.body.events.map((event: { id: string }) => event.id);
-    expect(eventIds.length).toBeGreaterThanOrEqual(3);
+    eventIds = bootstrap.body.events
+      .filter((event: { rsvpEnabled: boolean }) => event.rsvpEnabled)
+      .map((event: { id: string }) => event.id);
+    expect(eventIds.length).toBeGreaterThanOrEqual(2);
+    expect(
+      bootstrap.body.events.some(
+        (event: { id: string; rsvpEnabled: boolean }) =>
+          event.id === disabledEvent.id && !event.rsvpEnabled,
+      ),
+    ).toBe(true);
     const members = bootstrap.body.household.members as Array<{
       id: string;
       plusOneAllowed: boolean;
+      isPlusOne: boolean;
     }>;
+    const requiredMembers = members.filter((member) => !member.isPlusOne);
+    const omittedEventPayload = rsvpPayload(
+      requiredMembers,
+      "CONFIRMED",
+      1,
+      `rsvp-omitted-event-${randomUUID()}`,
+    );
+    const requiredMemberIndex = 0;
+    omittedEventPayload.members[requiredMemberIndex]!.events.pop();
+    await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send(omittedEventPayload)
+      .expect(422);
+    const omittedMemberPayload = rsvpPayload(
+      requiredMembers,
+      "CONFIRMED",
+      1,
+      `rsvp-omitted-member-${randomUUID()}`,
+    );
+    omittedMemberPayload.members = omittedMemberPayload.members.filter(
+      (_, index) => index !== requiredMemberIndex,
+    );
+    await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send(omittedMemberPayload)
+      .expect(422);
+    const mixedEventPayload = rsvpPayload(
+      requiredMembers,
+      "CONFIRMED",
+      1,
+      `rsvp-disabled-event-${randomUUID()}`,
+    );
+    mixedEventPayload.members[0]!.events.push({
+      eventId: disabledEvent.id,
+      attendance: "CONFIRMED",
+    });
+    await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send(mixedEventPayload)
+      .expect(422);
     const firstPayload = rsvpPayload(
-      members,
+      requiredMembers,
       "CONFIRMED",
       1,
       `rsvp-${randomUUID()}`,
@@ -518,12 +1504,59 @@ describe.sequential("Slice 3 guest journey integration", () => {
     firstPayload.members[0]!.allergies = ["arahide"];
     firstPayload.members[0]!.allergyDetails = "Reacție severă";
     firstPayload.members[0]!.needsTransport = true;
-    const submitted = await request(application.getHttpServer())
-      .put("/api/v1/guest/rsvp")
-      .send(firstPayload)
-      .expect(200);
+    firstPayload.members[0]!.needsAccommodation = true;
+    const competingPayload = {
+      ...structuredClone(firstPayload),
+      idempotencyKey: `rsvp-competing-${randomUUID()}`,
+      message: "Răspuns concurent",
+    };
+    const [firstConcurrent, secondConcurrent] = await Promise.all([
+      request(application.getHttpServer())
+        .put("/api/v1/guest/rsvp")
+        .send(firstPayload),
+      request(application.getHttpServer())
+        .put("/api/v1/guest/rsvp")
+        .send(competingPayload),
+    ]);
+    const successfulConcurrent = [firstConcurrent, secondConcurrent].filter(
+      (response) => response.status === 200,
+    );
+    const rejectedConcurrent = [firstConcurrent, secondConcurrent].filter(
+      (response) => response.status === 412,
+    );
+    expect(successfulConcurrent).toHaveLength(1);
+    expect(rejectedConcurrent).toHaveLength(1);
+    const submitted = successfulConcurrent[0]!;
     submissionId = submitted.body.id;
     submissionVersion = submitted.body.version;
+    const legacyBootstrapAfterRsvp = await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect(200);
+    expect(legacyBootstrapAfterRsvp.body.rsvp.submissionId).toBe(submissionId);
+    const hydratedPrimary =
+      legacyBootstrapAfterRsvp.body.household.members.find(
+        (member: { id: string }) => member.id === members[0]!.id,
+      );
+    expect(hydratedPrimary).toMatchObject({
+      needsTransport: true,
+      needsAccommodation: true,
+      allergies: ["arahide"],
+    });
+    const canonicalIdentityRows = await database.invitationRecipient.findMany({
+      where: {
+        workspaceId,
+        revokedAt: null,
+        OR: [{ householdId }, { guestId: childGuestId }],
+      },
+    });
+    expect(canonicalIdentityRows).toHaveLength(2);
+    expect(
+      canonicalIdentityRows.every(
+        (row) => row.status === "RESPONDED" && row.rsvpCompletedAt,
+      ),
+    ).toBe(true);
     expect(
       await database.guestMenuSelection.count({
         where: { workspaceId, active: true },
@@ -532,31 +1565,113 @@ describe.sequential("Slice 3 guest journey integration", () => {
     expect(await database.allergyIssue.count({ where: { workspaceId } })).toBe(
       1,
     );
+    expect(
+      await database.invitationRecipientInteraction.count({
+        where: {
+          workspaceId,
+          invitationRecipientId: recipientId,
+          type: "RSVP_COMPLETED",
+        },
+      }),
+    ).toBe(1);
 
+    const legacyUpdatePayload = rsvpPayload(
+      requiredMembers,
+      "CONFIRMED",
+      submissionVersion,
+      `legacy-update-${randomUUID()}`,
+    );
+    legacyUpdatePayload.token = legacyGuestToken;
+    legacyUpdatePayload.members[0]!.needsTransport =
+      hydratedPrimary.needsTransport;
+    legacyUpdatePayload.members[0]!.needsAccommodation =
+      hydratedPrimary.needsAccommodation;
+    legacyUpdatePayload.members[0]!.allergies = hydratedPrimary.allergies;
+    const legacyUpdate = await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send(legacyUpdatePayload)
+      .expect(200);
+    expect(legacyUpdate.body.id).toBe(submissionId);
+    submissionVersion = legacyUpdate.body.version;
+    const bootstrapAfterHydratedEdit = await request(
+      application.getHttpServer(),
+    )
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect(200);
+    expect(
+      bootstrapAfterHydratedEdit.body.household.members.find(
+        (member: { id: string }) => member.id === members[0]!.id,
+      ),
+    ).toMatchObject({
+      needsTransport: true,
+      needsAccommodation: true,
+      allergies: ["arahide"],
+    });
+
+    const renamedAllergyPayload = rsvpPayload(
+      requiredMembers,
+      "CONFIRMED",
+      submissionVersion,
+      `update-confirmed-${randomUUID()}`,
+    );
+    renamedAllergyPayload.members[0]!.allergies = ["nuci"];
+    renamedAllergyPayload.members[0]!.allergyDetails = "Fără arahide";
     const confirmedUpdate = await request(application.getHttpServer())
       .put("/api/v1/guest/rsvp")
-      .send(
-        rsvpPayload(
-          members,
-          "CONFIRMED",
-          submissionVersion,
-          `update-confirmed-${randomUUID()}`,
-        ),
-      )
+      .send(renamedAllergyPayload)
       .expect(200);
     const staleVersion = submissionVersion;
     submissionVersion = confirmedUpdate.body.version;
+    const bootstrapAfterAllergyRename = await request(
+      application.getHttpServer(),
+    )
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(legacyGuestToken)}`,
+      )
+      .expect(200);
+    expect(
+      bootstrapAfterAllergyRename.body.household.members.find(
+        (member: { id: string }) => member.id === members[0]!.id,
+      ).allergies,
+    ).toEqual(["nuci"]);
+    const [retiredAllergy, activeAllergy] = await Promise.all([
+      database.guestAllergy.findUniqueOrThrow({
+        where: {
+          guestId_label: { guestId: members[0]!.id, label: "arahide" },
+        },
+      }),
+      database.guestAllergy.findUniqueOrThrow({
+        where: {
+          guestId_label: { guestId: members[0]!.id, label: "nuci" },
+        },
+      }),
+    ]);
+    expect(retiredAllergy).toMatchObject({ active: false });
+    expect(retiredAllergy.deletedAt).toBeTruthy();
+    expect(activeAllergy).toMatchObject({ active: true, deletedAt: null });
+    expect(
+      await database.allergyIssue
+        .findUniqueOrThrow({ where: { allergyId: retiredAllergy.id } })
+        .then((row) => row.status),
+    ).toBe("RESOLVED");
     await request(application.getHttpServer())
       .put("/api/v1/guest/rsvp")
       .send(
-        rsvpPayload(members, "DECLINED", staleVersion, `stale-${randomUUID()}`),
+        rsvpPayload(
+          requiredMembers,
+          "DECLINED",
+          staleVersion,
+          `stale-${randomUUID()}`,
+        ),
       )
       .expect(412);
     const declined = await request(application.getHttpServer())
       .put("/api/v1/guest/rsvp")
       .send(
         rsvpPayload(
-          members,
+          requiredMembers,
           "DECLINED",
           submissionVersion,
           `update-${randomUUID()}`,
@@ -596,8 +1711,8 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(200);
     submissionVersion = overridden.body.data.version;
-    const issue = await database.allergyIssue.findFirstOrThrow({
-      where: { workspaceId },
+    const issue = await database.allergyIssue.findUniqueOrThrow({
+      where: { allergyId: activeAllergy.id },
     });
     await owner.agent
       .patch(`/api/v1/workspaces/${workspaceId}/allergy-issues/${issue.id}`)
@@ -605,6 +1720,273 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("If-Match", `"${issue.version}"`)
       .send({ status: "RESOLVED", resolutionNote: "Confirmat cu locația" })
       .expect(200);
+
+    const plusOneMember = members.find((member) => member.isPlusOne);
+    expect(plusOneMember).toBeTruthy();
+    const rsvpSite = await database.invitationSite.findUniqueOrThrow({
+      where: { workspaceId },
+    });
+    const plusOneRecipient = await database.invitationRecipient.create({
+      data: {
+        workspaceId,
+        guestId: plusOneMember!.id,
+        invitationSiteId: rsvpSite.id,
+        invitationVersionId: rsvpSite.publishedVersionId!,
+        preferredLanguage: "ro",
+      },
+    });
+    const plusOneToken = `plus-one-removal-${randomUUID()}-${randomUUID()}`;
+    await database.guestAccessGrant.create({
+      data: {
+        workspaceId,
+        householdId,
+        invitationRecipientId: plusOneRecipient.id,
+        tokenHash: hashToken(plusOneToken),
+      },
+    });
+    await request(application.getHttpServer())
+      .get(`/api/v1/guest/bootstrap?token=${encodeURIComponent(plusOneToken)}`)
+      .expect(200);
+    const removePlusOne = await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send({
+        ...rsvpPayload(
+          requiredMembers,
+          "CONFIRMED",
+          submissionVersion,
+          `remove-plus-one-${randomUUID()}`,
+        ),
+        plusOne: { attending: false },
+      })
+      .expect(200);
+    submissionVersion = removePlusOne.body.version;
+    await request(application.getHttpServer())
+      .get(`/api/v1/guest/bootstrap?token=${encodeURIComponent(plusOneToken)}`)
+      .expect(401);
+    expect(
+      await database.guestAccessGrant.count({
+        where: {
+          invitationRecipientId: plusOneRecipient.id,
+          revokedAt: null,
+        },
+      }),
+    ).toBe(0);
+
+    const lockedHousehold = await database.household.create({
+      data: {
+        workspaceId,
+        name: "Familia răspuns unic",
+        preferredLanguage: "ro",
+      },
+    });
+    const lockedGuest = await database.guest.create({
+      data: {
+        workspaceId,
+        householdId: lockedHousehold.id,
+        firstName: "Ioana",
+        lastName: "Răspuns",
+        preferredLanguage: "ro",
+      },
+    });
+    await database.household.update({
+      where: { id: lockedHousehold.id },
+      data: { primaryGuestId: lockedGuest.id },
+    });
+    const activeSite = await database.invitationSite.findUniqueOrThrow({
+      where: { workspaceId },
+    });
+    const lockedRecipient = await database.invitationRecipient.create({
+      data: {
+        workspaceId,
+        householdId: lockedHousehold.id,
+        invitationSiteId: activeSite.id,
+        invitationVersionId: activeSite.publishedVersionId!,
+        preferredLanguage: "ro",
+      },
+    });
+    const lockedToken = `locked-${randomUUID()}-${randomUUID()}`;
+    await database.guestAccessGrant.create({
+      data: {
+        workspaceId,
+        householdId: lockedHousehold.id,
+        invitationRecipientId: lockedRecipient.id,
+        tokenHash: hashToken(lockedToken),
+      },
+    });
+    const currentForm = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/rsvp-form`)
+      .expect(200);
+    const lockedDraft = await owner.agent
+      .put(`/api/v1/workspaces/${workspaceId}/rsvp-form`)
+      .set("Origin", origin)
+      .set("If-Match", `"${currentForm.body.data.version}"`)
+      .send({
+        config: {
+          ...currentForm.body.data.draft.config,
+          allowEdits: false,
+        },
+      })
+      .expect(200);
+    const lockedPublished = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/rsvp-form/publish`)
+      .set("Origin", origin)
+      .set("If-Match", `"${lockedDraft.body.data.version}"`)
+      .set("Idempotency-Key", `rsvp-lock-${randomUUID()}`)
+      .expect(201);
+    const lockedBootstrap = await request(application.getHttpServer())
+      .get(`/api/v1/guest/bootstrap?token=${encodeURIComponent(lockedToken)}`)
+      .expect(200);
+    expect(lockedBootstrap.body.allowEdits).toBe(true);
+    const lockedPayload = {
+      token: lockedToken,
+      version: 1,
+      idempotencyKey: `locked-first-${randomUUID()}`,
+      members: [
+        {
+          guestId: lockedGuest.id,
+          events: eventIds.map((eventId) => ({
+            eventId,
+            attendance: "CONFIRMED",
+          })),
+          menuId,
+          allergies: [],
+          needsTransport: false,
+          needsAccommodation: false,
+        },
+      ],
+      message: "Primul răspuns rămâne permis",
+    };
+    const lockedFirstSubmit = await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send(lockedPayload)
+      .expect(200);
+    const lockedAfterSubmit = await request(application.getHttpServer())
+      .get(`/api/v1/guest/bootstrap?token=${encodeURIComponent(lockedToken)}`)
+      .expect(200);
+    expect(lockedAfterSubmit.body.allowEdits).toBe(false);
+    await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send({
+        ...lockedPayload,
+        version: lockedFirstSubmit.body.version,
+        idempotencyKey: `locked-second-${randomUUID()}`,
+      })
+      .expect(423);
+    const nextLockedDraft = await owner.agent
+      .put(`/api/v1/workspaces/${workspaceId}/rsvp-form`)
+      .set("Origin", origin)
+      .set("If-Match", `"${lockedPublished.body.data.version}"`)
+      .send({
+        config: {
+          ...lockedPublished.body.data.published.config,
+          allowEdits: false,
+          plusOneQuestion: false,
+          menuSelection: false,
+          allergyCollection: false,
+          accessibilityCollection: false,
+          transportQuestion: false,
+          accommodationQuestion: false,
+          guestMessage: false,
+        },
+      })
+      .expect(200);
+    const nextLockedPublished = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/rsvp-form/publish`)
+      .set("Origin", origin)
+      .set("If-Match", `"${nextLockedDraft.body.data.version}"`)
+      .set("Idempotency-Key", `rsvp-next-lock-${randomUUID()}`)
+      .expect(201);
+    const nextLockedBootstrap = await request(application.getHttpServer())
+      .get(`/api/v1/guest/bootstrap?token=${encodeURIComponent(lockedToken)}`)
+      .expect(200);
+    expect(nextLockedBootstrap.body.allowEdits).toBe(true);
+    expect(nextLockedBootstrap.body.rsvp.submissionId).toBeNull();
+    expect(nextLockedBootstrap.body.rsvpConfig).toMatchObject({
+      plusOneQuestion: false,
+      menuSelection: false,
+      allergyCollection: false,
+      transportQuestion: false,
+      accommodationQuestion: false,
+      guestMessage: false,
+    });
+    expect(nextLockedBootstrap.body.menus).toEqual([]);
+    const nextLockedPayload = {
+      ...lockedPayload,
+      version: 1,
+      idempotencyKey: `locked-next-first-${randomUUID()}`,
+      message: "Primul răspuns pentru versiunea nouă",
+      plusOne: {
+        attending: true,
+        firstName: "Nu",
+        lastName: "Se salvează",
+        menuId,
+      },
+    };
+    const nextLockedFirstSubmit = await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send(nextLockedPayload)
+      .expect(200);
+    const nextLockedReplay = await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send(nextLockedPayload)
+      .expect(200);
+    expect(nextLockedReplay.body).toEqual(nextLockedFirstSubmit.body);
+    expect(
+      await database.rsvpSubmission
+        .findUniqueOrThrow({ where: { id: nextLockedFirstSubmit.body.id } })
+        .then((row) => row.guestMessage),
+    ).toBeNull();
+    expect(
+      await database.guestMenuSelection.count({
+        where: { guestId: lockedGuest.id, active: true },
+      }),
+    ).toBe(0);
+    expect(
+      await database.guestAllergy.count({
+        where: { guestId: lockedGuest.id, active: true },
+      }),
+    ).toBe(0);
+    expect(
+      await database.guest.count({
+        where: { primaryGuestId: lockedGuest.id, isPlusOne: true },
+      }),
+    ).toBe(0);
+    await request(application.getHttpServer())
+      .put("/api/v1/guest/rsvp")
+      .send({
+        ...nextLockedPayload,
+        version: nextLockedFirstSubmit.body.version,
+        idempotencyKey: `locked-next-second-${randomUUID()}`,
+      })
+      .expect(423);
+    await database.invitationRecipient.update({
+      where: { id: lockedRecipient.id },
+      data: { revokedAt: new Date() },
+    });
+    const restoredDraft = await owner.agent
+      .put(`/api/v1/workspaces/${workspaceId}/rsvp-form`)
+      .set("Origin", origin)
+      .set("If-Match", `"${nextLockedPublished.body.data.version}"`)
+      .send({
+        config: {
+          ...nextLockedPublished.body.data.published.config,
+          allowEdits: true,
+          plusOneQuestion: true,
+          menuSelection: true,
+          allergyCollection: true,
+          accessibilityCollection: true,
+          transportQuestion: true,
+          accommodationQuestion: true,
+          guestMessage: true,
+        },
+      })
+      .expect(200);
+    await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/rsvp-form/publish`)
+      .set("Origin", origin)
+      .set("If-Match", `"${restoredDraft.body.data.version}"`)
+      .set("Idempotency-Key", `rsvp-unlock-${randomUUID()}`)
+      .expect(201);
   }, 120_000);
 
   it("snapshots, fans out and delivers a campaign, dedupes signed webhooks, retries only failure, exports artifacts and projects activity", async () => {
@@ -657,6 +2039,32 @@ describe.sequential("Slice 3 guest journey integration", () => {
       )
       .expect(200);
     expect(preview.body.data.total).toBe(1);
+    expect(preview.body.data.audienceRevision).toMatch(/^[a-f0-9]{64}$/);
+    await database.guest.update({
+      where: { id: primaryGuestId },
+      data: { emailNormalized: `changed-${randomUUID()}@example.test` },
+    });
+    await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${campaign.body.data.id}/transitions`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${audience.body.data.campaign.version}"`)
+      .set("Idempotency-Key", `send-stale-audience-${randomUUID()}`)
+      .send({
+        transition: "SEND_NOW",
+        audienceRevision: preview.body.data.audienceRevision,
+      })
+      .expect(409);
+    await database.guest.update({
+      where: { id: primaryGuestId },
+      data: { emailNormalized: owner.email },
+    });
+    const confirmedPreview = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${campaign.body.data.id}/audience-preview`,
+      )
+      .expect(200);
     const queued = await owner.agent
       .post(
         `/api/v1/workspaces/${workspaceId}/campaigns/${campaign.body.data.id}/transitions`,
@@ -664,7 +2072,10 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("Origin", origin)
       .set("If-Match", `"${audience.body.data.campaign.version}"`)
       .set("Idempotency-Key", `send-${randomUUID()}`)
-      .send({ transition: "SEND_NOW" })
+      .send({
+        transition: "SEND_NOW",
+        audienceRevision: confirmedPreview.body.data.audienceRevision,
+      })
       .expect(201);
     expect(queued.body.data.queuedRecipients).toBeGreaterThan(0);
     await expect
@@ -684,10 +2095,24 @@ describe.sequential("Slice 3 guest journey integration", () => {
     expect(delivery.personalizationSnapshot).toBeTruthy();
     expect(delivery.providerMessageId).toBeTruthy();
     expect(
+      await database.campaignRecipient.count({
+        where: { campaignId: campaign.body.data.id },
+      }),
+    ).toBe(1);
+    expect(
       await database.deliveryAttempt.count({
         where: { sourceId: delivery.id },
       }),
     ).toBe(1);
+    expect(
+      await database.guestAccessGrant.count({
+        where: {
+          invitationRecipientId: recipientId,
+          channel: { in: ["EMAIL", "QR", "MANUAL", "WHATSAPP"] },
+          revokedAt: null,
+        },
+      }),
+    ).toBe(4);
 
     const webhook = {
       eventId: `provider-${randomUUID()}`,
@@ -752,6 +2177,11 @@ describe.sequential("Slice 3 guest journey integration", () => {
         audienceFilter: {},
       })
       .expect(201);
+    const retryPreview = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${retryCampaign.body.data.id}/audience-preview`,
+      )
+      .expect(200);
     await owner.agent
       .post(
         `/api/v1/workspaces/${workspaceId}/campaigns/${retryCampaign.body.data.id}/transitions`,
@@ -759,7 +2189,10 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("Origin", origin)
       .set("If-Match", `"${retryCampaign.body.data.version}"`)
       .set("Idempotency-Key", `send-retry-${randomUUID()}`)
-      .send({ transition: "SEND_NOW" })
+      .send({
+        transition: "SEND_NOW",
+        audienceRevision: retryPreview.body.data.audienceRevision,
+      })
       .expect(201);
     await expect
       .poll(
@@ -802,6 +2235,39 @@ describe.sequential("Slice 3 guest journey integration", () => {
         })
       ).status,
     ).toBe("FAILED");
+    const lateHousehold = await database.household.create({
+      data: {
+        workspaceId,
+        name: "Familia adăugată după eșec",
+        preferredLanguage: "ro",
+      },
+    });
+    const lateGuest = await database.guest.create({
+      data: {
+        workspaceId,
+        householdId: lateHousehold.id,
+        firstName: "Târziu",
+        lastName: "Invitat",
+        emailNormalized: `late-${randomUUID()}@example.test`,
+        preferredLanguage: "ro",
+      },
+    });
+    await database.household.update({
+      where: { id: lateHousehold.id },
+      data: { primaryGuestId: lateGuest.id },
+    });
+    const lateRecipient = await database.invitationRecipient.create({
+      data: {
+        workspaceId,
+        householdId: lateHousehold.id,
+        invitationSiteId: site.body.data.id,
+        invitationVersionId: site.body.data.published.id,
+        preferredLanguage: "ro",
+      },
+    });
+    const retryAudienceSize = await database.campaignRecipient.count({
+      where: { campaignId: retryCampaign.body.data.id },
+    });
     await owner.agent
       .post(
         `/api/v1/workspaces/${workspaceId}/campaigns/${partial.id}/transitions`,
@@ -823,10 +2289,175 @@ describe.sequential("Slice 3 guest journey integration", () => {
       )
       .toBe("COMPLETED");
     expect(
+      await database.campaignRecipient.count({
+        where: { campaignId: retryCampaign.body.data.id },
+      }),
+    ).toBe(retryAudienceSize);
+    expect(
+      await database.campaignRecipient.count({
+        where: {
+          campaignId: retryCampaign.body.data.id,
+          invitationRecipientId: lateRecipient.id,
+        },
+      }),
+    ).toBe(0);
+    expect(
       await database.deliveryAttempt.count({
         where: { sourceId: failedDelivery.id },
       }),
     ).toBe(2);
+    await database.invitationRecipient.delete({
+      where: { id: lateRecipient.id },
+    });
+    await database.guest.delete({ where: { id: lateGuest.id } });
+    await database.household.delete({ where: { id: lateHousehold.id } });
+
+    const addressSafetyCampaign = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/campaigns`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `campaign-address-safety-${randomUUID()}`)
+      .send({
+        name: "Campanie blocată la schimbarea adresei",
+        purpose: "INVITATION",
+        channel: "EMAIL",
+        invitationVersionId: site.body.data.published.id,
+        template: {
+          subject: "Adresă confirmată",
+          body: "Acest mesaj nu trebuie trimis după schimbarea adresei.",
+        },
+        audienceFilter: { householdIds: [householdId] },
+      })
+      .expect(201);
+    const addressSafetyPreview = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${addressSafetyCampaign.body.data.id}/audience-preview`,
+      )
+      .expect(200);
+    expect(addressSafetyPreview.body.data.valid).toBe(1);
+    await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${addressSafetyCampaign.body.data.id}/transitions`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${addressSafetyCampaign.body.data.version}"`)
+      .set("Idempotency-Key", `schedule-address-safety-${randomUUID()}`)
+      .send({
+        transition: "SCHEDULE",
+        scheduledAt: new Date(Date.now() + 5_000).toISOString(),
+        audienceRevision: addressSafetyPreview.body.data.audienceRevision,
+      })
+      .expect(201);
+    await database.guest.update({
+      where: { id: primaryGuestId },
+      data: { emailNormalized: `moved-${randomUUID()}@example.test` },
+    });
+    const addressSafetyRecipient =
+      await database.campaignRecipient.findFirstOrThrow({
+        where: { campaignId: addressSafetyCampaign.body.data.id },
+      });
+    await expect
+      .poll(
+        async () =>
+          (
+            await database.campaignRecipient.findUniqueOrThrow({
+              where: { id: addressSafetyRecipient.id },
+            })
+          ).status,
+        { timeout: 60_000 },
+      )
+      .toBe("FAILED");
+    expect(
+      await database.campaignRecipient.findUniqueOrThrow({
+        where: { id: addressSafetyRecipient.id },
+      }),
+    ).toMatchObject({
+      failureCode: "CAMPAIGN_ADDRESS_CHANGED",
+      providerMessageId: null,
+    });
+    expect(
+      await database.deliveryAttempt.count({
+        where: { sourceId: addressSafetyRecipient.id, outcome: "SUCCEEDED" },
+      }),
+    ).toBe(0);
+    await database.guest.update({
+      where: { id: primaryGuestId },
+      data: { emailNormalized: owner.email },
+    });
+
+    const withdrawnSafetyCampaign = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/campaigns`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `campaign-withdrawn-safety-${randomUUID()}`)
+      .send({
+        name: "Campanie blocată după retragerea invitației",
+        purpose: "INVITATION",
+        channel: "EMAIL",
+        invitationVersionId: site.body.data.published.id,
+        template: {
+          subject: "Invitație retrasă",
+          body: "Acest mesaj nu trebuie trimis după retragerea invitației.",
+        },
+        audienceFilter: { householdIds: [householdId] },
+      })
+      .expect(201);
+    const withdrawnSafetyPreview = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${withdrawnSafetyCampaign.body.data.id}/audience-preview`,
+      )
+      .expect(200);
+    expect(withdrawnSafetyPreview.body.data.valid).toBe(1);
+    await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${withdrawnSafetyCampaign.body.data.id}/transitions`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${withdrawnSafetyCampaign.body.data.version}"`)
+      .set("Idempotency-Key", `schedule-withdrawn-safety-${randomUUID()}`)
+      .send({
+        transition: "SCHEDULE",
+        scheduledAt: new Date(Date.now() + 5_000).toISOString(),
+        audienceRevision: withdrawnSafetyPreview.body.data.audienceRevision,
+      })
+      .expect(201);
+    const publishedSiteBeforeWithdrawal = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/invitation-site`)
+      .expect(200);
+    await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/invitation-site/unpublish`)
+      .set("Origin", origin)
+      .set("If-Match", `"${publishedSiteBeforeWithdrawal.body.data.version}"`)
+      .expect(201);
+    const withdrawnSafetyRecipient =
+      await database.campaignRecipient.findFirstOrThrow({
+        where: { campaignId: withdrawnSafetyCampaign.body.data.id },
+      });
+    await expect
+      .poll(
+        async () =>
+          (
+            await database.campaignRecipient.findUniqueOrThrow({
+              where: { id: withdrawnSafetyRecipient.id },
+            })
+          ).status,
+        { timeout: 60_000 },
+      )
+      .toBe("FAILED");
+    expect(
+      await database.campaignRecipient.findUniqueOrThrow({
+        where: { id: withdrawnSafetyRecipient.id },
+      }),
+    ).toMatchObject({
+      failureCode: "CAMPAIGN_TARGET_INACTIVE",
+      providerMessageId: null,
+    });
+    expect(
+      await database.deliveryAttempt.count({
+        where: {
+          sourceId: withdrawnSafetyRecipient.id,
+          outcome: "SUCCEEDED",
+        },
+      }),
+    ).toBe(0);
 
     const guestExport = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/guest-exports`)
@@ -1338,6 +2969,19 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("If-Match", `"${saved.body.data.version}"`)
       .set("Idempotency-Key", `complete-${randomUUID()}`)
       .expect(201);
+    // Slice 3 covers imports, campaign delivery, exports and advanced
+    // logistics. Keep the fixture's plan aligned with those paid capabilities
+    // instead of allowing unrelated FREE-plan 402 responses to mask regressions.
+    await database.workspaceSubscription.update({
+      where: { workspaceId: id },
+      data: {
+        planKey: "PLUS",
+        status: "ACTIVE",
+        provider: "integration-test",
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 86_400_000),
+      },
+    });
     expect(
       await database.weddingEvent.count({ where: { workspaceId: id } }),
     ).toBeGreaterThanOrEqual(3);

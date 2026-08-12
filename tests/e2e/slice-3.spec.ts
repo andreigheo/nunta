@@ -6,11 +6,16 @@ import {
   type Page,
 } from "@playwright/test";
 import { createHmac } from "node:crypto";
+import { PrismaClient } from "@weddingos/database";
 
 const apiUrl = "http://127.0.0.1:4117";
 const origin = "http://127.0.0.1:3117";
 const password = "WeddingOS2026!";
 const webhookSecret = "weddingos-local-outbox-encryption-key-change-production";
+const ownerDatabase = new PrismaClient({
+  datasourceUrl:
+    "postgresql://weddingos:weddingos@127.0.0.1:54339/weddingos_e2e?schema=public",
+});
 
 type Account = { email: string; userId: string; api: APIRequestContext };
 type Guest = {
@@ -36,6 +41,43 @@ let importId = "";
 
 test.describe.configure({ mode: "serial" });
 
+async function captureInvitationV2(
+  page: Page,
+  name: string,
+  viewports: Array<{ width: number; height: number }> = [
+    { width: 1440, height: 1000 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 },
+    { width: 320, height: 720 },
+  ],
+) {
+  const originalViewport = page.viewportSize();
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    if (name === "editor") {
+      const preview =
+        viewport.width >= 1024
+          ? "Previzualizare desktop"
+          : viewport.width >= 640
+            ? "Previzualizare tabletă"
+            : "Previzualizare mobilă";
+      await page.getByRole("radio", { name: preview }).click();
+      await expect(
+        page.locator('[data-invitation-renderer="true"]'),
+      ).toBeVisible();
+    }
+    const documentWidth = await page.evaluate(
+      () => document.documentElement.scrollWidth,
+    );
+    expect(documentWidth).toBeLessThanOrEqual(viewport.width + 1);
+    await page.screenshot({
+      path: `test-results/invitation-v2-${name}-${viewport.width}.png`,
+      animations: "disabled",
+    });
+  }
+  if (originalViewport) await page.setViewportSize(originalViewport);
+}
+
 test.beforeAll(async () => {
   owner = await createVerifiedAccount("slice3-e2e-owner");
   workspaceId = await createReadyWorkspace(
@@ -46,6 +88,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await Promise.all(retainedContexts.map((context) => context.dispose()));
+  await ownerDatabase.$disconnect();
 });
 
 test("E2E 1 — Add household and guests", async ({ page }) => {
@@ -203,12 +246,22 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
 
   await authorizePage(page, owner);
   await page.goto("/invitations/editor");
+  await page.getByRole("button", { name: "Intrare" }).click();
+  const cinematicReveal = page.getByRole("switch", {
+    name: "Activează deschiderea cinematică",
+  });
+  if (!(await cinematicReveal.isChecked())) {
+    await cinematicReveal.click();
+  }
   await page.getByRole("button", { name: "Salvează" }).click();
   await expect(page.getByText("Ciornă salvată")).toBeVisible();
+  await replaceInvitationStarterContent();
+  await page.reload();
   await page.getByRole("button", { name: "Publică", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Publici modificările?" });
+  const dialog = page.getByRole("dialog", { name: "Publici invitația?" });
   await dialog.getByRole("button", { name: "Publică" }).click();
   await expect(page.getByText("Invitația a fost publicată")).toBeVisible();
+  await captureInvitationV2(page, "editor");
 
   const site = await invitationSite();
   expect(site.status).toBe("published");
@@ -218,8 +271,17 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
 test("E2E 4 — Create recipients", async ({ page }) => {
   await authorizePage(page, owner);
   await page.goto("/invitations");
-  await page.getByRole("button", { name: /Pregătește destinatari/ }).click();
+  await page
+    .getByRole("button", { name: "Pregătește destinatari", exact: true })
+    .click();
+  const prepareDialog = page.getByRole("dialog", {
+    name: "Pregătește destinatarii",
+  });
+  await prepareDialog
+    .getByRole("button", { name: "Pregătește accesurile" })
+    .click();
   await expect(page.getByText("Destinatari pregătiți")).toBeVisible();
+  await captureInvitationV2(page, "distribution");
   const recipients = await apiData<{
     items: Array<{ id: string; householdId: string }>;
   }>(
@@ -232,7 +294,7 @@ test("E2E 4 — Create recipients", async ({ page }) => {
   )!.id;
   expect(recipientId).toBeTruthy();
   await expect(
-    page.getByRole("button", { name: /Pregătește destinatari \([1-9]/ }),
+    page.getByText(`${recipients.items.length} destinatari`, { exact: true }),
   ).toBeVisible();
 });
 
@@ -250,13 +312,28 @@ test("E2E 5 — Send campaign", async ({ page }) => {
     .fill("Te așteptăm alături de noi.");
   await dialog.getByRole("button", { name: "Salvează ciorna" }).click();
   await expect(page.getByText(name)).toBeVisible();
-  await page.getByRole("button", { name: "Trimite" }).click();
-  await expect(page.getByText("Livrare pusă în coadă")).toBeVisible();
-
   const campaigns = await apiData<{
     items: Array<{ id: string; name: string }>;
   }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/campaigns`));
   campaignId = campaigns.items.find((campaign) => campaign.name === name)!.id;
+  const audience = await apiData<{ valid: number }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/campaigns/${campaignId}/audience-preview`,
+    ),
+  );
+  expect(audience.valid).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Trimite" }).click();
+  const sendDialog = page.getByRole("dialog", { name: "Confirmă trimiterea" });
+  await expect(
+    sendDialog.getByText(String(audience.valid), { exact: true }).first(),
+  ).toBeVisible();
+  await sendDialog
+    .getByRole("button", {
+      name: `Trimite către ${audience.valid} ${audience.valid === 1 ? "destinatar" : "destinatari"}`,
+    })
+    .click();
+  await expect(page.getByText("Livrare pusă în coadă")).toBeVisible();
+
   await waitForCampaign(campaignId, "completed");
   const message = await waitForCampaignEmail(subject, owner.email);
   guestToken = message.token;
@@ -264,21 +341,46 @@ test("E2E 5 — Send campaign", async ({ page }) => {
 });
 
 test("E2E 6 — Guest opens invitation", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await expect(page.getByText("Bine ai venit, Familia Pop E2E")).toBeVisible();
-  await expect(page.getByText("Confirmarea familiei")).toBeVisible();
-  await expect(page.getByText("Ana Pop", { exact: true })).toBeVisible();
-  await expect(page.getByText("Mara Pop", { exact: true })).toBeVisible();
-  const recipient = await apiData<{
+  await expect(
+    page.getByRole("button", { name: "Deschide invitația" }),
+  ).toBeVisible();
+  await captureInvitationV2(page, "guest-cover");
+  const recipientBeforeReveal = await apiData<{
     items: Array<{ id: string; status: string }>;
   }>(
     await owner.api.get(
       `/api/v1/workspaces/${workspaceId}/invitation-recipients`,
     ),
   );
-  expect(recipient.items.find((item) => item.id === recipientId)?.status).toBe(
-    "opened",
-  );
+  expect(
+    recipientBeforeReveal.items.find((item) => item.id === recipientId)?.status,
+  ).not.toBe("opened");
+
+  await page.getByRole("button", { name: "Deschide invitația" }).click();
+  await expect(
+    page.getByRole("button", { name: "Revede introducerea" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Confirmarea familiei", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Bine ai venit, Familia Pop E2E")).toBeVisible();
+  await captureInvitationV2(page, "guest-open");
+  await expect(page.getByText("Ana Pop", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mara Pop", { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const recipient = await apiData<{
+        items: Array<{ id: string; status: string }>;
+      }>(
+        await owner.api.get(
+          `/api/v1/workspaces/${workspaceId}/invitation-recipients`,
+        ),
+      );
+      return recipient.items.find((item) => item.id === recipientId)?.status;
+    })
+    .toBe("opened");
 });
 
 test("E2E 7 — Household RSVP", async ({ page }) => {
@@ -300,7 +402,9 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
     )
   ).id;
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await expect(page.getByText("Confirmarea familiei")).toBeVisible();
+  await expect(
+    page.getByText("Confirmarea familiei", { exact: true }),
+  ).toBeVisible();
   const selects = page.getByRole("combobox");
   await expect(selects.first()).toBeVisible();
   let attendanceCount = 0;
@@ -325,7 +429,9 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
   await page.getByRole("button", { name: "Salvează RSVP" }).click();
   await expect(page.getByText("Răspuns salvat")).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Confirmarea familiei")).toBeVisible();
+  await expect(
+    page.getByText("Confirmarea familiei", { exact: true }),
+  ).toBeVisible();
   const rsvp = await publicJson<{ responses: Array<{ attendance: string }> }>(
     `/api/v1/guest/rsvp?token=${encodeURIComponent(guestToken)}`,
   );
@@ -417,6 +523,17 @@ test("E2E 11 — Reminder", async () => {
 
 test("E2E 12 — Menu and allergy", async ({ page }) => {
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
+  await expect(
+    page.getByText("Confirmarea familiei", { exact: true }),
+  ).toBeVisible();
+  const attendanceSelects = page
+    .locator("select")
+    .filter({ has: page.locator('option[value="CONFIRMED"]') });
+  const attendanceCount = await attendanceSelects.count();
+  expect(attendanceCount).toBeGreaterThan(0);
+  for (let index = 0; index < attendanceCount; index += 1) {
+    await attendanceSelects.nth(index).selectOption("CONFIRMED");
+  }
   const primaryCard = page.getByText("Ana Pop", { exact: true }).locator("..");
   await primaryCard.locator("textarea").fill("arahide");
   await page.getByRole("button", { name: "Salvează RSVP" }).click();
@@ -624,7 +741,10 @@ test("E2E 19 — Demo", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Gospodărie" })).toBeDisabled();
   await page.goto("/invitations?demo=1");
   await expect(
-    page.getByRole("button", { name: "Campanie nouă" }),
+    page.getByRole("button", { name: "Pregătește destinatari" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Publică invitația" }),
   ).toBeDisabled();
   await page.goto("/menus?demo=1");
   await expect(
@@ -654,7 +774,7 @@ async function createVerifiedAccount(label: string): Promise<Account> {
   });
   const registered = await apiData<{ userId: string }>(registration);
   const verification = await waitForEmail(
-    "Confirmă adresa de email WeddingOS",
+    "Confirmă adresa de email Sarbato",
     email,
   );
   expect(
@@ -734,6 +854,16 @@ async function createReadyWorkspace(api: APIRequestContext, title: string) {
       }),
     }),
   );
+  await ownerDatabase.workspaceSubscription.update({
+    where: { workspaceId: workspace.id },
+    data: {
+      planKey: "PLUS",
+      status: "ACTIVE",
+      provider: "e2e-test",
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 86_400_000),
+    },
+  });
   return workspace.id;
 }
 
@@ -799,6 +929,97 @@ async function invitationSite() {
     version: number;
     published: { id: string } | null;
   }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/invitation-site`));
+}
+
+async function replaceInvitationStarterContent() {
+  const site = await apiData<{
+    slug: string;
+    defaultLanguage: string;
+    availableLanguages: string[];
+    accessPolicy: "token_only" | "token_or_access_code";
+    version: number;
+    draft: {
+      document: {
+        sections: Array<{
+          id: string;
+          type: string;
+          title?: string;
+          visible: boolean;
+          content: Record<string, unknown>;
+        }>;
+      };
+      settings: Record<string, unknown>;
+    } | null;
+  }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/invitation-site`));
+  if (!site.draft) throw new Error("Invitation draft missing in E2E setup");
+
+  const sections = site.draft.document.sections.map((section) => {
+    const content = { ...section.content };
+    if (section.type === "hero")
+      Object.assign(content, {
+        names: "Andrei & Andreea",
+        date: "8 august 2028",
+        venue: "Grădina E2E",
+      });
+    if (section.type === "countdown")
+      Object.assign(content, {
+        title: "Mai e puțin până ne vedem",
+        date: futureIso(365),
+      });
+    if (section.type === "schedule")
+      content.items = [
+        {
+          time: "15:00",
+          title: "Ceremonia E2E",
+          detail: "Grădina E2E",
+        },
+      ];
+    if (section.type === "locations")
+      content.items = [
+        {
+          name: "Grădina E2E",
+          address: "Strada Florilor 8",
+          url: "",
+        },
+      ];
+    if (section.type === "rsvp")
+      Object.assign(content, {
+        title: "Vii alături de noi?",
+        body: "Confirmă prezența familiei până la termenul de mai jos.",
+        deadline: "1 iulie 2028",
+      });
+    return {
+      ...section,
+      visible: [
+        "story",
+        "dress_code",
+        "faq",
+        "transport",
+        "accommodation",
+        "contact",
+      ].includes(section.type)
+        ? false
+        : section.visible,
+      content,
+    };
+  });
+
+  await apiData(
+    await owner.api.put(
+      `/api/v1/workspaces/${workspaceId}/invitation-site/draft`,
+      {
+        headers: mutationHeaders({ "If-Match": `"${site.version}"` }),
+        data: {
+          slug: site.slug,
+          defaultLanguage: site.defaultLanguage,
+          availableLanguages: site.availableLanguages,
+          accessPolicy: site.accessPolicy.toUpperCase(),
+          document: { sections },
+          settings: site.draft.settings,
+        },
+      },
+    ),
+  );
 }
 
 async function saveRsvpForm(deadline: string) {
@@ -872,6 +1093,14 @@ async function sendCampaign(
   version: number,
   transition: "SEND_NOW" | "RETRY_FAILED" = "SEND_NOW",
 ) {
+  const preview =
+    transition === "RETRY_FAILED"
+      ? null
+      : await apiData<{ audienceRevision: string }>(
+          await owner.api.get(
+            `/api/v1/workspaces/${workspaceId}/campaigns/${id}/audience-preview`,
+          ),
+        );
   return apiData(
     await owner.api.post(
       `/api/v1/workspaces/${workspaceId}/campaigns/${id}/transitions`,
@@ -880,7 +1109,10 @@ async function sendCampaign(
           "If-Match": `"${version}"`,
           "Idempotency-Key": `send-${crypto.randomUUID()}`,
         }),
-        data: { transition },
+        data: {
+          transition,
+          ...(preview ? { audienceRevision: preview.audienceRevision } : {}),
+        },
       },
     ),
   );

@@ -18,6 +18,12 @@ import {
 } from "lucide-react";
 import type { GuestCompanionBootstrapResource } from "@weddingos/contracts";
 import type { GuestAccommodationRecommendationResource } from "@weddingos/contracts";
+import { CinematicReveal } from "@/components/invitations/cinematic-reveal";
+import type { InvitationOpenSource } from "@/components/invitations/cinematic-reveal";
+import {
+  invitationExperienceFromResource,
+  shouldRecordDirectOpenOnBootstrap,
+} from "@/components/invitations/invitation-experience";
 import { PublishedInvitation } from "@/components/invitations/published-invitation";
 import { GuestAccommodationRecommendations } from "@/components/guest/accommodation-recommendations";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
@@ -48,6 +54,9 @@ type Member = {
   isChild?: boolean;
   isPlusOne?: boolean;
   plusOneAllowed?: boolean;
+  needsTransport?: boolean;
+  needsAccommodation?: boolean;
+  allergies?: string[];
 };
 type EventItem = {
   id: string;
@@ -55,6 +64,7 @@ type EventItem = {
   startAt?: string | null;
   locationName?: string | null;
   locationAddress?: string | null;
+  rsvpEnabled?: boolean;
   directions?: {
     googleMaps?: string;
     waze?: string;
@@ -70,6 +80,11 @@ type GuestOperations = {
 type GuestBootstrap = GuestCompanionBootstrapResource & {
   operations?: GuestOperations;
   accommodationRecommendations?: GuestAccommodationRecommendationResource[];
+  interaction?: {
+    invitationOpenedAt?: string | null;
+    lastAccessedAt?: string | null;
+    shouldPlayReveal?: boolean;
+  };
 };
 
 export default function GuestCompanionPage() {
@@ -94,6 +109,15 @@ export default function GuestCompanionPage() {
   const [plusOneFirstName, setPlusOneFirstName] = React.useState("");
   const [plusOneLastName, setPlusOneLastName] = React.useState("");
   const [plusOneMenuId, setPlusOneMenuId] = React.useState("");
+  const invitationOpenAttemptRef = React.useRef<{
+    token: string;
+    idempotencyKey: string;
+    requested: boolean;
+  } | null>(null);
+  const linkAccessAttemptRef = React.useRef<{
+    token: string;
+    idempotencyKey: string;
+  } | null>(null);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -111,6 +135,19 @@ export default function GuestCompanionPage() {
         .guestBootstrap(value)
         .then((bootstrap) => {
           setData(bootstrap);
+          if (linkAccessAttemptRef.current?.token !== value) {
+            linkAccessAttemptRef.current = {
+              token: value,
+              idempotencyKey: crypto.randomUUID(),
+            };
+          }
+          void weddingOsApi
+            .markGuestLinkAccess({
+              token: value,
+              idempotencyKey: linkAccessAttemptRef.current.idempotencyKey,
+              source: "guest_page",
+            })
+            .catch(() => undefined);
           const rsvp = bootstrap.rsvp as Record<string, unknown>;
           const responses = Array.isArray(rsvp.responses)
             ? (rsvp.responses as Array<Record<string, unknown>>)
@@ -140,6 +177,30 @@ export default function GuestCompanionPage() {
               ]),
             ),
           );
+          setTransport(
+            Object.fromEntries(
+              householdMembers.map((member) => [
+                member.id,
+                Boolean(member.needsTransport),
+              ]),
+            ),
+          );
+          setAccommodation(
+            Object.fromEntries(
+              householdMembers.map((member) => [
+                member.id,
+                Boolean(member.needsAccommodation),
+              ]),
+            ),
+          );
+          setAllergies(
+            Object.fromEntries(
+              householdMembers.map((member) => [
+                member.id,
+                (member.allergies ?? []).join(", "),
+              ]),
+            ),
+          );
           setPlusOneAttending(Boolean(existingPlusOne));
           setPlusOneFirstName(existingPlusOne?.firstName ?? "");
           setPlusOneLastName(existingPlusOne?.lastName ?? "");
@@ -164,13 +225,90 @@ export default function GuestCompanionPage() {
   const householdMembers = (data?.household.members ?? []) as Member[];
   const members = householdMembers.filter((member) => !member.isPlusOne);
   const events = (data?.events ?? []) as EventItem[];
+  const rsvpEvents = events.filter((event) => event.rsvpEnabled !== false);
+  const answeredRsvpCount = members.reduce(
+    (total, member) =>
+      total +
+      rsvpEvents.filter(
+        (event) => Boolean(attendance[`${member.id}:${event.id}`]),
+      ).length,
+    0,
+  );
   const menuOptions = (data?.menus ?? []) as MenuItem[];
   const rsvp = (data?.rsvp ?? {}) as Record<string, unknown>;
-  const plusOneAllowed = members.some((member) => member.plusOneAllowed);
+  const attendanceCollection = data?.rsvpConfig.attendanceEnabled !== false;
+  const menuSelection = data?.rsvpConfig.menuSelection !== false;
+  const allergyCollection = data?.rsvpConfig.allergyCollection !== false;
+  const transportQuestion = data?.rsvpConfig.transportQuestion !== false;
+  const accommodationQuestion =
+    data?.rsvpConfig.accommodationQuestion !== false;
+  const guestMessage = data?.rsvpConfig.guestMessage !== false;
+  const plusOneAllowed =
+    data?.rsvpConfig.plusOneQuestion !== false &&
+    members.some((member) => member.plusOneAllowed);
+  const revealSettings = React.useMemo(() => {
+    if (!data) return null;
+    const experience = invitationExperienceFromResource(
+      data.invitation,
+      String(data.household.name ?? ""),
+      token,
+    );
+    return {
+      ...experience,
+      coverImageUrl: experience.coverMediaId
+        ? `/api/v1/guest/invitation-media/${encodeURIComponent(experience.coverMediaId)}?token=${encodeURIComponent(token)}`
+        : experience.coverImageUrl,
+    };
+  }, [data, token]);
+  const shouldRecordDirectOpen = Boolean(
+    revealSettings &&
+      !revealSettings.enabled &&
+      (data?.interaction?.shouldPlayReveal ?? true),
+  );
+  const markInvitationOpened = React.useCallback(
+    (source: InvitationOpenSource) => {
+    if (!token) return;
+    if (invitationOpenAttemptRef.current?.token !== token) {
+      invitationOpenAttemptRef.current = {
+        token,
+        idempotencyKey: crypto.randomUUID(),
+        requested: false,
+      };
+    }
+    if (invitationOpenAttemptRef.current.requested) return;
+    invitationOpenAttemptRef.current.requested = true;
+    const attempt = invitationOpenAttemptRef.current;
+    return weddingOsApi
+      .markGuestInvitationOpen({
+        token,
+        idempotencyKey: attempt.idempotencyKey,
+        source,
+      })
+      .then(() => undefined)
+      .catch(() => {
+        if (invitationOpenAttemptRef.current === attempt) {
+          invitationOpenAttemptRef.current.requested = false;
+        }
+      });
+    },
+    [token],
+  );
+  React.useEffect(() => {
+    if (
+      !data ||
+      !revealSettings ||
+      !shouldRecordDirectOpenOnBootstrap(
+        revealSettings.enabled,
+        data.interaction?.shouldPlayReveal ?? true,
+      )
+    )
+      return;
+    void markInvitationOpened("direct");
+  }, [data, markInvitationOpened, revealSettings]);
   const submit = async () => {
-    if (!data || !token || !data.allowEdits) return;
+    if (!data || !token || !data.allowEdits || !attendanceCollection) return;
     const missing = members.some((member) =>
-      events.some((event) => !attendance[`${member.id}:${event.id}`]),
+      rsvpEvents.some((event) => !attendance[`${member.id}:${event.id}`]),
     );
     if (missing) {
       toast({
@@ -192,6 +330,7 @@ export default function GuestCompanionPage() {
       });
       return;
     }
+    if (shouldRecordDirectOpen) void markInvitationOpened("direct");
     setSaving(true);
     try {
       await weddingOsApi.submitGuestRsvp({
@@ -200,19 +339,29 @@ export default function GuestCompanionPage() {
         idempotencyKey: crypto.randomUUID(),
         members: members.map((member) => ({
           guestId: member.id,
-          events: events.map((event) => ({
+          events: rsvpEvents.map((event) => ({
             eventId: event.id,
             attendance: attendance[`${member.id}:${event.id}`],
           })),
-          ...(menus[member.id] ? { menuId: menus[member.id] } : {}),
-          allergies: allergies[member.id]
-            ? allergies[member.id]
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean)
-            : [],
-          needsTransport: Boolean(transport[member.id]),
-          needsAccommodation: Boolean(accommodation[member.id]),
+          ...(menuSelection && menus[member.id]
+            ? { menuId: menus[member.id] }
+            : {}),
+          ...(allergyCollection
+            ? {
+                allergies: allergies[member.id]
+                  ? allergies[member.id]
+                      .split(",")
+                      .map((item) => item.trim())
+                      .filter(Boolean)
+                  : [],
+              }
+            : {}),
+          ...(transportQuestion
+            ? { needsTransport: Boolean(transport[member.id]) }
+            : {}),
+          ...(accommodationQuestion
+            ? { needsAccommodation: Boolean(accommodation[member.id]) }
+            : {}),
         })),
         ...(plusOneAllowed
           ? {
@@ -222,13 +371,15 @@ export default function GuestCompanionPage() {
                   ? {
                       firstName: plusOneFirstName.trim(),
                       lastName: plusOneLastName.trim(),
-                      ...(plusOneMenuId ? { menuId: plusOneMenuId } : {}),
+                      ...(menuSelection && plusOneMenuId
+                        ? { menuId: plusOneMenuId }
+                        : {}),
                     }
                   : {}),
               },
             }
           : {}),
-        message,
+        ...(guestMessage ? { message } : {}),
       });
       setSaved(true);
       toast({
@@ -250,6 +401,7 @@ export default function GuestCompanionPage() {
   };
   const addCalendar = () => {
     if (!events.length) return;
+    if (shouldRecordDirectOpen) void markInvitationOpened("direct");
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -271,7 +423,13 @@ export default function GuestCompanionPage() {
   };
 
   const operations = data?.operations ?? {};
-  return (
+  const openRsvp = () => {
+    if (shouldRecordDirectOpen) void markInvitationOpened("direct");
+    document
+      .getElementById("confirmare-rsvp")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const portal = (
     <PortalShell
       role="Spațiul invitaților"
       title={
@@ -295,7 +453,12 @@ export default function GuestCompanionPage() {
         />
       ) : (
         <>
-          <PublishedInvitation invitation={data.invitation} token={token} onAddCalendar={addCalendar} />
+          <PublishedInvitation
+            invitation={data.invitation}
+            token={token}
+            onAddCalendar={addCalendar}
+            onRsvp={openRsvp}
+          />
           <GuestAccommodationRecommendations
             items={data.accommodationRecommendations ?? []}
             eventTitles={Object.fromEntries(
@@ -317,16 +480,27 @@ export default function GuestCompanionPage() {
                   </Badge>
                 ) : (
                   <Badge variant={data.allowEdits ? "warning" : "neutral"} dot>
-                    {data.allowEdits ? "Necesită confirmare" : "Închis"}
+                    {!attendanceCollection
+                      ? "Confirmare indisponibilă"
+                      : data.allowEdits
+                        ? "Necesită confirmare"
+                        : "Închis"}
                   </Badge>
                 )}
               </CardHeader>
               <CardContent>
-                <Progress
-                  value={Object.keys(attendance).length}
-                  max={Math.max(1, members.length * events.length)}
-                />
-                <div className="mt-7 space-y-7">
+                {!attendanceCollection ? (
+                  <p className="rounded-xl bg-subtle p-4 text-sm leading-relaxed text-muted">
+                    Organizatorii nu solicită o confirmare RSVP pentru această
+                    invitație.
+                  </p>
+                ) : (
+                  <>
+                    <Progress
+                      value={answeredRsvpCount}
+                      max={Math.max(1, members.length * rsvpEvents.length)}
+                    />
+                    <div className="mt-7 space-y-7">
                   {members.map((member) => (
                     <div
                       key={member.id}
@@ -337,7 +511,7 @@ export default function GuestCompanionPage() {
                           `${member.firstName ?? ""} ${member.lastName ?? ""}`}
                       </h3>
                       <div className="mt-4 space-y-3">
-                        {events.map((event) => (
+                        {rsvpEvents.map((event) => (
                           <Field
                             key={event.id}
                             label={event.title ?? "Eveniment"}
@@ -362,7 +536,7 @@ export default function GuestCompanionPage() {
                             </Select>
                           </Field>
                         ))}
-                        <Field label="Meniu">
+                        {menuSelection && <Field label="Meniu">
                           <Select
                             value={menus[member.id] ?? ""}
                             onChange={(change) =>
@@ -386,8 +560,8 @@ export default function GuestCompanionPage() {
                                 </option>
                               ))}
                           </Select>
-                        </Field>
-                        <Field
+                        </Field>}
+                        {allergyCollection && <Field
                           label="Alergii"
                           hint="Separate prin virgulă; informația este protejată."
                         >
@@ -400,9 +574,9 @@ export default function GuestCompanionPage() {
                               }))
                             }
                           />
-                        </Field>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Checkbox
+                        </Field>}
+                        {(transportQuestion || accommodationQuestion) && <div className="grid gap-3 sm:grid-cols-2">
+                          {transportQuestion && <Checkbox
                             checked={Boolean(transport[member.id])}
                             onCheckedChange={(value) =>
                               setTransport((current) => ({
@@ -411,8 +585,8 @@ export default function GuestCompanionPage() {
                               }))
                             }
                             label="Am nevoie de transport"
-                          />
-                          <Checkbox
+                          />}
+                          {accommodationQuestion && <Checkbox
                             checked={Boolean(accommodation[member.id])}
                             onCheckedChange={(value) =>
                               setAccommodation((current) => ({
@@ -421,17 +595,17 @@ export default function GuestCompanionPage() {
                               }))
                             }
                             label="Am nevoie de cazare"
-                          />
-                        </div>
+                          />}
+                        </div>}
                       </div>
                     </div>
                   ))}
-                  <Field label="Mesaj pentru organizatori">
+                  {guestMessage && <Field label="Mesaj pentru organizatori">
                     <Textarea
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
                     />
-                  </Field>
+                  </Field>}
                   {!data.allowEdits && (
                     <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning">
                       {data.closedMessage}
@@ -449,7 +623,9 @@ export default function GuestCompanionPage() {
                     )}
                     {saving ? "Se salvează…" : "Salvează RSVP"}
                   </Button>
-                </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
             <div className="space-y-5">
@@ -498,7 +674,7 @@ export default function GuestCompanionPage() {
                 </CardContent>
               </Card>
               <GuestOperationsCards operations={operations} />
-              {plusOneAllowed && (
+              {attendanceCollection && plusOneAllowed && (
                 <Card>
                   <CardHeader>
                     <div>
@@ -534,7 +710,7 @@ export default function GuestCompanionPage() {
                             />
                           </Field>
                         </div>
-                        <Field label="Meniu plus-one">
+                        {menuSelection && <Field label="Meniu plus-one">
                           <Select
                             value={plusOneMenuId}
                             onChange={(event) =>
@@ -550,7 +726,7 @@ export default function GuestCompanionPage() {
                                 </option>
                               ))}
                           </Select>
-                        </Field>
+                        </Field>}
                       </>
                     )}
                   </CardContent>
@@ -562,6 +738,18 @@ export default function GuestCompanionPage() {
         </>
       )}
     </PortalShell>
+  );
+
+  return data && revealSettings ? (
+    <CinematicReveal
+      settings={revealSettings}
+      onOpened={markInvitationOpened}
+      shouldAutoReveal={data.interaction?.shouldPlayReveal ?? true}
+    >
+      {portal}
+    </CinematicReveal>
+  ) : (
+    portal
   );
 }
 

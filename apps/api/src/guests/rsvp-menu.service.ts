@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
-import type { CreateMenu, GuestRsvpRequest } from "@weddingos/contracts";
+import type {
+  CreateMenu,
+  GuestInvitationOpen,
+  GuestLinkAccess,
+  GuestRsvpRequest,
+} from "@weddingos/contracts";
 import { guestAccommodationRecommendationSchema } from "@weddingos/contracts";
 import type { ApiEnvironment } from "@weddingos/config";
 import type { Prisma } from "@weddingos/database";
@@ -15,6 +20,7 @@ import {
   hashToken,
   stableHash,
 } from "./sensitive.crypto";
+import { resolveInvitationVariant } from "./invitation-resolution";
 
 type Transaction = Prisma.TransactionClient;
 type GuestContext = {
@@ -190,68 +196,122 @@ export class RsvpMenuService {
   async bootstrap(token: string) {
     return this.withGuest(token, async (tx, context) => {
       const recipient = await tx.invitationRecipient.findFirst({
-        where: { id: context.recipientId, householdId: context.householdId },
+        where: { id: context.recipientId, workspaceId: context.workspaceId },
       });
       if (!recipient) invalidToken();
-      const version = await tx.invitationVersion.findUnique({
-        where: { id: recipient.invitationVersionId },
-      });
+      const identityRecipients = await this.identityRecipients(tx, recipient);
+      const identityRecipientIds = identityRecipients.map((row) => row.id);
+      const canonicalRecipient = identityRecipients[0] ?? recipient;
       const site = await tx.invitationSite.findFirst({
         where: {
+          id: recipient.invitationSiteId,
           workspaceId: context.workspaceId,
-          publishedVersionId: recipient.invitationVersionId,
           status: "PUBLISHED",
         },
       });
+      const version = site?.publishedVersionId
+        ? await tx.invitationVersion.findUnique({
+            where: { id: site.publishedVersionId },
+          })
+        : null;
       if (!version || !site) invalidToken();
+      const variant = canonicalRecipient.invitationVariantId
+        ? await tx.invitationVariant.findFirst({
+            where: {
+              id: canonicalRecipient.invitationVariantId,
+              invitationSiteId: site.id,
+              workspaceId: context.workspaceId,
+              status: "ACTIVE",
+            },
+          })
+        : null;
+      const variantVersion = variant?.publishedVersionId
+        ? await tx.invitationVariantVersion.findFirst({
+            where: {
+              id: variant.publishedVersionId,
+              invitationVariantId: variant.id,
+              baseInvitationVersionId: version.id,
+              workspaceId: context.workspaceId,
+              publishedAt: { not: null },
+            },
+          })
+        : null;
+      const resolvedInvitation = resolveInvitationVariant(
+        version.document,
+        version.settings,
+        variantVersion?.overrides,
+      );
       const household = await tx.household.findUnique({
         where: { id: context.householdId },
       });
       if (!household) invalidToken();
-      const [members, events, form, menus, wedding, submission] =
-        await Promise.all([
-          tx.guest.findMany({
-            where: {
-              householdId: context.householdId,
-              status: "ACTIVE",
-            },
-            orderBy: [
-              { isChild: "asc" },
-              { isPlusOne: "asc" },
-              { createdAt: "asc" },
-            ],
-          }),
-          tx.weddingEvent.findMany({
-            where: {
-              workspaceId: context.workspaceId,
-              guestVisible: true,
-              deletedAt: null,
-              status: { not: "CANCELLED" },
-            },
-            orderBy: [{ position: "asc" }, { startAt: "asc" }],
-          }),
-          tx.rsvpFormDefinition.findUnique({
-            where: { workspaceId: context.workspaceId },
-          }),
-          tx.menu.findMany({
-            where: {
-              workspaceId: context.workspaceId,
-              status: "ACTIVE",
-              deletedAt: null,
-            },
-            orderBy: { position: "asc" },
-          }),
-          tx.weddingProfile.findUnique({
-            where: { workspaceId: context.workspaceId },
-          }),
-          tx.rsvpSubmission.findFirst({
-            where: { invitationRecipientId: context.recipientId },
-            orderBy: { updatedAt: "desc" },
-          }),
-        ]);
+      const [members, events, form, menus, wedding] = await Promise.all([
+        tx.guest.findMany({
+          where: {
+            householdId: context.householdId,
+            status: "ACTIVE",
+          },
+          orderBy: [
+            { isChild: "asc" },
+            { isPlusOne: "asc" },
+            { createdAt: "asc" },
+          ],
+        }),
+        tx.weddingEvent.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            guestVisible: true,
+            deletedAt: null,
+            status: { not: "CANCELLED" },
+          },
+          orderBy: [{ position: "asc" }, { startAt: "asc" }],
+        }),
+        tx.rsvpFormDefinition.findUnique({
+          where: { workspaceId: context.workspaceId },
+        }),
+        tx.menu.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            status: "ACTIVE",
+            deletedAt: null,
+          },
+          orderBy: { position: "asc" },
+        }),
+        tx.weddingProfile.findUnique({
+          where: { workspaceId: context.workspaceId },
+        }),
+      ]);
       const formVersion = form?.publishedVersionId
         ? await tx.rsvpFormVersion.findUnique({
             where: { id: form.publishedVersionId },
+          })
+        : null;
+      const config = object(formVersion?.config);
+      const rsvpConfig = {
+        deadline: config.deadline ? String(config.deadline) : null,
+        attendanceEnabled: config.attendanceEnabled !== false,
+        perEventAttendance: config.perEventAttendance !== false,
+        plusOneQuestion: config.plusOneQuestion !== false,
+        childrenConfirmation: config.childrenConfirmation !== false,
+        menuSelection: config.menuSelection !== false,
+        allergyCollection: config.allergyCollection !== false,
+        accessibilityCollection: config.accessibilityCollection !== false,
+        transportQuestion: config.transportQuestion !== false,
+        accommodationQuestion: config.accommodationQuestion !== false,
+        guestMessage: config.guestMessage !== false,
+        allowEdits: config.allowEdits !== false,
+        closedMessage: String(config.closedMessage ?? "RSVP închis"),
+        languages: Array.isArray(config.languages)
+          ? config.languages.map(String)
+          : ["ro"],
+      };
+      const submission = formVersion
+        ? await tx.rsvpSubmission.findFirst({
+            where: {
+              invitationRecipientId: { in: identityRecipientIds },
+              formVersionId: formVersion.id,
+            },
+            orderBy: { updatedAt: "desc" },
           })
         : null;
       const responses = submission
@@ -259,13 +319,38 @@ export class RsvpMenuService {
             where: { submissionId: submission.id },
           })
         : [];
-      const selections = await tx.guestMenuSelection.findMany({
-        where: {
-          workspaceId: context.workspaceId,
-          guestId: { in: members.map((member) => member.id) },
-          active: true,
-        },
-      });
+      const [selections, allergyRows] = await Promise.all([
+        tx.guestMenuSelection.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            guestId: {
+              in: rsvpConfig.menuSelection
+                ? members.map((member) => member.id)
+                : [],
+            },
+            active: true,
+          },
+        }),
+        tx.guestAllergy.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            guestId: {
+              in: rsvpConfig.allergyCollection
+                ? members.map((member) => member.id)
+                : [],
+            },
+            active: true,
+          },
+          select: { guestId: true, label: true },
+          orderBy: [{ guestId: "asc" }, { createdAt: "asc" }],
+        }),
+      ]);
+      const allergiesByGuest = new Map<string, string[]>();
+      for (const allergy of allergyRows)
+        allergiesByGuest.set(allergy.guestId, [
+          ...(allergiesByGuest.get(allergy.guestId) ?? []),
+          allergy.label,
+        ]);
       const operationsRows = await tx.$queryRaw<
         Array<{ data: Prisma.JsonValue }>
       >`SELECT public.weddingos_guest_operations_bootstrap() AS data`;
@@ -283,54 +368,14 @@ export class RsvpMenuService {
             { createdAt: "asc" },
           ],
         });
-      await tx.guestAccessGrant.update({
-        where: { id: context.grantId },
-        data: { lastUsedAt: new Date(), version: { increment: 1 } },
-      });
-      if (!recipient.openedAt) {
-        await tx.invitationRecipient.update({
-          where: { id: recipient.id },
-          data: {
-            status: "OPENED",
-            openedAt: new Date(),
-            lastAccessedAt: new Date(),
-            version: { increment: 1 },
-          },
-        });
-        await this.asyncEvents.record(tx, {
-          eventName: "invitation.opened.v1",
-          aggregateType: "InvitationRecipient",
-          aggregateId: recipient.id,
-          workspaceId: context.workspaceId,
-          deduplicationKey: `invitation-opened:${recipient.id}`,
-          payload: {
-            subject: { recipientId: recipient.id },
-            invitationOpen: { recipientId: recipient.id },
-            activity: {
-              category: "invitations",
-              action: "invitation_opened",
-              summary: "O familie a deschis invitația.",
-              entityType: "InvitationRecipient",
-              entityId: recipient.id,
-            },
-          },
-        });
-      } else {
-        await tx.invitationRecipient.update({
-          where: { id: recipient.id },
-          data: {
-            lastAccessedAt: new Date(),
-            version: { increment: 1 },
-          },
-        });
-      }
-      const config = object(formVersion?.config);
       const deadline = config.deadline
         ? new Date(String(config.deadline))
         : null;
+      const deadlineOpen = !deadline || deadline > new Date();
       const allowEdits =
-        Boolean(config.allowEdits ?? true) &&
-        (!deadline || deadline > new Date());
+        rsvpConfig.attendanceEnabled &&
+        deadlineOpen &&
+        (config.allowEdits !== false || !submission?.submittedAt);
       return {
         couple: {
           partnerOneName: wedding?.partnerOneName,
@@ -341,9 +386,27 @@ export class RsvpMenuService {
           weddingDate: wedding?.weddingDate?.toISOString().slice(0, 10) ?? null,
         },
         invitation: {
-          document: version.document,
-          settings: version.settings,
+          siteId: site.id,
+          document: resolvedInvitation.document,
+          settings: resolvedInvitation.settings,
           language: version.language,
+          baseVersionId: version.id,
+          variant: variantVersion
+            ? {
+                id: variant!.id,
+                name: variant!.name,
+                code: variant!.code,
+                versionId: variantVersion.id,
+              }
+            : null,
+          experience: object(resolvedInvitation.settings).experience ?? null,
+        },
+        interaction: {
+          invitationOpenedAt:
+            canonicalRecipient.openedAt?.toISOString() ?? null,
+          lastAccessedAt:
+            canonicalRecipient.lastAccessedAt?.toISOString() ?? null,
+          shouldPlayReveal: !canonicalRecipient.openedAt,
         },
         household: {
           id: household.id,
@@ -359,10 +422,19 @@ export class RsvpMenuService {
             isPlusOne: member.isPlusOne,
             primaryGuestId: member.primaryGuestId,
             plusOneAllowed: member.plusOneAllowed,
+            ...(rsvpConfig.transportQuestion
+              ? { needsTransport: member.needsTransport }
+              : {}),
+            ...(rsvpConfig.accommodationQuestion
+              ? { needsAccommodation: member.needsAccommodation }
+              : {}),
+            ...(rsvpConfig.allergyCollection
+              ? { allergies: allergiesByGuest.get(member.id) ?? [] }
+              : {}),
           })),
         },
         events: events.map(mapEvent),
-        menus: menus.map(mapMenuSummary),
+        menus: rsvpConfig.menuSelection ? menus.map(mapMenuSummary) : [],
         operations: object(operationsRows[0]?.data),
         accommodationRecommendations: accommodationRecommendations.map(
           mapAccommodationRecommendation,
@@ -371,20 +443,188 @@ export class RsvpMenuService {
           submissionId: submission?.id ?? null,
           version: submission?.version ?? 1,
           status: submission?.status.toLowerCase() ?? "draft",
-          message: submission?.guestMessage ?? null,
+          message: rsvpConfig.guestMessage
+            ? (submission?.guestMessage ?? null)
+            : null,
           responses: responses.map((response) => ({
             guestId: response.guestId,
             eventId: response.weddingEventId,
             attendance: response.attendance.toLowerCase(),
           })),
-          selections: selections.map((selection) => ({
-            guestId: selection.guestId,
-            menuId: selection.menuId,
-          })),
+          selections: rsvpConfig.menuSelection
+            ? selections.map((selection) => ({
+                guestId: selection.guestId,
+                menuId: selection.menuId,
+              }))
+            : [],
         },
+        rsvpConfig,
         deadline: deadline?.toISOString() ?? null,
         allowEdits,
         closedMessage: String(config.closedMessage ?? "RSVP închis"),
+      };
+    });
+  }
+
+  async recordLinkAccess(input: GuestLinkAccess) {
+    return this.withGuest(input.token, async (tx, context) => {
+      const recipient = await tx.invitationRecipient.findFirst({
+        where: { id: context.recipientId, workspaceId: context.workspaceId },
+      });
+      if (!recipient) invalidToken();
+      const identityRecipients = await this.identityRecipients(tx, recipient);
+      const identityRecipientIds = identityRecipients.map((row) => row.id);
+      const inserted = await tx.invitationRecipientInteraction.createMany({
+        data: [
+          {
+            workspaceId: context.workspaceId,
+            invitationRecipientId: recipient.id,
+            guestAccessGrantId: context.grantId,
+            type: "LINK_ACCESSED",
+            source: input.source,
+            idempotencyKey: input.idempotencyKey,
+            metadata: {},
+          },
+        ],
+        skipDuplicates: true,
+      });
+      const interaction =
+        await tx.invitationRecipientInteraction.findUniqueOrThrow({
+          where: {
+            invitationRecipientId_type_idempotencyKey: {
+              invitationRecipientId: recipient.id,
+              type: "LINK_ACCESSED",
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+        });
+      await tx.invitationRecipient.updateMany({
+        where: {
+          id: { in: identityRecipientIds },
+          OR: [
+            { lastAccessedAt: null },
+            { lastAccessedAt: { lt: interaction.occurredAt } },
+          ],
+        },
+        data: {
+          lastAccessedAt: interaction.occurredAt,
+        },
+      });
+      await tx.guestAccessGrant.updateMany({
+        where: {
+          id: context.grantId,
+          OR: [
+            { lastUsedAt: null },
+            { lastUsedAt: { lt: interaction.occurredAt } },
+          ],
+        },
+        data: {
+          lastUsedAt: interaction.occurredAt,
+          version: { increment: 1 },
+        },
+      });
+      return {
+        recipientId: recipient.id,
+        linkAccessedAt: interaction.occurredAt.toISOString(),
+        duplicate: inserted.count === 0,
+      };
+    });
+  }
+
+  async recordInvitationOpen(input: GuestInvitationOpen) {
+    return this.withGuest(input.token, async (tx, context) => {
+      const recipient = await tx.invitationRecipient.findFirst({
+        where: { id: context.recipientId, workspaceId: context.workspaceId },
+      });
+      if (!recipient) invalidToken();
+      const identityRecipients = await this.identityRecipients(tx, recipient);
+      const identityRecipientIds = identityRecipients.map((row) => row.id);
+      const canonicalRecipient = identityRecipients[0] ?? recipient;
+      const inserted = await tx.invitationRecipientInteraction.createMany({
+        data: [
+          {
+            workspaceId: context.workspaceId,
+            invitationRecipientId: recipient.id,
+            guestAccessGrantId: context.grantId,
+            type: "INVITATION_OPENED",
+            source: input.source,
+            idempotencyKey: input.idempotencyKey,
+            metadata: {},
+          },
+        ],
+        skipDuplicates: true,
+      });
+      const interaction =
+        await tx.invitationRecipientInteraction.findUniqueOrThrow({
+          where: {
+            invitationRecipientId_type_idempotencyKey: {
+              invitationRecipientId: recipient.id,
+              type: "INVITATION_OPENED",
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+        });
+      const now = interaction.occurredAt;
+      await tx.invitationRecipient.updateMany({
+        where: {
+          id: { in: identityRecipientIds },
+          openedAt: null,
+        },
+        data: {
+          openedAt: now,
+        },
+      });
+      await tx.invitationRecipient.updateMany({
+        where: {
+          id: { in: identityRecipientIds },
+          status: { in: ["READY", "QUEUED", "SENT"] },
+        },
+        data: {
+          status: "OPENED",
+        },
+      });
+      await tx.invitationRecipient.updateMany({
+        where: {
+          id: { in: identityRecipientIds },
+          OR: [{ lastAccessedAt: null }, { lastAccessedAt: { lt: now } }],
+        },
+        data: { lastAccessedAt: now },
+      });
+      await tx.guestAccessGrant.updateMany({
+        where: {
+          id: context.grantId,
+          OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: now } }],
+        },
+        data: { lastUsedAt: now, version: { increment: 1 } },
+      });
+      await this.asyncEvents.record(tx, {
+        eventName: "invitation.opened.v1",
+        aggregateType: "InvitationRecipient",
+        aggregateId: recipient.id,
+        workspaceId: context.workspaceId,
+        deduplicationKey: `invitation-opened:${recipient.invitationSiteId}:${canonicalRecipient.householdId ?? canonicalRecipient.guestId}`,
+        payload: {
+          subject: { recipientId: recipient.id },
+          invitationOpen: {
+            recipientId: recipient.id,
+            source: input.source,
+          },
+          activity: {
+            category: "invitations",
+            action: "invitation_opened",
+            summary: "O familie a deschis invitația.",
+            entityType: "InvitationRecipient",
+            entityId: recipient.id,
+          },
+        },
+      });
+      const current = await tx.invitationRecipient.findUniqueOrThrow({
+        where: { id: recipient.id },
+      });
+      return {
+        recipientId: recipient.id,
+        invitationOpenedAt: (current.openedAt ?? now).toISOString(),
+        duplicate: inserted.count === 0,
       };
     });
   }
@@ -395,18 +635,43 @@ export class RsvpMenuService {
 
   async submitGuestRsvp(input: GuestRsvpRequest, correlationId: string) {
     return this.withGuest(input.token, async (tx, context) => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(
+            ${`invitation-site-workspace:${context.workspaceId}`},
+            0
+          )
+        )
+      `;
       const recipient = await tx.invitationRecipient.findFirst({
-        where: { id: context.recipientId, householdId: context.householdId },
+        where: { id: context.recipientId, workspaceId: context.workspaceId },
       });
       const definition = await tx.rsvpFormDefinition.findUnique({
         where: { workspaceId: context.workspaceId },
       });
       if (!recipient || !definition?.publishedVersionId)
         validation("RSVP form is not available");
+      const identityRecipients = await this.identityRecipients(tx, recipient);
+      const identityRecipientIds = identityRecipients.map((row) => row.id);
+      const canonicalRecipient = identityRecipients[0] ?? recipient;
       const formVersion = await tx.rsvpFormVersion.findUniqueOrThrow({
         where: { id: definition.publishedVersionId },
       });
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(
+            ${`guest-rsvp:${context.workspaceId}:${context.householdId}:${formVersion.id}`},
+            0
+          )
+        )
+      `;
       const config = object(formVersion.config);
+      if (config.attendanceEnabled === false)
+        problem(
+          "FEATURE_DISABLED",
+          HttpStatus.LOCKED,
+          "RSVP collection is disabled",
+        );
       const deadline = config.deadline
         ? new Date(String(config.deadline))
         : null;
@@ -417,35 +682,37 @@ export class RsvpMenuService {
           "RSVP closed",
           String(config.closedMessage ?? "RSVP închis"),
         );
-      if (config.allowEdits === false) {
-        const existing = await tx.rsvpSubmission.findFirst({
-          where: { invitationRecipientId: recipient.id },
-        });
-        if (existing?.submittedAt)
-          problem(
-            "FEATURE_DISABLED",
-            HttpStatus.LOCKED,
-            "RSVP edits are disabled",
-          );
-      }
+      let submission = await tx.rsvpSubmission.findFirst({
+        where: {
+          invitationRecipientId: { in: identityRecipientIds },
+          formVersionId: formVersion.id,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      if (submission?.idempotencyKey === input.idempotencyKey)
+        return this.submissionResponse(tx, submission);
+      if (config.allowEdits === false && submission?.submittedAt)
+        problem(
+          "FEATURE_DISABLED",
+          HttpStatus.LOCKED,
+          "RSVP edits are disabled",
+        );
       const members = await tx.guest.findMany({
         where: { householdId: context.householdId, status: "ACTIVE" },
       });
-      const memberIds = new Set(members.map((member) => member.id));
+      const requiredMembers = members.filter((member) => !member.isPlusOne);
+      const memberIds = new Set(requiredMembers.map((member) => member.id));
       const requestedIds = new Set(
         input.members.map((member) => member.guestId),
       );
-      if ([...requestedIds].some((id) => !memberIds.has(id))) invalidToken();
-      const eventIds = [
-        ...new Set(
-          input.members.flatMap((member) =>
-            member.events.map((event) => event.eventId),
-          ),
-        ),
-      ];
+      if (
+        input.members.length !== requiredMembers.length ||
+        requestedIds.size !== requiredMembers.length ||
+        [...requestedIds].some((id) => !memberIds.has(id))
+      )
+        validation("RSVP must include every active household member");
       const validEvents = await tx.weddingEvent.findMany({
         where: {
-          id: { in: eventIds },
           workspaceId: context.workspaceId,
           guestVisible: true,
           rsvpEnabled: true,
@@ -453,16 +720,19 @@ export class RsvpMenuService {
           status: { not: "CANCELLED" },
         },
       });
-      if (validEvents.length !== eventIds.length)
-        validation("One or more RSVP events are invalid");
-      let submission = await tx.rsvpSubmission.findFirst({
-        where: {
-          invitationRecipientId: recipient.id,
-          formVersionId: formVersion.id,
-        },
-      });
-      if (submission?.idempotencyKey === input.idempotencyKey)
-        return this.submissionResponse(tx, submission);
+      if (!validEvents.length) validation("RSVP has no active events");
+      const validEventIds = new Set(validEvents.map((event) => event.id));
+      for (const memberInput of input.members) {
+        const submittedEventIds = new Set(
+          memberInput.events.map((event) => event.eventId),
+        );
+        if (
+          memberInput.events.length !== validEventIds.size ||
+          submittedEventIds.size !== validEventIds.size ||
+          [...submittedEventIds].some((id) => !validEventIds.has(id))
+        )
+          validation("RSVP must answer every active event for every member");
+      }
       if (submission && submission.version !== input.version)
         conflict(submission.version);
       const wasSubmitted = Boolean(submission?.submittedAt);
@@ -472,7 +742,9 @@ export class RsvpMenuService {
             data: {
               status: "UPDATED",
               lastModifiedAt: new Date(),
-              guestMessage: input.message,
+              ...(config.guestMessage === false
+                ? {}
+                : { guestMessage: input.message }),
               idempotencyKey: input.idempotencyKey,
               version: { increment: 1 },
             },
@@ -481,13 +753,19 @@ export class RsvpMenuService {
             data: {
               workspaceId: context.workspaceId,
               householdId: context.householdId,
-              invitationRecipientId: recipient.id,
+              invitationRecipientId: canonicalRecipient.id,
               formVersionId: formVersion.id,
               status: "SUBMITTED",
               submittedAt: new Date(),
               lastModifiedAt: new Date(),
-              guestMessage: input.message,
+              ...(config.guestMessage === false
+                ? {}
+                : { guestMessage: input.message }),
               idempotencyKey: input.idempotencyKey,
+              // Bootstrap exposes version 1 for the not-yet-created RSVP.
+              // The first persisted submission advances that virtual version
+              // so a second request based on the same empty state conflicts.
+              version: 2,
             },
           });
       for (const memberInput of input.members) {
@@ -495,10 +773,20 @@ export class RsvpMenuService {
         await tx.guest.update({
           where: { id: guest.id },
           data: {
-            needsTransport: memberInput.needsTransport ?? guest.needsTransport,
-            needsAccommodation:
-              memberInput.needsAccommodation ?? guest.needsAccommodation,
-            ...(memberInput.accessibilityNotes === undefined
+            ...(config.transportQuestion === false
+              ? {}
+              : {
+                  needsTransport:
+                    memberInput.needsTransport ?? guest.needsTransport,
+                }),
+            ...(config.accommodationQuestion === false
+              ? {}
+              : {
+                  needsAccommodation:
+                    memberInput.needsAccommodation ?? guest.needsAccommodation,
+                }),
+            ...(config.accessibilityCollection === false ||
+            memberInput.accessibilityNotes === undefined
               ? {}
               : {
                   accessibilityNotesEncrypted: encryptSensitive(
@@ -539,7 +827,7 @@ export class RsvpMenuService {
           where: { guestId: guest.id, active: true },
           data: { active: false, version: { increment: 1 } },
         });
-        if (attends && memberInput.menuId) {
+        if (config.menuSelection !== false && attends && memberInput.menuId) {
           await this.assertMenu(
             tx,
             context.workspaceId,
@@ -555,10 +843,50 @@ export class RsvpMenuService {
             },
           });
         }
-        for (const allergy of memberInput.allergies ?? []) {
+        if (config.allergyCollection === false) continue;
+        const requestedAllergies = [
+          ...new Set(
+            (memberInput.allergies ?? [])
+              .map((allergy) => allergy.trim())
+              .filter(Boolean),
+          ),
+        ];
+        const existingAllergies = await tx.guestAllergy.findMany({
+          where: { workspaceId: context.workspaceId, guestId: guest.id },
+          select: { id: true, label: true, active: true },
+        });
+        const requestedAllergySet = new Set(requestedAllergies);
+        const removedAllergies = existingAllergies.filter(
+          (allergy) =>
+            allergy.active && !requestedAllergySet.has(allergy.label),
+        );
+        if (removedAllergies.length) {
+          const removedAt = new Date();
+          const removedIds = removedAllergies.map((allergy) => allergy.id);
+          await tx.guestAllergy.updateMany({
+            where: { id: { in: removedIds } },
+            data: { active: false, deletedAt: removedAt },
+          });
+          await tx.allergyIssue.updateMany({
+            where: { allergyId: { in: removedIds } },
+            data: {
+              status: "RESOLVED",
+              resolvedAt: removedAt,
+              version: { increment: 1 },
+            },
+          });
+        }
+        const existingAllergiesByLabel = new Map(
+          existingAllergies.map((allergy) => [allergy.label, allergy]),
+        );
+        for (const allergy of requestedAllergies) {
+          const reactivated =
+            existingAllergiesByLabel.get(allergy)?.active === false;
           const allergyRow = await tx.guestAllergy.upsert({
             where: { guestId_label: { guestId: guest.id, label: allergy } },
             update: {
+              active: true,
+              deletedAt: null,
               detailsEncrypted: encryptSensitive(
                 memberInput.allergyDetails,
                 this.sensitiveKey,
@@ -577,7 +905,13 @@ export class RsvpMenuService {
           });
           await tx.allergyIssue.upsert({
             where: { allergyId: allergyRow.id },
-            update: {},
+            update: reactivated
+              ? {
+                  status: "UNREVIEWED",
+                  resolvedAt: null,
+                  version: { increment: 1 },
+                }
+              : {},
             create: {
               workspaceId: context.workspaceId,
               guestId: guest.id,
@@ -586,7 +920,7 @@ export class RsvpMenuService {
           });
         }
       }
-      if (input.plusOne) {
+      if (config.plusOneQuestion !== false && input.plusOne) {
         const primary = members.find((member) => member.plusOneAllowed);
         if (!primary) validation("This household has no plus-one allowance");
         let plusOne = members.find(
@@ -618,7 +952,7 @@ export class RsvpMenuService {
                   side: primary.side,
                 },
               });
-          if (input.plusOne.menuId) {
+          if (config.menuSelection !== false && input.plusOne.menuId) {
             await this.assertMenu(
               tx,
               context.workspaceId,
@@ -647,6 +981,14 @@ export class RsvpMenuService {
               version: { increment: 1 },
             },
           });
+          await tx.invitationRecipient.updateMany({
+            where: {
+              workspaceId: context.workspaceId,
+              guestId: plusOne.id,
+              revokedAt: null,
+            },
+            data: { revokedAt: new Date(), version: { increment: 1 } },
+          });
           await tx.guestMenuSelection.updateMany({
             where: { guestId: plusOne.id, active: true },
             data: { active: false, version: { increment: 1 } },
@@ -656,19 +998,46 @@ export class RsvpMenuService {
       const allResponses = await tx.guestEventResponse.findMany({
         where: { submissionId: submission.id },
       });
-      const visibleMemberCount = members.filter(
-        (member) => !member.isPlusOne,
-      ).length;
-      const completed =
-        allResponses.length >= visibleMemberCount * validEvents.length;
-      await tx.invitationRecipient.update({
-        where: { id: recipient.id },
+      const responsePairs = new Set(
+        allResponses
+          .filter(
+            (response) =>
+              memberIds.has(response.guestId) &&
+              validEventIds.has(response.weddingEventId),
+          )
+          .map((response) => `${response.guestId}:${response.weddingEventId}`),
+      );
+      const completed = requiredMembers.every((member) =>
+        validEvents.every((event) =>
+          responsePairs.has(`${member.id}:${event.id}`),
+        ),
+      );
+      const completedAt = completed ? new Date() : null;
+      await tx.invitationRecipient.updateMany({
+        where: {
+          id: { in: identityRecipientIds },
+        },
         data: {
           status: completed ? "RESPONDED" : "PARTIALLY_RESPONDED",
-          rsvpCompletedAt: completed ? new Date() : null,
-          version: { increment: 1 },
+          rsvpCompletedAt: completedAt,
         },
       });
+      if (completed && completedAt)
+        await tx.invitationRecipientInteraction.createMany({
+          data: [
+            {
+              workspaceId: context.workspaceId,
+              invitationRecipientId: recipient.id,
+              guestAccessGrantId: context.grantId,
+              type: "RSVP_COMPLETED",
+              source: "rsvp_submit",
+              idempotencyKey: input.idempotencyKey,
+              metadata: { submissionId: submission.id },
+              occurredAt: completedAt,
+            },
+          ],
+          skipDuplicates: true,
+        });
       const allDeclined = allResponses.every(
         (response) => response.attendance === "DECLINED",
       );
@@ -1231,9 +1600,68 @@ export class RsvpMenuService {
           guestTokenHash: tokenHash,
           guestAccessGrantId: context.grantId,
         });
+        const activeRecipient = await tx.invitationRecipient.findFirst({
+          where: {
+            id: context.recipientId,
+            workspaceId: context.workspaceId,
+            revokedAt: null,
+          },
+          select: { id: true },
+        });
+        if (!activeRecipient) invalidToken();
         return operation(tx, context);
       },
     );
+  }
+
+  private async identityRecipients(
+    tx: Transaction,
+    recipient: {
+      id: string;
+      workspaceId: string;
+      invitationSiteId: string;
+      invitationVariantId: string | null;
+      householdId: string | null;
+      guestId: string | null;
+      openedAt: Date | null;
+      lastAccessedAt: Date | null;
+    },
+  ) {
+    const guest = recipient.guestId
+      ? await tx.guest.findFirst({
+          where: { id: recipient.guestId, workspaceId: recipient.workspaceId },
+          select: { householdId: true },
+        })
+      : null;
+    const householdId = recipient.householdId ?? guest?.householdId;
+    const memberIds = householdId
+      ? (
+          await tx.guest.findMany({
+            where: { workspaceId: recipient.workspaceId, householdId },
+            select: { id: true },
+          })
+        ).map((member) => member.id)
+      : [];
+    const rows = await tx.invitationRecipient.findMany({
+      where: {
+        workspaceId: recipient.workspaceId,
+        invitationSiteId: recipient.invitationSiteId,
+        revokedAt: null,
+        ...(householdId
+          ? {
+              OR: [{ householdId }, { guestId: { in: memberIds } }],
+            }
+          : { guestId: recipient.guestId }),
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    if (!rows.length) return [recipient];
+    if (!householdId) return rows;
+    return rows.sort((left, right) => {
+      const leftIsHousehold = left.householdId === householdId ? 0 : 1;
+      const rightIsHousehold = right.householdId === householdId ? 0 : 1;
+      return leftIsHousehold - rightIsHousehold;
+    });
   }
 
   private async formInTransaction(tx: Transaction, workspaceId: string) {
@@ -1534,6 +1962,7 @@ function mapFormVersion(row: {
     publishedAt: row.publishedAt?.toISOString() ?? null,
   };
 }
+
 function mapEvent(row: {
   id: string;
   type: string;

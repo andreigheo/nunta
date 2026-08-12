@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Inject,
@@ -15,10 +16,15 @@ import {
 } from "@nestjs/common";
 import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import {
+  applyInvitationSyncSchema,
+  assignInvitationVariantSchema,
   campaignTransitionSchema,
+  createInvitationVariantSchema,
+  createRecipientAccessLinksSchema,
   createCampaignSchema,
   createInvitationRecipientsSchema,
   saveInvitationDraftSchema,
+  saveInvitationVariantDraftSchema,
   updateCampaignSchema,
 } from "@weddingos/contracts";
 import type { Response } from "express";
@@ -123,6 +129,162 @@ export class InvitationCampaignController {
     );
   }
 
+  @Get("invitation-site/versions")
+  async versions(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Query("cursor") cursor: string | undefined,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.versions(
+      auth.userId,
+      uuid(workspaceId),
+      cursor ? uuid(cursor) : undefined,
+    );
+    return apiResponse(request, data, {
+      nextCursor: data.nextCursor ?? undefined,
+    });
+  }
+
+  @Post("invitation-site/versions/:versionId/restore")
+  @RequireCapability("invitation.write")
+  async restoreVersion(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("versionId") versionId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.restoreVersion(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(versionId),
+      requiredVersion(ifMatch),
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Post("invitation-site/preflight")
+  @RequireCapability("invitation.publish")
+  async preflight(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.preflight(auth.userId, uuid(workspaceId)),
+    );
+  }
+
+  @Get("invitation-site/sync-preview")
+  @RequireCapability("invitation.write")
+  async syncPreview(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.syncPreview(auth.userId, uuid(workspaceId)),
+    );
+  }
+
+  @Post("invitation-site/sync-apply")
+  @RequireCapability("invitation.write")
+  async syncApply(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.syncApply(
+      auth.userId,
+      uuid(workspaceId),
+      requiredVersion(ifMatch),
+      idempotencyKey(key),
+      parseWithSchema(applyInvitationSyncSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Get("invitation-site/variants")
+  async variants(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.variants(auth.userId, uuid(workspaceId)),
+    );
+  }
+
+  @Post("invitation-site/variants")
+  @RequireCapability("invitation.write")
+  async createVariant(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.createVariant(
+      auth.userId,
+      uuid(workspaceId),
+      idempotencyKey(key),
+      parseWithSchema(createInvitationVariantSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Put("invitation-site/variants/:variantId/draft")
+  @RequireCapability("invitation.write")
+  async saveVariantDraft(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("variantId") variantId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.saveVariantDraft(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(variantId),
+      requiredVersion(ifMatch),
+      parseWithSchema(saveInvitationVariantDraftSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
+  @Delete("invitation-site/variants/:variantId")
+  @RequireCapability("invitation.write")
+  async archiveVariant(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("variantId") variantId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.archiveVariant(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(variantId),
+      requiredVersion(ifMatch),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
   @Get("invitation-recipients")
   @RequireCapability("invitation.manage_recipients")
   async recipients(
@@ -160,7 +322,51 @@ export class InvitationCampaignController {
         data.householdIds,
         data.guestIds,
         data.invitationVersionId,
+        data.invitationVariantId,
         request.correlationId,
+      ),
+    );
+  }
+
+  @Put("invitation-recipients/:recipientId/variant")
+  @RequireCapability("invitation.manage_recipients")
+  async assignVariant(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("recipientId") recipientId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = parseWithSchema(assignInvitationVariantSchema, body);
+    const result = await this.service.assignVariant(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(recipientId),
+      requiredVersion(ifMatch),
+      data.variantId,
+      request.correlationId,
+    );
+    return apiResponse(request, result, { version: result.version });
+  }
+
+  @Post("invitation-recipients/:recipientId/access-links")
+  @RequireCapability("invitation.manage_recipients")
+  async accessLinks(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("recipientId") recipientId: string,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(createRecipientAccessLinksSchema, body);
+    return apiResponse(
+      request,
+      await this.service.accessLinks(
+        auth.userId,
+        uuid(workspaceId),
+        uuid(recipientId),
+        input.channels,
       ),
     );
   }
@@ -302,6 +508,7 @@ export class InvitationCampaignController {
         idempotencyKey(key),
         data.transition,
         data.scheduledAt,
+        data.audienceRevision,
         request.correlationId,
       ),
     );
