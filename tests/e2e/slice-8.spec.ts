@@ -764,7 +764,9 @@ test("E2E 27 — Overview and search use Wedding Day canonical data", async ({
   );
   await authorizePage(page, owner);
   await page.goto("/overview");
-  await expect(page.getByText("Wedding Day Command Center")).toBeVisible();
+  await expect(
+    page.getByText("Centrul operațional al evenimentului"),
+  ).toBeVisible();
 });
 
 test("E2E 28 — Operational exports create secured artifacts", async () => {
