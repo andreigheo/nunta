@@ -1591,7 +1591,7 @@ test("Slice 6 E2E 10 — Signature isolation", async () => {
 // Sarbato intentionally grants VENDOR_PAYMENTS to no subscription plan.
 // These provider-lifecycle scenarios remain documented, but are not part of
 // the active browser contract while payment intermediation is disabled.
-test.skip("Slice 6 E2E 11 — Online checkout", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 11 — Online checkout", async () => {
   onlineSchedule = (await createOnlineSchedule("Online payment E2E", 80_000))
     .schedule;
   onlineCheckout = await apiData<Resource>(
@@ -1641,7 +1641,7 @@ test.skip("Slice 6 E2E 11 — Online checkout", async () => {
   ).toBe(true);
 });
 
-test.skip("Slice 6 E2E 12 — Payment replay", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 12 — Payment replay", async () => {
   const before = await apiData<{ items: Resource[] }>(
     await couple.api.get(`/api/v1/workspaces/${workspaceId}/payments`),
   );
@@ -1664,7 +1664,7 @@ test.skip("Slice 6 E2E 12 — Payment replay", async () => {
   expect(after.items.length).toBe(before.items.length);
 });
 
-test.skip("Slice 6 E2E 13 — Payment failure", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 13 — Payment failure", async () => {
   const failed = await createOnlineSchedule("Failed payment E2E", 30_000);
   const before = await currentBudget();
   failedCheckout = await apiData<Resource>(
@@ -1704,7 +1704,7 @@ test.skip("Slice 6 E2E 13 — Payment failure", async () => {
   expect(retry.status()).toBe(201);
 });
 
-test.skip("Slice 6 E2E 14 — Partial refund", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 14 — Partial refund", async () => {
   const idempotencyKey = `refund-partial-${crypto.randomUUID()}`;
   const transactionVersion = onlineTransaction.version;
   partialRefund = await apiData<Resource>(
@@ -1743,7 +1743,7 @@ test.skip("Slice 6 E2E 14 — Partial refund", async () => {
   expect(replay.replayed).toBe(true);
 });
 
-test.skip("Slice 6 E2E 15 — Full refund", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 15 — Full refund", async () => {
   await apiData(
     await couple.api.post(
       `/api/v1/workspaces/${workspaceId}/online-payment-transactions/${onlineTransaction.id}/refunds`,
@@ -1778,7 +1778,7 @@ test.skip("Slice 6 E2E 15 — Full refund", async () => {
   ).toBeGreaterThanOrEqual(2);
 });
 
-test.skip("Slice 6 E2E 16 — Over-refund", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 16 — Over-refund", async () => {
   const extra = await createOnlineSchedule("Over refund E2E", 20_000);
   const checkout = await apiData<Resource>(
     await couple.api.post(
@@ -1822,7 +1822,7 @@ test.skip("Slice 6 E2E 16 — Over-refund", async () => {
   expect((await response.json()).code).toBe("REFUND_EXCEEDS_CAPTURED");
 });
 
-test.skip("Slice 6 E2E 17 — Payment webhook security", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 17 — Payment webhook security", async () => {
   const before = await apiData<Resource[]>(
     await couple.api.get(
       `/api/v1/workspaces/${workspaceId}/online-payment-transactions`,
@@ -1853,7 +1853,7 @@ test.skip("Slice 6 E2E 17 — Payment webhook security", async () => {
   expect(after).toHaveLength(before.length);
 });
 
-test.skip("Slice 6 E2E 18 — Payment tenant isolation", async () => {
+test("[inactive-vendor-payments] Slice 6 E2E 18 — Payment tenant isolation", async () => {
   expect(
     (
       await otherCouple.api.get(
@@ -1884,7 +1884,9 @@ test.skip("Slice 6 E2E 18 — Payment tenant isolation", async () => {
   ).toBe(404);
 });
 
-test.skip("Slice 6 E2E 19 — Overview", async ({ page }) => {
+test("[inactive-vendor-payments] Slice 6 E2E 19 — Overview", async ({
+  page,
+}) => {
   const dashboard = await apiData<{
     documents: Record<string, number>;
     onlinePayments: Record<string, number | string>;
@@ -3070,7 +3072,7 @@ test("Slice 7 E2E 16 — Subscription webhook validates signature and deduplicat
   expect(replay).toEqual({ accepted: true, replay: true });
 });
 
-test.skip("Slice 7 E2E 17 — Connected payout onboarding is idempotent", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 17 — Connected payout onboarding is idempotent", async () => {
   vendorPayoutAccount = await apiData<Resource>(
     await vendorA.api.post(
       `/api/v1/vendor-organizations/${organizationA}/payout-account`,
@@ -3104,7 +3106,7 @@ test.skip("Slice 7 E2E 17 — Connected payout onboarding is idempotent", async 
   expect(replay.id).toBe(first.id);
 });
 
-test.skip("Slice 7 E2E 18 — Captured marketplace payment creates fee and payable ledger", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 18 — Captured marketplace payment creates fee and payable ledger", async () => {
   const created = await createOnlineSchedule("Slice 7 payout E2E", 200_000);
   const checkout = await apiData<Resource>(
     await couple.api.post(
@@ -3161,7 +3163,7 @@ test.skip("Slice 7 E2E 18 — Captured marketplace payment creates fee and payab
   ).toBe(2);
 });
 
-test.skip("Slice 7 E2E 19 — Settlement calculation is explicit and idempotent", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 19 — Settlement calculation is explicit and idempotent", async () => {
   const key = `settlement-${crypto.randomUUID()}`;
   const data = {
     vendorOrganizationId: organizationA,
@@ -3188,7 +3190,7 @@ test.skip("Slice 7 E2E 19 — Settlement calculation is explicit and idempotent"
   expect(replay.id).toBe(vendorSettlement.id);
 });
 
-test.skip("Slice 7 E2E 20 — Finalize and payout produce one immutable paid result", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 20 — Finalize and payout produce one immutable paid result", async () => {
   const finalizeVersion = vendorSettlement.version;
   vendorSettlement = await apiData<Resource>(
     await vendorA.api.post(
@@ -3242,7 +3244,7 @@ test.skip("Slice 7 E2E 20 — Finalize and payout produce one immutable paid res
   ).rejects.toThrow();
 });
 
-test.skip("Slice 7 E2E 21 — Payout webhook is signed, monotone and replay-safe", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 21 — Payout webhook is signed, monotone and replay-safe", async () => {
   const account = await ownerDatabase.vendorPayoutAccount.findUniqueOrThrow({
     where: { vendorOrganizationId: organizationA },
   });
@@ -3291,7 +3293,7 @@ test.skip("Slice 7 E2E 21 — Payout webhook is signed, monotone and replay-safe
   ).toBe("PAID");
 });
 
-test.skip("Slice 7 E2E 22 — Vendor trust and payout isolation", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 22 — Vendor trust and payout isolation", async () => {
   expect(
     (
       await vendorB.api.get(
@@ -3325,7 +3327,7 @@ test("Slice 7 E2E 23 — Couple and marketplace UI render persisted review data"
   ).toBeVisible();
 });
 
-test.skip("Slice 7 E2E 24 — Vendor and platform pages use real Slice 7 APIs", async ({
+test("[inactive-vendor-payments] Slice 7 E2E 24 — Vendor and platform pages use real Slice 7 APIs", async ({
   page,
 }) => {
   await authorizePage(page, vendorA);
@@ -3549,7 +3551,7 @@ test("Slice 7 E2E 29 — Subscription invoice lifecycle is monotone and persists
   ).toBeGreaterThanOrEqual(1);
 });
 
-test.skip("Slice 7 E2E 30 — Refund after a paid payout creates a carry-forward adjustment", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 30 — Refund after a paid payout creates a carry-forward adjustment", async () => {
   const current = await apiData<Resource>(
     await couple.api.get(
       `/api/v1/workspaces/${workspaceId}/online-payment-transactions/${payoutTransaction.id}`,
@@ -3593,7 +3595,7 @@ test.skip("Slice 7 E2E 30 — Refund after a paid payout creates a carry-forward
   ).toBe("PAID");
 });
 
-test.skip("Slice 7 E2E 31 — Dispute holds are released on win and converted on loss", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 31 — Dispute holds are released on win and converted on loss", async () => {
   const won = await createCapturedTransaction("Dispute won E2E", 70_000);
   await ownerDatabase.onlinePaymentTransaction.update({
     where: { id: won.transaction.id },
@@ -3707,7 +3709,7 @@ test.skip("Slice 7 E2E 31 — Dispute holds are released on win and converted on
   ).toBe(1);
 });
 
-test.skip("Slice 7 E2E 32 — Paid payout can be returned exactly once", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 32 — Paid payout can be returned exactly once", async () => {
   const account = await ownerDatabase.vendorPayoutAccount.findUniqueOrThrow({
     where: { vendorOrganizationId: organizationA },
   });
@@ -3743,7 +3745,7 @@ test.skip("Slice 7 E2E 32 — Paid payout can be returned exactly once", async (
   ).toBe(1);
 });
 
-test.skip("Slice 7 E2E 33 — Failed payout retry reuses the payout and appends one attempt", async () => {
+test("[inactive-vendor-payments] Slice 7 E2E 33 — Failed payout retry reuses the payout and appends one attempt", async () => {
   const account = await ownerDatabase.vendorPayoutAccount.findUniqueOrThrow({
     where: { vendorOrganizationId: organizationA },
   });
@@ -3810,7 +3812,7 @@ test.skip("Slice 7 E2E 33 — Failed payout retry reuses the payout and appends 
   ).toBe(1);
 });
 
-test.skip("Slice 7 E2E 34 — Vendor global search is capability-filtered and navigable", async ({
+test("[inactive-vendor-payments] Slice 7 E2E 34 — Vendor global search is capability-filtered and navigable", async ({
   page,
 }) => {
   await authorizePage(page, vendorA);

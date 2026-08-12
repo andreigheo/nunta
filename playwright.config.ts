@@ -21,6 +21,9 @@ export default defineConfig({
     // production application. Its historical suite is not a browser gate.
     "controlled-beta.spec.ts",
   ],
+  // The product grants VENDOR_PAYMENTS to no subscription plan. Keep the
+  // historical provider lifecycle specs in source, outside the active gate.
+  grepInvert: /\[inactive-vendor-payments\]/,
   fullyParallel: false,
   workers: 1,
   retries: 0,
