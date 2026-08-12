@@ -14,7 +14,13 @@ const webServerCommand = process.env.WEDDINGOS_E2E_REUSE_BUILD
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: ["landing.spec.ts", "landing-proof.spec.ts"],
+  testIgnore: [
+    "landing.spec.ts",
+    "landing-proof.spec.ts",
+    // The controlled-beta API and UI are intentionally excluded from the
+    // production application. Its historical suite is not a browser gate.
+    "controlled-beta.spec.ts",
+  ],
   fullyParallel: false,
   workers: 1,
   retries: 0,

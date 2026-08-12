@@ -88,7 +88,7 @@ test("E2E 1 — Create Wedding Day Plan and persist Run of Show", async ({
   await authorizePage(page, owner);
   await page.goto("/wedding-day");
   await expect(
-    page.getByRole("heading", { name: "Ziua nunții", exact: true }),
+    page.getByRole("heading", { name: "Ziua evenimentului", exact: true }),
   ).toBeVisible();
   plan = await createPlan();
   itemA = await createRunItem(
@@ -1185,6 +1185,7 @@ async function createGuestFixture() {
   const recipient = await ownerDatabase.invitationRecipient.create({
     data: {
       workspaceId,
+      invitationSiteId: site.id,
       householdId: household.id,
       invitationVersionId: version.id,
       personalizationSnapshot: {},
@@ -1194,6 +1195,7 @@ async function createGuestFixture() {
   const secondRecipient = await ownerDatabase.invitationRecipient.create({
     data: {
       workspaceId,
+      invitationSiteId: site.id,
       householdId: secondHousehold.id,
       invitationVersionId: version.id,
       personalizationSnapshot: {},
@@ -1383,6 +1385,17 @@ async function createReadyWorkspace(api: APIRequestContext, title: string) {
       },
     }),
   );
+  await ownerDatabase.workspaceSubscription.upsert({
+    where: { workspaceId: workspace.id },
+    update: { planKey: "PRO", status: "ACTIVE", updatedById: owner.userId },
+    create: {
+      workspaceId: workspace.id,
+      planKey: "PRO",
+      status: "ACTIVE",
+      createdById: owner.userId,
+      updatedById: owner.userId,
+    },
+  });
   const draft = await apiData<{ version: number }>(
     await api.get(`/api/v1/workspaces/${workspace.id}/onboarding`),
   );

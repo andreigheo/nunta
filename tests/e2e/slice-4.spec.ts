@@ -5,10 +5,15 @@ import {
   type APIRequestContext,
   type Page,
 } from "@playwright/test";
+import { PrismaClient } from "@weddingos/database";
 
 const apiUrl = "http://127.0.0.1:4117";
 const origin = "http://127.0.0.1:3117";
 const password = "WeddingOS2026!";
+const ownerDatabase = new PrismaClient({
+  datasourceUrl:
+    "postgresql://weddingos:weddingos@127.0.0.1:54339/weddingos_e2e?schema=public",
+});
 type Account = { email: string; userId: string; api: APIRequestContext };
 
 const contexts: APIRequestContext[] = [];
@@ -49,6 +54,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await Promise.all(contexts.map((context) => context.dispose()));
+  await ownerDatabase.$disconnect();
 });
 
 test("E2E 1 — Seating plan creation", async ({ page }) => {
@@ -602,6 +608,7 @@ async function createReadyWorkspace(api: APIRequestContext, title: string) {
       },
     }),
   );
+  await enableWorkspacePlan(ownerDatabase, workspace.id, owner.userId);
   const draft = await apiData<{ version: number }>(
     await api.get(`/api/v1/workspaces/${workspace.id}/onboarding`),
   );
@@ -641,6 +648,24 @@ async function createReadyWorkspace(api: APIRequestContext, title: string) {
     }),
   );
   return { workspaceId: workspace.id };
+}
+
+async function enableWorkspacePlan(
+  database: PrismaClient,
+  targetWorkspaceId: string,
+  actorUserId: string,
+) {
+  await database.workspaceSubscription.upsert({
+    where: { workspaceId: targetWorkspaceId },
+    update: { planKey: "PRO", status: "ACTIVE", updatedById: actorUserId },
+    create: {
+      workspaceId: targetWorkspaceId,
+      planKey: "PRO",
+      status: "ACTIVE",
+      createdById: actorUserId,
+      updatedById: actorUserId,
+    },
+  });
 }
 
 async function waitForVerificationToken(email: string) {

@@ -6,10 +6,15 @@ import {
   type Page,
 } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { PrismaClient } from "@weddingos/database";
 
 const apiUrl = "http://127.0.0.1:4117";
 const origin = "http://127.0.0.1:3117";
 const password = "WeddingOS2026!";
+const ownerDatabase = new PrismaClient({
+  datasourceUrl:
+    "postgresql://weddingos:weddingos@127.0.0.1:54339/weddingos_e2e?schema=public",
+});
 type Account = { email: string; userId: string; api: APIRequestContext };
 type Resource = Record<string, unknown> & {
   id: string;
@@ -41,6 +46,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await Promise.all(contexts.map((context) => context.dispose()));
+  await ownerDatabase.$disconnect();
 });
 
 test("E2E 1 — Risk register page is backed by the live workspace", async ({
@@ -551,6 +557,17 @@ async function createReadyWorkspace(api: APIRequestContext, title: string) {
       },
     }),
   );
+  await ownerDatabase.workspaceSubscription.upsert({
+    where: { workspaceId: workspace.id },
+    update: { planKey: "PRO", status: "ACTIVE", updatedById: owner.userId },
+    create: {
+      workspaceId: workspace.id,
+      planKey: "PRO",
+      status: "ACTIVE",
+      createdById: owner.userId,
+      updatedById: owner.userId,
+    },
+  });
   const draft = await apiData<{ version: number }>(
     await api.get(`/api/v1/workspaces/${workspace.id}/onboarding`),
   );

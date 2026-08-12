@@ -89,7 +89,7 @@ test("S10 E2E 03 — admin UI loads live control center", async ({ page }) => {
   await authorizePage(page, admin);
   await page.goto("/admin");
   await expect(page.getByText("Platform Admin").first()).toBeVisible();
-  await expect(page.getByText("CONTROLLED BETA ONLY")).toBeVisible();
+  await expect(page.getByText("Doar pentru beta controlată")).toBeVisible();
 });
 
 test("S10 E2E 04 — system status exposes bounded operational state", async () => {

@@ -2434,7 +2434,7 @@ async function createVerifiedAccount(label: string): Promise<Account> {
 }
 
 async function createWorkspace(api: APIRequestContext, title: string) {
-  return apiData<{ id: string }>(
+  const workspace = await apiData<{ id: string }>(
     await api.post("/api/v1/workspaces", {
       headers: mutationHeaders({
         "Idempotency-Key": `workspace-${crypto.randomUUID()}`,
@@ -2448,7 +2448,20 @@ async function createWorkspace(api: APIRequestContext, title: string) {
         timezone: "Europe/Chisinau",
       },
     }),
-  ).then((workspace) => workspace.id);
+  );
+  const account = api === couple.api ? couple : otherCouple;
+  await ownerDatabase.workspaceSubscription.upsert({
+    where: { workspaceId: workspace.id },
+    update: { planKey: "PRO", status: "ACTIVE", updatedById: account.userId },
+    create: {
+      workspaceId: workspace.id,
+      planKey: "PRO",
+      status: "ACTIVE",
+      createdById: account.userId,
+      updatedById: account.userId,
+    },
+  });
+  return workspace.id;
 }
 
 async function waitForVerificationToken(email: string) {

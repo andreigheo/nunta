@@ -295,6 +295,7 @@ test("E2E 7 — demo controls stay inert and issue zero API requests", async ({
     if (new URL(request.url()).pathname.startsWith("/api/"))
       apiRequests.push(request.url());
   });
+  await page.context().clearCookies();
   await page.goto("/sign-in");
   await page.evaluate(() => {
     document.cookie = "weddingos_demo=1; Path=/; Max-Age=28800; SameSite=Lax";

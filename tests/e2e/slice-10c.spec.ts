@@ -78,6 +78,7 @@ test("S10C E2E 01 — full demo isolation has zero API traffic", async ({
     if (new URL(request.url()).pathname.startsWith("/api/"))
       calls.push(`${request.method()} ${request.url()}`);
   });
+  await page.context().clearCookies();
   await page.goto("/sign-in");
   await page.evaluate(() => {
     localStorage.clear();
