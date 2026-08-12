@@ -202,7 +202,11 @@ export class GuestInvitationMediaController {
     @Res({ passthrough: true }) response: Response,
   ) {
     if (!token?.trim() || token.length > 512)
-      problem("TOKEN_INVALID", HttpStatus.UNAUTHORIZED, "Guest token is invalid");
+      problem(
+        "TOKEN_INVALID",
+        HttpStatus.UNAUTHORIZED,
+        "Guest token is invalid",
+      );
     const media = await this.service.invitationMediaForGuest(
       token.trim(),
       uuid(objectId, "objectId"),

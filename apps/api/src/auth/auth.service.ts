@@ -96,8 +96,7 @@ export class AuthService {
           },
           preference: {
             create: {
-              registrationIntent:
-                input.registrationIntent ?? "EVENT_ORGANIZER",
+              registrationIntent: input.registrationIntent ?? "EVENT_ORGANIZER",
             },
           },
           notificationPreference: {

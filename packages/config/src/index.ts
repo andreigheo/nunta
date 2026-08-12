@@ -438,9 +438,7 @@ export const apiEnvironmentSchema = z
 
         const forbiddenMarker =
           /(local|test|staging|change-before|change-production|replace-with|weddingos)/i;
-        const protectedValues: Array<
-          [keyof typeof env, string | undefined]
-        > = [
+        const protectedValues: Array<[keyof typeof env, string | undefined]> = [
           ["SESSION_SECRET", env.SESSION_SECRET],
           ["MFA_ENCRYPTION_KEY", env.MFA_ENCRYPTION_KEY],
           ["OUTBOX_ENCRYPTION_KEY", env.OUTBOX_ENCRYPTION_KEY],
