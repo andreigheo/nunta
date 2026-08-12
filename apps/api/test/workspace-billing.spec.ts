@@ -191,18 +191,21 @@ describe("Sarbato workspace subscriptions", () => {
       "automation.read",
       "automation.write",
       "guest.write",
+      "campaign.send",
       "online_payment.create_checkout",
     ] as const;
     expect(resolvePlanCapabilities(capabilities, "FREE")).toEqual([
       "wedding_day.read",
       "automation.read",
       "guest.write",
+      "campaign.send",
     ]);
     expect(resolvePlanCapabilities(capabilities, "PLUS")).toEqual([
       "wedding_day.read",
       "automation.read",
       "automation.write",
       "guest.write",
+      "campaign.send",
     ]);
     expect(resolvePlanCapabilities(capabilities, "PRO")).toEqual([
       "wedding_day.read",
@@ -210,12 +213,17 @@ describe("Sarbato workspace subscriptions", () => {
       "automation.read",
       "automation.write",
       "guest.write",
+      "campaign.send",
     ]);
     expect(
       capabilityAllowedByWorkspacePlan("online_payment.create_checkout", "PRO"),
     ).toBe(false);
     expect(minimumPlanForCapability("automation.write")).toBe("PLUS");
     expect(minimumPlanForCapability("wedding_day.write")).toBe("PRO");
+    expect(capabilityAllowedByWorkspacePlan("campaign.send", "FREE")).toBe(
+      true,
+    );
+    expect(minimumPlanForCapability("campaign.send")).toBeNull();
   });
 
   it("falls back to Free for incomplete, paused and canceled subscriptions", () => {

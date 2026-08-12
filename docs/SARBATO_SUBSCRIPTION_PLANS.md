@@ -17,24 +17,24 @@ read-only on Pro, and a planner does not gain billing administration.
 
 ## Monthly plans
 
-| Entitlement                                 |                      Free |                      Plus |       Pro |
-| ------------------------------------------- | ------------------------: | ------------------------: | --------: |
-| Price                                       |                        €0 |                  €7/month | €17/month |
-| Active guests                               |                        50 |                       200 |       500 |
-| Collaborators outside the owner             |                         2 |                         5 |        15 |
-| AI actions per calendar month               |                         5 |                        30 |       150 |
-| Active automations                          |                         0 |                         5 |        25 |
-| Storage                                     |                    250 MB |                      2 GB |     10 GB |
-| Plan, calendar, budget, invitation and RSVP |                       Yes |                       Yes |       Yes |
-| Invitation studio                           |                       Yes |                       Yes |       Yes |
-| Accommodation discovery                     |                       Yes |                       Yes |       Yes |
-| Seating, transport and accommodation        | Read-only after downgrade |                       Yes |       Yes |
-| Vendor coordination                         | Read-only after downgrade |                       Yes |       Yes |
-| Documents and advanced exports              | Read-only after downgrade |                       Yes |       Yes |
-| Risks and contingency plans                 | Read-only after downgrade | Read-only after downgrade |       Yes |
-| Event-day operations and check-in           | Read-only after downgrade | Read-only after downgrade |       Yes |
-| External electronic signatures              | Read-only after downgrade | Read-only after downgrade |       Yes |
-| Organizer-vendor payment mediation          |                        No |                        No |        No |
+| Entitlement                                                  |                      Free |                      Plus |       Pro |
+| ------------------------------------------------------------ | ------------------------: | ------------------------: | --------: |
+| Price                                                        |                        €0 |                  €7/month | €17/month |
+| Active guests                                                |                        50 |                       200 |       500 |
+| Collaborators outside the owner                              |                         2 |                         5 |        15 |
+| AI actions per calendar month                                |                         5 |                        30 |       150 |
+| Active automations                                           |                         0 |                         5 |        25 |
+| Storage                                                      |                    250 MB |                      2 GB |     10 GB |
+| Plan, calendar, budget, invitation, RSVP and e-mail delivery |                       Yes |                       Yes |       Yes |
+| Invitation studio                                            |                       Yes |                       Yes |       Yes |
+| Accommodation discovery                                      |                       Yes |                       Yes |       Yes |
+| Seating, transport and accommodation                         | Read-only after downgrade |                       Yes |       Yes |
+| Vendor coordination                                          | Read-only after downgrade |                       Yes |       Yes |
+| Documents and advanced exports                               | Read-only after downgrade |                       Yes |       Yes |
+| Risks and contingency plans                                  | Read-only after downgrade | Read-only after downgrade |       Yes |
+| Event-day operations and check-in                            | Read-only after downgrade | Read-only after downgrade |       Yes |
+| External electronic signatures                               | Read-only after downgrade | Read-only after downgrade |       Yes |
+| Organizer-vendor payment mediation                           |                        No |                        No |        No |
 
 ## Roles
 

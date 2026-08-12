@@ -22,7 +22,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       interval: "month",
       recommended: false,
       features: [
-        "Plan, calendar, buget, invitație și RSVP",
+        "Plan, calendar, buget, invitație, RSVP și livrare e-mail",
         "Până la 50 de invitați",
         "2 colaboratori în afara proprietarului",
         "5 acțiuni AI pe lună",
@@ -200,7 +200,6 @@ const capabilityEntitlement = new Map<CapabilityKey, FeatureEntitlement>([
   ["guest.export", "ADVANCED_EXPORTS"],
   ["menu.export", "ADVANCED_EXPORTS"],
   ["budget.export", "ADVANCED_EXPORTS"],
-  ["campaign.send", "VENDOR_COORDINATION"],
 
   ["seating.write", "ADVANCED_LOGISTICS"],
   ["seating.assign", "ADVANCED_LOGISTICS"],
