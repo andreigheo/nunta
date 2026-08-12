@@ -35,6 +35,8 @@ jobs:
           pnpm --filter @weddingos/database build
           pnpm db:seed
           pnpm --filter @weddingos/database exec prisma migrate status --schema prisma/schema.prisma
+      - name: Prepare isolated integration database
+        run: pnpm db:test:prepare:integration
       - name: Verify Slice 0/1/2A
         run: pnpm verify
       - name: Install Chromium
