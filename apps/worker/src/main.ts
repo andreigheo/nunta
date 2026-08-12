@@ -77,6 +77,11 @@ import {
   refreshPublicProductProofAfterConsentRevoked,
 } from "./marketing-snapshot";
 import {
+  campaignInvitationPresentation,
+  renderCampaignInvitationEmail,
+  type CampaignInvitationPresentation,
+} from "./campaign-invitation-email";
+import {
   extractedTraceContext,
   shutdownTelemetry,
   withConsumerTrace,
@@ -3615,6 +3620,18 @@ async function processCampaignDelivery(
           "Campaign delivery target is no longer publishable",
           "CAMPAIGN_TARGET_INACTIVE",
         );
+      const publishedVersion = await transaction.invitationVersion.findFirst({
+        where: {
+          id: site.publishedVersionId,
+          workspaceId: snapshot.workspace_id!,
+        },
+        select: { document: true, settings: true },
+      });
+      if (!publishedVersion)
+        throw new PermanentJobError(
+          "Published invitation content is unavailable",
+          "CAMPAIGN_TARGET_INACTIVE",
+        );
       if (
         currentCampaign.purpose === "RSVP_REMINDER" &&
         !["READY", "SENT", "OPENED", "PARTIALLY_RESPONDED"].includes(
@@ -3671,6 +3688,10 @@ async function processCampaignDelivery(
         ),
         prepared.token,
         snapshot.execution_id,
+        campaignInvitationPresentation(
+          publishedVersion.document,
+          publishedVersion.settings,
+        ),
       );
       await transaction.deliveryAttempt.upsert({
         where: {
@@ -7722,6 +7743,7 @@ async function sendCampaignEmail(
   body: string,
   token: string,
   executionId: string,
+  presentation: CampaignInvitationPresentation,
 ): Promise<{ messageId: string }> {
   if (environment.EMAIL_PROVIDER === "console")
     return { messageId: `console-campaign-${executionId}` };
@@ -7742,7 +7764,7 @@ async function sendCampaignEmail(
       : {}),
   });
   const url = `${environment.WEB_URL}/guest?token=${encodeURIComponent(token)}`;
-  const text = `${body}\n\nDeschide invitația și răspunde: ${url}`;
+  const content = renderCampaignInvitationEmail({ body, url, presentation });
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: recipient,
@@ -7751,8 +7773,8 @@ async function sendCampaignEmail(
     // a crash after provider acceptance can safely retry without a duplicate.
     headers: { "Resend-Idempotency-Key": `campaign/${executionId}` },
     subject: subject.slice(0, 180),
-    text,
-    html: `<p>${escapeHtml(body)}</p><p><a href="${escapeHtml(url)}">Deschide invitația și răspunde</a></p>`,
+    text: content.text,
+    html: content.html,
   });
   return { messageId: String(result.messageId) };
 }

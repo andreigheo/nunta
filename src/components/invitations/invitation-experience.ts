@@ -1,5 +1,6 @@
 export type CinematicRevealSettings = {
   enabled: boolean;
+  style: "split_panels" | "envelope";
   persistenceKey: string;
   recipientLabel: string;
   message: string;
@@ -20,6 +21,13 @@ export function shouldRecordDirectOpenOnBootstrap(
   shouldPlayReveal: boolean,
 ) {
   return !experienceEnabled && shouldPlayReveal;
+}
+
+export function shouldAutoRevealInvitation(
+  experienceEnabled: boolean,
+  serverShouldPlayReveal: boolean,
+) {
+  return experienceEnabled ? undefined : serverShouldPlayReveal;
 }
 
 export function invitationExperienceFromResource(
@@ -63,6 +71,7 @@ export function invitationExperienceFromResource(
 
   return {
     enabled,
+    style: experience.style === "envelope" ? "envelope" : "split_panels",
     persistenceKey: resourceId
       ? `sarbato:invitation-reveal:${resourceId}:${version}`
       : `sarbato:invitation-reveal:session:${fingerprint(persistenceSeed)}:${version}`,
@@ -99,7 +108,7 @@ export function invitationExperienceFromResource(
       experience.texture === "linen" || experience.texture === "smooth"
         ? experience.texture
         : "paper",
-    durationMs: clampNumber(experience.durationMs, 400, 2000, 1400),
+    durationMs: clampNumber(experience.durationMs, 700, 3200, 1800),
   };
 }
 

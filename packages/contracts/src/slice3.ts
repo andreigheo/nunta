@@ -336,7 +336,7 @@ function invitationStarterContentMatches(
 
 export const invitationExperienceSchema = z.object({
   enabled: z.boolean().default(false),
-  style: z.literal("split_panels").default("split_panels"),
+  style: z.enum(["split_panels", "envelope"]).default("split_panels"),
   replay: z.literal("first_visit").default("first_visit"),
   panelColor: z.string().trim().max(40).default("#3b183f"),
   backgroundColor: z.string().trim().max(40).default("#f7f7f3"),
@@ -352,7 +352,7 @@ export const invitationExperienceSchema = z.object({
     .nullable()
     .default(null),
   coverMediaId: uuid.nullable().default(null),
-  durationMs: z.number().int().min(400).max(2000).default(1400),
+  durationMs: z.number().int().min(700).max(3200).default(1800),
 });
 export const invitationSettingsSchema = z
   .object({

@@ -110,6 +110,17 @@ async function captureInvitationV2(
   if (originalViewport) await page.setViewportSize(originalViewport);
 }
 
+async function enterPublishedInvitation(page: Page) {
+  const invitation = page.getByText("Confirmarea familiei", { exact: true });
+  const skipReveal = page.getByRole("button", {
+    name: "Sari peste introducere",
+  });
+
+  await expect(skipReveal).toBeVisible();
+  await skipReveal.click();
+  await expect(invitation).toBeVisible();
+}
+
 test.beforeAll(async () => {
   owner = await createVerifiedAccount("slice3-e2e-owner");
   workspaceId = await createReadyWorkspace(
@@ -285,6 +296,7 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
   if (!(await cinematicReveal.isChecked())) {
     await cinematicReveal.click();
   }
+  await page.getByRole("button", { name: /^Plic/ }).click();
   await page.getByRole("button", { name: "Salvează" }).click();
   await expect(page.getByText("Ciornă salvată")).toBeVisible();
   await replaceInvitationStarterContent();
@@ -370,14 +382,20 @@ test("E2E 5 — Send campaign", async ({ page }) => {
   const message = await waitForCampaignEmail(subject, owner.email);
   guestToken = message.token;
   expect(guestToken.length).toBeGreaterThan(32);
+  expect(message.html).toContain("Un plic pentru tine");
+  expect(message.html).toContain("Deschide plicul în browser");
+  expect(message.html).not.toContain("<script>");
 });
 
 test("E2E 6 — Guest opens invitation", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
   await expect(
-    page.getByRole("button", { name: "Deschide invitația" }),
+    page.getByRole("button", { name: "Deschide plicul" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "O invitație pentru voi" }),
+  ).toHaveAttribute("data-reveal-style", "envelope");
   const nocturneArtwork = await page.request.get(
     "/invitation-art/nocturne-glass.webp",
   );
@@ -395,10 +413,21 @@ test("E2E 6 — Guest opens invitation", async ({ page }) => {
     recipientBeforeReveal.items.find((item) => item.id === recipientId)?.status,
   ).not.toBe("opened");
 
-  await page.getByRole("button", { name: "Deschide invitația" }).click();
+  const letter = page.locator("[data-reveal-letter]");
+  const closedLetter = await letter.boundingBox();
+  expect(closedLetter).not.toBeNull();
+  await page.getByRole("button", { name: "Deschide plicul" }).click();
+  await page.waitForTimeout(760);
+  const movingLetter = await letter.boundingBox();
+  expect(movingLetter).not.toBeNull();
+  expect(movingLetter!.y).toBeLessThan(closedLetter!.y - 8);
+  await page.screenshot({
+    path: "test-results/invitation-v3-envelope-opening-mid.png",
+    animations: "allow",
+  });
   await expect(
     page.getByRole("button", { name: "Revede introducerea" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 5_000 });
   await expect(
     page.getByText("Confirmarea familiei", { exact: true }),
   ).toBeVisible();
@@ -439,9 +468,7 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
     )
   ).id;
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await expect(
-    page.getByText("Confirmarea familiei", { exact: true }),
-  ).toBeVisible();
+  await enterPublishedInvitation(page);
   const selects = page.getByRole("combobox");
   await expect(selects.first()).toBeVisible();
   let attendanceCount = 0;
@@ -481,6 +508,7 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
 test("E2E 8 — Plus-one", async ({ page }) => {
   const initialPlusOnes = (await guestList()).summary.people.plusOnes;
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
+  await enterPublishedInvitation(page);
   await page.getByRole("checkbox", { name: "Vin cu un însoțitor" }).click();
   await page.getByLabel("Prenume plus-one", { exact: true }).fill("Alex");
   await page.getByLabel("Nume plus-one", { exact: true }).fill("Ionescu");
@@ -494,6 +522,7 @@ test("E2E 8 — Plus-one", async ({ page }) => {
 
 test("E2E 9 — Modify RSVP", async ({ page }) => {
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
+  await enterPublishedInvitation(page);
   const select = page
     .locator("select")
     .filter({ has: page.locator('option[value="UNSURE"]') })
@@ -516,6 +545,7 @@ test("E2E 10 — Deadline closed", async ({ page }) => {
   );
   await publishRsvpForm(closed.version);
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
+  await enterPublishedInvitation(page);
   await expect(page.getByText("Închis", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Salvează RSVP" }),
@@ -560,9 +590,7 @@ test("E2E 11 — Reminder", async () => {
 
 test("E2E 12 — Menu and allergy", async ({ page }) => {
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await expect(
-    page.getByText("Confirmarea familiei", { exact: true }),
-  ).toBeVisible();
+  await enterPublishedInvitation(page);
   const attendanceSelects = page
     .locator("select")
     .filter({ has: page.locator('option[value="CONFIRMED"]') });
@@ -1229,11 +1257,12 @@ async function waitForEmail(subject: string, email: string) {
     if (summary) {
       const message = (await fetch(
         `http://127.0.0.1:8025/api/v1/message/${summary.ID}`,
-      ).then((response) => response.json())) as { Text: string };
+      ).then((response) => response.json())) as { Text: string; HTML?: string };
       const match = message.Text.match(/[?&]token=([^&\s]+)/);
       return {
         token: match?.[1] ? decodeURIComponent(match[1]) : "",
         messageId: summary.MessageID,
+        html: message.HTML ?? "",
       };
     }
     await new Promise((resolve) => setTimeout(resolve, 100));

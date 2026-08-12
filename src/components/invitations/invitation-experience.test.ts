@@ -4,6 +4,7 @@ import {
   ensureReadableTextColor,
   invitationExperienceFromResource,
   readableTextColor,
+  shouldAutoRevealInvitation,
   shouldRecordDirectOpenOnBootstrap,
 } from "./invitation-experience";
 
@@ -12,6 +13,12 @@ describe("invitationExperienceFromResource", () => {
     expect(shouldRecordDirectOpenOnBootstrap(false, true)).toBe(true);
     expect(shouldRecordDirectOpenOnBootstrap(true, true)).toBe(false);
     expect(shouldRecordDirectOpenOnBootstrap(false, false)).toBe(false);
+  });
+
+  it("replays a cinematic publication once per browser version even after an older open", () => {
+    expect(shouldAutoRevealInvitation(true, false)).toBeUndefined();
+    expect(shouldAutoRevealInvitation(false, false)).toBe(false);
+    expect(shouldAutoRevealInvitation(false, true)).toBe(true);
   });
 
   it("keeps existing invitations direct until cinematic reveal is enabled", () => {
@@ -28,6 +35,7 @@ describe("invitationExperienceFromResource", () => {
       settings: {
         experience: {
           mode: "aperture",
+          style: "envelope",
           frontMessage: "Ne bucurăm să fii alături de noi",
           monogram: "A&M",
           panelColor: "#402044",
@@ -43,6 +51,7 @@ describe("invitationExperienceFromResource", () => {
 
     expect(result).toMatchObject({
       enabled: true,
+      style: "envelope",
       message: "Ne bucurăm să fii alături de noi",
       monogram: "A&M",
       panelColor: "#402044",

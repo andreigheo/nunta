@@ -54,7 +54,7 @@ export type InvitationArtDirection = Record<
 
 export type InvitationExperienceSettings = {
   enabled: boolean;
-  style: "split_panels";
+  style: "split_panels" | "envelope";
   replay: "first_visit";
   panelColor: string;
   backgroundColor: string;
@@ -163,7 +163,7 @@ export const advancedBlockCatalog: Array<{
 
 export const defaultInvitationExperience: InvitationExperienceSettings = {
   enabled: true,
-  style: "split_panels",
+  style: "envelope",
   replay: "first_visit",
   panelColor: "#3B183F",
   backgroundColor: "#F7F7F3",
@@ -173,7 +173,7 @@ export const defaultInvitationExperience: InvitationExperienceSettings = {
   frontMessage: "O invitație pentru voi",
   coverImageUrl: null,
   coverMediaId: null,
-  durationMs: 1400,
+  durationMs: 2300,
 };
 
 export const defaultArtDirection: InvitationArtDirection = {
@@ -759,7 +759,7 @@ function invitationExperienceFromSettings(
       typeof stored.enabled === "boolean"
         ? stored.enabled
         : defaultInvitationExperience.enabled,
-    style: "split_panels",
+    style: stored.style === "envelope" ? "envelope" : "split_panels",
     replay: "first_visit",
     panelColor: safeColor(
       stored.panelColor,
@@ -795,7 +795,7 @@ function invitationExperienceFromSettings(
         : defaultInvitationExperience.coverMediaId,
     durationMs:
       typeof stored.durationMs === "number"
-        ? Math.max(400, Math.min(2000, Math.round(stored.durationMs)))
+        ? Math.max(700, Math.min(3200, Math.round(stored.durationMs)))
         : defaultInvitationExperience.durationMs,
   };
 }

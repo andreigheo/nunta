@@ -36,6 +36,7 @@ describe("cinematic reveal open reporting", () => {
   it("removes the entire guest portal from the tab order while the dialog is closed", () => {
     const settings: CinematicRevealSettings = {
       enabled: true,
+      style: "envelope",
       persistenceKey: "invitation:keyboard",
       recipientLabel: "Pentru Familia Popescu",
       message: "O invitație pentru tine",
@@ -48,7 +49,7 @@ describe("cinematic reveal open reporting", () => {
       coverMediaId: "",
       coverImageUrl: "",
       texture: "paper",
-      durationMs: 1400,
+      durationMs: 2300,
     };
     const markup = renderToStaticMarkup(
       React.createElement(
@@ -62,9 +63,41 @@ describe("cinematic reveal open reporting", () => {
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain('aria-modal="true"');
     expect(markup).toContain('tabindex="-1"');
-    expect(markup).toContain("Deschide invitația");
+    expect(markup).toContain('data-reveal-style="envelope"');
+    expect(markup).toContain("Deschide plicul");
     expect(markup).toContain("Sari peste introducere");
     expect(markup).toContain("A &amp; A");
+  });
+
+  it("keeps the existing split-panel opening as a separate selectable experience", () => {
+    const settings: CinematicRevealSettings = {
+      enabled: true,
+      style: "split_panels",
+      persistenceKey: "invitation:panels",
+      recipientLabel: "Pentru Andrei",
+      message: "Ne bucurăm să fii cu noi",
+      monogram: "A & A",
+      panelColor: "#3B183F",
+      backgroundColor: "#180F1C",
+      accentColor: "#F06449",
+      textColor: "#FFF9FF",
+      accentTextColor: "#19151D",
+      coverMediaId: "",
+      coverImageUrl: "",
+      texture: "smooth",
+      durationMs: 1800,
+    };
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        TestableCinematicReveal,
+        { settings, shouldAutoReveal: true },
+        React.createElement("main", null, "Invitația"),
+      ),
+    );
+
+    expect(markup).toContain('data-reveal-style="split_panels"');
+    expect(markup).toContain("Deschide invitația");
+    expect(markup).not.toContain("Deschide plicul");
   });
 
   it("cycles focus only when Tab reaches a dialog boundary", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Eye, MailOpen } from "lucide-react";
+import { Columns2, Eye, MailOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CinematicRevealSettings } from "./invitation-experience";
 import styles from "./cinematic-reveal.module.css";
@@ -232,7 +232,20 @@ export function CinematicReveal({
   };
 
   return (
-    <div ref={rootRef} className={styles.root}>
+    <div
+      ref={rootRef}
+      className={styles.root}
+      style={
+        {
+          "--reveal-panel": settings.panelColor,
+          "--reveal-panel-secondary": settings.backgroundColor,
+          "--reveal-accent": settings.accentColor,
+          "--reveal-accent-text": settings.accentTextColor,
+          "--reveal-text": settings.textColor,
+          "--reveal-duration": `${settings.durationMs}ms`,
+        } as React.CSSProperties
+      }
+    >
       {settings.enabled && state === "open" ? (
         <div className={styles.replayRow}>
           <button type="button" className={styles.replayButton} onClick={replay}>
@@ -242,6 +255,11 @@ export function CinematicReveal({
         </div>
       ) : null}
       <div
+        className={cn(
+          styles.invitationLayer,
+          state === "opening" && styles.invitationEntering,
+        )}
+        data-reveal-invitation
         inert={contentHidden ? true : undefined}
         aria-hidden={contentHidden || undefined}
       >
@@ -251,56 +269,71 @@ export function CinematicReveal({
         <div
           ref={overlayRef}
           className={cn(styles.overlay, state === "opening" && styles.opening)}
-          style={
-            {
-              "--reveal-panel": settings.panelColor,
-              "--reveal-panel-secondary": settings.backgroundColor,
-              "--reveal-accent": settings.accentColor,
-              "--reveal-accent-text": settings.accentTextColor,
-              "--reveal-text": settings.textColor,
-              "--reveal-duration": `${settings.durationMs}ms`,
-            } as React.CSSProperties
-          }
           role="dialog"
           tabIndex={-1}
           data-texture={settings.texture}
+          data-reveal-style={settings.style}
           aria-modal="true"
           aria-labelledby="invitation-reveal-title"
           onKeyDown={handleDialogKeyDown}
         >
           <div className={styles.ambientGlow} aria-hidden />
           <div className={styles.ambientOrb} aria-hidden />
+          {settings.style === "split_panels" ? (
+            <div className={styles.splitPanels} data-reveal-panels aria-hidden>
+              <div className={styles.splitPanelLeft} />
+              <div className={styles.splitPanelRight} />
+              <span className={styles.splitSeam} />
+            </div>
+          ) : null}
           <div className={styles.content}>
             <p className={styles.recipient}>{settings.recipientLabel}</p>
             <h1 id="invitation-reveal-title" className={styles.message}>
               {settings.message}
             </h1>
-            <div className={styles.envelopeStage}>
-              <div className={styles.letter} aria-hidden>
+            {settings.style === "envelope" ? (
+              <div className={styles.envelopeStage} data-reveal-envelope>
+                <div className={styles.letter} data-reveal-letter aria-hidden>
+                  {settings.coverImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={settings.coverImageUrl}
+                      alt=""
+                      className={styles.coverImage}
+                      decoding="async"
+                    />
+                  ) : null}
+                  <span className={styles.letterKicker}>Sarbato · invitație</span>
+                  {monogram ? (
+                    <span className={monogramClassName}>{monogram}</span>
+                  ) : (
+                    <span className={styles.mark} />
+                  )}
+                  <span className={styles.letterMessage}>{settings.message}</span>
+                  <span className={styles.letterRule} />
+                </div>
+                <div className={styles.envelopeBack} aria-hidden />
+                <div className={styles.envelopeFlap} aria-hidden />
+                <div className={styles.envelopePocket} aria-hidden />
+                <div className={styles.envelopeFoldLeft} aria-hidden />
+                <div className={styles.envelopeFoldRight} aria-hidden />
+              </div>
+            ) : (
+              <div className={styles.panelCard} aria-hidden>
                 {settings.coverImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={settings.coverImageUrl}
                     alt=""
-                    className={styles.coverImage}
+                    className={styles.panelCardImage}
                     decoding="async"
                   />
                 ) : null}
-                <span className={styles.letterKicker}>Sarbato · invitație</span>
-                {monogram ? (
-                  <span className={monogramClassName}>{monogram}</span>
-                ) : (
-                  <span className={styles.mark} />
-                )}
-                <span className={styles.letterMessage}>{settings.message}</span>
-                <span className={styles.letterRule} />
+                <span className={styles.panelCardLine} />
+                <span className={monogramClassName}>{monogram || "S"}</span>
+                <span className={styles.panelCardMessage}>{settings.message}</span>
               </div>
-              <div className={styles.envelopeBack} aria-hidden />
-              <div className={styles.envelopeFlap} aria-hidden />
-              <div className={styles.envelopePocket} aria-hidden />
-              <div className={styles.envelopeFoldLeft} aria-hidden />
-              <div className={styles.envelopeFoldRight} aria-hidden />
-            </div>
+            )}
             <button
               ref={openButtonRef}
               type="button"
@@ -309,9 +342,17 @@ export function CinematicReveal({
               disabled={state === "opening"}
             >
               <span className={styles.seal} aria-hidden>
-                <MailOpen className="size-5" />
+                {settings.style === "envelope" ? (
+                  <MailOpen className="size-5" />
+                ) : (
+                  <Columns2 className="size-5" />
+                )}
               </span>
-              <span>Deschide invitația</span>
+              <span>
+                {settings.style === "envelope"
+                  ? "Deschide plicul"
+                  : "Deschide invitația"}
+              </span>
             </button>
             <button
               type="button"

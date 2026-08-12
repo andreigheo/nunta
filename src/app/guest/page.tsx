@@ -22,6 +22,7 @@ import { CinematicReveal } from "@/components/invitations/cinematic-reveal";
 import type { InvitationOpenSource } from "@/components/invitations/cinematic-reveal";
 import {
   invitationExperienceFromResource,
+  shouldAutoRevealInvitation,
   shouldRecordDirectOpenOnBootstrap,
 } from "@/components/invitations/invitation-experience";
 import { PublishedInvitation } from "@/components/invitations/published-invitation";
@@ -744,7 +745,10 @@ export default function GuestCompanionPage() {
     <CinematicReveal
       settings={revealSettings}
       onOpened={markInvitationOpened}
-      shouldAutoReveal={data.interaction?.shouldPlayReveal ?? true}
+      shouldAutoReveal={shouldAutoRevealInvitation(
+        revealSettings.enabled,
+        data.interaction?.shouldPlayReveal ?? true,
+      )}
     >
       {portal}
     </CinematicReveal>
@@ -1061,9 +1065,7 @@ function GuestOperationsCards({ operations }: { operations: GuestOperations }) {
                   {String(item.guestName)}
                 </span>{" "}
                 · {String(item.tableLabel)}
-                {Boolean(item.seatLabel)
-                  ? `, loc ${String(item.seatLabel)}`
-                  : ""}{" "}
+                {item.seatLabel ? `, loc ${String(item.seatLabel)}` : ""}{" "}
                 · {String(item.eventTitle)}
               </p>
             ))}

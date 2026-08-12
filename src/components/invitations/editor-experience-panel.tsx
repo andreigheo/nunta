@@ -1,7 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Aperture, Eye, Gauge, ImagePlus, Sparkles, Trash2 } from "lucide-react";
+import {
+  Aperture,
+  Columns2,
+  Eye,
+  Gauge,
+  ImagePlus,
+  MailOpen,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { Button, Field, Input, Select, Switch } from "@/components/ui";
 import type { InvitationExperienceSettings } from "@/lib/invitations/editor-model";
 
@@ -29,8 +38,8 @@ export function InvitationExperiencePanel({
         <div>
           <p className="text-sm font-semibold text-ink">Deschidere cinematică</p>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Două panouri tactile se despart și dezvăluie invitația deja
-            încărcată. Invitatul poate sări oricând peste introducere.
+            Alege gestul prin care invitatul intră în poveste. Introducerea
+            rulează o dată pentru fiecare versiune publicată și poate fi revăzută.
           </p>
         </div>
         <Switch
@@ -40,6 +49,26 @@ export function InvitationExperiencePanel({
         />
       </div>
 
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-semibold text-ink">Felul deschiderii</legend>
+        <div className="grid grid-cols-2 gap-2">
+          <ExperienceStyleButton
+            active={experience.style === "split_panels"}
+            icon={<Columns2 className="size-4" aria-hidden />}
+            title="Panouri"
+            description="Se despart lateral"
+            onClick={() => onChange({ style: "split_panels" })}
+          />
+          <ExperienceStyleButton
+            active={experience.style === "envelope"}
+            icon={<MailOpen className="size-4" aria-hidden />}
+            title="Plic"
+            description="Clapă, scrisoare, revelație"
+            onClick={() => onChange({ style: "envelope" })}
+          />
+        </div>
+      </fieldset>
+
       <div
         className="relative isolate h-44 overflow-hidden rounded-xl bg-subtle"
         style={{
@@ -47,23 +76,69 @@ export function InvitationExperiencePanel({
         }}
         aria-label="Previzualizarea copertei"
       >
-        <div className="absolute inset-3 rounded-lg border border-black/10 bg-white/80" />
-        <div
-          className="absolute inset-y-0 left-0 w-1/2 origin-left border-r border-white/20"
-          style={{
-            backgroundColor: experience.panelColor,
-            backgroundImage: textureBackground(experience.texture),
-          }}
-        />
-        <div
-          className="absolute inset-y-0 right-0 w-1/2 origin-right border-l border-black/10"
-          style={{
-            backgroundColor: experience.panelColor,
-            backgroundImage: textureBackground(experience.texture),
-          }}
-        />
+        {experience.style === "split_panels" ? (
+          <>
+            <div className="absolute inset-3 rounded-lg bg-white/85" />
+            <div
+              className="absolute inset-y-0 left-0 w-1/2 origin-left border-r border-white/20"
+              style={{
+                backgroundColor: experience.panelColor,
+                backgroundImage: textureBackground(experience.texture),
+              }}
+            />
+            <div
+              className="absolute inset-y-0 right-0 w-1/2 origin-right border-l border-black/10"
+              style={{
+                backgroundColor: experience.panelColor,
+                backgroundImage: textureBackground(experience.texture),
+              }}
+            />
+          </>
+        ) : (
+          <div className="absolute inset-0 grid place-items-center">
+            <div
+              className="relative h-24 w-40 overflow-hidden rounded-lg shadow-md"
+              style={{ backgroundColor: experience.panelColor }}
+            >
+              <div
+                className="absolute inset-x-0 top-0 z-20 h-16 origin-top"
+                style={{
+                  backgroundColor: experience.panelColor,
+                  clipPath: "polygon(0 0, 100% 0, 50% 88%)",
+                  filter: "brightness(.78)",
+                }}
+              />
+              <div
+                className="absolute inset-x-3 top-2 h-20 rounded bg-white/90"
+                style={{
+                  backgroundImage: safeCoverPreviewUrl
+                    ? `linear-gradient(rgb(255 255 255 / 72%), rgb(255 255 255 / 72%)), url(${JSON.stringify(safeCoverPreviewUrl)})`
+                    : undefined,
+                  backgroundSize: "cover",
+                }}
+              />
+              <div
+                className="absolute inset-0 z-30"
+                style={{
+                  backgroundColor: experience.panelColor,
+                  clipPath: "polygon(0 42%, 50% 78%, 100% 42%, 100% 100%, 0 100%)",
+                  filter: "brightness(.92)",
+                }}
+              />
+              <span
+                className="absolute left-1/2 top-[58%] z-40 grid size-8 -translate-x-1/2 place-items-center rounded-full text-xs font-bold"
+                style={{
+                  backgroundColor: experience.accentColor,
+                  color: contrastInk(experience.accentColor),
+                }}
+              >
+                {experience.monogram?.slice(0, 2) || "S"}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="absolute inset-0 grid place-items-center text-center">
-          <div>
+          <div className={experience.style === "envelope" ? "sr-only" : undefined}>
             {safeCoverPreviewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -197,12 +272,12 @@ export function InvitationExperiencePanel({
             <option value="smooth">Neted</option>
           </Select>
         </Field>
-        <Field label={`Durată ${experience.durationMs / 1000}s`}>
+        <Field label={`Durată ${(experience.durationMs / 1000).toFixed(1)}s`}>
           <input
             className="min-h-11 w-full accent-[var(--brand)]"
             type="range"
-            min="700"
-            max="1800"
+            min="900"
+            max="3000"
             step="100"
             value={experience.durationMs}
             onChange={(event) =>
@@ -245,8 +320,43 @@ function contrastInk(hex: string) {
 function textureBackground(texture: InvitationExperienceSettings["texture"]) {
   if (texture === "smooth") return "none";
   if (texture === "linen")
-    return "repeating-linear-gradient(90deg, rgb(255 255 255 / 5%) 0 1px, transparent 1px 7px), repeating-linear-gradient(0deg, rgb(0 0 0 / 4%) 0 1px, transparent 1px 9px)";
+    return "linear-gradient(90deg, rgb(255 255 255 / 5%), transparent 24%, rgb(0 0 0 / 4%) 49%, transparent 72%, rgb(255 255 255 / 4%))";
   return "radial-gradient(circle at 18% 22%, rgb(255 255 255 / 10%), transparent 32%), linear-gradient(118deg, transparent 35%, rgb(255 255 255 / 6%) 49%, transparent 64%)";
+}
+
+function ExperienceStyleButton({
+  active,
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`min-h-20 rounded-xl p-3 text-left outline-none transition-[background-color,color,box-shadow] focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+        active
+          ? "bg-brand text-on-brand shadow-sm"
+          : "bg-subtle text-ink hover:bg-brand-softer"
+      }`}
+    >
+      <span className="flex items-center gap-2 text-sm font-semibold">
+        {icon}
+        {title}
+      </span>
+      <span className={`mt-1 block text-xs ${active ? "text-white/75" : "text-muted"}`}>
+        {description}
+      </span>
+    </button>
+  );
 }
 
 function safePreviewUrl(value: string | null) {

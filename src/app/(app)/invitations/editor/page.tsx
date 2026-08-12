@@ -1381,10 +1381,11 @@ export default function InvitationEditorPage() {
                       ? {
                           ...snapshot.experience,
                           enabled: true,
+                          style: "envelope",
                           panelColor: "#3B183F",
                           backgroundColor: "#180F1C",
                           accentColor: "#F06449",
-                          durationMs: 1550,
+                          durationMs: 2300,
                         }
                       : snapshot.experience,
                 });
