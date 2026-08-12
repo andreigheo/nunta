@@ -49,6 +49,19 @@ describe.sequential("Slice 5 commercial journey integration", () => {
     invitee = await createAccount("slice5-invitee");
     workspaceId = await createWorkspace(couple, "Slice 5 commercial");
     otherWorkspaceId = await createWorkspace(outsider, "Slice 5 isolated");
+    // Slice 5 exercises vendor coordination, contracts, payments and exports.
+    // Keep the fixture on the plan that owns those capabilities so entitlement
+    // responses do not mask the commercial integration behavior under test.
+    await database.workspaceSubscription.update({
+      where: { workspaceId },
+      data: {
+        planKey: "PLUS",
+        status: "ACTIVE",
+        provider: "integration-test",
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 86_400_000),
+      },
+    });
   }, 180_000);
 
   afterAll(async () => {
