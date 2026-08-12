@@ -38,6 +38,7 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   });
   const email = uniqueEmail("owner-onboarding");
   await page.goto("/create-account");
+  await page.getByRole("button", { name: /Organizez un eveniment/ }).click();
   await page.locator('input[autocomplete="given-name"]').fill("Ana");
   await page.locator('input[autocomplete="family-name"]').fill("Pop");
   await page.locator('input[type="email"]').fill(email);
@@ -55,7 +56,7 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
 
   const token = await waitForEmailToken(
     email,
-    "Confirmă adresa de email WeddingOS",
+    "Confirmă adresa de email Sarbato",
   );
   await page.goto(
     `/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`,
@@ -325,7 +326,7 @@ async function createVerifiedAccount(label: string): Promise<Account> {
   const registered = await apiData<{ userId: string }>(registration);
   const token = await waitForEmailToken(
     email,
-    "Confirmă adresa de email WeddingOS",
+    "Confirmă adresa de email Sarbato",
   );
   expect(
     (

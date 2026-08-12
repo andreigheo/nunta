@@ -33,6 +33,12 @@ const passwordHash = await hash(password, {
 
 const workspaceId = "55550000-0000-4000-8000-000000000001";
 const vendorOrganizationId = "55550000-0000-4000-8000-000000000002";
+const platformEnvironment = process.env.WEDDINGOS_PLATFORM_ENV ?? "development";
+if (!["development", "test"].includes(platformEnvironment)) {
+  throw new Error(
+    "WEDDINGOS_PLATFORM_ENV must be development or test for local accounts.",
+  );
+}
 const platformAdminDefinition = [
   "55550000-0000-4000-8000-000000000301",
   "admin@weddingos.local",
@@ -212,6 +218,21 @@ try {
       updatedById: owner.id,
     },
   });
+  await prisma.workspaceSubscription.upsert({
+    where: { workspaceId },
+    update: {
+      planKey: "PRO",
+      status: "ACTIVE",
+      updatedById: owner.id,
+    },
+    create: {
+      workspaceId,
+      planKey: "PRO",
+      status: "ACTIVE",
+      createdById: owner.id,
+      updatedById: owner.id,
+    },
+  });
   for (const definition of accountDefinitions) {
     const user = users.get(definition[1]);
     const role = await prisma.roleTemplate.findUniqueOrThrow({
@@ -302,7 +323,7 @@ try {
       userId_roleId_environment: {
         userId: platformAdmin.id,
         roleId: platformRole.id,
-        environment: "development",
+        environment: platformEnvironment,
       },
     },
     update: {
@@ -315,7 +336,7 @@ try {
     create: {
       userId: platformAdmin.id,
       roleId: platformRole.id,
-      environment: "development",
+      environment: platformEnvironment,
       active: true,
       mfaVerifiedAt: new Date(),
       grantedById: platformAdmin.id,

@@ -581,7 +581,7 @@ async function waitForVerificationToken(email: string) {
     };
     const summary = list.messages.find(
       (message) =>
-        message.Subject === "Confirmă adresa de email WeddingOS" &&
+        message.Subject === "Confirmă adresa de email Sarbato" &&
         message.To.some((recipient) => recipient.Address === email),
     );
     if (summary) {
