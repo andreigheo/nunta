@@ -29,7 +29,10 @@ jobs:
         run: |
           pnpm db:migrate
           pnpm --filter @weddingos/contracts build
+          pnpm --filter @weddingos/config build
+          pnpm --filter @weddingos/jobs build
           pnpm db:generate
+          pnpm --filter @weddingos/database build
           pnpm db:seed
           pnpm --filter @weddingos/database exec prisma migrate status --schema prisma/schema.prisma
       - name: Verify Slice 0/1/2A
