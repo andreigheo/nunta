@@ -130,6 +130,12 @@ import {
   updateGuestTagSchema,
   updateHouseholdSchema,
   updateMenuSchema,
+  accommodationDiscoveryResponseSchema,
+  accommodationRecommendationResourceSchema,
+  accommodationRecommendationTransitionSchema,
+  createAccommodationRecommendationSchema,
+  orderAccommodationRecommendationsSchema,
+  updateAccommodationRecommendationSchema,
   accommodationAllocationBatchSchema,
   createAccommodationPropertySchema,
   createAccommodationRoomSchema,
@@ -590,6 +596,16 @@ const schemas: Record<string, ZodTypeAny> = {
   UpdateAccommodationStay: updateAccommodationStaySchema,
   AccommodationAllocationBatch: accommodationAllocationBatchSchema,
   AccommodationRoomingList: roomingListSchema,
+  AccommodationDiscoveryResponse: accommodationDiscoveryResponseSchema,
+  AccommodationRecommendation: accommodationRecommendationResourceSchema,
+  AccommodationRecommendationList: z.object({
+    items: z.array(accommodationRecommendationResourceSchema),
+  }),
+  CreateAccommodationRecommendation: createAccommodationRecommendationSchema,
+  UpdateAccommodationRecommendation: updateAccommodationRecommendationSchema,
+  AccommodationRecommendationTransition:
+    accommodationRecommendationTransitionSchema,
+  OrderAccommodationRecommendations: orderAccommodationRecommendationsSchema,
   CreateVendorOrganization: createVendorOrganizationSchema,
   UpdateVendorOrganization: updateVendorOrganizationSchema,
   VendorInvitation: vendorInvitationSchema,
@@ -1491,6 +1507,22 @@ const requestByRoute: Array<[RegExp, string]> = [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-stays\/\{stayId\}\/rooming-lists$/,
     "AccommodationRoomingList",
   ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations$/,
+    "CreateAccommodationRecommendation",
+  ],
+  [
+    /PUT \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/order$/,
+    "OrderAccommodationRecommendations",
+  ],
+  [
+    /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}$/,
+    "UpdateAccommodationRecommendation",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}\/(publish|archive)$/,
+    "AccommodationRecommendationTransition",
+  ],
   [/POST \/api\/v1\/vendor-organizations$/, "CreateVendorOrganization"],
   [
     /POST \/api\/v1\/vendor-invitations\/(preview|accept|decline)$/,
@@ -2152,6 +2184,18 @@ const responseByRoute: Array<[RegExp, string]> = [
     "CursorRecordList",
   ],
   [
+    /GET \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-discovery$/,
+    "AccommodationDiscoveryResponse",
+  ],
+  [
+    /GET \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations$/,
+    "AccommodationRecommendationList",
+  ],
+  [
+    /(POST|PATCH|PUT|DELETE) \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations(?:\/.*)?$/,
+    "AccommodationRecommendation",
+  ],
+  [
     /GET \/api\/v1\/workspaces\/\{workspaceId\}\/(venue-spaces|seating-plans|transport-requests|transport-plans|transport-stops|accommodation-requests|accommodation-properties|accommodation-stays)$/,
     "OperationResourceList",
   ],
@@ -2764,6 +2808,12 @@ function requiresIfMatch(route: string): boolean {
     ) ||
     route.includes("allergy-issues/{issueId}") ||
     /(?:PATCH|PUT|DELETE) \/api\/v1\/workspaces\/\{workspaceId\}\/(venue-spaces|seating-plans|transport-requests|transport-plans|transport-stops|accommodation-requests|accommodation-properties|accommodation-stays)(?:\/.*)?$/.test(
+      route,
+    ) ||
+    /(?:PATCH|PUT|DELETE) \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations(?:\/.*)?$/.test(
+      route,
+    ) ||
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}\/(publish|archive)$/.test(
       route,
     ) ||
     route.includes("/seating-plans/{planId}/publish") ||
