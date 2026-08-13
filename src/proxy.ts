@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const protectedSegments = new Set([
+  "start",
   "overview",
   "onboarding",
   "plan",
@@ -26,6 +27,8 @@ const protectedSegments = new Set([
   "design-studio",
   "moodboards",
   "risks",
+  "contingency-plans",
+  "automations",
   "wedding-day",
   "moments",
   "post-wedding",
@@ -35,6 +38,8 @@ const protectedSegments = new Set([
   "activity",
   "tools",
   "settings",
+  "vendor",
+  "admin",
 ]);
 
 const realAuthEntryPaths = new Set([
@@ -125,7 +130,7 @@ export function proxy(request: NextRequest) {
   }
 
   const signIn = new URL("/sign-in", request.url);
-  signIn.searchParams.set("returnTo", pathname);
+  signIn.searchParams.set("returnTo", `${pathname}${request.nextUrl.search}`);
   const response = NextResponse.redirect(signIn);
   if (!demoEnabled && request.cookies.has("weddingos_demo")) {
     expireCookie(response, "weddingos_demo", false);

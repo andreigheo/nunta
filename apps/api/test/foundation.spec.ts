@@ -89,12 +89,26 @@ describe("Slice 0/1 foundation", () => {
       email: " ANA.POP@EXAMPLE.TEST ",
       password: "WeddingOS2026!",
       registrationIntent: "EVENT_ORGANIZER",
+      returnTo: "/onboarding?source=registration",
       acceptedTermsVersion: "2026-07-18",
     });
     expect(parsed.email).toBe("ana.pop@example.test");
     expect(parsed.firstName).toBe("Ana");
+    expect(parsed.returnTo).toBe("/onboarding?source=registration");
     expect(() =>
       registerRequestSchema.parse({ ...parsed, password: "alllowercase" }),
+    ).toThrow();
+    expect(() =>
+      registerRequestSchema.parse({
+        ...parsed,
+        returnTo: "https://evil.example/provider",
+      }),
+    ).toThrow();
+    expect(() =>
+      registerRequestSchema.parse({
+        ...parsed,
+        returnTo: "/%2F%2Fevil.example/provider",
+      }),
     ).toThrow();
   });
 

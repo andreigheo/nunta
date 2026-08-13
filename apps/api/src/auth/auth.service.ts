@@ -38,6 +38,49 @@ const PASSWORD_HASH_OPTIONS = {
   outputLen: 32,
 };
 
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function registrationIntentFromMetadata(
+  value: unknown,
+): RegisterRequest["registrationIntent"] {
+  const intent = metadataRecord(value).registrationIntent;
+  return intent === "SERVICE_PROVIDER" || intent === "INVITED_MEMBER"
+    ? intent
+    : "EVENT_ORGANIZER";
+}
+
+function registrationReturnTo(value: unknown): string | null {
+  const returnTo = metadataRecord(value).returnTo;
+  if (
+    typeof returnTo !== "string" ||
+    returnTo.length > 4096 ||
+    !returnTo.startsWith("/") ||
+    returnTo.startsWith("//") ||
+    [...returnTo].some((character) => {
+      const code = character.charCodeAt(0);
+      return character === "\\" || code < 32 || code === 127;
+    })
+  ) {
+    return null;
+  }
+  try {
+    const decoded = decodeURIComponent(returnTo);
+    return decoded.startsWith("//") ||
+      [...decoded].some((character) => {
+        const code = character.charCodeAt(0);
+        return character === "\\" || code < 32 || code === 127;
+      })
+      ? null
+      : returnTo;
+  } catch {
+    return null;
+  }
+}
+
 @Injectable()
 export class AuthService {
   private readonly dummyPasswordHash = hashPassword(
@@ -116,6 +159,10 @@ export class AuthService {
           tokenHash: hashSecret(token),
           codeHash: hashVerificationCode(email, code),
           expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+          metadata: {
+            registrationIntent: input.registrationIntent,
+            returnTo: input.returnTo ?? null,
+          },
         },
       });
       await this.asyncEvents.record(transaction, {
@@ -165,7 +212,7 @@ export class AuthService {
     const email = emailInput.trim().toLowerCase();
     const user = await this.database.user.findUnique({
       where: { email },
-      include: { profile: true },
+      include: { profile: true, preference: true },
     });
     if (user && !user.emailVerifiedAt) {
       const last = await this.database.authOneTimeToken.findFirst({
@@ -177,6 +224,8 @@ export class AuthService {
           user.id,
           email,
           user.profile?.firstName ?? "",
+          user.preference?.registrationIntent ?? "EVENT_ORGANIZER",
+          registrationReturnTo(last?.metadata),
           request,
         );
         await this.audit.record({
@@ -194,6 +243,8 @@ export class AuthService {
     userId: string,
     email: string,
     firstName: string,
+    registrationIntent: RegisterRequest["registrationIntent"],
+    returnTo: string | null,
     request: WeddingOsRequest,
   ) {
     const user = await this.database.user.findUniqueOrThrow({
@@ -222,6 +273,7 @@ export class AuthService {
           tokenHash: hashSecret(token),
           codeHash: hashVerificationCode(user.email, code),
           expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+          metadata: { registrationIntent, returnTo },
         },
       });
       await this.asyncEvents.record(transaction, {
@@ -245,14 +297,14 @@ export class AuthService {
     const tokenRecord = input.token
       ? await this.database.authOneTimeToken.findUnique({
           where: { tokenHash: hashSecret(input.token) },
-          include: { user: true },
+          include: { user: { include: { preference: true } } },
         })
       : await this.database.authOneTimeToken.findFirst({
           where: {
             codeHash: hashVerificationCode(input.email ?? "", input.code ?? ""),
             purpose: "EMAIL_VERIFICATION",
           },
-          include: { user: true },
+          include: { user: { include: { preference: true } } },
           orderBy: { createdAt: "desc" },
         });
     assertUsableOneTimeToken(tokenRecord, "EMAIL_VERIFICATION");
@@ -290,7 +342,13 @@ export class AuthService {
       requestId: request.requestId,
       correlationId: request.correlationId,
     });
-    return { verified: true as const };
+    return {
+      verified: true as const,
+      registrationIntent:
+        tokenRecord.user.preference?.registrationIntent ??
+        registrationIntentFromMetadata(tokenRecord.metadata),
+      returnTo: registrationReturnTo(tokenRecord.metadata),
+    };
   }
 
   async createSession(input: CreateSessionRequest, request: WeddingOsRequest) {

@@ -1,7 +1,39 @@
 import type { RegistrationIntent } from "@weddingos/contracts";
 
+function hasUnsafeInternalPathCharacter(value: string) {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return character === "\\" || code < 32 || code === 127;
+  });
+}
+
 export function safeInternalPath(value: string | null | undefined) {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : null;
+  if (!value) return null;
+  const candidate = value.trim();
+  if (
+    !candidate.startsWith("/") ||
+    candidate.startsWith("//") ||
+    hasUnsafeInternalPathCharacter(candidate)
+  ) {
+    return null;
+  }
+  try {
+    const decoded = decodeURIComponent(candidate);
+    if (
+      decoded.startsWith("//") ||
+      hasUnsafeInternalPathCharacter(decoded)
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return candidate;
+}
+
+function matchesRoute(path: string, route: string) {
+  const pathname = path.split(/[?#]/, 1)[0];
+  return pathname === route || pathname.startsWith(`${route}/`);
 }
 
 export function destinationForRegistration(
@@ -17,9 +49,27 @@ export function destinationForRegistration(
 
 export function inferredRegistrationIntent(returnTo?: string | null) {
   const requested = safeInternalPath(returnTo);
-  return requested?.startsWith("/invitation") ||
-    requested?.startsWith("/vendor-invitation")
-    ? ("INVITED_MEMBER" as const)
+  if (requested && matchesRoute(requested, "/vendor-invitation"))
+    return "SERVICE_PROVIDER" as const;
+  if (requested && matchesRoute(requested, "/vendor"))
+    return "SERVICE_PROVIDER" as const;
+  if (requested && matchesRoute(requested, "/invitation"))
+    return "INVITED_MEMBER" as const;
+  if (requested && matchesRoute(requested, "/onboarding"))
+    return "EVENT_ORGANIZER" as const;
+  return null;
+}
+
+export function registrationIntentForEntry(
+  returnTo?: string | null,
+  requestedIntent?: string | null,
+): RegistrationIntent | null {
+  const inferred = inferredRegistrationIntent(returnTo);
+  if (inferred) return inferred;
+  return requestedIntent === "EVENT_ORGANIZER" ||
+    requestedIntent === "SERVICE_PROVIDER" ||
+    requestedIntent === "INVITED_MEMBER"
+    ? requestedIntent
     : null;
 }
 

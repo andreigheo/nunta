@@ -82,6 +82,7 @@ import type {
   CreateAccommodationRecommendation,
   UpdateAccommodationRecommendation,
   UpdateWorkspaceCreativeState,
+  VerifiedResponse,
   WorkspaceCreativeState,
 } from "@weddingos/contracts";
 import { classifyApiProblem, isDemoCookieHeader } from "./transport-policy";
@@ -972,7 +973,7 @@ export const weddingOsApi = {
       body: { email },
     }),
   verifyEmail: (input: EmailVerification) =>
-    request<{ verified: true }>("/auth/email-verifications", {
+    request<VerifiedResponse>("/auth/email-verifications", {
       method: "POST",
       body: input,
     }),

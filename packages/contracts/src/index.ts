@@ -850,6 +850,13 @@ const passwordSchema = z
   .regex(/[A-Z]/, "Parola trebuie să conțină o literă mare.")
   .regex(/[0-9]/, "Parola trebuie să conțină o cifră.");
 
+function hasUnsafeInternalPathCharacter(value: string) {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return character === "\\" || code < 32 || code === 127;
+  });
+}
+
 export const registerRequestSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
@@ -858,6 +865,32 @@ export const registerRequestSchema = z.object({
   registrationIntent: registrationIntentSchema
     .optional()
     .default("EVENT_ORGANIZER"),
+  returnTo: z
+    .string()
+    .trim()
+    .max(4096)
+    .refine(
+      (value) => {
+        if (
+          !value.startsWith("/") ||
+          value.startsWith("//") ||
+          hasUnsafeInternalPathCharacter(value)
+        ) {
+          return false;
+        }
+        try {
+          const decoded = decodeURIComponent(value);
+          return (
+            !decoded.startsWith("//") &&
+            !hasUnsafeInternalPathCharacter(decoded)
+          );
+        } catch {
+          return false;
+        }
+      },
+      { message: "Ruta de continuare trebuie să fie internă." },
+    )
+    .optional(),
   acceptedTermsVersion: z.string().min(1).max(40),
   marketingConsent: z.boolean().optional().default(false),
 });
@@ -923,7 +956,12 @@ export const neutralAuthResponseSchema = z.object({
 });
 export type NeutralAuthResponse = z.infer<typeof neutralAuthResponseSchema>;
 
-export const verifiedResponseSchema = z.object({ verified: z.literal(true) });
+export const verifiedResponseSchema = z.object({
+  verified: z.literal(true),
+  registrationIntent: registrationIntentSchema,
+  returnTo: z.string().nullable(),
+});
+export type VerifiedResponse = z.infer<typeof verifiedResponseSchema>;
 export const passwordResetResponseSchema = z.object({ reset: z.literal(true) });
 export const profileUpdatedSchema = z.object({
   firstName: z.string(),

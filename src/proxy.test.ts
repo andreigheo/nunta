@@ -81,4 +81,33 @@ describe("authentication entry routing", () => {
 
     expect(response.cookies.get("sarbato_session")?.maxAge).toBe(0);
   });
+
+  it("protects the provider setup route and preserves its full return path", () => {
+    const request = new NextRequest(
+      "https://sarbato.space/vendor?setup=1&source=profile",
+    );
+
+    const response = proxy(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://sarbato.space/sign-in?returnTo=%2Fvendor%3Fsetup%3D1%26source%3Dprofile",
+    );
+  });
+
+  it.each([
+    "/start",
+    "/admin",
+    "/automations",
+    "/contingency-plans",
+  ])("protects the authenticated route %s", (pathname) => {
+    const request = new NextRequest(`https://sarbato.space${pathname}`);
+
+    const response = proxy(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      `https://sarbato.space/sign-in?returnTo=${encodeURIComponent(pathname)}`,
+    );
+  });
 });

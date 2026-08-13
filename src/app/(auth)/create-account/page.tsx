@@ -11,7 +11,7 @@ import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { TERMS_VERSION } from "@weddingos/contracts";
 import {
-  inferredRegistrationIntent,
+  registrationIntentForEntry,
   safeInternalPath,
 } from "@/lib/account-routing";
 
@@ -51,11 +51,9 @@ export default function CreateAccountPage() {
   const [loading, setLoading] = React.useState(false);
   const [formError, setFormError] = React.useState("");
   const returnTo = safeInternalPath(searchParams.get("returnTo"));
-  const queryIntent = searchParams.get("intent") as RegistrationIntent | null;
+  const queryIntent = searchParams.get("intent");
   const [intent, setIntent] = React.useState<RegistrationIntent | null>(() =>
-    paths.some((path) => path.value === queryIntent)
-      ? queryIntent
-      : inferredRegistrationIntent(returnTo),
+    registrationIntentForEntry(returnTo, queryIntent),
   );
 
   const set = (key: keyof typeof values) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -87,10 +85,12 @@ export default function CreateAccountPage() {
         acceptedTermsVersion: TERMS_VERSION,
         marketingConsent: marketing,
         registrationIntent: intent!,
+        returnTo: returnTo ?? undefined,
       });
       sessionStorage.setItem("weddingos.pendingVerificationEmail", values.email.trim().toLowerCase());
       sessionStorage.setItem("sarbato.registrationIntent", intent!);
-      if (returnTo) sessionStorage.setItem("sarbato.returnTo", returnTo);
+      if (returnTo)
+        sessionStorage.setItem("sarbato.registrationReturnTo", returnTo);
       const params = new URLSearchParams({
         email: values.email.trim().toLowerCase(),
         intent: intent!,

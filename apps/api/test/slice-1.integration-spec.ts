@@ -69,6 +69,76 @@ describe.sequential("Slice 1 API integration and isolation", () => {
     await account.agent.get("/api/v1/me").expect(401);
   }, 120_000);
 
+  it("preserves provider registration intent and destination through email verification", async () => {
+    const email = `provider-registration-${Date.now()}@example.test`;
+    const returnTo = "/vendor?setup=1&source=registration";
+    const registration = await request(application.getHttpServer())
+      .post("/api/v1/auth/registrations")
+      .set("Origin", origin)
+      .send({
+        firstName: "Test",
+        lastName: "Provider",
+        email,
+        password: "WeddingOS2026!",
+        registrationIntent: "SERVICE_PROVIDER",
+        returnTo,
+        acceptedTermsVersion: "2026-07-18",
+        marketingConsent: false,
+      })
+      .expect(201);
+    const token = await waitForEmailToken(
+      email,
+      "Confirmă adresa de email Sarbato",
+    );
+
+    const tokenRecord = await ownerDatabase.authOneTimeToken.findUniqueOrThrow({
+      where: { tokenHash: hashToken(token) },
+    });
+    expect(tokenRecord.metadata).toMatchObject({
+      registrationIntent: "SERVICE_PROVIDER",
+      returnTo,
+    });
+
+    await ownerDatabase.authOneTimeToken.update({
+      where: { id: tokenRecord.id },
+      data: { createdAt: new Date(Date.now() - 61_000) },
+    });
+    await request(application.getHttpServer())
+      .post("/api/v1/auth/email-verification-requests")
+      .set("Origin", origin)
+      .send({ email })
+      .expect(202);
+    const resentToken = await waitForEmailToken(
+      email,
+      "Confirmă adresa de email Sarbato",
+      token,
+    );
+    const resentTokenRecord =
+      await ownerDatabase.authOneTimeToken.findUniqueOrThrow({
+        where: { tokenHash: hashToken(resentToken) },
+      });
+    expect(resentTokenRecord.metadata).toMatchObject({
+      registrationIntent: "SERVICE_PROVIDER",
+      returnTo,
+    });
+
+    const verified = await request(application.getHttpServer())
+      .post("/api/v1/auth/email-verifications")
+      .set("Origin", origin)
+      .send({ token: resentToken })
+      .expect(200);
+    expect(verified.body.data).toEqual({
+      verified: true,
+      registrationIntent: "SERVICE_PROVIDER",
+      returnTo,
+    });
+
+    const preference = await ownerDatabase.userPreference.findUniqueOrThrow({
+      where: { userId: registration.body.data.userId },
+    });
+    expect(preference.registrationIntent).toBe("SERVICE_PROVIDER");
+  }, 120_000);
+
   it("creates a workspace atomically and replays the same idempotency key", async () => {
     const owner = await createVerifiedAccount("workspace");
     const payload = {

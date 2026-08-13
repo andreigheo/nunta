@@ -3,6 +3,7 @@ import {
   destinationAfterAuthentication,
   destinationForRegistration,
   inferredRegistrationIntent,
+  registrationIntentForEntry,
   safeInternalPath,
 } from "./account-routing";
 import { requiredCapabilityForPath } from "./navigation";
@@ -22,9 +23,39 @@ describe("account routing", () => {
     expect(destinationForRegistration("INVITED_MEMBER", path)).toBe(path);
   });
 
+  it("keeps provider, team-member and organizer registration paths distinct", () => {
+    expect(inferredRegistrationIntent("/vendor?setup=1")).toBe(
+      "SERVICE_PROVIDER",
+    );
+    expect(
+      inferredRegistrationIntent(
+        "/vendor-invitation?token=provider-invitation-token",
+      ),
+    ).toBe("SERVICE_PROVIDER");
+    expect(inferredRegistrationIntent("/invitation?token=team-token")).toBe(
+      "INVITED_MEMBER",
+    );
+    expect(inferredRegistrationIntent("/onboarding")).toBe(
+      "EVENT_ORGANIZER",
+    );
+    expect(inferredRegistrationIntent("/vendorish")).toBeNull();
+    expect(inferredRegistrationIntent("/invitation-preview")).toBeNull();
+    expect(
+      registrationIntentForEntry(
+        "/vendor-invitation?token=provider-token",
+        "EVENT_ORGANIZER",
+      ),
+    ).toBe("SERVICE_PROVIDER");
+    expect(registrationIntentForEntry(null, "SERVICE_PROVIDER")).toBe(
+      "SERVICE_PROVIDER",
+    );
+  });
+
   it("rejects external and protocol-relative redirects", () => {
     expect(safeInternalPath("https://evil.example")).toBeNull();
     expect(safeInternalPath("//evil.example/path")).toBeNull();
+    expect(safeInternalPath("/\\evil.example/path")).toBeNull();
+    expect(safeInternalPath("/%2F%2Fevil.example/path")).toBeNull();
   });
 
   it("sends a verified organizer without a workspace to onboarding", () => {

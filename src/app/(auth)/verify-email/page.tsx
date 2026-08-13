@@ -8,8 +8,7 @@ import { Button, Input } from "@/components/ui";
 import { AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
 import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
-import { destinationForRegistration, safeInternalPath } from "@/lib/account-routing";
-import type { RegistrationIntent } from "@weddingos/contracts";
+import { safeInternalPath } from "@/lib/account-routing";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -18,7 +17,6 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState("");
-  const [intent, setIntent] = React.useState<RegistrationIntent>("EVENT_ORGANIZER");
   const [returnTo, setReturnTo] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -26,25 +24,20 @@ export default function VerifyEmailPage() {
       const params = new URLSearchParams(window.location.search);
       const nextEmail = params.get("email") ?? sessionStorage.getItem("weddingos.pendingVerificationEmail") ?? "";
       const token = params.get("token");
-      const storedIntent =
-        params.get("intent") ?? sessionStorage.getItem("sarbato.registrationIntent");
-      const nextIntent =
-        storedIntent === "SERVICE_PROVIDER" || storedIntent === "INVITED_MEMBER"
-          ? storedIntent
-          : "EVENT_ORGANIZER";
       const nextReturnTo = safeInternalPath(
         params.get("returnTo") ?? sessionStorage.getItem("sarbato.registrationReturnTo"),
       );
-      setIntent(nextIntent);
       setReturnTo(nextReturnTo);
       setEmail(nextEmail);
       if (token) {
         setLoading(true);
         weddingOsApi
           .verifyEmail({ token })
-          .then(() => {
-            const destination = destinationForRegistration(nextIntent, nextReturnTo);
-            router.replace(`/sign-in?verified=1&returnTo=${encodeURIComponent(destination)}`);
+          .then((result) => {
+            const destination = result.returnTo ?? nextReturnTo;
+            const params = new URLSearchParams({ verified: "1" });
+            if (destination) params.set("returnTo", destination);
+            router.replace(`/sign-in?${params.toString()}`);
           })
           .catch((cause) => setError(apiErrorMessage(cause)))
           .finally(() => setLoading(false));
@@ -72,9 +65,11 @@ export default function VerifyEmailPage() {
           setError("");
           setLoading(true);
           try {
-            await weddingOsApi.verifyEmail({ email, code });
-            const destination = destinationForRegistration(intent, returnTo);
-            router.push(`/sign-in?verified=1&returnTo=${encodeURIComponent(destination)}`);
+            const result = await weddingOsApi.verifyEmail({ email, code });
+            const destination = result.returnTo ?? returnTo;
+            const params = new URLSearchParams({ verified: "1" });
+            if (destination) params.set("returnTo", destination);
+            router.push(`/sign-in?${params.toString()}`);
           } catch (cause) {
             setError(apiErrorMessage(cause));
           } finally {
