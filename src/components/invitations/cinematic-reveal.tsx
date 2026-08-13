@@ -143,8 +143,17 @@ export function CinematicReveal({
   const focusInvitation = React.useCallback(() => {
     rootRef.current
       ?.querySelector<HTMLElement>("[data-invitation-renderer]")
-      ?.focus();
+      ?.focus({ preventScroll: true });
   }, []);
+
+  const completeOpening = React.useCallback(() => {
+    if (openingTimerRef.current !== null) {
+      window.clearTimeout(openingTimerRef.current);
+      openingTimerRef.current = null;
+    }
+    setState("open");
+    window.requestAnimationFrame(focusInvitation);
+  }, [focusInvitation]);
 
   const reportOpen = React.useCallback(
     (source: InvitationOpenSource) => {
@@ -190,12 +199,20 @@ export function CinematicReveal({
       return;
     }
     setState("opening");
+    // The overlay animation is the source of truth. This timer is only a
+    // fail-open fallback for browsers that suppress animationend.
     openingTimerRef.current = window.setTimeout(() => {
-      openingTimerRef.current = null;
-      setState("open");
-      window.requestAnimationFrame(focusInvitation);
-    }, settings.durationMs + 40);
-  }, [focusInvitation, reportOpen, settings.durationMs, state]);
+      completeOpening();
+    }, settings.durationMs + 600);
+  }, [completeOpening, focusInvitation, reportOpen, settings.durationMs, state]);
+
+  const handleOverlayAnimationEnd = React.useCallback(
+    (event: React.AnimationEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget || state !== "opening") return;
+      completeOpening();
+    },
+    [completeOpening, state],
+  );
 
   const replay = React.useCallback(() => {
     setState("closed");
@@ -276,6 +293,7 @@ export function CinematicReveal({
           aria-modal="true"
           aria-labelledby="invitation-reveal-title"
           onKeyDown={handleDialogKeyDown}
+          onAnimationEnd={handleOverlayAnimationEnd}
         >
           <div className={styles.ambientGlow} aria-hidden />
           <div className={styles.ambientOrb} aria-hidden />
