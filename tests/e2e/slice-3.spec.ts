@@ -289,14 +289,8 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
 
   await authorizePage(page, owner);
   await page.goto("/invitations/editor");
-  await page.getByRole("button", { name: "Intrare" }).click();
-  const cinematicReveal = page.getByRole("switch", {
-    name: "Activează deschiderea cinematică",
-  });
-  if (!(await cinematicReveal.isChecked())) {
-    await cinematicReveal.click();
-  }
-  await page.getByRole("button", { name: /^Plic/ }).click();
+  await page.getByRole("button", { name: "Deschidere" }).click();
+  await page.getByRole("button", { name: /^Plic animat/ }).click();
   await page.getByRole("button", { name: "Salvează" }).click();
   await expect(page.getByText("Ciornă salvată")).toBeVisible();
   await replaceInvitationStarterContent();

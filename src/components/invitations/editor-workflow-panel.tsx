@@ -64,9 +64,9 @@ export function EditorWorkflowPanel({
 }) {
   const activeVariant =
     variants.find((variant) => variant.id === activeVariantId) ?? null;
-  const [selectedPaths, setSelectedPaths] = React.useState<InvitationSyncPath[]>(
-    [],
-  );
+  const [selectedPaths, setSelectedPaths] = React.useState<
+    InvitationSyncPath[]
+  >([]);
   const availablePaths = new Set(
     syncPreview?.differences.map((difference) => difference.path) ?? [],
   );
@@ -79,11 +79,13 @@ export function EditorWorkflowPanel({
       <section>
         <div className="flex items-center gap-2">
           <UsersRound className="size-4 text-brand" aria-hidden />
-          <h3 className="text-sm font-semibold text-ink">Variante de invitație</h3>
+          <h3 className="text-sm font-semibold text-ink">
+            Personalizări pentru grupuri
+          </h3>
         </div>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Invitația de bază rămâne sursa. O variantă salvează numai diferențele
-          pentru un grup de destinatari.
+          Invitația principală rămâne neschimbată. Aici poți adapta anumite
+          texte pentru familie, prieteni sau alte grupuri.
         </p>
         <div className="mt-3 flex gap-2">
           <Select
@@ -95,7 +97,7 @@ export function EditorWorkflowPanel({
             }
             aria-label="Varianta editată"
           >
-            <option value="base">Invitația de bază</option>
+            <option value="base">Invitația principală</option>
             {variants
               .filter((variant) => variant.status === "active")
               .map((variant) => (
@@ -147,11 +149,11 @@ export function EditorWorkflowPanel({
           <div>
             <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
               <GitCompareArrows className="size-4 text-brand" aria-hidden />
-              Date conectate
+              Actualizează din eveniment
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-muted">
-              Vezi diferențele din dashboard și alegi explicit ce intră în
-              ciornă. Publicarea rămâne o acțiune separată.
+              Verifică dacă programul, locațiile sau termenul RSVP s-au schimbat
+              și alege ce vrei să actualizezi în invitație.
             </p>
           </div>
           <Button
@@ -169,7 +171,7 @@ export function EditorWorkflowPanel({
             className="mt-3 min-h-11 w-full rounded-lg border border-line px-3 text-xs font-semibold text-brand hover:bg-brand-softer"
             onClick={onRefreshSync}
           >
-            Compară cu dashboardul
+            Verifică datele evenimentului
           </button>
         ) : syncPreview.differences.length ? (
           <div className="mt-3 space-y-2">
@@ -202,7 +204,9 @@ export function EditorWorkflowPanel({
                           : "border-line-strong bg-surface",
                       )}
                     >
-                      {selected ? <Check className="size-3" aria-hidden /> : null}
+                      {selected ? (
+                        <Check className="size-3" aria-hidden />
+                      ) : null}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-semibold text-ink">
@@ -236,7 +240,7 @@ export function EditorWorkflowPanel({
         ) : (
           <p className="mt-3 flex items-center gap-2 rounded-lg bg-success-soft px-3 py-2 text-xs text-success">
             <Check className="size-4" aria-hidden />
-            Ciorna folosește deja datele curente din dashboard.
+            Ciorna folosește deja datele curente ale evenimentului.
           </p>
         )}
       </section>
@@ -245,7 +249,7 @@ export function EditorWorkflowPanel({
         <div className="flex items-center justify-between gap-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
             <History className="size-4 text-brand" aria-hidden />
-            Istoric versiuni
+            Versiuni anterioare
           </h3>
           <Badge variant="neutral">{versions.length}</Badge>
         </div>
@@ -323,8 +327,9 @@ function compactItem(value: unknown) {
   const summary = [time, title, detail].filter(Boolean).join(" — ");
   if (summary) return summary;
   const values = Object.values(item)
-    .filter((entry): entry is string | number =>
-      typeof entry === "string" || typeof entry === "number",
+    .filter(
+      (entry): entry is string | number =>
+        typeof entry === "string" || typeof entry === "number",
     )
     .slice(0, 3);
   return values.length ? values.join(" — ") : "detalii actualizate";

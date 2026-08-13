@@ -8,9 +8,27 @@
 }
 
 .invitationEntering {
-  animation: invitation-enter calc(var(--reveal-duration, 1800ms) * 0.52) cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--reveal-duration, 1800ms) * 0.4);
+  animation: invitation-enter calc(var(--reveal-duration, 1800ms) * 0.58) cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--reveal-duration, 1800ms) * 0.42);
   will-change: transform, opacity;
+}
+
+.transitionVeil {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  background: radial-gradient(
+    ellipse at 50% 34%,
+    color-mix(in srgb, var(--reveal-accent) 12%, white) 0%,
+    rgb(255 255 255 / 5%) 24%,
+    transparent 68%
+  );
+  opacity: 0;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  animation: transition-veil var(--reveal-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity;
 }
 
 .overlay {
@@ -547,11 +565,28 @@
 @keyframes invitation-enter {
   0% {
     opacity: 0;
-    transform: translate3d(0, 1.25rem, 0) scale(0.992);
+    transform: translate3d(0, 1rem, 0) scale(0.987);
+  }
+  46% {
+    opacity: 0.48;
+    transform: translate3d(0, 0.35rem, 0) scale(0.995);
   }
   100% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes transition-veil {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  67% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -729,6 +764,7 @@
 @media (prefers-reduced-motion: reduce) {
   .opening,
   .invitationEntering,
+  .transitionVeil,
   .opening .envelopeStage,
   .opening .envelopeFlap,
   .opening .letter,

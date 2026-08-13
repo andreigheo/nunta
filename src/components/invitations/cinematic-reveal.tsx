@@ -282,6 +282,9 @@ export function CinematicReveal({
       >
         {children}
       </div>
+      {settings.enabled && state === "opening" ? (
+        <div className={styles.transitionVeil} aria-hidden />
+      ) : null}
       {settings.enabled && state !== "open" ? (
         <div
           ref={overlayRef}

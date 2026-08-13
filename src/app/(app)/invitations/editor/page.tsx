@@ -143,7 +143,7 @@ export default function InvitationEditorPage() {
   const [selectedId, setSelectedId] = React.useState("hero");
   const [device, setDevice] = React.useState<Device>("desktop");
   const [leftPanelTab, setLeftPanelTab] =
-    React.useState<LeftPanelTab>("blocks");
+    React.useState<LeftPanelTab>("layers");
   const [inspectorTab, setInspectorTab] =
     React.useState<InspectorTab>("content");
   const [site, setSite] = React.useState<InvitationSiteResource | null>(null);
@@ -156,6 +156,7 @@ export default function InvitationEditorPage() {
   const [publishOpen, setPublishOpen] = React.useState(false);
   const [canvasPreviewOpen, setCanvasPreviewOpen] = React.useState(false);
   const [templateOpen, setTemplateOpen] = React.useState(false);
+  const [workflowOpen, setWorkflowOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
   const [sectionsOpen, setSectionsOpen] = React.useState(false);
   const [inspectorOpen, setInspectorOpen] = React.useState(false);
@@ -163,7 +164,9 @@ export default function InvitationEditorPage() {
   const [mediaPreviews, setMediaPreviews] = React.useState<
     Record<string, string>
   >({});
-  const [variants, setVariants] = React.useState<InvitationVariantResource[]>([]);
+  const [variants, setVariants] = React.useState<InvitationVariantResource[]>(
+    [],
+  );
   const [activeVariantId, setActiveVariantId] = React.useState<string | null>(
     null,
   );
@@ -189,6 +192,8 @@ export default function InvitationEditorPage() {
     snapshot.sections.find((section) => section.id === selectedId) ??
     snapshot.sections[0];
   const readiness = invitationReadiness(snapshot);
+  const activeVariant =
+    variants.find((variant) => variant.id === activeVariantId) ?? null;
 
   React.useEffect(() => {
     if (!currentWorkspace || demoMode) {
@@ -256,92 +261,95 @@ export default function InvitationEditorPage() {
     [snapshot],
   );
 
-  const saveDraft = React.useCallback(async (silent = false) => {
-    if (!currentWorkspace || demoMode || !canWrite) return site;
-    const revisionAtStart = editRevisionRef.current;
-    setSaving(true);
-    try {
-      const activeVariant = variants.find(
-        (variant) => variant.id === activeVariantId,
-      );
-      if (activeVariant) {
-        const updatedVariant = await weddingOsApi.saveInvitationVariantDraft(
+  const saveDraft = React.useCallback(
+    async (silent = false) => {
+      if (!currentWorkspace || demoMode || !canWrite) return site;
+      const revisionAtStart = editRevisionRef.current;
+      setSaving(true);
+      try {
+        const activeVariant = variants.find(
+          (variant) => variant.id === activeVariantId,
+        );
+        if (activeVariant) {
+          const updatedVariant = await weddingOsApi.saveInvitationVariantDraft(
+            currentWorkspace.id,
+            activeVariant.id,
+            activeVariant.version,
+            {
+              overrides: invitationVariantOverrides(baseSnapshot, snapshot),
+            },
+          );
+          setVariants((current) =>
+            current.map((variant) =>
+              variant.id === updatedVariant.id ? updatedVariant : variant,
+            ),
+          );
+          if (revisionAtStart === editRevisionRef.current) setDirty(false);
+          setLastSavedAt(new Date());
+          if (!silent)
+            toast({
+              title: "Variantă salvată",
+              description: `${updatedVariant.name} păstrează numai diferențele față de invitația de bază.`,
+              variant: "success",
+            });
+          return site;
+        }
+        const serialized = serializeSnapshot(snapshot);
+        const updated = await weddingOsApi.saveInvitationDraft(
           currentWorkspace.id,
-          activeVariant.id,
-          activeVariant.version,
+          site?.version ?? null,
           {
-            overrides: invitationVariantOverrides(baseSnapshot, snapshot),
+            slug:
+              site?.slug ??
+              invitationSlug(currentWorkspace.title, currentWorkspace.id),
+            defaultLanguage: site?.defaultLanguage ?? "ro",
+            availableLanguages: site?.availableLanguages ?? ["ro"],
+            accessPolicy:
+              site?.accessPolicy === "token_or_access_code"
+                ? "TOKEN_OR_ACCESS_CODE"
+                : "TOKEN_ONLY",
+            document: serialized.document,
+            settings: serialized.settings,
           },
         );
-        setVariants((current) =>
-          current.map((variant) =>
-            variant.id === updatedVariant.id ? updatedVariant : variant,
-          ),
-        );
+        setSite(updated);
+        setBaseSnapshot(snapshot);
         if (revisionAtStart === editRevisionRef.current) setDirty(false);
         setLastSavedAt(new Date());
+        void weddingOsApi
+          .invitationVersions(currentWorkspace.id)
+          .then((versionData) => setVersions(versionData.items))
+          .catch(() => undefined);
         if (!silent)
           toast({
-            title: "Variantă salvată",
-            description: `${updatedVariant.name} păstrează numai diferențele față de invitația de bază.`,
+            title: "Ciornă salvată",
+            description: `Conținutul și designul versiunii ${updated.draft?.versionNumber ?? "noi"} sunt persistente.`,
             variant: "success",
           });
-        return site;
-      }
-      const serialized = serializeSnapshot(snapshot);
-      const updated = await weddingOsApi.saveInvitationDraft(
-        currentWorkspace.id,
-        site?.version ?? null,
-        {
-          slug:
-            site?.slug ??
-            invitationSlug(currentWorkspace.title, currentWorkspace.id),
-          defaultLanguage: site?.defaultLanguage ?? "ro",
-          availableLanguages: site?.availableLanguages ?? ["ro"],
-          accessPolicy:
-            site?.accessPolicy === "token_or_access_code"
-              ? "TOKEN_OR_ACCESS_CODE"
-              : "TOKEN_ONLY",
-          document: serialized.document,
-          settings: serialized.settings,
-        },
-      );
-      setSite(updated);
-      setBaseSnapshot(snapshot);
-      if (revisionAtStart === editRevisionRef.current) setDirty(false);
-      setLastSavedAt(new Date());
-      void weddingOsApi
-        .invitationVersions(currentWorkspace.id)
-        .then((versionData) => setVersions(versionData.items))
-        .catch(() => undefined);
-      if (!silent)
+        return updated;
+      } catch (caught) {
         toast({
-          title: "Ciornă salvată",
-          description: `Conținutul și designul versiunii ${updated.draft?.versionNumber ?? "noi"} sunt persistente.`,
-          variant: "success",
+          title: "Ciorna nu a fost salvată",
+          description: apiErrorMessage(caught),
+          variant: "error",
         });
-      return updated;
-    } catch (caught) {
-      toast({
-        title: "Ciorna nu a fost salvată",
-        description: apiErrorMessage(caught),
-        variant: "error",
-      });
-      return null;
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    activeVariantId,
-    baseSnapshot,
-    canWrite,
-    currentWorkspace,
-    demoMode,
-    site,
-    snapshot,
-    toast,
-    variants,
-  ]);
+        return null;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [
+      activeVariantId,
+      baseSnapshot,
+      canWrite,
+      currentWorkspace,
+      demoMode,
+      site,
+      snapshot,
+      toast,
+      variants,
+    ],
+  );
 
   React.useEffect(() => {
     if (!dirty || saving || !canWrite || demoMode || !currentWorkspace) return;
@@ -570,7 +578,8 @@ export default function InvitationEditorPage() {
       setVariantToArchive(null);
       toast({
         title: "Variantă arhivată",
-        description: "Destinatarii pot fi mutați pe baza invitației sau pe altă variantă.",
+        description:
+          "Destinatarii pot fi mutați pe baza invitației sau pe altă variantă.",
         variant: "success",
       });
     } catch (caught) {
@@ -611,7 +620,8 @@ export default function InvitationEditorPage() {
       setVersions(versionData.items);
       toast({
         title: "Versiune restaurată",
-        description: "Am creat o ciornă nouă; versiunea publicată nu s-a schimbat.",
+        description:
+          "Am creat o ciornă nouă; versiunea publicată nu s-a schimbat.",
         variant: "success",
       });
     } catch (caught) {
@@ -630,7 +640,8 @@ export default function InvitationEditorPage() {
     if (activeVariantId) {
       toast({
         title: "Compară invitația de bază",
-        description: "Datele conectate se aplică bazei, apoi variantele moștenesc schimbarea.",
+        description:
+          "Datele conectate se aplică bazei, apoi variantele moștenesc schimbarea.",
         variant: "info",
       });
       return;
@@ -887,9 +898,19 @@ export default function InvitationEditorPage() {
     toast({
       title: "Mai sunt detalii de verificat",
       description:
-        "Deschide fila Publicare și rezolvă elementele marcate înainte de a continua.",
+        "Deschide Verificare și rezolvă elementele marcate înainte de a continua.",
       variant: "warning",
     });
+  };
+
+  const showInspectorTab = (tab: InspectorTab) => {
+    setInspectorTab(tab);
+    if (window.innerWidth < 1024) setInspectorOpen(true);
+  };
+
+  const showInvitationStructure = () => {
+    setLeftPanelTab("layers");
+    if (window.innerWidth < 768) setSectionsOpen(true);
   };
 
   const widths: Record<Device, string> = {
@@ -938,7 +959,7 @@ export default function InvitationEditorPage() {
           <ArrowLeft className="size-4" aria-hidden />
           <span className="hidden sm:inline">Invitații</span>
         </Button>
-        <div className="min-w-0 flex-1 border-l border-line pl-3 md:flex-none">
+        <div className="hidden min-w-0 flex-1 border-l border-line pl-3 sm:block md:flex-none">
           <div className="flex items-center gap-2">
             <h1 className="truncate font-brand text-base font-semibold text-brand">
               Studio invitație
@@ -958,13 +979,15 @@ export default function InvitationEditorPage() {
             )}
           </div>
           <p className="hidden text-[11px] text-faint md:block">
-            {saving
-              ? "Se creează o versiune sigură…"
-              : dirty
-              ? "Modificări locale"
-              : lastSavedAt
-                ? `Salvat la ${lastSavedAt.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}`
-                : "Ciornă nouă"}
+            {activeVariant
+              ? `Personalizare pentru: ${activeVariant.name}`
+              : saving
+                ? "Se creează o versiune sigură…"
+                : dirty
+                  ? "Modificări locale"
+                  : lastSavedAt
+                    ? `Salvat la ${lastSavedAt.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" })}`
+                    : "Ciornă nouă"}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1">
@@ -1010,7 +1033,16 @@ export default function InvitationEditorPage() {
             onClick={() => setTemplateOpen(true)}
           >
             <LayoutTemplate className="size-3.5" aria-hidden />
-            Șablon
+            Alege stilul
+          </Button>
+          <Button
+            className="hidden md:inline-flex"
+            variant="ghost"
+            size="sm"
+            onClick={() => setWorkflowOpen(true)}
+          >
+            <SlidersHorizontal className="size-3.5" aria-hidden />
+            Date și versiuni
           </Button>
           <Button
             className="lg:hidden"
@@ -1114,6 +1146,15 @@ export default function InvitationEditorPage() {
               </Button>
             </div>
           </div>
+          <EditorJourneyBar
+            activeTab={inspectorTab}
+            choosingStyle={templateOpen}
+            onChooseStyle={() => setTemplateOpen(true)}
+            onChooseOpening={() => showInspectorTab("experience")}
+            onEditSections={showInvitationStructure}
+            onPersonalize={() => showInspectorTab("design")}
+            onReview={() => showInspectorTab("publish")}
+          />
           <div className="min-h-0 flex-1 overflow-auto px-3 py-5 sm:p-8">
             <div
               className={cn(
@@ -1182,26 +1223,19 @@ export default function InvitationEditorPage() {
             )}
             onUploadExperienceCover={(file) =>
               void uploadInvitationImage(file, (mediaId) =>
-                updateExperience({ coverMediaId: mediaId, coverImageUrl: null }),
+                updateExperience({
+                  coverMediaId: mediaId,
+                  coverImageUrl: null,
+                }),
               )
             }
             device={device}
             uploadingMedia={uploadingMedia}
             onUploadImage={uploadInvitationImage}
             onChooseTemplate={() => setTemplateOpen(true)}
+            onOpenWorkflow={() => setWorkflowOpen(true)}
             onPublish={requestPublish}
-            variants={variants}
-            activeVariantId={activeVariantId}
-            versions={versions}
-            syncPreview={syncPreview}
             preflight={preflight}
-            workflowBusy={workflowBusy}
-            onSelectVariant={(variantId) => void selectVariant(variantId)}
-            onCreateVariant={() => setVariantCreateOpen(true)}
-            onArchiveVariant={setVariantToArchive}
-            onRestoreVersion={setVersionToRestore}
-            onRefreshSync={() => void refreshSyncPreview()}
-            onApplySync={(paths) => void applySync(paths)}
           />
         </aside>
       </div>
@@ -1262,19 +1296,12 @@ export default function InvitationEditorPage() {
           uploadingMedia={uploadingMedia}
           onUploadImage={uploadInvitationImage}
           onChooseTemplate={() => setTemplateOpen(true)}
+          onOpenWorkflow={() => {
+            setInspectorOpen(false);
+            setWorkflowOpen(true);
+          }}
           onPublish={requestPublish}
-          variants={variants}
-          activeVariantId={activeVariantId}
-          versions={versions}
-          syncPreview={syncPreview}
           preflight={preflight}
-          workflowBusy={workflowBusy}
-          onSelectVariant={(variantId) => void selectVariant(variantId)}
-          onCreateVariant={() => setVariantCreateOpen(true)}
-          onArchiveVariant={setVariantToArchive}
-          onRestoreVersion={setVersionToRestore}
-          onRefreshSync={() => void refreshSyncPreview()}
-          onApplySync={(paths) => void applySync(paths)}
         />
       </Drawer>
 
@@ -1301,10 +1328,41 @@ export default function InvitationEditorPage() {
       </Modal>
 
       <Modal
+        open={workflowOpen}
+        onClose={() => setWorkflowOpen(false)}
+        title="Date, grupuri și versiuni"
+        description="Instrumente avansate pentru actualizarea datelor, personalizări pe grupuri și revenirea la o versiune anterioară."
+        size="lg"
+      >
+        <EditorWorkflowPanel
+          variants={variants}
+          activeVariantId={activeVariantId}
+          versions={versions}
+          syncPreview={syncPreview}
+          busy={workflowBusy}
+          onSelectVariant={(variantId) => void selectVariant(variantId)}
+          onCreateVariant={() => {
+            setWorkflowOpen(false);
+            setVariantCreateOpen(true);
+          }}
+          onArchiveVariant={(variant) => {
+            setWorkflowOpen(false);
+            setVariantToArchive(variant);
+          }}
+          onRestoreVersion={(version) => {
+            setWorkflowOpen(false);
+            setVersionToRestore(version);
+          }}
+          onRefreshSync={() => void refreshSyncPreview()}
+          onApplySync={(paths) => void applySync(paths)}
+        />
+      </Modal>
+
+      <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
         title="Adaugă o secțiune"
-        description="Fiecare card adaugă un bloc nou. Secțiunile existente se selectează și se organizează din Layere."
+        description="Alege ce informație vrei să adaugi. Secțiunile existente se selectează și se organizează din Structură."
         size="lg"
       >
         <div className="grid gap-2 sm:grid-cols-2">
@@ -1329,7 +1387,10 @@ export default function InvitationEditorPage() {
                     {entry.description}
                   </span>
                 </span>
-                <Plus className="ml-auto size-4 shrink-0 text-faint" aria-hidden />
+                <Plus
+                  className="ml-auto size-4 shrink-0 text-faint"
+                  aria-hidden
+                />
               </button>
             );
           })}
@@ -1354,7 +1415,10 @@ export default function InvitationEditorPage() {
                     {entry.description}
                   </span>
                 </span>
-                <Plus className="ml-auto size-4 shrink-0 text-faint" aria-hidden />
+                <Plus
+                  className="ml-auto size-4 shrink-0 text-faint"
+                  aria-hidden
+                />
               </button>
             );
           })}
@@ -1364,8 +1428,8 @@ export default function InvitationEditorPage() {
       <Modal
         open={templateOpen}
         onClose={() => setTemplateOpen(false)}
-        title="Direcție vizuală"
-        description="Șablonul schimbă sistemul vizual; conținutul tău rămâne intact."
+        title="Alege stilul invitației"
+        description="Alege direcția de design de la care vrei să pornești. Textele și secțiunile tale rămân neschimbate."
         size="lg"
       >
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1483,7 +1547,11 @@ export default function InvitationEditorPage() {
             >
               Renunță
             </Button>
-            <Button type="submit" loading={workflowBusy} disabled={workflowBusy}>
+            <Button
+              type="submit"
+              loading={workflowBusy}
+              disabled={workflowBusy}
+            >
               Creează varianta
             </Button>
           </div>
@@ -1532,6 +1600,110 @@ export default function InvitationEditorPage() {
   );
 }
 
+function EditorJourneyBar({
+  activeTab,
+  choosingStyle,
+  onChooseStyle,
+  onChooseOpening,
+  onEditSections,
+  onPersonalize,
+  onReview,
+}: {
+  activeTab: InspectorTab;
+  choosingStyle: boolean;
+  onChooseStyle: () => void;
+  onChooseOpening: () => void;
+  onEditSections: () => void;
+  onPersonalize: () => void;
+  onReview: () => void;
+}) {
+  const steps = [
+    {
+      label: "Alege stilul",
+      compactLabel: "Stil",
+      description: "Direcția vizuală",
+      active: choosingStyle,
+      onClick: onChooseStyle,
+    },
+    {
+      label: "Deschiderea",
+      compactLabel: "Deschidere",
+      description: "Plic, panouri sau direct",
+      active: activeTab === "experience",
+      onClick: onChooseOpening,
+    },
+    {
+      label: "Secțiunile",
+      compactLabel: "Secțiuni",
+      description: "Ordine și conținut",
+      active: activeTab === "content" && !choosingStyle,
+      onClick: onEditSections,
+    },
+    {
+      label: "Personalizează",
+      compactLabel: "Design",
+      description: "Culori și tipografie",
+      active: activeTab === "design" && !choosingStyle,
+      onClick: onPersonalize,
+    },
+    {
+      label: "Verifică",
+      compactLabel: "Publicare",
+      description: "Preview și publicare",
+      active: activeTab === "publish" && !choosingStyle,
+      onClick: onReview,
+    },
+  ];
+
+  return (
+    <nav
+      className="shrink-0 border-b border-line bg-subtle/55 px-2 py-2"
+      aria-label="Pașii recomandați pentru construirea invitației"
+    >
+      <div className="mx-auto grid max-w-3xl grid-cols-5 gap-1">
+        {steps.map((step, index) => (
+          <button
+            key={step.label}
+            type="button"
+            onClick={step.onClick}
+            aria-label={`${step.label}: ${step.description}`}
+            aria-current={step.active ? "step" : undefined}
+            className={cn(
+              "flex min-h-14 min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-1 text-center transition-colors 2xl:min-h-12 2xl:flex-row 2xl:gap-2 2xl:px-3 2xl:text-left",
+              step.active
+                ? "bg-surface text-brand-strong shadow-card"
+                : "text-muted hover:bg-surface/70 hover:text-ink",
+            )}
+          >
+            <span
+              className={cn(
+                "grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold 2xl:size-6 2xl:text-xs",
+                step.active
+                  ? "bg-brand text-on-brand"
+                  : "bg-surface text-faint",
+              )}
+              aria-hidden
+            >
+              {index + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block w-full truncate text-[9px] font-semibold leading-tight min-[360px]:text-[10px] sm:hidden">
+                {step.compactLabel}
+              </span>
+              <span className="hidden text-[11px] font-semibold leading-tight sm:block 2xl:text-xs">
+                {step.label}
+              </span>
+              <span className="mt-0.5 hidden text-[11px] leading-tight text-faint 2xl:block">
+                {step.description}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 function CreativeRail({
   tab,
   onTabChange,
@@ -1563,18 +1735,6 @@ function CreativeRail({
     <div className="flex h-full min-h-0 flex-col">
       <div className="grid grid-cols-2 border-b border-line p-2">
         <button
-          onClick={() => onTabChange("blocks")}
-          className={cn(
-            "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-semibold",
-            tab === "blocks"
-              ? "bg-brand text-on-brand"
-              : "text-muted hover:bg-subtle hover:text-ink",
-          )}
-        >
-          <Plus className="size-3.5" />
-          Adaugă
-        </button>
-        <button
           onClick={() => onTabChange("layers")}
           className={cn(
             "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-semibold",
@@ -1584,7 +1744,19 @@ function CreativeRail({
           )}
         >
           <LayoutPanelLeft className="size-3.5" />
-          Layere
+          Structură
+        </button>
+        <button
+          onClick={() => onTabChange("blocks")}
+          className={cn(
+            "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-semibold",
+            tab === "blocks"
+              ? "bg-brand text-on-brand"
+              : "text-muted hover:bg-subtle hover:text-ink",
+          )}
+        >
+          <Plus className="size-3.5" />
+          Adaugă secțiune
         </button>
       </div>
       {structuralLocked ? (
@@ -1595,10 +1767,10 @@ function CreativeRail({
       ) : null}
       {tab === "blocks" ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          <p className="text-xs font-semibold text-ink">Adaugă un bloc nou</p>
+          <p className="text-sm font-semibold text-ink">Adaugă o secțiune</p>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Fiecare card creează încă o secțiune. Pentru a selecta, ascunde sau
-            șterge secțiunile existente, deschide Layere.
+            Alege ce informație vrei să apară în invitație. Secțiunile existente
+            se organizează din Structură.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             {sectionCatalog.map((entry) => {
@@ -1834,19 +2006,9 @@ function Inspector({
   uploadingMedia,
   onUploadImage,
   onChooseTemplate,
+  onOpenWorkflow,
   onPublish,
-  variants,
-  activeVariantId,
-  versions,
-  syncPreview,
   preflight,
-  workflowBusy,
-  onSelectVariant,
-  onCreateVariant,
-  onArchiveVariant,
-  onRestoreVersion,
-  onRefreshSync,
-  onApplySync,
 }: {
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
@@ -1868,34 +2030,26 @@ function Inspector({
     apply: (mediaId: string, fileName: string) => void,
   ) => Promise<void>;
   onChooseTemplate: () => void;
+  onOpenWorkflow: () => void;
   onPublish: () => void;
-  variants: InvitationVariantResource[];
-  activeVariantId: string | null;
-  versions: InvitationVersionHistoryItemResource[];
-  syncPreview: InvitationSyncPreviewResource | null;
   preflight: InvitationPreflightResource | null;
-  workflowBusy: boolean;
-  onSelectVariant: (variantId: string | null) => void;
-  onCreateVariant: () => void;
-  onArchiveVariant: (variant: InvitationVariantResource) => void;
-  onRestoreVersion: (version: InvitationVersionHistoryItemResource) => void;
-  onRefreshSync: () => void;
-  onApplySync: (paths: InvitationSyncPath[]) => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="grid grid-cols-4 border-b border-line bg-surface px-2 pt-2">
         {(
           [
-            ["content", "Conținut"],
-            ["design", "Design"],
-            ["experience", "Intrare"],
-            ["publish", "Publicare"],
-          ] as Array<[InspectorTab, string]>
-        ).map(([value, label]) => (
+            ["content", "Secțiune", "Editează secțiunea selectată"],
+            ["design", "Stil", "Personalizează stilul vizual"],
+            ["experience", "Deschidere", "Alege cum se deschide invitația"],
+            ["publish", "Verificare", "Verifică și publică invitația"],
+          ] as Array<[InspectorTab, string, string]>
+        ).map(([value, label, ariaLabel]) => (
           <button
             key={value}
             onClick={() => onTabChange(value)}
+            aria-label={ariaLabel}
+            aria-current={tab === value ? "page" : undefined}
             className={cn(
               "min-h-11 cursor-pointer border-b-2 px-2 py-2 text-xs font-semibold transition-colors",
               tab === value
@@ -1906,6 +2060,17 @@ function Inspector({
             {label}
           </button>
         ))}
+      </div>
+      <div className="border-b border-line px-3 py-2 sm:hidden">
+        <Button
+          className="w-full"
+          variant="ghost"
+          size="sm"
+          onClick={onOpenWorkflow}
+        >
+          <SlidersHorizontal className="size-4" aria-hidden />
+          Date, grupuri și versiuni
+        </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "content" && selected && (
@@ -1936,25 +2101,11 @@ function Inspector({
           />
         )}
         {tab === "publish" && (
-          <>
-            <EditorWorkflowPanel
-              variants={variants}
-              activeVariantId={activeVariantId}
-              versions={versions}
-              syncPreview={syncPreview}
-              busy={workflowBusy}
-              onSelectVariant={onSelectVariant}
-              onCreateVariant={onCreateVariant}
-              onArchiveVariant={onArchiveVariant}
-              onRestoreVersion={onRestoreVersion}
-              onRefreshSync={onRefreshSync}
-              onApplySync={onApplySync}
-            />
-            <div className="space-y-6 border-t border-line p-4">
+          <div className="space-y-6 p-4">
             <div>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-ink">
-                  Pregătire pentru publicare
+                  Verifică înainte de publicare
                 </p>
                 <span className="text-xs font-semibold text-brand">
                   {readiness.completed}/{readiness.total}
@@ -2004,8 +2155,8 @@ function Inspector({
                     : `${preflight.errors.length} blocaje de publicare`}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-muted">
-                  {preflight.assignedRecipients} destinatari · {preflight.activeVariants}{" "}
-                  variante active
+                  {preflight.assignedRecipients} destinatari ·{" "}
+                  {preflight.activeVariants} variante active
                 </p>
                 {preflight.errors.length ? (
                   <ul className="mt-2 space-y-1 text-xs text-danger">
@@ -2039,8 +2190,7 @@ function Inspector({
             >
               Verifică și publică
             </Button>
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -2993,11 +3143,13 @@ function SectionBackgroundControls({
             fileName={text(section.content.backgroundFileName)}
             uploading={uploading}
             onFile={(file) =>
-              void onUploadImage(file, (backgroundMediaId, backgroundFileName) =>
-                onUpdateContentMany({
-                  backgroundMediaId,
-                  backgroundFileName,
-                }),
+              void onUploadImage(
+                file,
+                (backgroundMediaId, backgroundFileName) =>
+                  onUpdateContentMany({
+                    backgroundMediaId,
+                    backgroundFileName,
+                  }),
               )
             }
             onRemove={() =>
@@ -3256,7 +3408,7 @@ function DesignInspector({
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-ink">Sistem vizual</p>
+            <p className="text-sm font-semibold text-ink">Stilul invitației</p>
             <p className="mt-0.5 text-xs text-muted">
               {
                 invitationTemplates.find((item) => item.id === design.template)
@@ -3265,14 +3417,14 @@ function DesignInspector({
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={onChooseTemplate}>
-            Pornește din stil
+            Alege alt stil
           </Button>
         </div>
       </div>
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-ink">Paleta ta</p>
+            <p className="text-sm font-semibold text-ink">Paleta invitației</p>
             <p className="mt-0.5 text-xs text-muted">
               Adaugă orice culoare. Click pe ea ca s-o aplici ca accent.
             </p>
@@ -3368,7 +3520,7 @@ function DesignInspector({
           <option value="sans">Inter — modern</option>
         </Select>
       </Field>
-      <Field label="Ritm vertical">
+      <Field label="Spațiere între secțiuni">
         <Select
           value={design.spacing}
           onChange={(event) =>
@@ -3415,8 +3567,8 @@ function DesignInspector({
         <div className="flex gap-2">
           <Palette className="mt-0.5 size-4 shrink-0 text-accent" />
           <p className="text-xs leading-relaxed text-muted">
-            Nu ești blocat în șablon: fiecare culoare poate fi scrisă în HEX,
-            aleasă liber din picker sau înlocuită pe o singură secțiune.
+            Stilul ales este doar punctul de pornire. Poți schimba liber
+            culorile generale sau fundalul unei singure secțiuni.
           </p>
         </div>
       </div>
@@ -3453,79 +3605,79 @@ function InvitationCanvas({
         </div>
       }
       renderSectionFrame={({ section, children }) => (
-          <div
-            onClick={() => onSelect(section.id)}
-            onKeyDown={(event) => {
-              if (event.target !== event.currentTarget) return;
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelect(section.id);
-              }
-            }}
-            className={cn(
-              "group relative block w-full cursor-pointer text-left outline-none transition-shadow focus-visible:z-10",
-              selectedId === section.id &&
-                "z-10 shadow-[inset_0_0_0_2px_var(--brand)]",
-            )}
-            role="group"
-            aria-label={`Editează secțiunea ${section.label}`}
-            tabIndex={0}
-          >
-            {selectedId === section.id && (
-              <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-ink px-1.5 py-1 font-sans text-white shadow-overlay">
-                <span className="px-2 text-[10px] font-semibold">
-                  {section.label}
-                </span>
-                <span className="h-4 w-px bg-white/20" />
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onUpdateSection(section.id, {
-                      style: { ...section.style, align: "left" },
-                    });
-                  }}
-                  className={cn(
-                    "grid size-14 place-items-center rounded-md",
-                    section.style.align === "left" && "bg-white/15",
-                  )}
-                  aria-label="Aliniază la stânga"
-                >
-                  <AlignLeft className="size-3.5" />
-                </button>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onUpdateSection(section.id, {
-                      style: { ...section.style, align: "center" },
-                    });
-                  }}
-                  className={cn(
-                    "grid size-14 place-items-center rounded-md",
-                    section.style.align === "center" && "bg-white/15",
-                  )}
-                  aria-label="Aliniază la centru"
-                >
-                  <AlignCenter className="size-3.5" />
-                </button>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onUpdateSection(section.id, {
-                      style: { ...section.style, align: "right" },
-                    });
-                  }}
-                  className={cn(
-                    "grid size-14 place-items-center rounded-md",
-                    section.style.align === "right" && "bg-white/15",
-                  )}
-                  aria-label="Aliniază la dreapta"
-                >
-                  <AlignRight className="size-3.5" />
-                </button>
-              </div>
-            )}
-            {children}
-          </div>
+        <div
+          onClick={() => onSelect(section.id)}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onSelect(section.id);
+            }
+          }}
+          className={cn(
+            "group relative block w-full cursor-pointer text-left outline-none transition-shadow focus-visible:z-10",
+            selectedId === section.id &&
+              "z-10 shadow-[inset_0_0_0_2px_var(--brand)]",
+          )}
+          role="group"
+          aria-label={`Editează secțiunea ${section.label}`}
+          tabIndex={0}
+        >
+          {selectedId === section.id && (
+            <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-ink px-1.5 py-1 font-sans text-white shadow-overlay">
+              <span className="px-2 text-[10px] font-semibold">
+                {section.label}
+              </span>
+              <span className="h-4 w-px bg-white/20" />
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUpdateSection(section.id, {
+                    style: { ...section.style, align: "left" },
+                  });
+                }}
+                className={cn(
+                  "grid size-14 place-items-center rounded-md",
+                  section.style.align === "left" && "bg-white/15",
+                )}
+                aria-label="Aliniază la stânga"
+              >
+                <AlignLeft className="size-3.5" />
+              </button>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUpdateSection(section.id, {
+                    style: { ...section.style, align: "center" },
+                  });
+                }}
+                className={cn(
+                  "grid size-14 place-items-center rounded-md",
+                  section.style.align === "center" && "bg-white/15",
+                )}
+                aria-label="Aliniază la centru"
+              >
+                <AlignCenter className="size-3.5" />
+              </button>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUpdateSection(section.id, {
+                    style: { ...section.style, align: "right" },
+                  });
+                }}
+                className={cn(
+                  "grid size-14 place-items-center rounded-md",
+                  section.style.align === "right" && "bg-white/15",
+                )}
+                aria-label="Aliniază la dreapta"
+              >
+                <AlignRight className="size-3.5" />
+              </button>
+            </div>
+          )}
+          {children}
+        </div>
       )}
     />
   );
