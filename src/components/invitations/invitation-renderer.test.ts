@@ -126,6 +126,49 @@ describe("InvitationRenderer", () => {
     expect(markup).toContain("background-color:#F06449;color:#19151D");
   });
 
+  it("repairs unreadable custom section and gradient color combinations", () => {
+    const custom = createDefaultSection("custom", "custom-contrast");
+    custom.style.tone = "custom";
+    custom.style.backgroundColor = "#FFFFFF";
+    custom.style.textColor = "#FFFFFF";
+    const gradient = createDefaultSection("story", "gradient-contrast");
+    gradient.style.backgroundMode = "gradient";
+    gradient.style.gradientFrom = "#F7F7F3";
+    gradient.style.gradientTo = "#FFFFFF";
+    gradient.style.textColor = "#FFFFFF";
+    const snapshot: InvitationEditorSnapshot = {
+      design: {
+        ...invitationTemplates[0].design,
+        accent: "#F4F0E8",
+      },
+      experience: {
+        enabled: false,
+        style: "split_panels",
+        replay: "first_visit",
+        panelColor: "#3B183F",
+        backgroundColor: "#F7F7F3",
+        accentColor: "#F06449",
+        texture: "paper",
+        monogram: null,
+        frontMessage: null,
+        coverMediaId: null,
+        coverImageUrl: null,
+        durationMs: 1400,
+      },
+      sections: [custom, gradient],
+    };
+
+    const markup = renderToStaticMarkup(
+      React.createElement(InvitationRenderer, {
+        snapshot,
+        resolveMedia: () => "",
+      }),
+    );
+
+    expect(markup).toContain("background-color:#FFFFFF;color:#19151D");
+    expect(markup).toContain("color:#19151D");
+  });
+
   it("calculates countdown values from an explicit instant", () => {
     expect(
       countdownValuesAt(

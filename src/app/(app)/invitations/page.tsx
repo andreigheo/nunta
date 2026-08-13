@@ -658,9 +658,10 @@ export default function InvitationsPage() {
               <div>
                 <CardTitle>Centru de distribuție</CardTitle>
                 <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
-                  Alege varianta fiecărui destinatar, previzualizează fără tracking și
-                  distribuie manual prin link, WhatsApp sau QR. Nicio acțiune de aici
-                  nu declară mesajul trimis automat.
+                  Alege varianta fiecărui destinatar, previzualizează fără să
+                  înregistrezi deschiderea și distribuie manual prin link,
+                  WhatsApp sau QR. Nicio acțiune de aici nu declară mesajul
+                  trimis automat.
                 </p>
               </div>
               <Badge variant="brand">{recipients.length} destinatari</Badge>
@@ -848,19 +849,53 @@ export default function InvitationsPage() {
         title="Campanie e-mail"
       >
         <form className="space-y-4" onSubmit={createCampaign}>
-          <Field label="Nume" required>
-            <Input name="name" required />
+          <Field
+            label="Nume intern"
+            hint="Îl vezi numai tu în lista campaniilor."
+            required
+          >
+            <Input
+              name="name"
+              required
+              maxLength={180}
+              placeholder="Invitația principală"
+            />
           </Field>
-          <Field label="Subiect" required>
-            <Input name="subject" required />
+          <Field
+            label="Subiectul e-mailului"
+            hint="Spune clar cine invită; evită formulările generice."
+            required
+          >
+            <Input
+              name="subject"
+              required
+              maxLength={240}
+              placeholder="Andrei & Andreea vă invită"
+            />
           </Field>
-          <Field label="Mesaj" required>
-            <Textarea name="body" required />
+          <Field
+            label="Mesajul din e-mail"
+            hint="Apare înaintea butonului care deschide invitația personală."
+            required
+          >
+            <Textarea
+              name="body"
+              required
+              maxLength={10000}
+              placeholder="Ne-ar bucura să fiți alături de noi. Deschideți invitația pentru toate detaliile și confirmare."
+            />
           </Field>
-          <p className="text-xs text-faint">
-            Destinatarii sunt fixați la trimitere; retry-ul nu retrimite persoanelor
-            deja livrate.
-          </p>
+          <div className="rounded-xl border border-line bg-subtle/60 p-3">
+            <p className="text-xs font-semibold text-ink">
+              Ce primește invitatul
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              E-mailul include identitatea vizuală aleasă, un plic ilustrat și
+              butonul către linkul personal. Destinatarii sunt fixați numai
+              când confirmi trimiterea; o reîncercare nu retrimite mesajele
+              deja livrate.
+            </p>
+          </div>
           <div className="flex justify-end gap-2">
             <Button
               type="button"

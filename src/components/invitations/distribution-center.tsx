@@ -116,7 +116,7 @@ export function DistributionCenter({
             const rowBusy = busyAction.startsWith(busyPrefix);
             return (
               <li key={recipient.id} className="p-4 lg:p-5">
-                <div className="grid gap-4 xl:grid-cols-[minmax(13rem,1.05fr)_minmax(12rem,.8fr)_minmax(17rem,1fr)_auto] xl:items-center">
+                <div className="grid gap-4 xl:grid-cols-[minmax(13rem,1fr)_minmax(12rem,.8fr)_minmax(17rem,1.15fr)] xl:items-center">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-softer text-brand-strong">
@@ -182,7 +182,7 @@ export function DistributionCenter({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 sm:flex xl:justify-end">
+                  <div className="grid grid-cols-2 gap-2 sm:flex xl:col-span-3 xl:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
@@ -200,7 +200,7 @@ export function DistributionCenter({
                       onClick={() => onPreview(recipient)}
                     >
                       <Eye className="size-3.5" aria-hidden />
-                      Previz.
+                      Previzualizează
                     </Button>
                     <Button
                       variant="outline"

@@ -121,7 +121,7 @@ export function EditorWorkflowPanel({
               <p className="truncate text-xs font-semibold text-brand-strong">
                 Editezi: {activeVariant.name}
               </p>
-              <p className="mt-0.5 text-[11px] text-muted">
+              <p className="mt-0.5 text-xs text-muted">
                 {activeVariant.assignedRecipients
                   ? `Mută cei ${activeVariant.assignedRecipients} destinatari înainte de arhivare.`
                   : "Baza continuă să se actualizeze; aici se păstrează doar suprascrierile."}
@@ -212,10 +212,10 @@ export function EditorWorkflowPanel({
                       <span className="block text-xs font-semibold text-ink">
                         {pathLabels[difference.path]}
                       </span>
-                      <span className="mt-0.5 block text-[11px] text-muted">
+                      <span className="mt-0.5 block text-xs text-muted">
                         {sourceLabels[difference.source] ?? difference.source}
                       </span>
-                      <span className="mt-2 grid gap-1 text-[11px] sm:grid-cols-2">
+                      <span className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
                         <span className="whitespace-normal break-words rounded-md bg-surface px-2 py-1.5 leading-relaxed text-faint">
                           Acum: {compactValue(difference.currentValue)}
                         </span>
@@ -272,7 +272,7 @@ export function EditorWorkflowPanel({
                     <Badge variant="success">Publicată</Badge>
                   ) : null}
                 </p>
-                <p className="mt-0.5 text-[11px] text-faint">
+                <p className="mt-0.5 text-xs text-faint">
                   {new Date(version.createdAt).toLocaleString("ro-RO", {
                     day: "2-digit",
                     month: "short",

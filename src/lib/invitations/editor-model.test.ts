@@ -4,13 +4,32 @@ import {
   createAdvancedSection,
   createDefaultSection,
   createInitialSnapshot,
+  isInvitationHexColor,
+  invitationTemplates,
   invitationVariantOverrides,
   invitationReadiness,
+  nextInvitationPaletteColor,
+  removeInvitationPaletteColor,
   serializeSnapshot,
   snapshotFromPersisted,
 } from "./editor-model";
 
 describe("invitation editor model", () => {
+  it("keeps new palette colors distinct and the active accent represented", () => {
+    const snapshot = createInitialSnapshot();
+    const nextColor = nextInvitationPaletteColor(snapshot.design.palette);
+
+    expect(
+      snapshot.design.palette.map((color) => color.toLowerCase()),
+    ).not.toContain(nextColor.toLowerCase());
+
+    const updated = removeInvitationPaletteColor(snapshot.design, 0);
+    expect(updated.palette).not.toContain(snapshot.design.palette[0]);
+    expect(updated.palette).toContain(updated.accent);
+    expect(isInvitationHexColor(updated.accent)).toBe(true);
+    expect(isInvitationHexColor("#fff")).toBe(false);
+  });
+
   it("serializes rich section content and design without losing editor state", () => {
     const snapshot = createInitialSnapshot();
     const hero = snapshot.sections[0];
@@ -72,12 +91,41 @@ describe("invitation editor model", () => {
     expect(restored.sections.at(-1)?.content.items).toEqual(gallery.content.items);
   });
 
+  it("repairs malformed persisted colors and layout values without breaking the editor", () => {
+    const snapshot = createInitialSnapshot();
+    const serialized = serializeSnapshot(snapshot);
+    const restored = snapshotFromPersisted(serialized.document.sections, {
+      ...serialized.settings,
+      colors: {
+        ...serialized.settings.colors,
+        accent: "not-a-color",
+      },
+      editorStyle: {
+        ...serialized.settings.editorStyle,
+        palette: ["bad", "#abcdef", "#ABCDEF", "#123456"],
+        radius: "broken",
+        buttonStyle: "broken",
+      },
+    });
+
+    expect(restored.design.accent).toBe(invitationTemplates[0].design.accent);
+    expect(restored.design.palette).toEqual(["#ABCDEF", "#123456"]);
+    expect(restored.design.radius).toBe(invitationTemplates[0].design.radius);
+    expect(restored.design.buttonStyle).toBe(
+      invitationTemplates[0].design.buttonStyle,
+    );
+  });
+
   it("reports the invitation readiness from real visible content", () => {
     const snapshot = createInitialSnapshot();
-    expect(invitationReadiness(snapshot)).toMatchObject({
+    const initialReadiness = invitationReadiness(snapshot);
+    expect(initialReadiness).toMatchObject({
       completed: 5,
       total: 6,
     });
+    expect(
+      initialReadiness.checks.find((check) => !check.done)?.sectionId,
+    ).toBeTruthy();
 
     const hero = snapshot.sections.find((section) => section.type === "hero")!;
     hero.content.names = "Andrei & Andreea";

@@ -15,12 +15,16 @@ export function PublishedInvitation({
   onRsvp?: () => void;
 }) {
   const document = record(invitation.document);
+  const publishedSections = Array.isArray(document.sections)
+    ? (document.sections as NonNullable<
+        Parameters<typeof snapshotFromPersisted>[0]
+      >)
+    : [];
   const snapshot = snapshotFromPersisted(
-    Array.isArray(document.sections)
-      ? (document.sections as Parameters<typeof snapshotFromPersisted>[0])
-      : undefined,
+    publishedSections,
     record(invitation.settings) as Parameters<typeof snapshotFromPersisted>[1],
   );
+  if (!publishedSections.length) snapshot.sections = [];
 
   return (
     <InvitationRenderer

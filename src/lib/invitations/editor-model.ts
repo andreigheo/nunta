@@ -124,7 +124,7 @@ export const sectionCatalog: Array<{
   { type: "schedule", label: "Program", description: "Momentele zilei, în ordine" },
   { type: "locations", label: "Locații", description: "Adrese și linkuri către hartă" },
   { type: "rsvp", label: "Confirmare RSVP", description: "Îndemn și termen de confirmare" },
-  { type: "dress_code", label: "Dress code", description: "Stil, explicații și paletă" },
+  { type: "dress_code", label: "Ținută recomandată", description: "Stil, explicații și paletă de culori" },
   { type: "gallery", label: "Galerie", description: "Fotografii și momente cu poveste" },
   { type: "transport", label: "Transport", description: "Plecări, traseu și indicații" },
   { type: "accommodation", label: "Cazare", description: "Recomandări pentru invitați" },
@@ -146,8 +146,8 @@ export const advancedBlockCatalog: Array<{
   },
   {
     blockKind: "artwork",
-    label: "Art card",
-    description: "O lucrare vizuală proprie, afișată fără compromisuri",
+    label: "Imagine artistică",
+    description: "O imagine principală proprie, afișată la impact maxim",
   },
   {
     blockKind: "video",
@@ -289,6 +289,51 @@ export const invitationTemplates: Array<{
     },
   },
 ];
+
+const invitationPaletteSuggestions = [
+  "#8A5A83",
+  "#C66B5D",
+  "#315C52",
+  "#D49A57",
+  "#596A9A",
+  "#A15C74",
+  "#6D655B",
+  "#D8C9B8",
+  "#28483E",
+  "#E7B9A8",
+  "#54405D",
+  "#F2E7DA",
+] as const;
+
+export function isInvitationHexColor(value: string) {
+  return /^#[0-9a-f]{6}$/i.test(value.trim());
+}
+
+export function nextInvitationPaletteColor(colors: string[]) {
+  const existing = new Set(colors.map((color) => color.toLowerCase()));
+  return (
+    invitationPaletteSuggestions.find(
+      (color) => !existing.has(color.toLowerCase()),
+    ) ?? "#8A5A83"
+  );
+}
+
+export function removeInvitationPaletteColor(
+  design: InvitationDesign,
+  index: number,
+): Pick<InvitationDesign, "accent" | "palette"> {
+  const palette = design.palette.filter(
+    (_, colorIndex) => colorIndex !== index,
+  );
+  const removed = design.palette[index];
+  return {
+    palette,
+    accent:
+      removed?.toLowerCase() === design.accent.toLowerCase()
+        ? (palette[0] ?? design.accent)
+        : design.accent,
+  };
+}
 
 export function createDefaultSection(
   type: InvitationSectionType,
@@ -519,6 +564,18 @@ export function snapshotFromPersisted(
     settings && typeof settings.editorStyle === "object" && settings.editorStyle
       ? (settings.editorStyle as Partial<InvitationDesign>)
       : {};
+  const storedPalette = Array.isArray(storedStyle.palette)
+    ? Array.from(
+        new Set(
+          storedStyle.palette
+            .filter(
+              (color): color is string =>
+                typeof color === "string" && isInvitationHexColor(color),
+            )
+            .map((color) => color.toUpperCase()),
+        ),
+      ).slice(0, 12)
+    : [];
   const design: InvitationDesign = {
     ...template.design,
     ...storedStyle,
@@ -530,11 +587,33 @@ export function snapshotFromPersisted(
     headingFont:
       settings?.typography?.heading === "sans" || storedStyle.headingFont === "sans"
         ? "sans"
-        : "display",
+        : settings?.typography?.heading === "display" ||
+            storedStyle.headingFont === "display"
+          ? "display"
+          : template.design.headingFont,
+    palette:
+      storedPalette.length >= 2
+        ? storedPalette
+        : [...template.design.palette],
     spacing:
       settings?.spacing === "compact" || settings?.spacing === "airy"
         ? settings.spacing
-        : "comfortable",
+        : settings?.spacing === "comfortable"
+          ? "comfortable"
+          : template.design.spacing,
+    radius:
+      storedStyle.radius === "none" || storedStyle.radius === "round"
+        ? storedStyle.radius
+        : storedStyle.radius === "soft"
+          ? "soft"
+          : template.design.radius,
+    buttonStyle:
+      storedStyle.buttonStyle === "outline" ||
+      storedStyle.buttonStyle === "pill"
+        ? storedStyle.buttonStyle
+        : storedStyle.buttonStyle === "solid"
+          ? "solid"
+          : template.design.buttonStyle,
   };
   const experience = invitationExperienceFromSettings(settings?.experience);
   return {
@@ -582,6 +661,34 @@ export function snapshotFromPersisted(
           )
             ? (storedSectionStyle.backgroundMode as InvitationSection["style"]["backgroundMode"])
             : "solid",
+          backgroundColor: safeColor(
+            storedSectionStyle.backgroundColor,
+            base.style.backgroundColor,
+          ),
+          textColor: safeColor(
+            storedSectionStyle.textColor,
+            base.style.textColor,
+          ),
+          gradientFrom: safeColor(
+            storedSectionStyle.gradientFrom,
+            base.style.gradientFrom,
+          ),
+          gradientTo: safeColor(
+            storedSectionStyle.gradientTo,
+            base.style.gradientTo,
+          ),
+          gradientAngle: safeNumber(
+            storedSectionStyle.gradientAngle,
+            0,
+            360,
+            base.style.gradientAngle,
+          ),
+          padding: safeNumber(
+            storedSectionStyle.padding,
+            24,
+            120,
+            base.style.padding,
+          ),
         },
       };
     }),
@@ -706,17 +813,41 @@ export function invitationReadiness(snapshot: InvitationEditorSnapshot) {
   const rsvp = visible.find((section) => section.type === "rsvp");
   const schedule = visible.find((section) => section.type === "schedule");
   const locations = visible.find((section) => section.type === "locations");
+  const starterSection = visible.find((section) =>
+    invitationContainsStarterContent({ sections: [section.content] }),
+  );
   const checks = [
-    { label: "Numele cuplului", done: Boolean(text(hero?.content.names)) },
-    { label: "Data evenimentului", done: Boolean(text(hero?.content.date)) },
-    { label: "Programul zilei", done: array(schedule?.content.items).length > 0 },
-    { label: "Cel puțin o locație", done: array(locations?.content.items).length > 0 },
-    { label: "Confirmare RSVP", done: Boolean(rsvp && text(rsvp.content.deadline)) },
+    {
+      label: "Numele cuplului",
+      done: Boolean(text(hero?.content.names)),
+      sectionId: hero?.id,
+    },
+    {
+      label: "Data evenimentului",
+      done: Boolean(text(hero?.content.date)),
+      sectionId: hero?.id,
+    },
+    {
+      label: "Programul zilei",
+      done: array(schedule?.content.items).length > 0,
+      sectionId: schedule?.id,
+    },
+    {
+      label: "Cel puțin o locație",
+      done: array(locations?.content.items).length > 0,
+      sectionId: locations?.id,
+    },
+    {
+      label: "Confirmare RSVP",
+      done: Boolean(rsvp && text(rsvp.content.deadline)),
+      sectionId: rsvp?.id,
+    },
     {
       label: "Exemplele demonstrative au fost înlocuite",
       done: !invitationContainsStarterContent({
         sections: visible.map((section) => section.content),
       }),
+      sectionId: starterSection?.id,
     },
   ];
   return {
@@ -746,6 +877,17 @@ function isSectionType(value: string): value is InvitationSectionType {
 
 function safeColor(value: unknown, fallback: string) {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
+function safeNumber(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  fallback: number,
+) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(maximum, Math.max(minimum, value))
+    : fallback;
 }
 
 function invitationExperienceFromSettings(

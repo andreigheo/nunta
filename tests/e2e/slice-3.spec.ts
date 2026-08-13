@@ -6,6 +6,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { createHmac } from "node:crypto";
+import axe from "axe-core";
 import { PrismaClient } from "@weddingos/database";
 
 const apiUrl = "http://127.0.0.1:4117";
@@ -108,6 +109,46 @@ async function captureInvitationV2(
     }
   }
   if (originalViewport) await page.setViewportSize(originalViewport);
+}
+
+async function expectNoSeriousA11yViolations(page: Page, selector: string) {
+  await page.addScriptTag({ content: axe.source });
+  const violations = await page.evaluate(async (scope) => {
+    const axeRuntime = (
+      window as Window & {
+        axe: {
+          run: (
+            context: string,
+            options: Record<string, unknown>,
+          ) => Promise<{
+            violations: Array<{
+              id: string;
+              impact: string | null;
+              help: string;
+              nodes: Array<{ target: string[] }>;
+            }>;
+          }>;
+        };
+      }
+    ).axe;
+    const result = await axeRuntime.run(scope, {
+      runOnly: {
+        type: "tag",
+        values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+      },
+    });
+    return result.violations
+      .filter(
+        (violation) =>
+          violation.impact === "critical" || violation.impact === "serious",
+      )
+      .map((violation) => ({
+        id: violation.id,
+        help: violation.help,
+        targets: violation.nodes.map((node) => node.target.join(" ")),
+      }));
+  }, selector);
+  expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
 }
 
 async function enterPublishedInvitation(page: Page) {
@@ -291,6 +332,30 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
   await page.goto("/invitations/editor");
   await page.getByRole("button", { name: "Deschidere" }).click();
   await page.getByRole("button", { name: /^Plic animat/ }).click();
+  await page.getByRole("button", { name: /^Personalizează:/ }).click();
+  await expect(page.getByText("Paleta invitației")).toBeVisible();
+  const initialPaletteSize = await page
+    .getByLabel(/^Modifică culoarea \d+$/)
+    .count();
+  await page
+    .getByRole("button", { name: "Adaugă o culoare în paletă" })
+    .click();
+  await expect(page.getByLabel(/^Modifică culoarea \d+$/)).toHaveCount(
+    initialPaletteSize + 1,
+  );
+  const addedAccent = page.getByRole("button", {
+    name: "Aplică #8A5A83 drept accent principal",
+  });
+  await addedAccent.click();
+  await expect(addedAccent).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("button", { name: `Șterge culoarea ${initialPaletteSize + 1}` })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Aplică #F06449 drept accent principal",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Salvează" }).click();
   await expect(page.getByText("Ciornă salvată")).toBeVisible();
   await replaceInvitationStarterContent();
@@ -390,6 +455,7 @@ test("E2E 6 — Guest opens invitation", async ({ page }) => {
   await expect(
     page.getByRole("dialog", { name: "O invitație pentru voi" }),
   ).toHaveAttribute("data-reveal-style", "envelope");
+  await expectNoSeriousA11yViolations(page, '[role="dialog"]');
   const nocturneArtwork = await page.request.get(
     "/invitation-art/nocturne-glass.webp",
   );
@@ -426,6 +492,10 @@ test("E2E 6 — Guest opens invitation", async ({ page }) => {
     page.getByText("Confirmarea familiei", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Bine ai venit, Familia Pop E2E")).toBeVisible();
+  await expectNoSeriousA11yViolations(
+    page,
+    '[data-invitation-renderer="true"]',
+  );
   await captureInvitationV2(page, "guest-open");
   await expect(page.getByText("Ana Pop", { exact: true })).toBeVisible();
   await expect(page.getByText("Mara Pop", { exact: true })).toBeVisible();
@@ -504,8 +574,8 @@ test("E2E 8 — Plus-one", async ({ page }) => {
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
   await enterPublishedInvitation(page);
   await page.getByRole("checkbox", { name: "Vin cu un însoțitor" }).click();
-  await page.getByLabel("Prenume plus-one", { exact: true }).fill("Alex");
-  await page.getByLabel("Nume plus-one", { exact: true }).fill("Ionescu");
+  await page.getByLabel("Prenumele însoțitorului", { exact: true }).fill("Alex");
+  await page.getByLabel("Numele însoțitorului", { exact: true }).fill("Ionescu");
   await page.getByRole("button", { name: "Salvează RSVP" }).click();
   await expect(page.getByText("Răspuns salvat")).toBeVisible();
   await expect

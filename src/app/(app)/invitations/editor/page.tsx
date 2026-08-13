@@ -65,6 +65,9 @@ import {
   invitationReadiness,
   invitationVariantOverrides,
   invitationTemplates,
+  isInvitationHexColor,
+  nextInvitationPaletteColor,
+  removeInvitationPaletteColor,
   sectionCatalog,
   serializeSnapshot,
   snapshotFromPersisted,
@@ -895,6 +898,7 @@ export default function InvitationEditorPage() {
       setPublishOpen(true);
       return;
     }
+    if (window.innerWidth < 1024) setInspectorOpen(true);
     toast({
       title: "Mai sunt detalii de verificat",
       description:
@@ -911,6 +915,16 @@ export default function InvitationEditorPage() {
   const showInvitationStructure = () => {
     setLeftPanelTab("layers");
     if (window.innerWidth < 768) setSectionsOpen(true);
+  };
+
+  const resolveReadinessCheck = (sectionId?: string) => {
+    if (sectionId) {
+      setSelectedId(sectionId);
+      setInspectorTab("content");
+      return;
+    }
+    setInspectorOpen(false);
+    setAddOpen(true);
   };
 
   const widths: Record<Device, string> = {
@@ -978,7 +992,7 @@ export default function InvitationEditorPage() {
               </Badge>
             )}
           </div>
-          <p className="hidden text-[11px] text-faint md:block">
+          <p className="hidden text-xs text-faint md:block">
             {activeVariant
               ? `Personalizare pentru: ${activeVariant.name}`
               : saving
@@ -1042,7 +1056,7 @@ export default function InvitationEditorPage() {
             onClick={() => setWorkflowOpen(true)}
           >
             <SlidersHorizontal className="size-3.5" aria-hidden />
-            Date și versiuni
+            Sincronizare și versiuni
           </Button>
           <Button
             className="lg:hidden"
@@ -1103,7 +1117,7 @@ export default function InvitationEditorPage() {
             <div className="hidden items-center gap-2 sm:flex">
               <span className="size-2 rounded-full bg-success" aria-hidden />
               <span className="text-xs text-muted">
-                Canvas live · dublu click pentru text
+                Previzualizare live · dublu clic pentru text
               </span>
             </div>
             <SegmentedControl
@@ -1133,8 +1147,8 @@ export default function InvitationEditorPage() {
               ]}
             />
             <div className="flex items-center gap-1">
-              <span className="hidden text-[11px] font-medium text-muted sm:inline">
-                Viewport real
+              <span className="hidden text-xs font-medium text-muted sm:inline">
+                Lățime reală
               </span>
               <Button
                 variant="ghost"
@@ -1162,7 +1176,7 @@ export default function InvitationEditorPage() {
                 widths[device],
               )}
             >
-              <div className="mb-2 flex items-center justify-between px-1 text-[11px] text-faint">
+              <div className="mb-2 flex items-center justify-between px-1 text-xs text-faint">
                 <span>
                   {device === "desktop"
                     ? "1440 px"
@@ -1234,6 +1248,7 @@ export default function InvitationEditorPage() {
             onUploadImage={uploadInvitationImage}
             onChooseTemplate={() => setTemplateOpen(true)}
             onOpenWorkflow={() => setWorkflowOpen(true)}
+            onResolveCheck={resolveReadinessCheck}
             onPublish={requestPublish}
             preflight={preflight}
           />
@@ -1300,6 +1315,7 @@ export default function InvitationEditorPage() {
             setInspectorOpen(false);
             setWorkflowOpen(true);
           }}
+          onResolveCheck={resolveReadinessCheck}
           onPublish={requestPublish}
           preflight={preflight}
         />
@@ -1330,8 +1346,8 @@ export default function InvitationEditorPage() {
       <Modal
         open={workflowOpen}
         onClose={() => setWorkflowOpen(false)}
-        title="Date, grupuri și versiuni"
-        description="Instrumente avansate pentru actualizarea datelor, personalizări pe grupuri și revenirea la o versiune anterioară."
+        title="Sincronizare, grupuri și versiuni"
+        description="Actualizează datele din eveniment, creează personalizări pentru grupuri și revino la o versiune anterioară."
         size="lg"
       >
         <EditorWorkflowPanel
@@ -1649,7 +1665,7 @@ function EditorJourneyBar({
     {
       label: "Verifică",
       compactLabel: "Publicare",
-      description: "Preview și publicare",
+      description: "Previzualizare și publicare",
       active: activeTab === "publish" && !choosingStyle,
       onClick: onReview,
     },
@@ -1687,13 +1703,13 @@ function EditorJourneyBar({
               {index + 1}
             </span>
             <span className="min-w-0">
-              <span className="block w-full truncate text-[9px] font-semibold leading-tight min-[360px]:text-[10px] sm:hidden">
+              <span className="block w-full truncate text-[10px] font-semibold leading-tight min-[360px]:text-[11px] sm:hidden">
                 {step.compactLabel}
               </span>
-              <span className="hidden text-[11px] font-semibold leading-tight sm:block 2xl:text-xs">
+              <span className="hidden text-xs font-semibold leading-tight sm:block">
                 {step.label}
               </span>
-              <span className="mt-0.5 hidden text-[11px] leading-tight text-faint 2xl:block">
+              <span className="mt-0.5 hidden text-xs leading-tight text-faint 2xl:block">
                 {step.description}
               </span>
             </span>
@@ -1863,7 +1879,7 @@ function SectionsPanel({
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-line px-4 py-3">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-faint">
+          <p className="text-xs font-semibold uppercase tracking-[.14em] text-faint">
             Structură
           </p>
           <Badge variant="neutral">{snapshot.sections.length}</Badge>
@@ -1909,7 +1925,7 @@ function SectionsPanel({
                   </span>
                   <span
                     className={cn(
-                      "truncate text-[13px] font-medium",
+                      "truncate text-sm font-medium",
                       section.visible ? "text-ink" : "text-faint line-through",
                     )}
                   >
@@ -2007,6 +2023,7 @@ function Inspector({
   onUploadImage,
   onChooseTemplate,
   onOpenWorkflow,
+  onResolveCheck,
   onPublish,
   preflight,
 }: {
@@ -2031,6 +2048,7 @@ function Inspector({
   ) => Promise<void>;
   onChooseTemplate: () => void;
   onOpenWorkflow: () => void;
+  onResolveCheck: (sectionId?: string) => void;
   onPublish: () => void;
   preflight: InvitationPreflightResource | null;
 }) {
@@ -2069,7 +2087,7 @@ function Inspector({
           onClick={onOpenWorkflow}
         >
           <SlidersHorizontal className="size-4" aria-hidden />
-          Date, grupuri și versiuni
+          Sincronizare și versiuni
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -2119,23 +2137,29 @@ function Inspector({
               />
               <ul className="mt-4 space-y-2.5">
                 {readiness.checks.map((check) => (
-                  <li
-                    key={check.label}
-                    className="flex items-center gap-2 text-[13px]"
-                  >
-                    <span
-                      className={cn(
-                        "grid size-5 place-items-center rounded-full",
-                        check.done
-                          ? "bg-success-soft text-success"
-                          : "bg-warning-soft text-warning",
-                      )}
-                    >
-                      <Check className="size-3" aria-hidden />
-                    </span>
-                    <span className={check.done ? "text-ink" : "text-muted"}>
-                      {check.label}
-                    </span>
+                  <li key={check.label}>
+                    {check.done ? (
+                      <div className="flex min-h-11 items-center gap-2 text-sm">
+                        <span className="grid size-5 place-items-center rounded-full bg-success-soft text-success">
+                          <Check className="size-3" aria-hidden />
+                        </span>
+                        <span className="text-ink">{check.label}</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onResolveCheck(check.sectionId)}
+                        className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1 text-left text-sm text-muted hover:bg-warning-soft hover:text-ink"
+                      >
+                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-warning-soft text-warning">
+                          <PencilLine className="size-3" aria-hidden />
+                        </span>
+                        <span className="min-w-0 flex-1">{check.label}</span>
+                        <span className="text-xs font-semibold text-brand">
+                          Rezolvă
+                        </span>
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -2386,7 +2410,9 @@ function ContentFields({
           }
         />
         <div>
-          <p className="text-[13px] font-medium text-ink">Layout hero</p>
+          <p className="text-sm font-medium text-ink">
+            Aranjarea copertei
+          </p>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {[
               ["immersive", "Pe imagine"],
@@ -2397,7 +2423,7 @@ function ContentFields({
                 key={value}
                 onClick={() => onUpdate("layout", value)}
                 className={cn(
-                  "h-16 cursor-pointer rounded-lg border px-2 text-[11px] font-semibold",
+                  "h-16 cursor-pointer rounded-lg border px-2 text-xs font-semibold",
                   text(c.layout, "immersive") === value
                     ? "border-brand bg-brand-softer text-brand-strong"
                     : "border-line text-muted hover:border-line-strong",
@@ -2454,11 +2480,13 @@ function ContentFields({
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <ColorField
-            label="Culoare overlay"
+            label="Culoarea stratului peste imagine"
             value={text(c.overlayColor, "#14251D")}
             onChange={(value) => onUpdate("overlayColor", value)}
           />
-          <Field label={`Overlay ${numberValue(c.overlayOpacity, 0)}%`}>
+          <Field
+            label={`Intensitatea stratului ${numberValue(c.overlayOpacity, 0)}%`}
+          >
             <input
               type="range"
               min="0"
@@ -2492,9 +2520,9 @@ function ContentFields({
         {input("buttonLabel", "Text buton RSVP")}
         <details>
           <summary className="cursor-pointer text-xs font-medium text-muted">
-            Imagine externă prin URL
+            Folosește o imagine dintr-un link extern
           </summary>
-          <Field className="mt-2" label="URL HTTPS">
+          <Field className="mt-2" label="Adresa imaginii (HTTPS)">
             <Input
               type="url"
               value={text(c.coverImage)}
@@ -2597,7 +2625,9 @@ function ContentFields({
           }}
         />
         <div>
-          <p className="text-[13px] font-medium text-ink">Layout galerie</p>
+          <p className="text-sm font-medium text-ink">
+            Aranjarea galeriei
+          </p>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {[
               ["mosaic", "Mozaic"],
@@ -2608,7 +2638,7 @@ function ContentFields({
                 key={value}
                 onClick={() => onUpdate("layout", value)}
                 className={cn(
-                  "h-14 cursor-pointer rounded-lg border text-[11px] font-semibold",
+                  "h-14 cursor-pointer rounded-lg border text-xs font-semibold",
                   text(c.layout, "mosaic") === value
                     ? "border-brand bg-brand-softer text-brand-strong"
                     : "border-line text-muted",
@@ -3005,8 +3035,18 @@ function ColorField({
           />
         </label>
         <input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          key={value}
+          defaultValue={value.toUpperCase()}
+          pattern="#[0-9A-Fa-f]{6}"
+          title="Folosește formatul #RRGGBB, de exemplu #F06449"
+          onBlur={(event) => commitHexInput(event, value, onChange)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
+              event.currentTarget.value = value.toUpperCase();
+              event.currentTarget.blur();
+            }
+          }}
           className="h-full min-h-11 min-w-0 flex-1 bg-transparent font-mono text-xs uppercase text-ink outline-none"
           aria-label={`${label} hex`}
         />
@@ -3050,7 +3090,7 @@ function SectionBackgroundControls({
               })
             }
             className={cn(
-              "h-11 cursor-pointer rounded-md text-[11px] font-semibold",
+              "h-11 cursor-pointer rounded-md text-xs font-semibold",
               section.style.backgroundMode === mode
                 ? "bg-surface text-ink shadow-card"
                 : "text-muted",
@@ -3255,7 +3295,7 @@ function Repeater({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-[13px] font-medium text-ink">{label}</p>
+        <p className="text-sm font-medium text-ink">{label}</p>
         <Button
           variant="ghost"
           size="sm"
@@ -3277,7 +3317,7 @@ function Repeater({
             className="rounded-xl border border-line bg-subtle/35 p-3"
           >
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">
+              <span className="text-xs font-semibold uppercase tracking-wider text-faint">
                 Element {index + 1}
               </span>
               <button
@@ -3343,37 +3383,63 @@ function ColorRepeater({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-[13px] font-medium text-ink">Paletă recomandată</p>
+        <p className="text-sm font-medium text-ink">Paletă recomandată</p>
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onChange([...colors, "#D8C9B8"])}
+          disabled={colors.length >= 12}
+          onClick={() =>
+            onChange([...colors, nextInvitationPaletteColor(colors)])
+          }
         >
           <Plus className="size-3.5" />
           Culoare
         </Button>
       </div>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
         {colors.map((color, index) => (
-          <label
+          <div
             key={`${color}-${index}`}
-            className="relative size-11 cursor-pointer overflow-hidden rounded-full border-2 border-surface shadow-card"
-            style={{ backgroundColor: color }}
+            className="rounded-xl border border-line p-1.5"
           >
-            <input
-              className="absolute inset-0 size-full cursor-pointer opacity-0"
-              type="color"
-              value={color}
-              aria-label={`Culoarea ${index + 1}`}
-              onChange={(event) =>
-                onChange(
-                  colors.map((current, colorIndex) =>
-                    colorIndex === index ? event.target.value : current,
-                  ),
-                )
-              }
-            />
-          </label>
+            <label
+              className="relative block min-h-11 cursor-pointer overflow-hidden rounded-lg border border-black/10 shadow-sm"
+              style={{ backgroundColor: validColor(color) }}
+            >
+              <input
+                className="absolute inset-0 size-full cursor-pointer opacity-0"
+                type="color"
+                value={validColor(color)}
+                aria-label={`Modifică nuanța recomandată ${index + 1}`}
+                onChange={(event) =>
+                  onChange(
+                    colors.map((current, colorIndex) =>
+                      colorIndex === index
+                        ? event.target.value.toUpperCase()
+                        : current,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <div className="mt-1 flex min-h-11 items-center justify-between gap-1">
+              <span className="truncate pl-1 font-mono text-xs uppercase text-muted">
+                {color}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  onChange(
+                    colors.filter((_, colorIndex) => colorIndex !== index),
+                  )
+                }
+                className="grid size-11 shrink-0 place-items-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger"
+                aria-label={`Șterge nuanța recomandată ${index + 1}`}
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+              </button>
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -3426,7 +3492,8 @@ function DesignInspector({
           <div>
             <p className="text-sm font-semibold text-ink">Paleta invitației</p>
             <p className="mt-0.5 text-xs text-muted">
-              Adaugă orice culoare. Click pe ea ca s-o aplici ca accent.
+              Apasă mostra pentru accent. Folosește creionul ca să schimbi
+              culoarea.
             </p>
           </div>
           <Button
@@ -3434,63 +3501,84 @@ function DesignInspector({
             size="sm"
             disabled={design.palette.length >= 12}
             onClick={() =>
-              onUpdate({ palette: [...design.palette, "#8A5A83"] })
+              onUpdate({
+                palette: [
+                  ...design.palette,
+                  nextInvitationPaletteColor(design.palette),
+                ],
+              })
             }
+            aria-label="Adaugă o culoare în paletă"
           >
             <Plus className="size-3.5" />
             Culoare
           </Button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {design.palette.map((color, index) => (
-            <div key={`${index}-${color}`} className="group relative">
-              <label
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {design.palette.map((color, index) => {
+            const active =
+              design.accent.toLowerCase() === color.toLowerCase();
+            return (
+              <div
+                key={`${index}-${color}`}
                 className={cn(
-                  "block size-11 cursor-pointer overflow-hidden rounded-lg border-2",
-                  design.accent.toLowerCase() === color.toLowerCase()
-                    ? "border-ink"
-                    : "border-surface shadow-card",
+                  "rounded-xl border p-1.5",
+                  active ? "border-brand bg-brand-softer" : "border-line",
                 )}
-                style={{ backgroundColor: color }}
               >
-                <input
-                  type="color"
-                  value={validColor(color)}
-                  className="absolute inset-0 size-full cursor-pointer opacity-0"
-                  aria-label={`Culoare paletă ${index + 1}`}
-                  onChange={(event) =>
-                    onUpdate({
-                      palette: design.palette.map((current, colorIndex) =>
-                        colorIndex === index ? event.target.value : current,
-                      ),
-                    })
-                  }
-                />
-              </label>
-              <button
-                onClick={() => onUpdate({ accent: color })}
-                className="mt-1 min-h-11 w-11 truncate rounded-md text-[9px] uppercase text-faint hover:bg-subtle"
-                title={`Aplică ${color} drept accent`}
-              >
-                {color}
-              </button>
-              {design.palette.length > 2 && (
                 <button
-                  onClick={() =>
-                    onUpdate({
-                      palette: design.palette.filter(
-                        (_, colorIndex) => colorIndex !== index,
-                      ),
-                    })
-                  }
-                  className="absolute -right-1 -top-1 hidden size-4 cursor-pointer place-items-center rounded-full bg-ink text-[10px] text-white group-hover:grid"
-                  aria-label={`Șterge culoarea ${index + 1}`}
+                  type="button"
+                  onClick={() => onUpdate({ accent: color })}
+                  aria-label={`Aplică ${color} drept accent principal`}
+                  aria-pressed={active}
+                  className="relative grid min-h-11 w-full cursor-pointer place-items-center rounded-lg border border-black/10 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  style={{ backgroundColor: validColor(color) }}
                 >
-                  ×
+                  {active ? (
+                    <span className="grid size-6 place-items-center rounded-full bg-surface/90 text-ink shadow-sm">
+                      <Check className="size-3.5" aria-hidden />
+                    </span>
+                  ) : null}
                 </button>
-              )}
-            </div>
-          ))}
+                <p className="mt-1 truncate text-center font-mono text-xs uppercase text-muted">
+                  {color}
+                </p>
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  <label className="relative grid min-h-11 cursor-pointer place-items-center rounded-lg text-muted hover:bg-surface hover:text-ink">
+                    <PencilLine className="size-3.5" aria-hidden />
+                    <span className="sr-only">Modifică {color}</span>
+                    <input
+                      type="color"
+                      value={validColor(color)}
+                      className="absolute inset-0 size-full cursor-pointer opacity-0"
+                      aria-label={`Modifică culoarea ${index + 1}`}
+                      onChange={(event) => {
+                        const nextColor = event.target.value.toUpperCase();
+                        onUpdate({
+                          palette: design.palette.map(
+                            (current, colorIndex) =>
+                              colorIndex === index ? nextColor : current,
+                          ),
+                          ...(active ? { accent: nextColor } : {}),
+                        });
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={design.palette.length <= 2}
+                    onClick={() =>
+                      onUpdate(removeInvitationPaletteColor(design, index))
+                    }
+                    className="grid min-h-11 place-items-center rounded-lg text-muted enabled:cursor-pointer enabled:hover:bg-danger-soft enabled:hover:text-danger disabled:opacity-35"
+                    aria-label={`Șterge culoarea ${index + 1}`}
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
       <div>
@@ -3568,7 +3656,9 @@ function DesignInspector({
           <Palette className="mt-0.5 size-4 shrink-0 text-accent" />
           <p className="text-xs leading-relaxed text-muted">
             Stilul ales este doar punctul de pornire. Poți schimba liber
-            culorile generale sau fundalul unei singure secțiuni.
+            culorile generale sau fundalul unei singure secțiuni. La
+            publicare, textul și butoanele primesc automat un contrast sigur
+            față de culorile alese.
           </p>
         </div>
       </div>
@@ -3685,6 +3775,21 @@ function InvitationCanvas({
 
 function validColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#20211F";
+}
+
+function commitHexInput(
+  event: React.FocusEvent<HTMLInputElement>,
+  currentValue: string,
+  onChange: (value: string) => void,
+) {
+  const candidate = event.currentTarget.value.trim();
+  if (isInvitationHexColor(candidate)) {
+    const normalized = candidate.toUpperCase();
+    event.currentTarget.value = normalized;
+    onChange(normalized);
+    return;
+  }
+  event.currentTarget.value = currentValue.toUpperCase();
 }
 
 function numberValue(value: unknown, fallback: number) {

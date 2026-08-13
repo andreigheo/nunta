@@ -229,17 +229,42 @@ export function EditorLayerStudio({
                     <input
                       className="size-8 cursor-pointer rounded-md"
                       type="color"
-                      value={selected.color ?? "#F06449"}
+                      value={validHexColor(selected.color, "#F06449")}
                       onChange={(event) =>
-                        updateSelected({ color: event.target.value })
+                        updateSelected({
+                          color: event.target.value.toUpperCase(),
+                        })
                       }
+                      aria-label="Alege culoarea formei"
                     />
-                    <Input
-                      className="border-0"
-                      value={selected.color ?? "#F06449"}
-                      onChange={(event) =>
-                        updateSelected({ color: event.target.value })
-                      }
+                    <input
+                      key={selected.color ?? "#F06449"}
+                      className="min-h-11 min-w-0 flex-1 bg-transparent font-mono text-xs uppercase text-ink outline-none"
+                      defaultValue={(selected.color ?? "#F06449").toUpperCase()}
+                      pattern="#[0-9A-Fa-f]{6}"
+                      title="Folosește formatul #RRGGBB, de exemplu #F06449"
+                      onBlur={(event) => {
+                        const candidate = event.currentTarget.value.trim();
+                        if (/^#[0-9a-f]{6}$/i.test(candidate)) {
+                          const normalized = candidate.toUpperCase();
+                          event.currentTarget.value = normalized;
+                          updateSelected({ color: normalized });
+                        } else {
+                          event.currentTarget.value = (
+                            selected.color ?? "#F06449"
+                          ).toUpperCase();
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                        if (event.key === "Escape") {
+                          event.currentTarget.value = (
+                            selected.color ?? "#F06449"
+                          ).toUpperCase();
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      aria-label="Culoarea formei în format HEX"
                     />
                   </div>
                 </Field>
@@ -305,7 +330,7 @@ export function EditorLayerStudio({
                       <button
                         key={entry.value}
                         className={cn(
-                          "min-h-11 rounded-lg border text-[11px] font-semibold",
+                          "min-h-11 rounded-lg border text-xs font-semibold",
                           active
                             ? "border-brand bg-brand-softer text-brand-strong"
                             : "border-line text-muted",
@@ -344,7 +369,7 @@ export function EditorLayerStudio({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-ink">
-                Art direction · {deviceLabel(device)}
+                Compoziție pe {deviceLabel(device)}
               </p>
               <p className="mt-1 text-xs text-muted">
                 Reglează compoziția pentru viewportul selectat în canvas.
@@ -360,14 +385,14 @@ export function EditorLayerStudio({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <RangeField
-              label={`Focal X ${currentDirection.focalX}%`}
+              label={`Centru imagine orizontal ${currentDirection.focalX}%`}
               min={0}
               max={100}
               value={currentDirection.focalX}
               onChange={(focalX) => updateDirection({ focalX })}
             />
             <RangeField
-              label={`Focal Y ${currentDirection.focalY}%`}
+              label={`Centru imagine vertical ${currentDirection.focalY}%`}
               min={0}
               max={100}
               value={currentDirection.focalY}
@@ -400,7 +425,7 @@ function LayerButton({
 }) {
   return (
     <button
-      className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border border-line text-[11px] font-semibold text-muted hover:border-brand hover:bg-brand-softer hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-45"
+      className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border border-line text-xs font-semibold text-muted hover:border-brand hover:bg-brand-softer hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-45"
       disabled={disabled}
       onClick={onClick}
     >
@@ -510,4 +535,8 @@ function supportsArtDirection(section: InvitationSection) {
 
 function deviceLabel(device: InvitationDevice) {
   return devices.find((entry) => entry.value === device)?.label ?? device;
+}
+
+function validHexColor(value: string | undefined, fallback: string) {
+  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }

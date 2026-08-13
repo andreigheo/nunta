@@ -21,7 +21,10 @@ import {
   type InvitationSection,
 } from "@/lib/invitations/editor-model";
 import { cn } from "@/lib/utils";
-import { ensureReadableTextColor } from "./invitation-experience";
+import {
+  contrastRatio,
+  ensureReadableTextColor,
+} from "./invitation-experience";
 import styles from "./invitation-renderer.module.css";
 
 export type InvitationMediaResolver = (
@@ -80,7 +83,13 @@ export function InvitationRenderer({
         radiusClass(design.radius),
         className,
       )}
-      style={{ backgroundColor: design.background, color: design.text }}
+      style={{
+        backgroundColor: validColor(design.background),
+        color: ensureReadableTextColor(
+          validColor(design.background),
+          validColor(design.text),
+        ),
+      }}
       data-template={design.template}
       data-invitation-renderer
     >
@@ -141,6 +150,11 @@ export function InvitationSectionView(props: InvitationSectionViewProps) {
         styles.invitationSection,
         array(props.section.content.decorations).length &&
           styles.decoratedSection,
+        (props.section.style.backgroundMode === "image" ||
+          (props.section.type === "hero" &&
+            String(props.section.content.layout ?? "immersive") ===
+              "immersive")) &&
+          styles.imageBackedSection,
       ),
       "data-invitation-section": props.section.type,
     },
@@ -871,22 +885,68 @@ function invitationButtonStyle(design: InvitationDesign, inverted: boolean): Rea
 
 function sectionTone(section: InvitationSection, design: InvitationDesign, resolveMedia: InvitationMediaResolver): React.CSSProperties {
   const style = section.style;
-  if (style.backgroundMode === "gradient") return { background: `linear-gradient(${clampNumber(style.gradientAngle, 0, 360, 135)}deg, ${validColor(style.gradientFrom)}, ${validColor(style.gradientTo)})`, color: validColor(style.textColor || design.text) };
+  if (style.backgroundMode === "gradient") {
+    const gradientFrom = validColor(style.gradientFrom);
+    const gradientTo = validColor(style.gradientTo);
+    return {
+      background: `linear-gradient(${clampNumber(style.gradientAngle, 0, 360, 135)}deg, ${gradientFrom}, ${gradientTo})`,
+      color: readableTextAcrossBackgrounds(
+        [gradientFrom, gradientTo],
+        style.textColor || design.text,
+      ),
+    };
+  }
   if (style.backgroundMode === "image") {
     const background = resolveMedia(text(section.content.backgroundMediaId, text(section.content.mediaId)), text(section.content.backgroundImage, text(section.content.coverImage)));
     if (background) return { backgroundColor: validColor(style.backgroundColor || design.text), backgroundImage: `linear-gradient(${colorWithAlpha(text(section.content.backgroundOverlayColor, "#19151D"), clampNumber(section.content.backgroundOverlayOpacity, 0, 100, 42))},${colorWithAlpha(text(section.content.backgroundOverlayColor, "#19151D"), clampNumber(section.content.backgroundOverlayOpacity, 0, 100, 42))}),url("${cssUrl(background)}")`, backgroundPosition: `${clampNumber(section.content.focalX, 0, 100, 50)}% ${clampNumber(section.content.focalY, 0, 100, 50)}%`, backgroundSize: "cover", color: validColor(style.textColor || "#FFFFFF") };
   }
-  if (style.tone === "custom") return { backgroundColor: validColor(style.backgroundColor || design.surface), color: validColor(style.textColor || design.text) };
-  if (style.tone === "soft") return { backgroundColor: mixHex(design.accent, design.surface, 0.08), color: design.text };
-  if (style.tone === "accent") return { backgroundColor: design.accent, color: "#FFFFFF" };
-  if (style.tone === "dark") return { backgroundColor: design.text, color: design.surface };
+  if (style.tone === "custom") {
+    const backgroundColor = validColor(style.backgroundColor || design.surface);
+    return {
+      backgroundColor,
+      color: ensureReadableTextColor(
+        backgroundColor,
+        validColor(style.textColor || design.text),
+      ),
+    };
+  }
+  if (style.tone === "soft") {
+    const backgroundColor = mixHex(design.accent, design.surface, 0.08);
+    return {
+      backgroundColor,
+      color: ensureReadableTextColor(backgroundColor, validColor(design.text)),
+    };
+  }
+  if (style.tone === "accent") {
+    const backgroundColor = validColor(design.accent);
+    return {
+      backgroundColor,
+      color: ensureReadableTextColor(backgroundColor, "#FFFFFF"),
+    };
+  }
+  if (style.tone === "dark") {
+    const backgroundColor = validColor(design.text);
+    return {
+      backgroundColor,
+      color: ensureReadableTextColor(
+        backgroundColor,
+        validColor(design.surface),
+      ),
+    };
+  }
   if (design.template === "nocturne") {
     if (section.type === "countdown")
       return { backgroundColor: "#251629", color: "#FFF8EE" };
     if (section.type === "locations")
       return { backgroundColor: "#F1DCCB", color: "#251629" };
     if (section.type === "rsvp")
-      return { backgroundColor: design.accent, color: "#251629" };
+      return {
+        backgroundColor: validColor(design.accent),
+        color: ensureReadableTextColor(
+          validColor(design.accent),
+          "#251629",
+        ),
+      };
     if (
       section.type === "dress_code" ||
       section.type === "faq" ||
@@ -894,11 +954,49 @@ function sectionTone(section: InvitationSection, design: InvitationDesign, resol
     )
       return { backgroundColor: "#3B183F", color: "#FFF8EE" };
   }
-  return { backgroundColor: design.surface, color: design.text };
+  const backgroundColor = validColor(design.surface);
+  return {
+    backgroundColor,
+    color: ensureReadableTextColor(backgroundColor, validColor(design.text)),
+  };
 }
 
 function sectionHeadingStyle(section: InvitationSection, design: InvitationDesign): React.CSSProperties | undefined {
-  return isInverted(section) || section.style.backgroundMode === "image" ? undefined : { color: design.accent };
+  if (isInverted(section) || section.style.backgroundMode === "image")
+    return undefined;
+  if (section.style.backgroundMode === "gradient")
+    return {
+      color: readableTextAcrossBackgrounds(
+        [
+          validColor(section.style.gradientFrom),
+          validColor(section.style.gradientTo),
+        ],
+        design.accent,
+        3,
+      ),
+    };
+  const backgroundColor =
+    section.style.tone === "custom"
+      ? validColor(section.style.backgroundColor || design.surface)
+      : section.style.tone === "soft"
+        ? mixHex(design.accent, design.surface, 0.08)
+        : design.template === "nocturne" && section.type === "countdown"
+          ? "#251629"
+          : design.template === "nocturne" && section.type === "locations"
+            ? "#F1DCCB"
+            : design.template === "nocturne" &&
+                (section.type === "dress_code" ||
+                  section.type === "faq" ||
+                  section.type === "contact")
+              ? "#3B183F"
+              : validColor(design.surface);
+  return {
+    color: ensureReadableTextColor(
+      backgroundColor,
+      validColor(design.accent),
+      3,
+    ),
+  };
 }
 
 function isInverted(section: InvitationSection) {
@@ -995,6 +1093,36 @@ function cssUrl(value: string) {
 
 function validColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#20211F";
+}
+
+function readableTextAcrossBackgrounds(
+  backgrounds: string[],
+  requested: string,
+  minimumRatio = 4.5,
+) {
+  const candidates = [
+    validColor(requested),
+    "#19151D",
+    "#FFF9FF",
+    "#000000",
+    "#FFFFFF",
+  ];
+  const ranked = candidates
+    .map((color) => ({
+      color,
+      ratio: Math.min(
+        ...backgrounds.map((background) =>
+          contrastRatio(color, validColor(background)),
+        ),
+      ),
+    }))
+    .sort((left, right) => right.ratio - left.ratio);
+  const requestedResult = ranked.find(
+    (candidate) => candidate.color.toLowerCase() === validColor(requested).toLowerCase(),
+  );
+  return (requestedResult?.ratio ?? 0) >= minimumRatio
+    ? requestedResult?.color ?? validColor(requested)
+    : ranked[0]?.color ?? "#19151D";
 }
 
 function clampNumber(value: unknown, minimum: number, maximum: number, fallback: number) {

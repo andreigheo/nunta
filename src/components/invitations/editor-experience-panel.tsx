@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button, Field, Input, Select } from "@/components/ui";
 import type { InvitationExperienceSettings } from "@/lib/invitations/editor-model";
+import { readableTextColor } from "./invitation-experience";
 
 export function InvitationExperiencePanel({
   experience,
@@ -28,7 +29,7 @@ export function InvitationExperiencePanel({
   coverPreviewUrl?: string;
 }) {
   const coverInputRef = React.useRef<HTMLInputElement>(null);
-  const panelInk = contrastInk(experience.panelColor);
+  const panelInk = readableTextColor(experience.panelColor);
   const safeCoverPreviewUrl = safePreviewUrl(
     coverPreviewUrl || experience.coverImageUrl,
   );
@@ -136,10 +137,13 @@ export function InvitationExperiencePanel({
                     className="absolute left-1/2 top-[58%] z-40 grid size-8 -translate-x-1/2 place-items-center rounded-full text-xs font-bold"
                     style={{
                       backgroundColor: experience.accentColor,
-                      color: contrastInk(experience.accentColor),
+                      color: readableTextColor(experience.accentColor),
                     }}
+                    title={experience.monogram || "S"}
                   >
-                    {experience.monogram?.slice(0, 2) || "S"}
+                    <span className="max-w-full break-all px-0.5 text-[9px] leading-none">
+                      {experience.monogram || "S"}
+                    </span>
                   </span>
                 </div>
               </div>
@@ -215,7 +219,7 @@ export function InvitationExperiencePanel({
               }}
             />
           </div>
-          <Field label="URL copertă opțional">
+          <Field label="Link extern pentru copertă (opțional)">
             <Input
               type="url"
               value={experience.coverImageUrl ?? ""}
@@ -345,16 +349,6 @@ export function InvitationExperiencePanel({
   );
 }
 
-function contrastInk(hex: string) {
-  if (!/^#[0-9a-f]{6}$/i.test(hex)) return "#FFFFFF";
-  const values = [1, 3, 5].map((start) =>
-    Number.parseInt(hex.slice(start, start + 2), 16),
-  );
-  const luminance =
-    (0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2]) / 255;
-  return luminance > 0.58 ? "#19151D" : "#FFFFFF";
-}
-
 function textureBackground(texture: InvitationExperienceSettings["texture"]) {
   if (texture === "smooth") return "none";
   if (texture === "linen")
@@ -439,9 +433,28 @@ function ExperienceColor({
           />
         </label>
         <input
+          key={value}
           className="min-h-11 min-w-0 flex-1 bg-transparent font-mono text-xs uppercase text-ink outline-none"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          defaultValue={value.toUpperCase()}
+          pattern="#[0-9A-Fa-f]{6}"
+          title="Folosește formatul #RRGGBB, de exemplu #3B183F"
+          onBlur={(event) => {
+            const candidate = event.currentTarget.value.trim();
+            if (/^#[0-9a-f]{6}$/i.test(candidate)) {
+              const normalized = candidate.toUpperCase();
+              event.currentTarget.value = normalized;
+              onChange(normalized);
+            } else {
+              event.currentTarget.value = value.toUpperCase();
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
+              event.currentTarget.value = value.toUpperCase();
+              event.currentTarget.blur();
+            }
+          }}
           aria-label={`${label} în format HEX`}
         />
         <Aperture className="size-3.5 text-faint" aria-hidden />

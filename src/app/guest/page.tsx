@@ -63,6 +63,7 @@ type EventItem = {
   id: string;
   title?: string;
   startAt?: string | null;
+  timezone?: string;
   locationName?: string | null;
   locationAddress?: string | null;
   rsvpEnabled?: boolean;
@@ -326,7 +327,7 @@ export default function GuestCompanionPage() {
     ) {
       toast({
         title: "Numele însoțitorului lipsește",
-        description: "Completează prenumele și numele persoanei plus-one.",
+        description: "Completează prenumele și numele însoțitorului.",
         variant: "warning",
       });
       return;
@@ -643,9 +644,7 @@ export default function GuestCompanionPage() {
                     <div key={event.id} className="border-t border-line py-4 first:border-t-0 first:pt-0 last:pb-0">
                       <p className="text-sm font-semibold">{event.title}</p>
                       <p className="mt-1 text-xs text-muted">
-                        {event.startAt
-                          ? new Date(event.startAt).toLocaleString("ro-RO")
-                          : "Ora va fi anunțată"}
+                        {formatGuestEventDate(event)}
                       </p>
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted">
                         <MapPin className="size-3" />
@@ -694,7 +693,7 @@ export default function GuestCompanionPage() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <Field label="Prenume" required>
                             <Input
-                              aria-label="Prenume plus-one"
+                              aria-label="Prenumele însoțitorului"
                               value={plusOneFirstName}
                               onChange={(event) =>
                                 setPlusOneFirstName(event.target.value)
@@ -703,7 +702,7 @@ export default function GuestCompanionPage() {
                           </Field>
                           <Field label="Nume" required>
                             <Input
-                              aria-label="Nume plus-one"
+                              aria-label="Numele însoțitorului"
                               value={plusOneLastName}
                               onChange={(event) =>
                                 setPlusOneLastName(event.target.value)
@@ -711,7 +710,7 @@ export default function GuestCompanionPage() {
                             />
                           </Field>
                         </div>
-                        {menuSelection && <Field label="Meniu plus-one">
+                        {menuSelection && <Field label="Meniul însoțitorului">
                           <Select
                             value={plusOneMenuId}
                             onChange={(event) =>
@@ -1137,6 +1136,25 @@ function icsDate(value?: string | null) {
         .replace(/[-:]/g, "")
         .replace(/\.\d{3}Z$/, "Z")
     : "";
+}
+
+function formatGuestEventDate(event: EventItem) {
+  if (!event.startAt) return "Ora va fi anunțată";
+  const date = new Date(event.startAt);
+  if (!Number.isFinite(date.getTime())) return "Ora va fi anunțată";
+  const options: Intl.DateTimeFormatOptions = {
+    dateStyle: "long",
+    timeStyle: "short",
+    ...(event.timezone ? { timeZone: event.timezone } : {}),
+  };
+  try {
+    return date.toLocaleString("ro-RO", options);
+  } catch {
+    return date.toLocaleString("ro-RO", {
+      dateStyle: "long",
+      timeStyle: "short",
+    });
+  }
 }
 function icsEscape(value: string) {
   return value

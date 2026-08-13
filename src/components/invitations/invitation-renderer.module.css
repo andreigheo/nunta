@@ -7,6 +7,17 @@
   position: relative;
 }
 
+.imageBackedSection {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 72%),
+    0 6px 26px rgb(0 0 0 / 46%);
+}
+
+.imageBackedSection a,
+.imageBackedSection button {
+  text-shadow: none;
+}
+
 .nocturne {
   counter-reset: invitation-chapter;
   box-shadow: 0 2rem 6rem rgb(21 8 25 / 22%);
