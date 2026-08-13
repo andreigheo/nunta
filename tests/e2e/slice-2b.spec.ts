@@ -378,6 +378,13 @@ test("E2E 8 — Dashboard", async ({ page }) => {
   );
   expect(after.planning.overdueTasks).toBe(before.planning.overdueTasks - 1);
   expect(after.nextBestAction?.taskId).not.toBe(task.id);
+
+  await page.goto("/tools");
+  await expect(page.getByLabel("Număr de invitați")).toHaveValue("120");
+  await expect(page.getByLabel("Buget total")).toHaveValue("180000");
+  await expect(page.getByText(/zile până la/).first()).toContainText(
+    "Slice 2B E2E principal",
+  );
 });
 
 test("E2E 9 — Conflict", async ({ page }) => {
@@ -448,6 +455,13 @@ test("E2E 10 — Tenant isolation", async () => {
       await main.api.get(`/api/v1/workspaces/${otherWorkspace}/search?q=Secret`)
     ).status(),
   ).toBe(403);
+  expect(
+    (
+      await main.api.get(
+        `/api/v1/workspaces/${otherWorkspace}/creative-state`,
+      )
+    ).status(),
+  ).toBe(403);
   const ownSearch = await apiData<{ items: Array<{ id: string }> }>(
     await main.api.get(`/api/v1/workspaces/${workspaceId}/search?q=Secret`),
   );
@@ -493,7 +507,206 @@ test("E2E 11 — Reminder", async () => {
   ).toHaveLength(1);
 });
 
-test("E2E 12 — Demo", async ({ page }) => {
+test("E2E 12 — creative workspace, moodboard upload/download and post-event workflow", async ({
+  page,
+}) => {
+  await authorizePage(page, main);
+  const concept = `Grădină editorială ${Date.now()}`;
+  await page.goto("/design-studio");
+  await expect(
+    page.getByRole("heading", { name: "Studio de design" }),
+  ).toBeVisible();
+  await page.getByLabel("Numele conceptului").fill(concept);
+  await page
+    .getByLabel("Descrierea direcției")
+    .fill("Lumină caldă, texturi naturale și accente prună.");
+  await page.getByRole("button", { name: "Adaugă o culoare" }).click();
+  await page.getByLabel("Numele culorii 1").fill("Prună editorială");
+  await page.getByRole("button", { name: "Salvează conceptul" }).click();
+  await expect(page.getByText("Concept salvat")).toBeVisible();
+
+  const firstState = await apiData<{
+    version: number;
+    conceptTitle: string;
+    palette: Array<{ id: string; name: string; hex: string }>;
+  }>(await main.api.get(`/api/v1/workspaces/${workspaceId}/creative-state`));
+  expect(firstState.conceptTitle).toBe(concept);
+  expect(firstState.palette.map((color) => color.name)).toContain(
+    "Prună editorială",
+  );
+
+  await page.goto("/moodboards");
+  await page.getByRole("button", { name: "Moodboard nou" }).click();
+  const boardDialog = page.getByRole("dialog", { name: "Moodboard nou" });
+  await boardDialog.getByLabel("Nume").fill("Ceremonie E2E");
+  await boardDialog
+    .getByRole("button", { name: "Creează moodboardul" })
+    .click();
+  await page.getByRole("button", { name: "Adaugă reper" }).click();
+  const itemDialog = page.getByRole("dialog", { name: "Adaugă un reper" });
+  await itemDialog.getByLabel("Titlu").fill("Textură florală");
+  const uploadResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/uploads" &&
+      response.request().method() === "POST",
+  );
+  await itemDialog.locator('input[type="file"]').setInputFiles({
+    name: "moodboard-e2e.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVR4nGOoCDjxH4QZYAwAWBQKPQUDd/MAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  expect((await uploadResponse).ok()).toBe(true);
+  await expect(itemDialog.getByText("moodboard-e2e.png")).toBeVisible();
+  await itemDialog.getByRole("button", { name: "Adaugă în moodboard" }).click();
+  await page.getByRole("button", { name: "Salvează", exact: true }).click();
+  await expect(page.getByText("Moodboarduri salvate")).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Descarcă" }).click();
+  expect((await download).suggestedFilename()).toMatch(/ceremonie-e2e\.json$/);
+  await page.reload();
+  await expect(
+    page.getByText("Textură florală", { exact: true }),
+  ).toBeVisible();
+  const persistedState = await apiData<{
+    version: number;
+    boards: Array<{
+      name: string;
+      items: Array<{ label: string; mediaId: string | null }>;
+    }>;
+  }>(await main.api.get(`/api/v1/workspaces/${workspaceId}/creative-state`));
+  expect(persistedState.version).toBeGreaterThan(firstState.version);
+  expect(persistedState.boards[0]?.items[0]?.label).toBe("Textură florală");
+  expect(persistedState.boards[0]?.items[0]?.mediaId).toMatch(
+    /^[0-9a-f-]{36}$/,
+  );
+  const persistedPayload = {
+    conceptTitle: concept,
+    conceptDescription: "Lumină caldă, texturi naturale și accente prună.",
+    palette: firstState.palette,
+    boards: persistedState.boards,
+  };
+  expect(
+    (
+      await main.api.put(
+        `/api/v1/workspaces/${workspaceId}/creative-state`,
+        {
+          headers: mutationHeaders({
+            "If-Match": `"${persistedState.version}"`,
+          }),
+          data: persistedPayload,
+        },
+      )
+    ).status(),
+  ).toBe(200);
+  expect(
+    (
+      await main.api.put(
+        `/api/v1/workspaces/${workspaceId}/creative-state`,
+        {
+          headers: mutationHeaders({
+            "If-Match": `"${persistedState.version}"`,
+          }),
+          data: persistedPayload,
+        },
+      )
+    ).status(),
+  ).toBe(412);
+
+  const closeTask = `Mulțumiri E2E ${Date.now()}`;
+  await page.goto("/post-wedding");
+  await page.getByRole("button", { name: "Adaugă un pas" }).click();
+  const taskDialog = page.getByRole("dialog", { name: "Pas post-eveniment" });
+  await taskDialog.getByLabel("Titlu").fill(closeTask);
+  await taskDialog
+    .getByLabel("Descriere")
+    .fill("Confirmă închiderea reală a fluxului.");
+  await taskDialog.getByRole("button", { name: "Creează pasul" }).click();
+  await expect(page.getByText(closeTask, { exact: true })).toBeVisible();
+  const row = page
+    .getByText(closeTask, { exact: true })
+    .locator("..")
+    .locator("..");
+  await row.getByRole("button", { name: "Finalizează" }).click();
+  await expect(row.getByRole("button", { name: "Redeschide" })).toBeVisible();
+  await page.reload();
+  await expect(
+    page
+      .getByText(closeTask, { exact: true })
+      .locator("..")
+      .locator("..")
+      .getByRole("button", { name: "Redeschide" }),
+  ).toBeVisible();
+});
+
+test("E2E 13 — all organizer surfaces render without runtime or backend failures", async ({
+  page,
+}) => {
+  await authorizePage(page, main);
+  const pageErrors: string[] = [];
+  const serverErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("response", (response) => {
+    const pathname = new URL(response.url()).pathname;
+    if (pathname.startsWith("/api/v1/") && response.status() >= 500) {
+      serverErrors.push(`${response.status()} ${pathname}`);
+    }
+  });
+
+  const routes = [
+    "/overview",
+    "/plan",
+    "/calendar",
+    "/timeline",
+    "/guests",
+    "/invitations",
+    "/invitations/editor",
+    "/rsvp",
+    "/menus",
+    "/seating",
+    "/transport",
+    "/accommodation",
+    "/marketplace",
+    "/favorites",
+    "/shortlists",
+    "/requests",
+    "/offers",
+    "/bookings",
+    "/contracts",
+    "/documents",
+    "/payments",
+    "/budget",
+    "/team",
+    "/settings",
+    "/activity",
+    "/risks",
+    "/contingency-plans",
+    "/automations",
+    "/tools",
+    "/wedding-day",
+    "/moments",
+    "/reviews",
+    "/archive",
+    "/design-studio",
+    "/moodboards",
+    "/post-wedding",
+  ];
+
+  for (const route of routes) {
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("body")).toBeVisible();
+    await expect(page).not.toHaveURL(/\/(sign-in|session-expired)$/);
+    await expect(page.getByText("Application error")).toHaveCount(0);
+    await page.waitForTimeout(150);
+  }
+
+  expect(pageErrors).toEqual([]);
+  expect(serverErrors).toEqual([]);
+});
+
+test("E2E 14 — Demo", async ({ page }) => {
   const apiRequests: string[] = [];
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/v1/"))

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ImageIcon, Store, Upload } from "lucide-react";
+import { ExternalLink, ImageIcon, Store, Upload } from "lucide-react";
 import { VendorPage } from "@/components/vendor/vendor-page";
 import {
   apiErrorMessage,
@@ -64,6 +64,13 @@ export default function VendorProfileEditorPage() {
             responseTimeLabel: String(value.responseTimeLabel ?? ""),
             publicEmail: String(value.publicEmail ?? ""),
             publicPhone: String(value.publicPhone ?? ""),
+            yearsExperience:
+              value.yearsExperience === null ||
+              value.yearsExperience === undefined
+                ? ""
+                : String(value.yearsExperience),
+            logoUrl: String(value.logoUrl ?? ""),
+            coverImageUrl: String(value.coverImageUrl ?? ""),
           });
       })
       .catch((error) =>
@@ -117,6 +124,11 @@ export default function VendorProfileEditorPage() {
           responseTimeLabel: form.responseTimeLabel || null,
           publicEmail: form.publicEmail || null,
           publicPhone: form.publicPhone || null,
+          yearsExperience: form.yearsExperience
+            ? Number(form.yearsExperience)
+            : null,
+          logoUrl: form.logoUrl || null,
+          coverImageUrl: form.coverImageUrl || null,
         },
       );
       setProfile(next);
@@ -249,24 +261,42 @@ export default function VendorProfileEditorPage() {
         <div className="space-y-4">
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-ink">Stare profil</p>
                   <p className="text-xs text-muted">
                     {profile ? `versiunea ${profile.version}` : "profil nou"}
                   </p>
                 </div>
-                <Badge
-                  variant={
-                    profile?.publicationStatus === "PUBLISHED"
-                      ? "success"
-                      : "neutral"
-                  }
-                >
-                  {profile
-                    ? String(profile.publicationStatus).toLowerCase()
-                    : "neconfigurat"}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  {profile?.publicationStatus === "PUBLISHED" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        window.open(
+                          `/marketplace/${encodeURIComponent(String(profile.slug))}`,
+                          "_blank",
+                          "noopener,noreferrer",
+                        )
+                      }
+                    >
+                      <ExternalLink className="size-4" aria-hidden />
+                      Vezi profilul public
+                    </Button>
+                  ) : null}
+                  <Badge
+                    variant={
+                      profile?.publicationStatus === "PUBLISHED"
+                        ? "success"
+                        : "neutral"
+                    }
+                  >
+                    {profile
+                      ? String(profile.publicationStatus).toLowerCase()
+                      : "neconfigurat"}
+                  </Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -312,31 +342,24 @@ export default function VendorProfileEditorPage() {
                     }
                   />
                 </Field>
-                <Field label="Categorie">
+                <Field label="Categorie principală">
                   <Select
                     value={form.category}
                     onChange={(event) =>
                       setForm({ ...form, category: event.target.value })
                     }
                   >
-                    {[
-                      "VENUE",
-                      "PHOTOGRAPHY",
-                      "VIDEOGRAPHY",
-                      "CATERING",
-                      "MUSIC",
-                      "DECOR",
-                      "FLOWERS",
-                      "TRANSPORT",
-                      "ACCOMMODATION",
-                      "CAKE",
-                      "OTHER",
-                    ].map((value) => (
-                      <option key={value}>{value}</option>
+                    {vendorCategoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="Limbi (separate prin virgulă)">
+                <Field
+                  label="Limbi vorbite"
+                  hint="Coduri separate prin virgulă, de exemplu: ro, en"
+                >
                   <Input
                     value={form.languages}
                     onChange={(event) =>
@@ -344,7 +367,7 @@ export default function VendorProfileEditorPage() {
                     }
                   />
                 </Field>
-                <Field label="Vizibilitate preț">
+                <Field label="Cum afișăm prețul">
                   <Select
                     value={form.pricingVisibility}
                     onChange={(event) =>
@@ -354,11 +377,11 @@ export default function VendorProfileEditorPage() {
                       })
                     }
                   >
-                    {["STARTING_FROM", "RANGE", "REQUEST_QUOTE", "HIDDEN"].map(
-                      (value) => (
-                        <option key={value}>{value}</option>
-                      ),
-                    )}
+                    {pricingVisibilityOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
                 <Field label="Preț de pornire (RON)">
@@ -387,6 +410,55 @@ export default function VendorProfileEditorPage() {
                     value={form.publicEmail ?? ""}
                     onChange={(event) =>
                       setForm({ ...form, publicEmail: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Telefon public">
+                  <Input
+                    type="tel"
+                    value={form.publicPhone ?? ""}
+                    onChange={(event) =>
+                      setForm({ ...form, publicPhone: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Ani de experiență">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    inputMode="numeric"
+                    value={form.yearsExperience ?? ""}
+                    onChange={(event) =>
+                      setForm({ ...form, yearsExperience: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field
+                  label="URL imagine de copertă"
+                  hint="Poți încărca o imagine în portofoliu și apoi o poți alege drept copertă."
+                  className="sm:col-span-2"
+                >
+                  <Input
+                    type="url"
+                    placeholder="https://… sau /api/v1/marketplace/portfolio-assets/…"
+                    value={form.coverImageUrl ?? ""}
+                    onChange={(event) =>
+                      setForm({ ...form, coverImageUrl: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field
+                  label="URL siglă / avatar"
+                  hint="Imagine pătrată recomandată. O poți selecta și din portofoliul verificat."
+                  className="sm:col-span-2"
+                >
+                  <Input
+                    type="url"
+                    placeholder="https://… sau /api/v1/marketplace/portfolio-assets/…"
+                    value={form.logoUrl ?? ""}
+                    onChange={(event) =>
+                      setForm({ ...form, logoUrl: event.target.value })
                     }
                   />
                 </Field>
@@ -463,7 +535,6 @@ export default function VendorProfileEditorPage() {
                     >
                       <div className="flex aspect-video items-center justify-center bg-surface">
                         {asset.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- this authenticated preview uses the secured same-origin derivative endpoint.
                           <img
                             src={String(asset.url)}
                             alt={String(asset.altText)}
@@ -494,16 +565,46 @@ export default function VendorProfileEditorPage() {
                                 : "procesare"}
                           </Badge>
                         </div>
-                        {context.can("document.write") ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={asset.sourceStatus !== "AVAILABLE"}
-                            onClick={() => void toggleAsset(asset)}
-                          >
-                            {asset.published ? "Retrage" : "Publică"}
-                          </Button>
-                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          {context.can("document.write") ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={asset.sourceStatus !== "AVAILABLE"}
+                              onClick={() => void toggleAsset(asset)}
+                            >
+                              {asset.published ? "Retrage" : "Publică"}
+                            </Button>
+                          ) : null}
+                          {context.can("vendor.profile.write") && asset.url ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  setForm({
+                                    ...form,
+                                    coverImageUrl: String(asset.url),
+                                  })
+                                }
+                              >
+                                Folosește ca copertă
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  setForm({
+                                    ...form,
+                                    logoUrl: String(asset.url),
+                                  })
+                                }
+                              >
+                                Folosește ca avatar
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -516,3 +617,24 @@ export default function VendorProfileEditorPage() {
     </VendorPage>
   );
 }
+
+const vendorCategoryOptions = [
+  { value: "VENUE", label: "Locație" },
+  { value: "PHOTOGRAPHY", label: "Fotografie" },
+  { value: "VIDEOGRAPHY", label: "Videografie" },
+  { value: "CATERING", label: "Catering" },
+  { value: "MUSIC", label: "Muzică" },
+  { value: "DECOR", label: "Decor" },
+  { value: "FLOWERS", label: "Flori" },
+  { value: "TRANSPORT", label: "Transport" },
+  { value: "ACCOMMODATION", label: "Cazare" },
+  { value: "CAKE", label: "Tort" },
+  { value: "OTHER", label: "Alt serviciu" },
+] as const;
+
+const pricingVisibilityOptions = [
+  { value: "STARTING_FROM", label: "Preț de pornire" },
+  { value: "RANGE", label: "Interval de preț" },
+  { value: "REQUEST_QUOTE", label: "Preț la cerere" },
+  { value: "HIDDEN", label: "Nu afișa prețul" },
+] as const;

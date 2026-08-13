@@ -14,8 +14,12 @@ const internalApiUrl = (
   process.env.API_INTERNAL_URL ?? "http://127.0.0.1:4000"
 ).replace(/\/$/, "");
 
+const productionSecurityPolicy =
+  process.env.NODE_ENV === "production" &&
+  process.env.WEDDINGOS_E2E !== "true";
+
 const contentSecurityPolicy =
-  process.env.NODE_ENV === "production"
+  productionSecurityPolicy
     ? "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.paddle.com; connect-src 'self' https://*.paddle.com; frame-src https://*.paddle.com"
     : "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: blob: https: http://127.0.0.1:59000; media-src 'self' blob: http://127.0.0.1:59000; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.paddle.com; connect-src 'self' http://127.0.0.1:4000 http://127.0.0.1:59000 https://*.paddle.com; frame-src https://*.paddle.com";
 
@@ -45,7 +49,7 @@ const nextConfig: NextConfig = {
         key: "Content-Security-Policy",
         value: contentSecurityPolicy,
       },
-      ...(process.env.NODE_ENV === "production"
+      ...(productionSecurityPolicy
         ? [
             {
               key: "Strict-Transport-Security",

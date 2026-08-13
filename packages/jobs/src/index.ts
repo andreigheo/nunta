@@ -168,6 +168,7 @@ export const asyncEventNames = [
   "invitation.variant_archived.v1",
   "invitation.connected_data_applied.v1",
   "invitation.recipient_variant_assigned.v1",
+  "creative.state_updated.v1",
   "campaign.created.v1",
   "campaign.scheduled.v1",
   "campaign.send_requested.v1",

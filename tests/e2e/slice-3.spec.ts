@@ -574,8 +574,12 @@ test("E2E 8 — Plus-one", async ({ page }) => {
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
   await enterPublishedInvitation(page);
   await page.getByRole("checkbox", { name: "Vin cu un însoțitor" }).click();
-  await page.getByLabel("Prenumele însoțitorului", { exact: true }).fill("Alex");
-  await page.getByLabel("Numele însoțitorului", { exact: true }).fill("Ionescu");
+  await page
+    .getByLabel("Prenumele însoțitorului", { exact: true })
+    .fill("Alex");
+  await page
+    .getByLabel("Numele însoțitorului", { exact: true })
+    .fill("Ionescu");
   await page.getByRole("button", { name: "Salvează RSVP" }).click();
   await expect(page.getByText("Răspuns salvat")).toBeVisible();
   await expect
@@ -876,9 +880,7 @@ test("E2E 19 — Demo", async ({ page }) => {
     page.getByRole("button", { name: "Publică invitația" }),
   ).toBeDisabled();
   await page.goto("/menus?demo=1");
-  await expect(
-    page.getByRole("button", { name: "Meniu", exact: true }),
-  ).toBeDisabled();
+  await expect(page.getByText("Meniurile sunt izolate în demo")).toBeVisible();
   expect(apiRequests).toEqual([]);
 });
 

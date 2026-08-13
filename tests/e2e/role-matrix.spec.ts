@@ -158,6 +158,14 @@ test("Role matrix — all five event roles receive the exact bounded workspace c
     for (const capability of definition.forbidden) {
       expect(bootstrap.membership.capabilities).not.toContain(capability);
     }
+    if (bootstrap.membership.capabilities.includes("invitation.read")) {
+      expect(
+        (
+          await api.get(`/api/v1/workspaces/${workspaceId}/creative-state`)
+        ).status(),
+        `${definition.email} creative-state`,
+      ).toBe(200);
+    }
 
     const me = await apiData<{
       contexts: {
@@ -193,8 +201,58 @@ test("Role matrix — protected workspace routes honor readable and read-only ro
   await expect(
     viewerPage.getByText("Acest modul nu face parte din rolul tău"),
   ).toBeVisible();
-  await familyPage.context().close();
   await viewerPage.context().close();
+
+  await familyPage.context().close();
+});
+
+test("Role matrix — family collaborator uses creative and task surfaces read-only", async ({
+  browser,
+}) => {
+  const familyPage = await signedInPage(browser, "family@weddingos.local");
+
+  await familyPage.goto("/design-studio");
+  await expect(familyPage.getByText("doar citire")).toBeVisible();
+  await expect(
+    familyPage.getByRole("button", { name: "Salvează conceptul" }),
+  ).toBeDisabled();
+  await expect(familyPage.getByLabel("Numele conceptului")).toBeDisabled();
+
+  await familyPage.goto("/moodboards");
+  await expect(familyPage.getByText("doar citire")).toBeVisible();
+  await expect(
+    familyPage.getByRole("button", { name: "Moodboard nou" }),
+  ).toBeDisabled();
+  await expect(
+    familyPage.getByRole("button", { name: "Salvează", exact: true }),
+  ).toBeDisabled();
+
+  await familyPage.goto("/post-wedding");
+  await expect(familyPage.getByText("doar citire")).toBeVisible();
+  await expect(
+    familyPage.getByRole("button", { name: "Adaugă un pas" }),
+  ).toHaveCount(0);
+
+  await familyPage.context().close();
+});
+
+test("Role matrix — demo marketplace opens a complete public provider profile", async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto("/marketplace?demo=1");
+  await page
+    .getByRole("button", { name: "Profilul Andrei Dăscălescu" })
+    .click();
+  await expect(page).toHaveURL(/\/marketplace\/demo-andrei-d-sc-lescu/);
+  await expect(page.getByTestId("vendor-public-profile")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Andrei Dăscălescu", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Servicii" })).toBeVisible();
+  await expect(page.getByText("Furnizor negăsit")).toHaveCount(0);
+  await context.close();
 });
 
 test("Role matrix — all five provider roles expose only their effective capabilities", async () => {

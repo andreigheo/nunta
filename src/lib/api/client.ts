@@ -81,6 +81,8 @@ import type {
   AccommodationRecommendationStatus,
   CreateAccommodationRecommendation,
   UpdateAccommodationRecommendation,
+  UpdateWorkspaceCreativeState,
+  WorkspaceCreativeState,
 } from "@weddingos/contracts";
 import { classifyApiProblem, isDemoCookieHeader } from "./transport-policy";
 
@@ -1526,6 +1528,23 @@ export const weddingOsApi = {
   dashboard: (workspaceId: string) =>
     request<PlanningDashboard>(
       `/workspaces/${encodeURIComponent(workspaceId)}/dashboard`,
+    ),
+  creativeState: (workspaceId: string) =>
+    request<WorkspaceCreativeState>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/creative-state`,
+    ),
+  updateCreativeState: (
+    workspaceId: string,
+    version: number,
+    input: UpdateWorkspaceCreativeState,
+  ) =>
+    request<WorkspaceCreativeState>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/creative-state`,
+      {
+        method: "PUT",
+        body: input,
+        ...(version > 0 ? { ifMatch: version } : {}),
+      },
     ),
   search: (workspaceId: string, query: string) =>
     request<{

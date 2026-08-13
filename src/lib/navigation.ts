@@ -113,8 +113,8 @@ export const navGroups: NavGroup[] = [
     id: "creative",
     label: "Creativ",
     items: [
-      { label: "Studio de design", href: "/design-studio", icon: Wand2, capability: "invitation.write" },
-      { label: "Moodboarduri", href: "/moodboards", icon: Images, capability: "invitation.write" },
+      { label: "Studio de design", href: "/design-studio", icon: Wand2, capability: "invitation.read" },
+      { label: "Moodboarduri", href: "/moodboards", icon: Images, capability: "invitation.read" },
     ],
   },
   {

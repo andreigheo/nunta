@@ -72,6 +72,25 @@ export const updateVendorMemberSchema = z.object({
   status: z.enum(["ACTIVE", "REMOVED"]).optional(),
 });
 
+const vendorPublicMediaUrlSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (value) => {
+      if (
+        /^\/api\/v1\/marketplace\/portfolio-assets\/[0-9a-f-]{36}$/i.test(value)
+      )
+        return true;
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "https:" || parsed.protocol === "http:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Media URL must use HTTP(S) or a Sarbato portfolio asset URL" },
+  );
+
 export const upsertVendorProfileSchema = z.object({
   slug: z
     .string()
@@ -82,8 +101,8 @@ export const upsertVendorProfileSchema = z.object({
   headline: z.string().trim().min(3).max(180),
   description: boundedText,
   shortDescription: z.string().trim().min(3).max(500),
-  logoUrl: z.string().url().max(2048).nullable().optional(),
-  coverImageUrl: z.string().url().max(2048).nullable().optional(),
+  logoUrl: vendorPublicMediaUrlSchema.nullable().optional(),
+  coverImageUrl: vendorPublicMediaUrlSchema.nullable().optional(),
   categories: z.array(vendorCategorySchema).min(1).max(8),
   customCategoryLabel: z.string().trim().max(100).nullable().optional(),
   languages: z.array(z.string().trim().min(2).max(16)).min(1).max(12),

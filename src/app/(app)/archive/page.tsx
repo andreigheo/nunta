@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Archive,
   CalendarDays,
@@ -14,10 +15,15 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/lib/api/workspace-context";
-import { PlannedFeature } from "@/components/product/planned-feature";
+import {
+  apiErrorMessage,
+  weddingOsApi,
+  type OperationResource,
+} from "@/lib/api/client";
 import {
   Badge,
   Button,
@@ -25,6 +31,7 @@ import {
   CardContent,
   ConfirmDialog,
   EmptyState,
+  ErrorState,
   Input,
   PageHeader,
   SegmentedControl,
@@ -137,22 +144,21 @@ const kindCopy = {
 
 export default function ArchivePage() {
   const { toast } = useToast();
-  const { demoMode } = useWorkspace();
+  const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const [kind, setKind] = React.useState<"all" | ArchiveKind>("all");
   const [query, setQuery] = React.useState("");
   const [restoreOpen, setRestoreOpen] = React.useState(false);
   const [restored, setRestored] = React.useState(false);
 
   if (!demoMode) {
-    return (
-      <PlannedFeature
-        icon={Archive}
-        title="Arhivă"
-        description="Capsula completă a evenimentului va reuni doar fișiere și evidențe persistente."
-        availableHref="/documents"
-        availableLabel="Deschide documentele reale"
+    return currentWorkspace ? (
+      <ConnectedArchive
+        workspaceId={currentWorkspace.id}
+        title={currentWorkspace.title}
+        weddingDate={currentWorkspace.weddingDate}
+        capabilities={bootstrap?.membership.capabilities ?? []}
       />
-    );
+    ) : null;
   }
 
   const normalizedQuery = query.trim().toLocaleLowerCase("ro-RO");
@@ -411,6 +417,189 @@ export default function ArchivePage() {
         description="Toate modulele redevin editabile. Arhiva și fișierele protejate rămân neschimbate."
         confirmLabel="Restaurează"
       />
+    </div>
+  );
+}
+
+function ConnectedArchive({
+  workspaceId,
+  title,
+  weddingDate,
+  capabilities,
+}: {
+  workspaceId: string;
+  title: string;
+  weddingDate: string | null;
+  capabilities: string[];
+}) {
+  const [documents, setDocuments] = React.useState<OperationResource[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+  const canReadDocuments = capabilities.includes("document.read");
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError("");
+    if (!canReadDocuments) {
+      setDocuments([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      setDocuments((await weddingOsApi.documents(workspaceId)).items);
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+    } finally {
+      setLoading(false);
+    }
+  }, [canReadDocuments, workspaceId]);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  if (loading)
+    return <div className="h-72 animate-pulse rounded-xl bg-subtle" />;
+  if (error)
+    return (
+      <ErrorState
+        title="Arhiva nu poate fi încărcată"
+        description={error}
+        onRetry={() => void load()}
+      />
+    );
+
+  const available = documents.filter((item) => item.status === "AVAILABLE");
+  const processing = documents.filter((item) => item.status === "PROCESSING");
+  const quarantined = documents.filter((item) => item.status === "QUARANTINED");
+  const can = (capability: string) => capabilities.includes(capability);
+  const sections = [
+    {
+      title: "Documente și fișiere",
+      description:
+        "Documente private, scanate antivirus și disponibile prin download securizat.",
+      count: `${available.length} disponibile`,
+      href: "/documents",
+      icon: FileText,
+      visible: can("document.read"),
+    },
+    {
+      title: "Contracte",
+      description:
+        "Versiuni, semnături și dovezi păstrate în registrul comercial.",
+      count: "Deschide registrul",
+      href: "/contracts",
+      icon: ShieldCheck,
+      visible: can("contract.read"),
+    },
+    {
+      title: "Galeria invitaților",
+      description:
+        "Fotografii aprobate, respinse și în curs de moderare din ziua evenimentului.",
+      count: "Deschide galeria",
+      href: "/moments",
+      icon: ImageIcon,
+      visible: can("gallery.read"),
+    },
+    {
+      title: "Invitați și RSVP",
+      description:
+        "Lista curentă, răspunsurile, meniurile și nevoile logistice persistente.",
+      count: "Deschide evidența",
+      href: "/guests",
+      icon: Users,
+      visible: can("guest.read"),
+    },
+  ].filter((section) => section.visible);
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-5">
+      <PageHeader
+        title="Arhivă"
+        description={`Evidențele persistente pentru ${title}. Nimic din această pagină nu este demonstrativ.`}
+        meta={
+          weddingDate ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+              <CalendarDays className="size-3.5" aria-hidden />
+              Eveniment:{" "}
+              {new Intl.DateTimeFormat("ro-RO", {
+                dateStyle: "long",
+                timeZone: "UTC",
+              }).format(new Date(`${weddingDate}T00:00:00.000Z`))}
+            </span>
+          ) : null
+        }
+        actions={canReadDocuments ? (
+          <Link
+            href="/documents"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <Download className="size-4" aria-hidden />
+            Deschide downloadurile securizate
+          </Link>
+        ) : null}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted">Fișiere disponibile</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">
+              {available.length}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted">În procesare</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">
+              {processing.length}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted">Blocate de securitate</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">
+              {quarantined.length}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {sections.length ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {sections.map((section) => (
+            <Card key={section.href}>
+              <CardContent className="flex h-full flex-col p-5">
+                <span className="flex size-11 items-center justify-center rounded-xl bg-brand-soft text-brand">
+                  <section.icon className="size-5" aria-hidden />
+                </span>
+                <h2 className="mt-4 text-lg font-semibold text-ink">
+                  {section.title}
+                </h2>
+                <p className="mt-1 flex-1 text-sm leading-relaxed text-muted">
+                  {section.description}
+                </p>
+                <Link
+                  href={section.href}
+                  className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold text-brand hover:underline"
+                >
+                  {section.count}
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Archive}
+          title="Acces limitat la arhivă"
+          description="Rolul curent nu include alte categorii de evidențe."
+        />
+      )}
     </div>
   );
 }

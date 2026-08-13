@@ -508,7 +508,9 @@ test("E2E 22 — Demo isolation", async ({ page }) => {
       mutations.push(request.url());
   });
   await page.goto("/seating?demo=1");
-  await expect(page.getByText("Seating este izolat în demo")).toBeVisible();
+  await expect(
+    page.getByText("Planul de mese este izolat în demo"),
+  ).toBeVisible();
   await page.goto("/transport?demo=1");
   await expect(page.getByText("Transportul este izolat în demo")).toBeVisible();
   await page.goto("/accommodation?demo=1");

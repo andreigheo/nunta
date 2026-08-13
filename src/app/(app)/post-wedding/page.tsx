@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Archive,
   Check,
@@ -11,10 +12,15 @@ import {
   PackageCheck,
   PartyPopper,
   Send,
+  Plus,
+  FileText,
+  CreditCard,
+  Star,
 } from "lucide-react";
+import type { TaskSummary } from "@weddingos/contracts";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/lib/api/workspace-context";
-import { PlannedFeature } from "@/components/product/planned-feature";
+import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import {
   Badge,
   Button,
@@ -24,6 +30,11 @@ import {
   CardTitle,
   Checkbox,
   ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  Modal,
   PageHeader,
   Progress,
   useToast,
@@ -120,22 +131,23 @@ const returns = [
 
 export default function PostWeddingPage() {
   const { toast } = useToast();
-  const { demoMode } = useWorkspace();
+  const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const [tasks, setTasks] = React.useState(seedTasks);
   const [thanksSent, setThanksSent] = React.useState(118);
   const [closeOpen, setCloseOpen] = React.useState(false);
   const [closed, setClosed] = React.useState(false);
 
   if (!demoMode) {
-    return (
-      <PlannedFeature
-        icon={PartyPopper}
-        title="Post-eveniment"
-        description="Închiderea evenimentului va folosi sarcini, plăți și documente confirmate din spațiul curent."
-        availableHref="/overview"
-        availableLabel="Înapoi la prezentarea generală"
+    return currentWorkspace ? (
+      <ConnectedPostWedding
+        workspaceId={currentWorkspace.id}
+        title={currentWorkspace.title}
+        weddingDate={currentWorkspace.weddingDate}
+        canWrite={
+          bootstrap?.membership.capabilities.includes("task.write") ?? false
+        }
       />
-    );
+    ) : null;
   }
 
   const done = tasks.filter((task) => task.done).length;
@@ -446,5 +458,327 @@ export default function PostWeddingPage() {
         confirmLabel="Închide și arhivează"
       />
     </div>
+  );
+}
+
+function ConnectedPostWedding({
+  workspaceId,
+  title,
+  weddingDate,
+  canWrite,
+}: {
+  workspaceId: string;
+  title: string;
+  weddingDate: string | null;
+  canWrite: boolean;
+}) {
+  const { toast } = useToast();
+  const [tasks, setTasks] = React.useState<TaskSummary[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [error, setError] = React.useState("");
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [form, setForm] = React.useState({
+    title: "",
+    description: "",
+    dueAt: "",
+  });
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setTasks(
+        (await weddingOsApi.tasks(workspaceId, { category: "post_wedding" }))
+          .items,
+      );
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  const createTask = async () => {
+    if (!canWrite || !form.title.trim()) return;
+    try {
+      await weddingOsApi.createTask(workspaceId, {
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        category: "post_wedding",
+        priority: "medium",
+        dueAt: form.dueAt
+          ? new Date(`${form.dueAt}T12:00:00.000Z`).toISOString()
+          : null,
+        isPrivate: false,
+        position: tasks.length,
+      });
+      setCreateOpen(false);
+      setForm({ title: "", description: "", dueAt: "" });
+      await load();
+      toast({ title: "Pas adăugat", variant: "success" });
+    } catch (caught) {
+      toast({
+        title: "Pasul nu a fost creat",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    }
+  };
+
+  const toggle = async (task: TaskSummary) => {
+    if (!canWrite) return;
+    setBusyId(task.id);
+    try {
+      await weddingOsApi.transitionTask(workspaceId, task.id, {
+        transition: task.status === "completed" ? "REOPEN" : "COMPLETE",
+        version: task.version,
+        confirmIncompleteSubtasks: true,
+      });
+      await load();
+    } catch (caught) {
+      toast({
+        title: "Starea nu a fost actualizată",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (loading)
+    return <div className="h-72 animate-pulse rounded-xl bg-subtle" />;
+  if (error)
+    return (
+      <ErrorState
+        title="Pașii post-eveniment nu pot fi încărcați"
+        description={error}
+        onRetry={() => void load()}
+      />
+    );
+
+  const completed = tasks.filter((task) => task.status === "completed").length;
+  const completion = tasks.length
+    ? Math.round((completed / tasks.length) * 100)
+    : 0;
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-5">
+      <PageHeader
+        title="După eveniment"
+        description={`Închide pașii reali pentru ${title}; sarcinile rămân în plan și în istoricul activității.`}
+        meta={
+          weddingDate ? (
+            <Badge variant="neutral">
+              Eveniment{" "}
+              {new Intl.DateTimeFormat("ro-RO", {
+                dateStyle: "medium",
+                timeZone: "UTC",
+              }).format(new Date(`${weddingDate}T00:00:00.000Z`))}
+            </Badge>
+          ) : null
+        }
+        actions={canWrite ? (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" aria-hidden />
+            Adaugă un pas
+          </Button>
+        ) : (
+          <Badge variant="neutral">doar citire</Badge>
+        )}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Checklist persistent</CardTitle>
+              <p className="mt-1 text-sm text-muted">
+                {completed} din {tasks.length} pași finalizați
+              </p>
+            </div>
+            <Badge
+              variant={
+                completion === 100 && tasks.length ? "success" : "neutral"
+              }
+            >
+              {completion}%
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            <Progress
+              value={completion}
+              max={100}
+              tone={completion === 100 ? "success" : "brand"}
+              aria-label="Progres post-eveniment"
+            />
+            {tasks.length ? (
+              <div className="mt-5 divide-y divide-line">
+                {tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p
+                        className={cn(
+                          "font-medium text-ink",
+                          task.status === "completed" &&
+                            "text-muted line-through",
+                        )}
+                      >
+                        {task.title}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">
+                        {task.dueAt
+                          ? `Termen ${new Intl.DateTimeFormat("ro-RO", { dateStyle: "medium" }).format(new Date(task.dueAt))}`
+                          : "Fără termen"}
+                      </p>
+                    </div>
+                    {canWrite ? <Button
+                      size="sm"
+                      variant={
+                        task.status === "completed" ? "ghost" : "outline"
+                      }
+                      disabled={busyId === task.id}
+                      onClick={() => void toggle(task)}
+                    >
+                      {task.status === "completed"
+                        ? "Redeschide"
+                        : "Finalizează"}
+                    </Button> : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={PartyPopper}
+                title="Niciun pas post-eveniment"
+                description="Adaugă numai pașii care se aplică evenimentului vostru."
+                action={
+                  canWrite
+                    ? {
+                        label: "Adaugă primul pas",
+                        onClick: () => setCreateOpen(true),
+                      }
+                    : undefined
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <ConnectedModuleLink
+            href="/payments"
+            icon={CreditCard}
+            title="Plăți și solduri"
+            description="Verifică înregistrările și termenele reale."
+          />
+          <ConnectedModuleLink
+            href="/documents"
+            icon={FileText}
+            title="Documente"
+            description="Descarcă fișierele scanate și disponibile."
+          />
+          <ConnectedModuleLink
+            href="/reviews"
+            icon={Star}
+            title="Recenzii furnizori"
+            description="Publică numai evaluări eligibile și verificate."
+          />
+        </div>
+      </div>
+
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Pas post-eveniment"
+        description="Sarcina va fi creată în planul real al workspace-ului."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
+              Renunță
+            </Button>
+            <Button
+              disabled={!form.title.trim()}
+              onClick={() => void createTask()}
+            >
+              Creează pasul
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field label="Titlu" htmlFor="post-wedding-title">
+            <Input
+              id="post-wedding-title"
+              maxLength={240}
+              value={form.title}
+              onChange={(event) =>
+                setForm({ ...form, title: event.target.value })
+              }
+            />
+          </Field>
+          <Field label="Descriere" htmlFor="post-wedding-description">
+            <Input
+              id="post-wedding-description"
+              maxLength={4000}
+              value={form.description}
+              onChange={(event) =>
+                setForm({ ...form, description: event.target.value })
+              }
+            />
+          </Field>
+          <Field label="Termen" htmlFor="post-wedding-date">
+            <Input
+              id="post-wedding-date"
+              type="date"
+              value={form.dueAt}
+              onChange={(event) =>
+                setForm({ ...form, dueAt: event.target.value })
+              }
+            />
+          </Field>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+function ConnectedModuleLink({
+  href,
+  icon: Icon,
+  title,
+  description,
+}: {
+  href: string;
+  icon: typeof CreditCard;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+    >
+      <Card interactive>
+        <CardContent className="flex items-start gap-3 p-4">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            <Icon className="size-5" aria-hidden />
+          </span>
+          <div>
+            <p className="font-semibold text-ink">{title}</p>
+            <p className="mt-1 text-sm text-muted">{description}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

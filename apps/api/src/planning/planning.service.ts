@@ -2141,7 +2141,7 @@ export class PlanningService {
           }),
           transaction.onboardingDraft.findUnique({
             where: { workspaceId },
-            select: { guests: true },
+            select: { guests: true, budget: true },
           }),
           transaction.rsvpFormDefinition.findUnique({ where: { workspaceId } }),
           transaction.invitationSite.findUnique({ where: { workspaceId } }),
@@ -2178,6 +2178,14 @@ export class PlanningService {
         );
         const onboardingGuests = record(onboarding?.guests);
         const estimatedValue = Number(onboardingGuests.guestCount);
+        const onboardingBudget = record(onboarding?.budget);
+        const onboardingBudgetAmount = Number(onboardingBudget.amount);
+        const onboardingTargetMinor =
+          onboardingBudget.confirmed === true &&
+          Number.isFinite(onboardingBudgetAmount) &&
+          onboardingBudgetAmount >= 0
+            ? Math.round(onboardingBudgetAmount * 100)
+            : 0;
         const guestCrm = {
           estimatedGuests:
             Number.isFinite(estimatedValue) && estimatedValue >= 0
@@ -2419,8 +2427,10 @@ export class PlanningService {
         const commercial = {
           currency: budgetPlan?.currency ?? "RON",
           budget: {
-            configured: Boolean(budgetPlan),
-            targetTotalMinor: safeMinor(budgetPlan?.targetTotalMinor ?? 0n),
+            configured: Boolean(budgetPlan) || onboardingTargetMinor > 0,
+            targetTotalMinor: budgetPlan
+              ? safeMinor(budgetPlan.targetTotalMinor)
+              : onboardingTargetMinor,
             estimatedMinor: total(
               budgetItems.map((item) => item.estimatedMinor),
             ),

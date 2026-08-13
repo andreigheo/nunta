@@ -31,6 +31,7 @@ import { IntelligenceModule } from "./intelligence/intelligence.module";
 import { PlatformModule } from "./platform/platform.module";
 import { WorkspaceBillingModule } from "./workspace-billing/workspace-billing.module";
 import { AccommodationDiscoveryModule } from "./accommodation-discovery/accommodation-discovery.module";
+import { CreativeModule } from "./creative/creative.module";
 
 const throttleGuardProviders =
   process.env.NODE_ENV === "test" &&
@@ -64,6 +65,7 @@ const throttleGuardProviders =
     PlanningModule,
     OperationsModule,
     AccommodationDiscoveryModule,
+    CreativeModule,
     GuestsModule,
     CommercialModule,
     SecureCommerceModule,

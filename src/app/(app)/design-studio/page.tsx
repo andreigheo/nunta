@@ -12,10 +12,13 @@ import {
   Leaf,
   Palette,
   Wand2,
+  Save,
+  Trash2,
 } from "lucide-react";
+import type { WorkspaceCreativeState } from "@weddingos/contracts";
 import { cn, formatRON } from "@/lib/utils";
 import { useWorkspace } from "@/lib/api/workspace-context";
-import { PlannedFeature } from "@/components/product/planned-feature";
+import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import {
   Badge,
   Button,
@@ -24,6 +27,8 @@ import {
   CardHeader,
   CardTitle,
   Field,
+  Input,
+  ErrorState,
   Modal,
   PageHeader,
   Progress,
@@ -84,22 +89,22 @@ const briefs = [
 export default function DesignStudioPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { demoMode } = useWorkspace();
+  const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const [aiOpen, setAiOpen] = React.useState(false);
   const [briefOpen, setBriefOpen] = React.useState<string | null>(null);
   const [compareOpen, setCompareOpen] = React.useState(false);
   const [copied, setCopied] = React.useState<string | null>(null);
 
   if (!demoMode) {
-    return (
-      <PlannedFeature
-        icon={Wand2}
-        title="Studio de design"
-        description="Instrumentele creative vor fi conectate la invitația persistentă și la fișierele reale ale evenimentului."
-        availableHref="/invitations/editor"
-        availableLabel="Deschide editorul de invitații"
+    return currentWorkspace ? (
+      <ConnectedDesignStudio
+        workspaceId={currentWorkspace.id}
+        canWrite={
+          bootstrap?.membership.capabilities.includes("invitation.write") ??
+          false
+        }
       />
-    );
+    ) : null;
   }
 
   const copyHex = (hex: string, name: string) => {
@@ -544,6 +549,305 @@ export default function DesignStudioPage() {
           ))}
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function ConnectedDesignStudio({
+  workspaceId,
+  canWrite,
+}: {
+  workspaceId: string;
+  canWrite: boolean;
+}) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [state, setState] = React.useState<WorkspaceCreativeState | null>(null);
+  const [draft, setDraft] = React.useState<WorkspaceCreativeState | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const value = await weddingOsApi.creativeState(workspaceId);
+      setState(value);
+      setDraft(value);
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  const save = async () => {
+    if (!canWrite || !draft || !state) return;
+    setSaving(true);
+    try {
+      const value = await weddingOsApi.updateCreativeState(
+        workspaceId,
+        state.version,
+        {
+          conceptTitle: draft.conceptTitle,
+          conceptDescription: draft.conceptDescription,
+          palette: draft.palette,
+          boards: draft.boards,
+        },
+      );
+      setState(value);
+      setDraft(value);
+      toast({
+        title: "Concept salvat",
+        description:
+          "Paleta și direcția creativă sunt persistente în spațiul vostru.",
+        variant: "success",
+      });
+    } catch (caught) {
+      toast({
+        title: "Conceptul nu a fost salvat",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (error)
+    return (
+      <ErrorState
+        title="Studio-ul nu poate fi încărcat"
+        description={error}
+        onRetry={() => void load()}
+      />
+    );
+  if (loading || !draft || !state)
+    return <div className="h-72 animate-pulse rounded-xl bg-subtle" />;
+
+  const itemCount = draft.boards.reduce(
+    (total, board) => total + board.items.length,
+    0,
+  );
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-5">
+      <PageHeader
+        title="Studio de design"
+        description="Direcția creativă reală a evenimentului, folosită împreună cu moodboardurile și invitația."
+        meta={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={state.version > 0 ? "success" : "neutral"}>
+              {state.version > 0
+                ? `salvat · v${state.version}`
+                : "neconfigurat"}
+            </Badge>
+            {!canWrite ? <Badge variant="neutral">doar citire</Badge> : null}
+          </div>
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/moodboards")}
+            >
+              <Palette className="size-4" aria-hidden />
+              Moodboarduri
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/invitations/editor")}
+            >
+              <Wand2 className="size-4" aria-hidden />
+              Aplică în invitație
+            </Button>
+            <Button
+              disabled={!canWrite || saving}
+              onClick={() => void save()}
+            >
+              <Save className="size-4" aria-hidden />
+              {saving ? "Se salvează…" : "Salvează conceptul"}
+            </Button>
+          </>
+        }
+      />
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,0.7fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Direcția principală</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Field label="Numele conceptului" htmlFor="creative-concept-title">
+              <Input
+                id="creative-concept-title"
+                maxLength={180}
+                disabled={!canWrite}
+                value={draft.conceptTitle}
+                placeholder="Ex. Grădină de seară elegantă"
+                onChange={(event) =>
+                  setDraft({ ...draft, conceptTitle: event.target.value })
+                }
+              />
+            </Field>
+            <Field
+              label="Descrierea direcției"
+              htmlFor="creative-concept-description"
+              hint={`${draft.conceptDescription.length}/4000`}
+            >
+              <Textarea
+                id="creative-concept-description"
+                rows={8}
+                maxLength={4000}
+                disabled={!canWrite}
+                value={draft.conceptDescription}
+                placeholder="Materiale, atmosferă, lumină, flori și orice regulă vizuală importantă…"
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    conceptDescription: event.target.value,
+                  })
+                }
+              />
+            </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Legături creative</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="rounded-lg bg-subtle p-4">
+              <p className="font-semibold text-ink">
+                {draft.boards.length} moodboarduri · {itemCount} repere
+              </p>
+              <p className="mt-1 text-muted">
+                Imaginile, notițele, culorile și furnizorii sunt păstrați în
+                backend.
+              </p>
+            </div>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => router.push("/moodboards")}
+            >
+              Deschide moodboardurile
+            </Button>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => router.push("/invitations/editor")}
+            >
+              Deschide editorul invitației
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Paleta de culori</CardTitle>
+            <p className="mt-1 text-sm text-muted">
+              Culorile sunt valori reale și pot fi copiate direct în editorul
+              invitației.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canWrite || draft.palette.length >= 20}
+            onClick={() =>
+              setDraft({
+                ...draft,
+                palette: [
+                  ...draft.palette,
+                  {
+                    id: crypto.randomUUID(),
+                    name: "Culoare nouă",
+                    hex: "#6F4B73",
+                  },
+                ],
+              })
+            }
+          >
+            <Palette className="size-4" aria-hidden />
+            Adaugă o culoare
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {draft.palette.length ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {draft.palette.map((color, index) => (
+                <div
+                  key={color.id}
+                  className="grid grid-cols-[3rem_1fr_auto] items-center gap-3 rounded-xl border border-line p-3"
+                >
+                  <input
+                    aria-label={`Culoarea ${color.name}`}
+                    className="size-12 cursor-pointer rounded-lg border border-line bg-transparent p-1"
+                    type="color"
+                    disabled={!canWrite}
+                    value={color.hex}
+                    onChange={(event) => {
+                      const palette = [...draft.palette];
+                      palette[index] = {
+                        ...color,
+                        hex: event.target.value.toUpperCase(),
+                      };
+                      setDraft({ ...draft, palette });
+                    }}
+                  />
+                  <div className="min-w-0 space-y-1">
+                    <Input
+                      aria-label={`Numele culorii ${index + 1}`}
+                      value={color.name}
+                      disabled={!canWrite}
+                      maxLength={80}
+                      onChange={(event) => {
+                        const palette = [...draft.palette];
+                        palette[index] = { ...color, name: event.target.value };
+                        setDraft({ ...draft, palette });
+                      }}
+                    />
+                    <p className="text-xs font-medium text-muted">
+                      {color.hex}
+                    </p>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Șterge culoarea ${color.name}`}
+                    disabled={!canWrite}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        palette: draft.palette.filter(
+                          (entry) => entry.id !== color.id,
+                        ),
+                      })
+                    }
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">
+              Nu ai adăugat încă nicio culoare. Pornește cu nuanțele pe care
+              vrei să le păstrezi consecvent.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

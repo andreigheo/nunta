@@ -1024,6 +1024,7 @@ model Workspace {
   billingCheckouts       WorkspaceBillingCheckout[]
   billingProviderEvents  WorkspaceBillingProviderEvent[]
   billingTransactions    WorkspaceBillingTransaction[]
+  creativeState          WorkspaceCreativeState?
 
   @@index([createdById])
   @@map("workspaces")
@@ -1544,6 +1545,24 @@ model OnboardingDraft {
 
   @@index([userId, updatedAt])
   @@map("onboarding_drafts")
+}
+
+model WorkspaceCreativeState {
+  id                 String    @id @default(uuid()) @db.Uuid
+  workspaceId        String    @unique @map("workspace_id") @db.Uuid
+  conceptTitle       String    @default("") @map("concept_title") @db.VarChar(180)
+  conceptDescription String    @default("") @map("concept_description") @db.Text
+  palette            Json      @default("[]")
+  boards             Json      @default("[]")
+  createdById        String    @map("created_by") @db.Uuid
+  updatedById        String    @map("updated_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  version            Int       @default(1)
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, updatedAt])
+  @@map("workspace_creative_states")
 }
 
 model WorkerHeartbeat {

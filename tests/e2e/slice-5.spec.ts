@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { createHash, createHmac } from "node:crypto";
 import { PrismaClient } from "@weddingos/database";
+import { source as axeSource } from "axe-core";
 
 const apiUrl = "http://127.0.0.1:4117";
 const origin = "http://127.0.0.1:3117";
@@ -162,7 +163,24 @@ test("E2E 1 — Vendor organization", async ({ page }) => {
   await expect(page.getByText(vendorAName).first()).toBeVisible();
 });
 
-test("E2E 2 — Publish vendor profile", async () => {
+test("E2E 2 — Publish vendor profile", async ({ page }) => {
+  await authorizePage(page, vendorA);
+  await page.goto("/vendor/profile");
+  await expect(page.getByLabel("Titlu public")).toHaveValue(vendorAName);
+  await page.getByLabel("Telefon public").fill("+40 720 123 456");
+  await page.getByLabel("Ani de experiență").fill("8");
+  await page.getByRole("button", { name: "Salvează", exact: true }).click();
+  await expect(page.getByText("Profil salvat ca draft")).toBeVisible();
+  profileA = await apiData<Resource>(
+    await vendorA.api.get(
+      `/api/v1/vendor-organizations/${organizationA}/profile`,
+    ),
+  );
+  expect(profileA).toMatchObject({
+    publicPhone: "+40 720 123 456",
+    yearsExperience: 8,
+  });
+
   const service = await apiData<Resource>(
     await vendorA.api.post(
       `/api/v1/vendor-organizations/${organizationA}/services`,
@@ -281,6 +299,37 @@ test("E2E 3 — Marketplace", async ({ page }) => {
   await expect(page.getByText(vendorAName).first()).toBeVisible();
   await page.reload();
   await expect(page.getByText(vendorAName).first()).toBeVisible();
+
+  await page.goto(`/marketplace/${vendorASlug}`);
+  const publicProfile = page.getByTestId("vendor-public-profile");
+  await expect(publicProfile).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: vendorAName, level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Prezentare" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Servicii" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Pachete" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Portofoliu" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Recenzii" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Despre" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Servicii disponibile" }),
+  ).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+  await page.getByRole("tab", { name: "Servicii" }).click();
+  await expect(page.getByText("Fotografie documentară E2E")).toBeVisible();
+  await page.getByRole("tab", { name: "Pachete" }).click();
+  await expect(page.getByText("Documentar complet E2E")).toBeVisible();
+
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(publicProfile).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  }
+  await expectNoSeriousAxeViolations(page);
 });
 
 test("E2E 4 — Create RFQ", async () => {
@@ -1314,7 +1363,7 @@ test("Slice 6 E2E 4 — Receipt", async () => {
   ).toBe(404);
 });
 
-test("Slice 6 E2E 5 — Vendor portfolio", async () => {
+test("Slice 6 E2E 5 — Vendor portfolio", async ({ page }) => {
   const png = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
     "base64",
@@ -1366,6 +1415,28 @@ test("Slice 6 E2E 5 — Vendor portfolio", async () => {
     ),
   ).toBe(true);
   expect(JSON.stringify(marketplace.portfolio)).not.toContain("objectKey");
+
+  await authorizePage(page, vendorA);
+  await page.goto("/vendor/profile");
+  const portfolioCard = page
+    .getByText("portfolio-e2e", { exact: true })
+    .locator("..")
+    .locator("..");
+  await portfolioCard
+    .getByRole("button", { name: "Folosește ca copertă" })
+    .click();
+  await portfolioCard
+    .getByRole("button", { name: "Folosește ca avatar" })
+    .click();
+  await page.getByRole("button", { name: "Salvează", exact: true }).click();
+  await expect(page.getByText("Profil salvat ca draft")).toBeVisible();
+  const profileWithArtwork = await apiData<Resource>(
+    await vendorA.api.get(
+      `/api/v1/vendor-organizations/${organizationA}/profile`,
+    ),
+  );
+  expect(profileWithArtwork.coverImageUrl).toBe(portfolioAsset.url);
+  expect(profileWithArtwork.logoUrl).toBe(portfolioAsset.url);
 });
 
 test("Slice 6 E2E 6 — Contract materialization", async () => {
@@ -3918,4 +3989,23 @@ function reviewPayload(eligibilityId: string) {
     publicDisplayName: "Cuplu E2E verificat",
     authenticityConfirmed: true,
   };
+}
+
+async function expectNoSeriousAxeViolations(page: Page) {
+  await page.addScriptTag({ content: axeSource });
+  const violations = await page.evaluate(async () => {
+    const result = await (
+      window as unknown as {
+        axe: {
+          run(root: Document): Promise<{
+            violations: Array<{ id: string; impact: string | null }>;
+          }>;
+        };
+      }
+    ).axe.run(document);
+    return result.violations.filter((item) =>
+      ["critical", "serious"].includes(item.impact ?? ""),
+    );
+  });
+  expect(violations).toEqual([]);
 }
