@@ -1711,6 +1711,38 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(200);
     submissionVersion = overridden.body.data.version;
+    const organizerSelection = await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/guest-menu-selections/${primaryGuestId}`,
+      )
+      .set("Origin", origin)
+      .send({ menuId, selectionVersion: null })
+      .expect(200);
+    await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/guest-menu-selections/${primaryGuestId}`,
+      )
+      .set("Origin", origin)
+      .send({
+        menuId: null,
+        selectionVersion: organizerSelection.body.data.version,
+      })
+      .expect(200)
+      .expect(({ body }) => expect(body.data.menuId).toBeNull());
+    await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/guest-menu-selections/${primaryGuestId}`,
+      )
+      .set("Origin", origin)
+      .send({ menuId, selectionVersion: null })
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.data).toMatchObject({
+          guestId: primaryGuestId,
+          menuId,
+          source: "organizer",
+        }),
+      );
     const issue = await database.allergyIssue.findUniqueOrThrow({
       where: { allergyId: activeAllergy.id },
     });
@@ -2611,6 +2643,50 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
       .expect(200);
     expect(seatingDetail.body.data.assignments).toHaveLength(eligible.length);
+    expect(
+      seatingDetail.body.data.guests.some(
+        (guest: { menu: { id: string; name: string } | null }) =>
+          guest.menu?.id === menuId && guest.menu.name === "Meniu clasic",
+      ),
+    ).toBe(true);
+    await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/publish`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${seatingDetail.body.data.version}"`)
+      .set("Idempotency-Key", `seat-publish-${randomUUID()}`)
+      .send({})
+      .expect(201);
+    const publishedTable = seatingDetail.body.data.tables[0];
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${publishedTable.version}"`)
+      .send({ notes: "Masă verificată de organizator" })
+      .expect(200);
+    seatingDetail = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    expect(seatingDetail.body.data).toMatchObject({
+      status: "published",
+      hasUnpublishedChanges: true,
+    });
+    await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/publish`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${seatingDetail.body.data.version}"`)
+      .set("Idempotency-Key", `seat-republish-${randomUUID()}`)
+      .send({})
+      .expect(201);
+    seatingDetail = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    expect(seatingDetail.body.data.hasUnpublishedChanges).toBe(false);
     const suggestion = await owner.agent
       .post(
         `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/suggestions`,

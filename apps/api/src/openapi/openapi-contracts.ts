@@ -100,6 +100,8 @@ import {
   createHouseholdSchema,
   createInvitationRecipientsSchema,
   createMenuSchema,
+  organizerMenuSelectionResourceSchema,
+  organizerMenuSelectionSchema,
   cursorRecordListSchema,
   exportRequestSchema,
   guestBulkCommandSchema,
@@ -540,6 +542,8 @@ const schemas: Record<string, ZodTypeAny> = {
   AdminRsvpOverride: adminRsvpOverrideSchema,
   CreateMenu: createMenuSchema,
   UpdateMenu: updateMenuSchema,
+  OrganizerMenuSelection: organizerMenuSelectionSchema,
+  OrganizerMenuSelectionResource: organizerMenuSelectionResourceSchema,
   Menu: menuSchema,
   MenuList: menuListSchema,
   ResolveAllergyIssue: resolveAllergyIssueSchema,
@@ -1343,6 +1347,10 @@ const requestByRoute: Array<[RegExp, string]> = [
     "AdminRsvpOverride",
   ],
   [/POST \/api\/v1\/workspaces\/\{workspaceId\}\/menus$/, "CreateMenu"],
+  [
+    /PUT \/api\/v1\/workspaces\/\{workspaceId\}\/guest-menu-selections\/\{guestId\}$/,
+    "OrganizerMenuSelection",
+  ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/menus\/\{menuId\}$/,
     "UpdateMenu",
@@ -2178,6 +2186,10 @@ const responseByRoute: Array<[RegExp, string]> = [
   [
     /GET \/api\/v1\/workspaces\/\{workspaceId\}\/guest-menu-selections$/,
     "CursorRecordList",
+  ],
+  [
+    /PUT \/api\/v1\/workspaces\/\{workspaceId\}\/guest-menu-selections\/\{guestId\}$/,
+    "OrganizerMenuSelectionResource",
   ],
   [
     /GET \/api\/v1\/workspaces\/\{workspaceId\}\/allergy-issues$/,

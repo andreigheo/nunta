@@ -15,6 +15,8 @@ import {
   invitationRecipientSchema,
   invitationSettingsSchema,
   invitationVariantOverridesSchema,
+  organizerMenuSelectionResourceSchema,
+  organizerMenuSelectionSchema,
   guestInvitationOpenSchema,
   guestLinkAccessSchema,
   invitationContainsStarterContent,
@@ -45,6 +47,29 @@ const uuid = "00000000-0000-4000-8000-000000000001";
 const eventId = "00000000-0000-4000-8000-000000000002";
 
 describe("Slice 3 guest, invitation, RSVP and menu rules", () => {
+  it("contracts organizer menu selection updates and nullable removal", () => {
+    expect(
+      organizerMenuSelectionSchema.parse({
+        menuId: uuid,
+        selectionVersion: 2,
+      }),
+    ).toEqual({ menuId: uuid, selectionVersion: 2 });
+    expect(
+      organizerMenuSelectionSchema.parse({
+        menuId: null,
+        selectionVersion: null,
+      }),
+    ).toEqual({ menuId: null, selectionVersion: null });
+    expect(
+      organizerMenuSelectionResourceSchema.parse({
+        guestId: uuid,
+        menuId: null,
+        menuName: null,
+        version: null,
+      }),
+    ).toMatchObject({ guestId: uuid, menuId: null, version: null });
+  });
+
   it("normalizes contacts and rejects malformed phone values", () => {
     expect(normalizeEmail(" ANA@Example.Test ")).toBe("ana@example.test");
     expect(normalizePhone("(373) 60 123-456")).toBe("+37360123456");

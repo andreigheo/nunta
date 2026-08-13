@@ -207,10 +207,20 @@ export class OperationsService {
     });
   }
 
-  async seatingPlan(userId: string, workspaceId: string, planId: string) {
+  async seatingPlan(
+    userId: string,
+    workspaceId: string,
+    planId: string,
+    includeSensitive = false,
+  ) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       await this.recomputeSeatingIssues(tx, workspaceId, planId);
-      return this.seatingPlanResource(tx, workspaceId, planId);
+      return this.seatingPlanResource(
+        tx,
+        workspaceId,
+        planId,
+        includeSensitive,
+      );
     });
   }
 
@@ -327,6 +337,7 @@ export class OperationsService {
                     "DRAFT" | "READY" | "ARCHIVED",
                 }
               : {}),
+            activeSnapshotId: null,
             version: { increment: 1 },
           },
         });
@@ -435,7 +446,7 @@ export class OperationsService {
           });
         const updatedPlan = await tx.seatingPlan.update({
           where: { id: plan.id },
-          data: { version: { increment: 1 } },
+          data: { activeSnapshotId: null, version: { increment: 1 } },
         });
         await this.recordSimple(tx, {
           eventName: "seating.plan_updated.v1",
@@ -540,7 +551,7 @@ export class OperationsService {
       });
       await tx.seatingPlan.update({
         where: { id: planId },
-        data: { version: { increment: 1 } },
+        data: { activeSnapshotId: null, version: { increment: 1 } },
       });
       return resource(table);
     });
@@ -578,7 +589,7 @@ export class OperationsService {
       });
       await tx.seatingPlan.update({
         where: { id: planId },
-        data: { version: { increment: 1 } },
+        data: { activeSnapshotId: null, version: { increment: 1 } },
       });
       return { deleted: true, id: tableId };
     });
@@ -635,7 +646,7 @@ export class OperationsService {
       });
       await tx.seatingPlan.update({
         where: { id: planId },
-        data: { version: { increment: 1 } },
+        data: { activeSnapshotId: null, version: { increment: 1 } },
       });
       return resource(seat);
     });
@@ -673,7 +684,7 @@ export class OperationsService {
         );
         const updated = await tx.seatingPlan.update({
           where: { id: planId },
-          data: { version: { increment: 1 } },
+          data: { activeSnapshotId: null, version: { increment: 1 } },
         });
         await this.recomputeSeatingIssues(tx, workspaceId, planId);
         await this.asyncEvents.record(tx, {
@@ -741,7 +752,7 @@ export class OperationsService {
       });
       const plan = await tx.seatingPlan.update({
         where: { id: planId },
-        data: { version: { increment: 1 } },
+        data: { activeSnapshotId: null, version: { increment: 1 } },
       });
       await this.recomputeSeatingIssues(tx, workspaceId, planId);
       return { removed: true, version: plan.version };
@@ -792,7 +803,7 @@ export class OperationsService {
       });
       await tx.seatingPlan.update({
         where: { id: planId },
-        data: { version: { increment: 1 } },
+        data: { activeSnapshotId: null, version: { increment: 1 } },
       });
       return resource(row);
     });
@@ -840,7 +851,7 @@ export class OperationsService {
       });
       await tx.seatingPlan.update({
         where: { id: planId },
-        data: { version: { increment: 1 } },
+        data: { activeSnapshotId: null, version: { increment: 1 } },
       });
       return resource(row);
     });
@@ -870,7 +881,7 @@ export class OperationsService {
       });
       await tx.seatingPlan.update({
         where: { id: planId },
-        data: { version: { increment: 1 } },
+        data: { activeSnapshotId: null, version: { increment: 1 } },
       });
       return { deleted: true, id: constraintId };
     });
@@ -1118,7 +1129,7 @@ export class OperationsService {
         });
         const updatedPlan = await tx.seatingPlan.update({
           where: { id: planId },
-          data: { version: { increment: 1 } },
+          data: { activeSnapshotId: null, version: { increment: 1 } },
         });
         await this.recomputeSeatingIssues(tx, workspaceId, planId);
         await this.recordSimple(tx, {
@@ -3234,6 +3245,7 @@ export class OperationsService {
     tx: Transaction,
     workspaceId: string,
     planId: string,
+    includeSensitive = false,
   ) {
     const plan = await this.requireSeatingPlan(tx, workspaceId, planId);
     const tables = await tx.seatingTable.findMany({
@@ -3267,6 +3279,35 @@ export class OperationsService {
       where: { workspaceId, id: { in: guestIds } },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
+    const households = await tx.household.findMany({
+      where: {
+        workspaceId,
+        id: { in: [...new Set(guests.map((guest) => guest.householdId))] },
+      },
+    });
+    const menuSelections = await tx.guestMenuSelection.findMany({
+      where: { workspaceId, guestId: { in: guestIds }, active: true },
+      orderBy: [{ selectedAt: "desc" }, { id: "desc" }],
+    });
+    const menus = await tx.menu.findMany({
+      where: {
+        workspaceId,
+        id: {
+          in: [...new Set(menuSelections.map((selection) => selection.menuId))],
+        },
+      },
+    });
+    const allergies = includeSensitive
+      ? await tx.guestAllergy.findMany({
+          where: {
+            workspaceId,
+            guestId: { in: guestIds },
+            active: true,
+            deletedAt: null,
+          },
+          orderBy: [{ severity: "desc" }, { label: "asc" }],
+        })
+      : [];
     const constraints = await tx.seatingConstraint.findMany({
       where: { workspaceId, seatingPlanId: planId, deletedAt: null },
     });
@@ -3276,6 +3317,9 @@ export class OperationsService {
     });
     return {
       ...resource(plan),
+      hasUnpublishedChanges:
+        plan.status === "PUBLISHED" &&
+        plan.activeSnapshotId !== plan.publishedSnapshotId,
       tables: tables.map((table) => ({
         ...resource(table),
         seats: seats.filter((seat) => seat.tableId === table.id).map(resource),
@@ -3286,6 +3330,33 @@ export class OperationsService {
       assignments: assignments.map(resource),
       guests: guests.map((guest) => ({
         ...resource(guest),
+        householdName:
+          households.find((household) => household.id === guest.householdId)
+            ?.name ?? null,
+        menu: (() => {
+          const selection = menuSelections.find(
+            (item) => item.guestId === guest.id,
+          );
+          if (!selection) return null;
+          const menu = menus.find((item) => item.id === selection.menuId);
+          return {
+            id: selection.menuId,
+            name: menu?.name ?? "Meniu indisponibil",
+            selectionId: selection.id,
+            selectionVersion: selection.version,
+          };
+        })(),
+        ...(includeSensitive
+          ? {
+              allergies: allergies
+                .filter((allergy) => allergy.guestId === guest.id)
+                .map((allergy) => ({
+                  id: allergy.id,
+                  label: allergy.label,
+                  severity: allergy.severity.toLowerCase(),
+                })),
+            }
+          : {}),
         eligible: eligible.some((item) => item.id === guest.id),
         assigned: assignments.some((item) => item.guestId === guest.id),
       })),

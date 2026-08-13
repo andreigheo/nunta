@@ -132,8 +132,11 @@ async function currentCsrfToken(force = false): Promise<string | null> {
     })
       .then(async (response) => {
         if (response.status === 401) return null;
-        if (!response.ok) throw new Error(`CSRF bootstrap failed (${response.status})`);
-        const payload = (await response.json()) as ApiResponse<{ token: string }>;
+        if (!response.ok)
+          throw new Error(`CSRF bootstrap failed (${response.status})`);
+        const payload = (await response.json()) as ApiResponse<{
+          token: string;
+        }>;
         csrfToken = payload.data.token;
         return csrfToken;
       })
@@ -185,7 +188,10 @@ async function request<T>(
         cache: "no-store",
       });
       if (unsafe && response.status === 403 && attempt === 0) {
-        const problem = (await response.clone().json().catch(() => null)) as ApiProblem | null;
+        const problem = (await response
+          .clone()
+          .json()
+          .catch(() => null)) as ApiProblem | null;
         if (problem?.code === "CSRF_TOKEN_INVALID") {
           const token = await currentCsrfToken(true);
           if (token) headers.set("X-CSRF-Token", token);
@@ -500,17 +506,31 @@ export type AutomationRuleResource = OperationResource & {
 export type SeatingPlanResource = OperationResource & {
   weddingEventId: string;
   venueSpaceId: string;
+  hasUnpublishedChanges: boolean;
   tables: Array<
     OperationResource & {
       label: string;
+      shape: "round" | "rectangle" | "oval" | "square" | "custom";
       capacity: number;
+      minimumCapacity: number | null;
       x: number;
       y: number;
       width: number;
       height: number;
+      rotation: number;
+      position: number;
+      zone: string | null;
+      notesPrivate: string | null;
       locked: boolean;
       assigned: number;
-      seats: OperationResource[];
+      seats: Array<
+        OperationResource & {
+          label: string;
+          position: number;
+          accessible: boolean;
+          status: "available" | "blocked" | "reserved";
+        }
+      >;
     }
   >;
   assignments: Array<
@@ -518,19 +538,65 @@ export type SeatingPlanResource = OperationResource & {
       guestId: string;
       seatingTableId: string;
       seatingSeatId: string | null;
+      source: string;
+      status: string;
+      locked: boolean;
     }
   >;
   guests: Array<
     OperationResource & {
       firstName: string;
       lastName: string;
+      displayName: string | null;
       householdId: string;
+      householdName: string | null;
+      isChild: boolean;
+      isPlusOne: boolean;
+      menu: {
+        id: string;
+        name: string;
+        selectionId: string;
+        selectionVersion: number;
+      } | null;
+      allergies?: Array<{
+        id: string;
+        label: string;
+        severity: string;
+      }>;
       eligible: boolean;
       assigned: boolean;
     }
   >;
   constraints: OperationResource[];
   issues: OperationResource[];
+};
+
+export type SeatingSuggestionResource = OperationResource & {
+  status: string;
+  unassignedGuestIds: string[];
+  hardConflicts: unknown[];
+  warnings: unknown[];
+  violatedOptionalPreferences: unknown[];
+  tableUtilization: Record<string, unknown> | unknown[];
+  score: number;
+  assignments: Array<
+    OperationResource & {
+      guestId: string;
+      tableId: string;
+      seatId: string | null;
+      rationale: unknown;
+    }
+  >;
+};
+
+export type OrganizerMenuSelectionResource = {
+  id?: string;
+  guestId: string;
+  menuId: string | null;
+  menuName: string | null;
+  selectedAt?: string;
+  source?: string;
+  version: number | null;
 };
 
 export type TransportPlanResource = OperationResource & {
@@ -560,20 +626,45 @@ export type AccommodationStayResource = OperationResource & {
 };
 
 export const weddingOsApi = {
-  mfaStatus: () => request<{ required: boolean; enrolled: boolean; pendingEnrollmentId: string | null; recoveryCodesRemaining: number }>("/me/mfa"),
-  enrollMfa: (label = "Sarbato Authenticator") => request<{ enrollmentId: string; secret: string; provisioningUri: string; qrDataUrl: string; expiresInSeconds: number }>("/me/mfa/totp/enrollments", { method: "POST", body: { label } }),
-  confirmMfa: (enrollmentId: string, code: string) => request<{ enrolled: true; recoveryCodes: string[] }>(`/me/mfa/totp/enrollments/${encodeURIComponent(enrollmentId)}/confirm`, { method: "POST", body: { code } }),
-  createAdminStepUp: (purpose: string, password: string) => request<{ challengeId: string; purpose: string; expiresAt: string }>("/auth/step-up-challenges", { method: "POST", body: { purpose, password } }),
-  verifyAdminStepUp: (challengeId: string, code: string) => request<{ stepUpToken: string; purpose: string; expiresAt: string }>("/auth/step-up-verifications", { method: "POST", body: { challengeId, code } }).then((result) => { adminStepUpTokens.set(result.purpose, result.stepUpToken); return result; }),
+  mfaStatus: () =>
+    request<{
+      required: boolean;
+      enrolled: boolean;
+      pendingEnrollmentId: string | null;
+      recoveryCodesRemaining: number;
+    }>("/me/mfa"),
+  enrollMfa: (label = "Sarbato Authenticator") =>
+    request<{
+      enrollmentId: string;
+      secret: string;
+      provisioningUri: string;
+      qrDataUrl: string;
+      expiresInSeconds: number;
+    }>("/me/mfa/totp/enrollments", { method: "POST", body: { label } }),
+  confirmMfa: (enrollmentId: string, code: string) =>
+    request<{ enrolled: true; recoveryCodes: string[] }>(
+      `/me/mfa/totp/enrollments/${encodeURIComponent(enrollmentId)}/confirm`,
+      { method: "POST", body: { code } },
+    ),
+  createAdminStepUp: (purpose: string, password: string) =>
+    request<{ challengeId: string; purpose: string; expiresAt: string }>(
+      "/auth/step-up-challenges",
+      { method: "POST", body: { purpose, password } },
+    ),
+  verifyAdminStepUp: (challengeId: string, code: string) =>
+    request<{ stepUpToken: string; purpose: string; expiresAt: string }>(
+      "/auth/step-up-verifications",
+      { method: "POST", body: { challengeId, code } },
+    ).then((result) => {
+      adminStepUpTokens.set(result.purpose, result.stepUpToken);
+      return result;
+    }),
   platformDashboard: () =>
     request<PlatformDashboardResource>("/platform/dashboard"),
   platformSystemStatus: () =>
     request<PlatformSystemStatusResource>("/platform/system-status"),
   betaStatus: () => request<BetaStatusResource>("/beta/status"),
-  acceptBetaInvitation: (
-    token: string,
-    analyticsConsent: boolean,
-  ) =>
+  acceptBetaInvitation: (token: string, analyticsConsent: boolean) =>
     request<{
       participant: BetaParticipantResource;
       analyticsConsent: boolean;
@@ -588,10 +679,7 @@ export const weddingOsApi = {
         analyticsConsent,
       },
     }),
-  updateBetaOnboarding: (
-    version: number,
-    checklist: Record<string, boolean>,
-  ) =>
+  updateBetaOnboarding: (version: number, checklist: Record<string, boolean>) =>
     request<BetaParticipantResource>("/beta/onboarding", {
       method: "PATCH",
       body: { version, checklist },
@@ -606,15 +694,13 @@ export const weddingOsApi = {
       idempotencyKey: crypto.randomUUID(),
     }),
   betaFeedbackDetail: (feedbackId: string) =>
-    request<BetaFeedbackResource & {
-      messages: OperationResource[];
-      history: OperationResource[];
-    }>(`/beta/feedback/${encodeURIComponent(feedbackId)}`),
-  addBetaFeedbackMessage: (
-    feedbackId: string,
-    version: number,
-    body: string,
-  ) =>
+    request<
+      BetaFeedbackResource & {
+        messages: OperationResource[];
+        history: OperationResource[];
+      }
+    >(`/beta/feedback/${encodeURIComponent(feedbackId)}`),
+  addBetaFeedbackMessage: (feedbackId: string, version: number, body: string) =>
     request<OperationResource>(
       `/beta/feedback/${encodeURIComponent(feedbackId)}/messages`,
       {
@@ -738,9 +824,7 @@ export const weddingOsApi = {
         mode,
         limit: 250,
         reason,
-        ...(mode === "EXECUTE"
-          ? { confirmation: "EXECUTE_RETENTION" }
-          : {}),
+        ...(mode === "EXECUTE" ? { confirmation: "EXECUTE_RETENTION" } : {}),
       },
       ifMatch: version,
       idempotencyKey: crypto.randomUUID(),
@@ -757,9 +841,7 @@ export const weddingOsApi = {
         method: "POST",
         headers: adminStepUpTokens.get("BACKUP_POLICY_CHANGE")
           ? {
-              "X-Admin-Step-Up": adminStepUpTokens.get(
-                "BACKUP_POLICY_CHANGE",
-              )!,
+              "X-Admin-Step-Up": adminStepUpTokens.get("BACKUP_POLICY_CHANGE")!,
             }
           : undefined,
         body: { version, reason },
@@ -767,7 +849,10 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
-  createPlatformBackup: (backupType: "DATABASE" | "OBJECT_INVENTORY" | "FULL", reason: string) =>
+  createPlatformBackup: (
+    backupType: "DATABASE" | "OBJECT_INVENTORY" | "FULL",
+    reason: string,
+  ) =>
     request<OperationResource>("/platform/backups", {
       method: "POST",
       body: { backupType, reason },
@@ -802,7 +887,10 @@ export const weddingOsApi = {
       `/platform/users/${encodeURIComponent(userId)}/${action}`,
       {
         method: "POST",
-        headers: action === "suspend" && adminStepUpTokens.get("USER_SUSPEND") ? { "X-Admin-Step-Up": adminStepUpTokens.get("USER_SUSPEND")! } : undefined,
+        headers:
+          action === "suspend" && adminStepUpTokens.get("USER_SUSPEND")
+            ? { "X-Admin-Step-Up": adminStepUpTokens.get("USER_SUSPEND")! }
+            : undefined,
         body: { reason, version },
         ifMatch: version,
         idempotencyKey: crypto.randomUUID(),
@@ -819,12 +907,9 @@ export const weddingOsApi = {
       {
         method: "POST",
         headers:
-          action === "suspend" &&
-          adminStepUpTokens.get("WORKSPACE_SUSPEND")
+          action === "suspend" && adminStepUpTokens.get("WORKSPACE_SUSPEND")
             ? {
-                "X-Admin-Step-Up": adminStepUpTokens.get(
-                  "WORKSPACE_SUSPEND",
-                )!,
+                "X-Admin-Step-Up": adminStepUpTokens.get("WORKSPACE_SUSPEND")!,
               }
             : undefined,
         body: { reason, version },
@@ -968,14 +1053,11 @@ export const weddingOsApi = {
       mode: "checkout" | "portal";
       url: string;
       transactionId?: string;
-    }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/billing/checkout`,
-      {
-        method: "POST",
-        body: { plan },
-        idempotencyKey: crypto.randomUUID(),
-      },
-    ),
+    }>(`/workspaces/${encodeURIComponent(workspaceId)}/billing/checkout`, {
+      method: "POST",
+      body: { plan },
+      idempotencyKey: crypto.randomUUID(),
+    }),
   workspaceBillingPortal: (workspaceId: string) =>
     request<{ url: string }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/billing/portal`,
@@ -1513,6 +1595,21 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  updateSeatingPlan: (
+    workspaceId: string,
+    planId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteSeatingPlan: (workspaceId: string, planId: string, version: number) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   createSeatingTable: (
     workspaceId: string,
     planId: string,
@@ -1537,13 +1634,23 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/tables/${encodeURIComponent(tableId)}`,
       { method: "PATCH", body: input, ifMatch: version },
     ),
+  deleteSeatingTable: (
+    workspaceId: string,
+    planId: string,
+    tableId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/tables/${encodeURIComponent(tableId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   replaceSeatingAssignments: (
     workspaceId: string,
     planId: string,
     version: number,
     input: Record<string, unknown>,
   ) =>
-    request<SeatingPlanResource>(
+    request<{ changed: number; version: number }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/assignments`,
       {
         method: "PUT",
@@ -1551,6 +1658,46 @@ export const weddingOsApi = {
         ifMatch: version,
         idempotencyKey: crypto.randomUUID(),
       },
+    ),
+  removeSeatingAssignment: (
+    workspaceId: string,
+    planId: string,
+    assignmentId: string,
+    version: number,
+  ) =>
+    request<{ removed: true; version: number }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/assignments/${encodeURIComponent(assignmentId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
+  createSeatingConstraint: (
+    workspaceId: string,
+    planId: string,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/constraints`,
+      { method: "POST", body: input },
+    ),
+  deleteSeatingConstraint: (
+    workspaceId: string,
+    planId: string,
+    constraintId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/constraints/${encodeURIComponent(constraintId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
+  resolveSeatingIssue: (
+    workspaceId: string,
+    planId: string,
+    issueId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/issues/${encodeURIComponent(issueId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
     ),
   requestSeatingSuggestion: (
     workspaceId: string,
@@ -1566,15 +1713,57 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
-  publishSeatingPlan: (workspaceId: string, planId: string, version: number) =>
-    request<{ plan: SeatingPlanResource; snapshot: OperationResource }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/publish`,
+  seatingSuggestion: (
+    workspaceId: string,
+    planId: string,
+    suggestionId: string,
+  ) =>
+    request<SeatingSuggestionResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/suggestions/${encodeURIComponent(suggestionId)}`,
+    ),
+  applySeatingSuggestion: (
+    workspaceId: string,
+    planId: string,
+    suggestionId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<{
+      applied: number;
+      planVersion: number;
+      suggestionVersion: number;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/suggestions/${encodeURIComponent(suggestionId)}/apply`,
       {
         method: "POST",
-        body: {},
+        body: input,
         ifMatch: version,
         idempotencyKey: crypto.randomUUID(),
       },
+    ),
+  publishSeatingPlan: (
+    workspaceId: string,
+    planId: string,
+    version: number,
+    reason?: string,
+  ) =>
+    request<{ plan: OperationResource; snapshot: OperationResource }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/publish`,
+      {
+        method: "POST",
+        body: reason ? { reason } : {},
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  unpublishSeatingPlan: (
+    workspaceId: string,
+    planId: string,
+    version: number,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/unpublish`,
+      { method: "POST", body: {}, ifMatch: version },
     ),
   createSeatingExport: (
     workspaceId: string,
@@ -1683,17 +1872,19 @@ export const weddingOsApi = {
     input: AccommodationDiscoveryQuery,
   ) =>
     request<AccommodationDiscoveryResponse>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-discovery${queryString({
-        eventId: input.eventId,
-        query: input.query,
-        lat: input.lat,
-        lng: input.lng,
-        radiusKm: input.radiusKm,
-        types: input.types.join(","),
-        facilities: input.facilities.join(","),
-        budgetMaxMinor: input.budgetMaxMinor,
-        currency: input.currency,
-      })}`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-discovery${queryString(
+        {
+          eventId: input.eventId,
+          query: input.query,
+          lat: input.lat,
+          lng: input.lng,
+          radiusKm: input.radiusKm,
+          types: input.types.join(","),
+          facilities: input.facilities.join(","),
+          budgetMaxMinor: input.budgetMaxMinor,
+          currency: input.currency,
+        },
+      )}`,
     ),
   accommodationRecommendations: (
     workspaceId: string,
@@ -2098,7 +2289,10 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/invitation-site`,
     ),
   invitationRecipients: (workspaceId: string, cursor?: string) =>
-    request<{ items: InvitationRecipientResource[]; nextCursor: string | null }>(
+    request<{
+      items: InvitationRecipientResource[];
+      nextCursor: string | null;
+    }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/invitation-recipients${queryString({ cursor })}`,
     ),
   invitationVersions: (workspaceId: string, cursor?: string) =>
@@ -2345,11 +2539,34 @@ export const weddingOsApi = {
       items: Array<Record<string, unknown>>;
       nextCursor: string | null;
     }>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-menu-selections`),
+  setGuestMenuSelection: (
+    workspaceId: string,
+    guestId: string,
+    input: { menuId: string | null; selectionVersion: number | null },
+  ) =>
+    request<OrganizerMenuSelectionResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/guest-menu-selections/${encodeURIComponent(guestId)}`,
+      { method: "PUT", body: input },
+    ),
   allergyIssues: (workspaceId: string) =>
     request<{
       items: Array<Record<string, unknown>>;
       nextCursor: string | null;
     }>(`/workspaces/${encodeURIComponent(workspaceId)}/allergy-issues`),
+  resolveAllergyIssue: (
+    workspaceId: string,
+    issueId: string,
+    version: number,
+    input: {
+      status:
+        "UNREVIEWED" | "REVIEWING" | "CONFIRMED_WITH_CATERER" | "RESOLVED";
+      resolutionNote?: string | null;
+    },
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/allergy-issues/${encodeURIComponent(issueId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
   createCateringExport: (workspaceId: string, includeAllergies = false) =>
     request<{ job: BackgroundJobResource }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/catering-exports`,
@@ -2766,17 +2983,19 @@ export const weddingOsApi = {
       OperationResource & {
         storageObjectId?: string | null;
       }
-    >(
-      `/uploads/${encodeURIComponent(uploadId)}/complete`,
-      { method: "POST", body: { checksumSha256 } },
-    ),
+    >(`/uploads/${encodeURIComponent(uploadId)}/complete`, {
+      method: "POST",
+      body: { checksumSha256 },
+    }),
   uploadSession: (uploadId: string) =>
-    request<OperationResource & {
-      storageObjectId?: string | null;
-      objectStatus?: string | null;
-      scanStatus?: string | null;
-      contentType?: string | null;
-    }>(`/uploads/${encodeURIComponent(uploadId)}`),
+    request<
+      OperationResource & {
+        storageObjectId?: string | null;
+        objectStatus?: string | null;
+        scanStatus?: string | null;
+        contentType?: string | null;
+      }
+    >(`/uploads/${encodeURIComponent(uploadId)}`),
   createVaultDocument: (workspaceId: string, input: Record<string, unknown>) =>
     request<OperationResource>("/documents", {
       method: "POST",

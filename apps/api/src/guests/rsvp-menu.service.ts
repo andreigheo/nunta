@@ -1397,6 +1397,92 @@ export class RsvpMenuService {
     });
   }
 
+  async setOrganizerMenuSelection(
+    userId: string,
+    workspaceId: string,
+    guestId: string,
+    input: { menuId: string | null; selectionVersion?: number | null },
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(
+            hashtextextended(
+              ${`guest-menu-selection:${workspaceId}:${guestId}`},
+              0
+            )
+          )
+        `;
+        const guest = await tx.guest.findFirst({
+          where: {
+            id: guestId,
+            workspaceId,
+            status: "ACTIVE",
+            deletedAt: null,
+          },
+        });
+        if (!guest) notFound("Invitatul nu există.");
+        const current = await tx.guestMenuSelection.findFirst({
+          where: { workspaceId, guestId, active: true },
+          orderBy: [{ selectedAt: "desc" }, { id: "desc" }],
+        });
+        const expectedVersion = input.selectionVersion ?? null;
+        if (current && current.version !== expectedVersion)
+          conflict(current.version);
+        if (!current && expectedVersion !== null) conflict(0);
+        if (current?.menuId === input.menuId) {
+          const menu = await tx.menu.findFirst({
+            where: { id: current.menuId, workspaceId },
+          });
+          return {
+            id: current.id,
+            guestId,
+            menuId: current.menuId,
+            menuName: menu?.name ?? null,
+            selectedAt: current.selectedAt.toISOString(),
+            source: current.source.toLowerCase(),
+            version: current.version,
+          };
+        }
+        if (input.menuId)
+          await this.assertMenu(tx, workspaceId, input.menuId, guest.isChild);
+        if (current)
+          await tx.guestMenuSelection.updateMany({
+            where: { workspaceId, guestId, active: true },
+            data: { active: false, version: { increment: 1 } },
+          });
+        const selection = input.menuId
+          ? await tx.guestMenuSelection.create({
+              data: {
+                workspaceId,
+                guestId,
+                menuId: input.menuId,
+                source: "ORGANIZER",
+              },
+            })
+          : null;
+        const menu = selection
+          ? await tx.menu.findFirst({
+              where: { id: selection.menuId, workspaceId },
+            })
+          : null;
+        return selection
+          ? {
+              id: selection.id,
+              guestId,
+              menuId: selection.menuId,
+              menuName: menu?.name ?? null,
+              selectedAt: selection.selectedAt.toISOString(),
+              source: selection.source.toLowerCase(),
+              version: selection.version,
+            }
+          : { guestId, menuId: null, menuName: null, version: null };
+      },
+    );
+  }
+
   async allergyIssues(
     userId: string,
     workspaceId: string,

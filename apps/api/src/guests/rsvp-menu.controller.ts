@@ -20,6 +20,7 @@ import {
   guestInvitationOpenSchema,
   guestLinkAccessSchema,
   guestRsvpRequestSchema,
+  organizerMenuSelectionSchema,
   resolveAllergyIssueSchema,
   saveRsvpFormSchema,
   updateMenuSchema,
@@ -266,6 +267,27 @@ export class RsvpMenuController {
     return apiResponse(request, data, {
       nextCursor: data.nextCursor ?? undefined,
     });
+  }
+
+  @Put("guest-menu-selections/:guestId")
+  @RequireCapability("menu.write")
+  async setSelection(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("guestId") guestId: string,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.setOrganizerMenuSelection(
+        auth.userId,
+        uuid(workspaceId),
+        uuid(guestId),
+        parseWithSchema(organizerMenuSelectionSchema, body),
+        request.correlationId,
+      ),
+    );
   }
 
   @Get("allergy-issues")

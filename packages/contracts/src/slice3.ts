@@ -667,6 +667,19 @@ export const createMenuSchema = z.object({
   dietaryTags: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
 });
 export const updateMenuSchema = createMenuSchema.partial();
+export const organizerMenuSelectionSchema = z.object({
+  menuId: uuid.nullable(),
+  selectionVersion: z.number().int().positive().nullable().optional(),
+});
+export const organizerMenuSelectionResourceSchema = z.object({
+  id: uuid.optional(),
+  guestId: uuid,
+  menuId: uuid.nullable(),
+  menuName: z.string().nullable(),
+  selectedAt: z.string().datetime().optional(),
+  source: z.string().optional(),
+  version: z.number().int().positive().nullable(),
+});
 export const resolveAllergyIssueSchema = z.object({
   status: z.enum([
     "UNREVIEWED",
@@ -1032,6 +1045,12 @@ function isSafeInvitationUrl(value: string) {
 }
 export type GuestRsvpRequest = z.infer<typeof guestRsvpRequestSchema>;
 export type CreateMenu = z.infer<typeof createMenuSchema>;
+export type OrganizerMenuSelection = z.infer<
+  typeof organizerMenuSelectionSchema
+>;
+export type OrganizerMenuSelectionResource = z.infer<
+  typeof organizerMenuSelectionResourceSchema
+>;
 export type HouseholdResource = z.infer<typeof householdSchema>;
 export type HouseholdListResource = z.infer<typeof householdListSchema>;
 export type GuestResource = z.infer<typeof guestSchema>;

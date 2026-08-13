@@ -200,6 +200,7 @@ export class SeatingController {
       auth.userId,
       uuid(workspaceId),
       uuid(planId),
+      has(request, "seating.read_sensitive_summary"),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
