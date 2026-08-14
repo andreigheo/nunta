@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Browser, type Page } from "@playwright/test";
@@ -183,6 +184,18 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
     width: 1440,
     height: 1000,
   });
+  const workspace = await desktop.request.post(`${apiUrl}/api/v1/workspaces`, {
+    headers: {
+      Origin: origin,
+      "Idempotency-Key": `visual-guided-${randomUUID()}`,
+    },
+    data: {
+      title: "Parcurs ghidat visual audit",
+      partnerOneName: "",
+      partnerTwoName: "",
+    },
+  });
+  expect(workspace.status()).toBe(201);
   const page = await desktop.newPage();
 
   await page.goto("/overview");

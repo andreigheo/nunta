@@ -128,7 +128,10 @@ export function WorkspaceProvider({
   }, []);
 
   const refresh = React.useCallback(async () => {
-    if (demoEnabled && hasDemoCookie()) {
+    const demoRequested =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("demo") === "1";
+    if (demoEnabled && (demoRequested || hasDemoCookie())) {
       loadDemo();
       return;
     }

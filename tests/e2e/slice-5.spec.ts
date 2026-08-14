@@ -264,6 +264,47 @@ test("E2E 2 — Publish vendor profile", async ({ page }) => {
   expect(publicProfile).not.toHaveProperty("taxIdEncrypted");
 });
 
+test("E2E 2B — vendor owner can request organization export and deletion", async ({
+  page,
+}) => {
+  await authorizePage(page, vendorA);
+  await page.goto("/vendor/profile");
+
+  await page
+    .getByRole("button", { name: "Solicită exportul organizației" })
+    .click();
+  await expect(
+    page.getByText("Cererea de export a fost înregistrată"),
+  ).toBeVisible();
+
+  await page
+    .getByRole("button", { name: "Solicită ștergerea organizației" })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Soliciți ștergerea organizației?" }),
+  ).toBeVisible();
+  await page.locator("#typed-confirm").fill("ȘTERGE");
+  await page.getByRole("button", { name: "Trimite cererea" }).click();
+  await expect(
+    page.getByText("Cererea de ștergere a fost înregistrată"),
+  ).toBeVisible();
+
+  const privacy = await apiData<{
+    requests: Array<{ scopeId?: string }>;
+    deletions: Array<{ targetId?: string; targetType?: string }>;
+  }>(await vendorA.api.get("/api/v1/me/privacy"));
+  expect(privacy.requests.some((item) => item.scopeId === organizationA)).toBe(
+    true,
+  );
+  expect(
+    privacy.deletions.some(
+      (item) =>
+        item.targetId === organizationA &&
+        item.targetType === "VENDOR_ORGANIZATION",
+    ),
+  ).toBe(true);
+});
+
 test("E2E 3 — Marketplace", async ({ page }) => {
   const list = await apiData<{ items: Array<Record<string, unknown>> }>(
     await couple.api.get(
@@ -299,6 +340,23 @@ test("E2E 3 — Marketplace", async ({ page }) => {
   await expect(page.getByText(vendorAName).first()).toBeVisible();
   await page.reload();
   await expect(page.getByText(vendorAName).first()).toBeVisible();
+
+  await page.goto("/shortlists");
+  await expect(page.getByRole("button", { name: /Foto E2E/ })).toBeVisible();
+  await page.getByRole("button", { name: "Redenumește lista scurtă" }).click();
+  const renameList = page.getByRole("dialog", {
+    name: "Redenumește lista scurtă",
+  });
+  await renameList.getByLabel("Nume").fill("Foto favorit E2E");
+  await renameList.getByRole("button", { name: "Salvează" }).click();
+  await expect(page.getByText("Lista scurtă a fost redenumită")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Foto favorit E2E/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Șterge lista scurtă" }).click();
+  const deleteList = page.getByRole("dialog", { name: "Ștergi lista scurtă?" });
+  await deleteList.getByRole("button", { name: "Șterge lista" }).click();
+  await expect(page.getByText("Lista scurtă a fost ștearsă")).toBeVisible();
 
   await page.goto(`/marketplace/${vendorASlug}`);
   const publicProfile = page.getByTestId("vendor-public-profile");
@@ -447,6 +505,40 @@ test("E2E 4 — Create RFQ", async () => {
     ),
   );
   expect(rfq.status).toBe("SENT");
+});
+
+test("E2E 4B — A saved RFQ draft can be edited, verified and sent from UI", async ({
+  page,
+}) => {
+  await authorizePage(page, couple);
+  await page.goto("/requests");
+  await page.getByRole("button", { name: "Cerere nouă" }).click();
+  let dialog = page.getByRole("dialog", { name: "Cerere de ofertă nouă" });
+  await dialog.getByLabel("Titlu").fill("Cerere draft UI E2E");
+  await dialog.getByLabel("Categorie").selectOption("PHOTOGRAPHY");
+  await dialog.getByLabel("Termen de răspuns").fill("2027-08-15");
+  await dialog
+    .getByLabel("Brief")
+    .fill("Brief inițial care va fi corectat înainte de trimitere.");
+  await dialog.getByRole("button", { name: "Salvează ciorna" }).click();
+  await expect(page.getByText("Ciornă salvată")).toBeVisible();
+  await page.getByText("Cerere draft UI E2E", { exact: true }).click();
+  await page.getByRole("button", { name: "Editează ciorna" }).click();
+  dialog = page.getByRole("dialog", { name: "Editează cererea de ofertă" });
+  await dialog
+    .getByLabel("Brief")
+    .fill("Brief final verificat și trimis din interfață.");
+  await dialog.getByLabel("Furnizor publicat").selectOption(organizationA);
+  await dialog.getByRole("button", { name: "Verifică și trimite" }).click();
+  await expect(page.getByText("Cerere pusă în coadă")).toBeVisible();
+  const list = await apiData<{ items: Resource[] }>(
+    await couple.api.get(`/api/v1/workspaces/${workspaceId}/rfqs`),
+  );
+  const sent = list.items.find((item) => item.title === "Cerere draft UI E2E");
+  expect(sent).toMatchObject({
+    status: "SENT",
+    description: "Brief final verificat și trimis din interfață.",
+  });
 });
 
 test("E2E 5 — Vendor receives RFQ", async ({ page }) => {
@@ -658,7 +750,9 @@ test("E2E 9 — Accept offer", async () => {
   ).toHaveLength(1);
 });
 
-test("E2E 10 — Negotiation", async () => {
+test("E2E 10 — Negotiation history is visible and writable in the offer drawer", async ({
+  page,
+}) => {
   await apiData(
     await couple.api.post(
       `/api/v1/workspaces/${workspaceId}/offers/${offerA.id}/negotiation/messages`,
@@ -679,6 +773,22 @@ test("E2E 10 — Negotiation", async () => {
   expect(thread.items.map((item) => item.body)).toEqual(
     expect.arrayContaining(["Mesaj cuplu E2E", "Răspuns furnizor E2E"]),
   );
+  await authorizePage(page, couple);
+  await page.goto("/offers");
+  await page.getByText(vendorAName, { exact: true }).first().click();
+  await expect(
+    page.getByText("Mesaj cuplu E2E", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Răspuns furnizor E2E", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Mesaj nou")
+    .fill("Clarificare trimisă din interfață E2E");
+  await page.getByRole("button", { name: "Trimite", exact: true }).click();
+  await expect(
+    page.getByText("Clarificare trimisă din interfață E2E", { exact: true }),
+  ).toBeVisible();
   expect(
     (
       await otherCouple.api.get(
@@ -1329,6 +1439,52 @@ test("Slice 6 E2E 3 — Document sharing", async () => {
       )
     ).status(),
   ).toBe(404);
+
+  const directUserGrant = await apiData<Resource>(
+    await couple.api.post(
+      `/api/v1/documents/${sharedDocument.id}/grants?workspaceId=${workspaceId}`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `document-user-grant-${crypto.randomUUID()}`,
+        }),
+        data: {
+          granteeType: "USER",
+          granteeId: vendorA.userId,
+          permission: "DOWNLOAD",
+        },
+      },
+    ),
+  );
+  vendorDocuments = await apiData<{ items: Resource[] }>(
+    await vendorA.api.get(
+      `/api/v1/documents?vendorOrganizationId=${organizationA}`,
+    ),
+  );
+  expect(
+    vendorDocuments.items.some((item) => item.id === sharedDocument.id),
+  ).toBe(true);
+  expect(
+    (
+      await vendorA.api.post(
+        `/api/v1/documents/${sharedDocument.id}/downloads?vendorOrganizationId=${organizationA}`,
+        { headers: mutationHeaders() },
+      )
+    ).status(),
+  ).toBe(201);
+  await apiData(
+    await couple.api.delete(
+      `/api/v1/documents/${sharedDocument.id}/grants/${directUserGrant.id}?workspaceId=${workspaceId}`,
+      { headers: mutationHeaders() },
+    ),
+  );
+  expect(
+    (
+      await vendorA.api.post(
+        `/api/v1/documents/${sharedDocument.id}/downloads?vendorOrganizationId=${organizationA}`,
+        { headers: mutationHeaders() },
+      )
+    ).status(),
+  ).toBe(404);
 });
 
 test("Slice 6 E2E 4 — Receipt", async () => {
@@ -1473,7 +1629,9 @@ test("Slice 6 E2E 6 — Contract materialization", async () => {
   );
 });
 
-test("Slice 6 E2E 7 — Signature envelope", async () => {
+test("Slice 6 E2E 7 — Signature envelope and provider signing page", async ({
+  page,
+}) => {
   contract = await contractDetail(couple.api, workspaceId, contract.id);
   const currentVersion = contract.currentVersion as Resource;
   const candidates = await apiData<{ wedding: Resource[]; vendor: Resource[] }>(
@@ -1529,15 +1687,25 @@ test("Slice 6 E2E 7 — Signature envelope", async () => {
       },
     ),
   );
-  await apiData(
-    await vendorA.api.post(
-      `/api/v1/signature-signing-sessions/${signatureEnvelope.id}/fake-actions`,
-      {
-        headers: mutationHeaders(),
-        data: { signerId: vendorSigner.id, action: "SIGN" },
-      },
-    ),
+  await authorizePage(page, vendorA);
+  await page.goto(
+    `/provider/signature/${signatureEnvelope.id}?signer=${vendorSigner.id}`,
   );
+  await expect(
+    page.getByRole("heading", { name: "Semnare electronică" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Semnează documentul" }).click();
+  await expect
+    .poll(async () => {
+      const current = await apiData<Resource & { signers: Resource[] }>(
+        await couple.api.get(
+          `/api/v1/workspaces/${workspaceId}/signature-envelopes/${signatureEnvelope.id}`,
+        ),
+      );
+      return current.signers.find((item) => item.id === vendorSigner.id)
+        ?.status;
+    })
+    .toBe("SIGNED");
   detail = await apiData<Resource & { signers: Resource[] }>(
     await couple.api.get(
       `/api/v1/workspaces/${workspaceId}/signature-envelopes/${signatureEnvelope.id}`,

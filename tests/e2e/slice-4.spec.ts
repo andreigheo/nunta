@@ -93,6 +93,16 @@ test("E2E 1 — Seating plan creation", async ({ page }) => {
   seatingVersion = plan.version;
   await page.reload();
   await expect(page.getByTestId("seating-page")).toBeVisible();
+  await page.getByRole("button", { name: "Mai multe acțiuni" }).click();
+  await page.getByRole("menuitem", { name: "Redenumește planul" }).click();
+  const renameDialog = page.getByRole("dialog", {
+    name: "Redenumește planul de mese",
+  });
+  await renameDialog.getByLabel("Numele planului").fill("Plan sală E2E");
+  await renameDialog.getByRole("button", { name: "Salvează" }).click();
+  await expect(page.getByText("Planul de mese a fost redenumit")).toBeVisible();
+  await expect(page.getByText("Plan sală E2E")).toBeVisible();
+  seatingVersion = (await seatingDetail()).version;
 });
 
 test("E2E 2 — Tables and seats", async () => {
@@ -214,7 +224,7 @@ test("E2E 8 — Transport request projection", async () => {
   expect(requests.items).toEqual([]);
 });
 
-test("E2E 9 — Vehicles", async () => {
+test("E2E 9 — Vehicles", async ({ page }) => {
   const plan = await apiData<{ id: string; version: number }>(
     await owner.api.post(`/api/v1/workspaces/${workspaceId}/transport-plans`, {
       headers: mutationHeaders({
@@ -243,6 +253,44 @@ test("E2E 9 — Vehicles", async () => {
   );
   vehicleId = vehicle.id;
   expect(vehicleId).toBeTruthy();
+
+  await authorizePage(page, owner);
+  await page.goto("/transport");
+  await expect(page.getByTestId("transport-page")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Redenumește planul de transport" })
+    .click();
+  const renamePlanDialog = page.getByRole("dialog", {
+    name: "Redenumește planul de transport",
+  });
+  await renamePlanDialog.getByLabel("Nume").fill("Transport principal E2E");
+  await renamePlanDialog.getByRole("button", { name: "Salvează" }).click();
+  await expect(
+    page.getByText("Planul de transport a fost redenumit"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Vehicul" }).click();
+  const vehicleDialog = page.getByRole("dialog", { name: "Vehicul nou" });
+  await vehicleDialog.getByLabel("Denumire").fill("Autocar accesibil UI");
+  await vehicleDialog.getByLabel("Tip").selectOption("bus");
+  await vehicleDialog.getByLabel("Număr de înmatriculare").fill("E2E 2026");
+  await vehicleDialog.getByLabel("Capacitate totală").fill("42");
+  await vehicleDialog.getByLabel("Locuri accesibile").fill("3");
+  await vehicleDialog.getByLabel("Nume șofer").fill("Șofer Test");
+  await vehicleDialog.getByLabel("Telefon șofer").fill("+37360000000");
+  await vehicleDialog
+    .getByLabel("Note private")
+    .fill("Acces pe la intrarea laterală.");
+  await vehicleDialog.getByRole("button", { name: "Adaugă" }).click();
+  await expect(page.getByText("Vehiculul a fost adăugat")).toBeVisible();
+  const detail = await transportDetail();
+  expect(
+    detail.vehicles.some(
+      (item: Record<string, unknown>) =>
+        item.name === "Autocar accesibil UI" &&
+        item.vehicleType === "bus" &&
+        item.accessibleCapacity === 3,
+    ),
+  ).toBe(true);
 });
 
 test("E2E 10 — Routes and stops", async () => {
@@ -329,6 +377,39 @@ test("E2E 13 — Transport manifest", async () => {
   expect(job.result?.artifact).toBeTruthy();
 });
 
+test("E2E 13B — An organizer can archive an unused draft transport plan", async ({
+  page,
+}) => {
+  const temporary = await apiData<{ id: string }>(
+    await owner.api.post(`/api/v1/workspaces/${workspaceId}/transport-plans`, {
+      headers: mutationHeaders({
+        "Idempotency-Key": `transport-archive-${crypto.randomUUID()}`,
+      }),
+      data: { weddingEventId: eventId, name: "Transport temporar E2E" },
+    }),
+  );
+  await authorizePage(page, owner);
+  await page.goto("/transport");
+  await page.getByLabel("Plan de transport activ").selectOption(temporary.id);
+  await expect(
+    page.getByText(/Plan activ: Transport temporar E2E/),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Arhivează planul de transport" })
+    .click();
+  const archiveDialog = page.getByRole("dialog", {
+    name: "Arhivezi planul de transport?",
+  });
+  await archiveDialog.getByRole("button", { name: "Arhivează planul" }).click();
+  await expect(
+    page.getByText("Planul de transport a fost arhivat"),
+  ).toBeVisible();
+  const list = await apiData<{ items: Array<{ id: string }> }>(
+    await owner.api.get(`/api/v1/workspaces/${workspaceId}/transport-plans`),
+  );
+  expect(list.items.some((item) => item.id === temporary.id)).toBe(false);
+});
+
 test("E2E 14 — Accommodation request projection", async () => {
   const requests = await apiData<{ items: unknown[] }>(
     await owner.api.get(
@@ -338,7 +419,7 @@ test("E2E 14 — Accommodation request projection", async () => {
   expect(requests.items).toEqual([]);
 });
 
-test("E2E 15 — Properties, room types and rooms", async () => {
+test("E2E 15 — Properties, room types and rooms", async ({ page }) => {
   const property = await apiData<{ id: string }>(
     await owner.api.post(
       `/api/v1/workspaces/${workspaceId}/accommodation-properties`,
@@ -376,6 +457,42 @@ test("E2E 15 — Properties, room types and rooms", async () => {
   );
   roomId = room.id;
   expect(roomId).toBeTruthy();
+
+  await authorizePage(page, owner);
+  await page.goto("/accommodation");
+  await page.getByRole("tab", { name: "Camere și alocări" }).click();
+  await page.getByRole("button", { name: "Proprietate" }).click();
+  const propertyDialog = page.getByRole("dialog", {
+    name: "Proprietate nouă",
+  });
+  await propertyDialog.getByLabel("Nume").fill("Pensiunea UI E2E");
+  await propertyDialog.getByLabel("Tip").selectOption("pension");
+  await propertyDialog.getByLabel("Adresă").fill("Strada UI 12");
+  await propertyDialog.getByLabel("Oraș").fill("Orhei");
+  await propertyDialog.getByLabel("Țară").fill("Republica Moldova");
+  await propertyDialog.getByLabel("Telefon contact").fill("+37360000001");
+  await propertyDialog.getByLabel("Check-in").fill("15:00");
+  await propertyDialog.getByLabel("Check-out").fill("11:00");
+  await propertyDialog
+    .getByLabel("Instrucțiuni pentru oaspeți")
+    .fill("Parcarea este în curtea interioară.");
+  await propertyDialog.getByRole("button", { name: "Adaugă" }).click();
+  await expect(page.getByText("Proprietatea a fost adăugată")).toBeVisible();
+  const properties = await apiData<{
+    items: Array<Record<string, unknown>>;
+  }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/accommodation-properties`,
+    ),
+  );
+  expect(
+    properties.items.some(
+      (item) =>
+        item.name === "Pensiunea UI E2E" &&
+        item.type === "pension" &&
+        item.country === "Republica Moldova",
+    ),
+  ).toBe(true);
 });
 
 test("E2E 16 — Accommodation allocations", async () => {
@@ -531,7 +648,11 @@ async function seatingDetail() {
 }
 
 async function transportDetail() {
-  return apiData<{ version: number; routes: Array<{ stops: unknown[] }> }>(
+  return apiData<{
+    version: number;
+    routes: Array<{ stops: unknown[] }>;
+    vehicles: Array<Record<string, unknown>>;
+  }>(
     await owner.api.get(
       `/api/v1/workspaces/${workspaceId}/transport-plans/${transportPlanId}`,
     ),

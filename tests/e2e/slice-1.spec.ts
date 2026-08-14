@@ -50,7 +50,7 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
     .locator('input[autocomplete="new-password"]')
     .nth(1)
     .fill(password);
-  await page.getByRole("checkbox", { name: /Accept Termenii/ }).click();
+  await page.getByRole("checkbox", { name: /Accept termenii/i }).click();
   await page.getByRole("button", { name: "Creează contul" }).click();
   await expect(page).toHaveURL(/\/verify-email/);
 
@@ -71,8 +71,15 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   for (let step = 1; step < 8; step += 1) {
     await page.getByRole("button", { name: "Continuă" }).click();
   }
-  await page.getByRole("button", { name: "Finalizează configurarea" }).click();
-  await expect(page).toHaveURL(/\/overview/, { timeout: 30_000 });
+  await page
+    .getByRole("button", { name: "Salvează și creează planul" })
+    .click();
+  await expect(page).toHaveURL(/\/plan(?:\?|$)/, { timeout: 30_000 });
+  await expect(
+    page.getByRole("dialog", {
+      name: "Planul inițial al nunții",
+    }),
+  ).toBeVisible({ timeout: 90_000 });
   await expect(page.getByText("Ana & Mihai E2E").first()).toBeVisible();
   expect(
     (await page.context().cookies()).some(
@@ -264,7 +271,9 @@ test("E2E 6 — onboarding persists, completes honestly and projects activity", 
     ),
   );
   expect(completed.planGeneration).toBe("not_started");
-  expect(completed.message).toContain("Generarea planului urmează");
+  expect(completed.message).toContain(
+    "Date salvate. Pregătim propunerea planului tău.",
+  );
   await expect
     .poll(async () => {
       const job = await apiData<{ status: string }>(
@@ -309,6 +318,56 @@ test("E2E 7 — demo controls stay inert and issue zero API requests", async ({
     page.getByRole("button", { name: "Exportă CSV" }),
   ).toBeDisabled();
   expect(apiRequests).toEqual([]);
+});
+
+test("E2E 8 — workspace export and deletion requests are real and explicit", async ({
+  browser,
+}) => {
+  const account = await createVerifiedAccount("workspace-privacy-ui");
+  const workspaceId = await createWorkspace(
+    account.api,
+    "Workspace privacy E2E",
+  );
+  const context = await browser.newContext({
+    storageState: await account.api.storageState(),
+  });
+  const page = await context.newPage();
+
+  await page.goto("/settings");
+  await expect(
+    page.getByRole("button", { name: "Solicită exportul" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Solicită exportul" }).click();
+  await expect(
+    page.getByText("Cererea de export a fost înregistrată"),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Solicită ștergerea" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Soliciți ștergerea spațiului?" }),
+  ).toBeVisible();
+  await page.locator("#typed-confirm").fill("ȘTERGE");
+  await page.getByRole("button", { name: "Trimite cererea" }).click();
+  await expect(
+    page.getByText("Cererea de ștergere a fost înregistrată"),
+  ).toBeVisible();
+
+  const privacy = await apiData<{
+    requests: Array<{ scopeId?: string }>;
+    deletions: Array<{ targetId?: string; targetType?: string }>;
+  }>(await account.api.get("/api/v1/me/privacy"));
+  expect(privacy.requests.some((item) => item.scopeId === workspaceId)).toBe(
+    true,
+  );
+  expect(
+    privacy.deletions.some(
+      (item) =>
+        item.targetId === workspaceId &&
+        item.targetType === "WEDDING_WORKSPACE",
+    ),
+  ).toBe(true);
+
+  await context.close();
 });
 
 async function createVerifiedAccount(label: string): Promise<Account> {

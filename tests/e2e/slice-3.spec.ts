@@ -250,6 +250,35 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   await expect(page.getByText("Elena Pop", { exact: true })).toBeVisible();
   const secondAdult = (await guestList("Elena")).items[0]!;
 
+  await page.getByRole("button", { name: "Gestionează etichete" }).click();
+  let tagDialog = page.getByRole("dialog", { name: "Gestionează etichetele" });
+  await tagDialog.getByLabel("Etichetă nouă").fill("Familie apropiată E2E");
+  await tagDialog.getByLabel("Culoare").fill("#7c3aed");
+  await tagDialog.getByRole("button", { name: "Creează" }).click();
+  await expect(page.getByText("Etichetă creată")).toBeVisible();
+  await page.getByRole("button", { name: "Gestionează etichete" }).click();
+  tagDialog = page.getByRole("dialog", { name: "Gestionează etichetele" });
+  await tagDialog
+    .getByRole("button", { name: "Editează eticheta Familie apropiată E2E" })
+    .click();
+  const editTagDialog = page.getByRole("dialog", { name: "Editează eticheta" });
+  await editTagDialog.getByLabel("Nume").fill("Familie VIP E2E");
+  await editTagDialog.getByRole("button", { name: "Salvează" }).click();
+  await expect(page.getByText("Etichetă actualizată")).toBeVisible();
+  await page.getByRole("button", { name: "Gestionează etichete" }).click();
+  tagDialog = page.getByRole("dialog", { name: "Gestionează etichetele" });
+  await tagDialog
+    .getByRole("button", { name: "Șterge eticheta Familie VIP E2E" })
+    .click();
+  const deleteTagDialog = page.getByRole("dialog", {
+    name: "Ștergi eticheta?",
+  });
+  await deleteTagDialog
+    .getByRole("button", { name: "Șterge eticheta" })
+    .click();
+  await expect(page.getByText("Etichetă ștearsă")).toBeVisible();
+  await tagDialog.getByText("Închide", { exact: true }).click();
+
   await expect(addGuestButton).toBeEnabled();
   await addGuestButton.click();
   const childDialog = page.getByRole("dialog", { name: "Invitat nou" });
@@ -329,6 +358,41 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
   await publishRsvpForm(form.version);
 
   await authorizePage(page, owner);
+  await page.goto("/rsvp");
+  await page.getByRole("button", { name: "Editează formularul" }).click();
+  const rsvpDialog = page.getByRole("dialog", {
+    name: "Configurare formular RSVP",
+  });
+  await rsvpDialog
+    .getByRole("switch", { name: "Alergii și restricții alimentare" })
+    .click();
+  await rsvpDialog.getByRole("button", { name: "Salvează ciorna" }).click();
+  await expect(page.getByText("Formular RSVP salvat")).toBeVisible();
+  let persistedForm = await apiData<{
+    draft: { config: { allergyCollection: boolean } } | null;
+    published: { config: { allergyCollection: boolean } } | null;
+  }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/rsvp-form`));
+  expect(persistedForm.draft?.config.allergyCollection).toBe(false);
+
+  await page.getByRole("button", { name: "Editează formularul" }).click();
+  await page
+    .getByRole("dialog", { name: "Configurare formular RSVP" })
+    .getByRole("switch", { name: "Alergii și restricții alimentare" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Configurare formular RSVP" })
+    .getByRole("button", { name: "Salvează ciorna" })
+    .click();
+  await page.getByRole("button", { name: "Publică formularul" }).click();
+  await expect(page.getByText("Formular RSVP publicat")).toBeVisible();
+  persistedForm = await apiData<{
+    draft: { config: { allergyCollection: boolean } } | null;
+    published: { config: { allergyCollection: boolean } } | null;
+  }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/rsvp-form`));
+  expect(
+    (persistedForm.published ?? persistedForm.draft)?.config.allergyCollection,
+  ).toBe(true);
+
   await page.goto("/invitations/editor");
   await page.getByRole("button", { name: "Deschidere" }).click();
   await page.getByRole("button", { name: /^Plic animat/ }).click();

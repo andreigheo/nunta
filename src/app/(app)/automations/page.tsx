@@ -17,6 +17,7 @@ import {
 import {
   apiErrorMessage,
   type AutomationRuleResource,
+  type OperationResource,
   weddingOsApi,
 } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
@@ -29,17 +30,29 @@ const initialForm = {
 };
 
 export default function AutomationsPage() {
-  const { currentWorkspace, demoMode } = useWorkspace();
+  const { currentWorkspace, demoMode, bootstrap } = useWorkspace();
   const { toast } = useToast();
   const [rules, setRules] = React.useState<AutomationRuleResource[]>([]);
+  const [executions, setExecutions] = React.useState<Record<string, OperationResource[]>>({});
   const [open, setOpen] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [form, setForm] = React.useState(initialForm);
+  const capabilities = bootstrap?.membership.capabilities ?? [];
+  const canWrite = capabilities.includes("automation.write");
+  const canExecute = capabilities.includes("automation.execute");
 
   const load = React.useCallback(async () => {
     if (!currentWorkspace || demoMode) return;
     try {
-      setRules((await weddingOsApi.automationRules(currentWorkspace.id)).items);
+      const nextRules = (await weddingOsApi.automationRules(currentWorkspace.id)).items;
+      setRules(nextRules);
+      const history = await Promise.all(
+        nextRules.map(async (rule) => [
+          rule.id,
+          (await weddingOsApi.automationExecutions(currentWorkspace.id, rule.id)).items,
+        ] as const),
+      );
+      setExecutions(Object.fromEntries(history));
     } catch (error) {
       toast({
         title: "Automatizările nu au putut fi încărcate",
@@ -172,7 +185,7 @@ export default function AutomationsPage() {
         title="Automatizări"
         description="Reguli controlate, cu trigger și acțiuni dintr-un catalog închis."
         actions={
-          <Button size="sm" disabled={demoMode} onClick={() => setOpen(true)}>
+          <Button size="sm" disabled={demoMode || !canWrite} onClick={() => setOpen(true)}>
             <Plus className="size-4" /> Regulă
           </Button>
         }
@@ -186,10 +199,10 @@ export default function AutomationsPage() {
           icon={Workflow}
           title="Nu există automatizări"
           description="Creează o regulă din acțiunile permise și testeaz-o fără efecte înainte de activare."
-          action={{
+          action={canWrite && !demoMode ? {
             label: "Creează prima regulă",
             onClick: () => setOpen(true),
-          }}
+          } : undefined}
         />
       ) : (
         <div className="space-y-3">
@@ -229,12 +242,13 @@ export default function AutomationsPage() {
                         : "risc redus"}
                     </span>
                   </div>
+                  {executions[rule.id]?.[0] ? <div className="mt-3 rounded-lg bg-subtle px-3 py-2 text-xs text-muted"><span className="font-medium text-ink">Ultima execuție:</span> {String(executions[rule.id]![0]!.mode).replaceAll("_", " ")} · {String(executions[rule.id]![0]!.status).replaceAll("_", " ")} · {executions[rule.id]![0]!.createdAt ? new Date(String(executions[rule.id]![0]!.createdAt)).toLocaleString("ro-RO") : "dată indisponibilă"}</div> : <p className="mt-3 text-xs text-muted">Regula nu a fost executată încă.</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={busyId === rule.id}
+                    disabled={busyId === rule.id || !canExecute}
                     onClick={() => void execute(rule, "DRY_RUN")}
                   >
                     <TestTube2 className="size-4" /> Dry-run
@@ -243,7 +257,7 @@ export default function AutomationsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={busyId === rule.id}
+                      disabled={busyId === rule.id || !canWrite}
                       onClick={() => void setStatus(rule, "PAUSED")}
                     >
                       <Pause className="size-4" /> Pauză
@@ -252,7 +266,7 @@ export default function AutomationsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={busyId === rule.id}
+                      disabled={busyId === rule.id || !canWrite}
                       onClick={() => void setStatus(rule, "ACTIVE")}
                     >
                       <Play className="size-4" /> Activează
@@ -260,7 +274,7 @@ export default function AutomationsPage() {
                   )}
                   <Button
                     size="sm"
-                    disabled={busyId === rule.id || rule.status !== "active"}
+                    disabled={busyId === rule.id || rule.status !== "active" || !canExecute}
                     onClick={() => void execute(rule, "EXECUTE")}
                   >
                     <Workflow className="size-4" /> Execută

@@ -242,7 +242,9 @@ test("E2E 14 — Assistant feedback is persisted", async () => {
   expect(feedback.rating).toBe("HELPFUL");
 });
 
-test("E2E 15 — Create a canonical risk", async () => {
+test("E2E 15 — Create a canonical risk and open its real detail page", async ({
+  page,
+}) => {
   const key = `risk-${randomUUID()}`;
   risk = await apiData(
     await owner.api.post(`/api/v1/workspaces/${workspaceId}/risks`, {
@@ -257,6 +259,14 @@ test("E2E 15 — Create a canonical risk", async () => {
     }),
   );
   expect(risk.level).toBe("critical");
+  await authorizePage(page, owner);
+  await page.goto(`/risks/${risk.id}`);
+  await expect(
+    page.getByRole("heading", { name: "Ploaie la ceremonie" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Plan de atenuare", { exact: true }),
+  ).toBeVisible();
 });
 
 test("E2E 16 — Risk assessment changes the canonical score", async () => {
@@ -325,7 +335,9 @@ test("E2E 20 — Workspace isolation blocks an outsider", async () => {
   expect([403, 404]).toContain(response.status());
 });
 
-test("E2E 21 — Create a linked Plan B draft", async () => {
+test("E2E 21 — Create a linked Plan B draft and open its real detail page", async ({
+  page,
+}) => {
   plan = await apiData(
     await owner.api.post(
       `/api/v1/workspaces/${workspaceId}/contingency-plans`,
@@ -346,6 +358,12 @@ test("E2E 21 — Create a linked Plan B draft", async () => {
     ),
   );
   expect(plan.status).toBe("draft");
+  await authorizePage(page, owner);
+  await page.goto(`/contingency-plans/${plan.id}`);
+  await expect(
+    page.getByRole("heading", { name: "Ceremonie interioară" }),
+  ).toBeVisible();
+  await expect(page.getByText("Declanșatori", { exact: true })).toBeVisible();
 });
 
 test("E2E 22 — Plan B simulation is asynchronous and durable", async () => {
@@ -440,7 +458,9 @@ test("E2E 26 — Create automation with closed trigger and action", async () => 
   expect(automation.status).toBe("draft");
 });
 
-test("E2E 27 — Automation dry-run creates traceable execution", async () => {
+test("E2E 27 — Automation dry-run creates traceable execution visible in UI", async ({
+  page,
+}) => {
   const execution = await apiData<{ executionId: string; job: { id: string } }>(
     await owner.api.post(
       `/api/v1/workspaces/${workspaceId}/automations/${automation.id}/dry-run`,
@@ -454,6 +474,12 @@ test("E2E 27 — Automation dry-run creates traceable execution", async () => {
   );
   expect(execution.executionId).toBeTruthy();
   await waitForJob(execution.job.id);
+  await authorizePage(page, owner);
+  await page.goto("/automations");
+  await expect(
+    page.getByText("Reminder risc E2E", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/Ultima execuție:/)).toBeVisible();
 });
 
 test("E2E 28 — Automation activation is version guarded", async () => {

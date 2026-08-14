@@ -319,10 +319,27 @@ export class SecureCommerceService {
         await tx.documentAccessGrant.findFirst({
           where: {
             documentId,
-            granteeId: actingTenantId,
             permission: { in: acceptedPermissions },
             revokedAt: null,
-            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            AND: [
+              { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+              {
+                OR: [
+                  { granteeType: "USER", granteeId: userId },
+                  {
+                    granteeType: {
+                      in: [
+                        "WORKSPACE",
+                        "VENDOR_ORGANIZATION",
+                        "CONTRACT_PARTY",
+                        "BOOKING_PARTY",
+                      ],
+                    },
+                    granteeId: actingTenantId,
+                  },
+                ],
+              },
+            ],
           },
         }),
       );
@@ -1111,9 +1128,26 @@ export class SecureCommerceService {
         const actingTenantId = owner.workspaceId ?? owner.vendorOrganizationId!;
         const grants = await tx.documentAccessGrant.findMany({
           where: {
-            granteeId: actingTenantId,
             revokedAt: null,
-            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            AND: [
+              { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+              {
+                OR: [
+                  { granteeType: "USER", granteeId: userId },
+                  {
+                    granteeType: {
+                      in: [
+                        "WORKSPACE",
+                        "VENDOR_ORGANIZATION",
+                        "CONTRACT_PARTY",
+                        "BOOKING_PARTY",
+                      ],
+                    },
+                    granteeId: actingTenantId,
+                  },
+                ],
+              },
+            ],
           },
           select: { documentId: true },
         });

@@ -30,7 +30,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { loading, demoMode, bootstrap } = useWorkspace();
   if (loading) {
-    return <div className="min-h-dvh animate-pulse bg-canvas" aria-label="Se încarcă spațiul de lucru" />;
+    return <div className="min-h-dvh animate-pulse bg-canvas" role="status" aria-label="Se încarcă spațiul de lucru" />;
   }
   if (pathname === "/settings" && !bootstrap && !demoMode) {
     return (

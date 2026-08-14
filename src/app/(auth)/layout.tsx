@@ -65,6 +65,7 @@ export default function AuthLayout({
             fallback={
               <div
                 className="h-96 animate-pulse rounded-2xl bg-subtle"
+                role="status"
                 aria-label="Se încarcă formularul"
               />
             }

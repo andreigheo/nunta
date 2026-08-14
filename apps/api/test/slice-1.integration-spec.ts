@@ -995,7 +995,8 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .expect(200);
     expect(
       notifications.body.data.items.some(
-        (item: { title: string }) => item.title === "Onboarding finalizat",
+        (item: { title: string }) =>
+          item.title === "Configurarea nunții este gata",
       ),
     ).toBe(true);
     const activity = await owner.agent
@@ -1006,7 +1007,8 @@ describe.sequential("Slice 1 API integration and isolation", () => {
     ).toContain("ready_for_plan_generation");
 
     const projectedNotification = notifications.body.data.items.find(
-      (item: { title: string }) => item.title === "Onboarding finalizat",
+      (item: { title: string }) =>
+        item.title === "Configurarea nunții este gata",
     ) as { id: string; version: number };
     const activityCountBeforeLifecycle = await ownerDatabase.activityItem.count(
       { where: { workspaceId } },

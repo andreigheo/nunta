@@ -35,6 +35,7 @@ let couple: Account;
 let vendor: Account;
 let vendorOrganizationId: string;
 let sharedContractId: string;
+let propagatedTraceId: string;
 
 test.describe.configure({ mode: "serial" });
 
@@ -75,12 +76,11 @@ test("S10C E2E 01 — full demo isolation has zero API traffic", async ({
 }) => {
   const calls: string[] = [];
   await page.context().clearCookies();
-  await page.goto("/sign-in");
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-    document.cookie = "weddingos_demo=1; Path=/; Max-Age=28800; SameSite=Lax";
-  });
+  await page
+    .context()
+    .addCookies([
+      { name: "weddingos_demo", value: "1", url: origin, sameSite: "Lax" },
+    ]);
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/"))
       calls.push(`${request.method()} ${request.url()}`);
@@ -119,6 +119,7 @@ test("S10C E2E 04 — HTTP to outbox carries one W3C distributed trace", async (
   expect(response.status()).toBe(201);
   const traceId = response.headers()["x-trace-id"];
   expect(traceId).toMatch(/^[a-f0-9]{32}$/);
+  propagatedTraceId = traceId;
   const backup = await apiData<Resource>(response);
   const outbox = await ownerDatabase.outboxMessage.findFirstOrThrow({
     where: { aggregateId: backup.id, eventName: "backup.requested.v1" },
@@ -132,9 +133,10 @@ test("S10C E2E 05 — propagated worker trace is visible in Jaeger", async () =>
     .poll(
       async () => {
         const response = await fetch(
-          "http://127.0.0.1:16686/api/traces?service=weddingos-api-e2e&limit=20",
-        );
-        if (!response.ok) return false;
+          `http://127.0.0.1:16686/api/traces/${propagatedTraceId}`,
+          { signal: AbortSignal.timeout(5_000) },
+        ).catch(() => null);
+        if (!response?.ok) return false;
         const traces = (
           (await response.json()) as {
             data?: Array<{
@@ -161,7 +163,8 @@ test("S10C E2E 05 — propagated worker trace is visible in Jaeger", async () =>
 
 test("S10C E2E 06 — exported trace payload contains no credentials or email", async () => {
   const response = await fetch(
-    "http://127.0.0.1:16686/api/traces?service=weddingos-api-e2e&limit=20",
+    `http://127.0.0.1:16686/api/traces/${propagatedTraceId}`,
+    { signal: AbortSignal.timeout(5_000) },
   );
   expect(response.ok).toBe(true);
   const serialized = JSON.stringify(await response.json());

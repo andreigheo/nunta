@@ -193,6 +193,24 @@ export default function AdminSectionPage() {
     }
   };
 
+  const verifyBackup = async (item: OperationResource) => {
+    const auditReason = reason(
+      "Se verifică integritatea artefactelor backup-ului. Datele de producție nu sunt restaurate sau suprascrise.",
+    );
+    if (!auditReason) return;
+    setBusyId(`${item.id}:verify`);
+    try {
+      if (!(await authorize("RESTORE_APPROVAL"))) return;
+      await weddingOsApi.verifyPlatformBackup(item.id, item.version, auditReason);
+      toast({ title: "Verificarea backup-ului a pornit", description: "Rezultatul și dovada de integritate vor fi păstrate în audit.", variant: "success" });
+      await load();
+    } catch (caught) {
+      toast({ title: "Backup-ul nu a putut fi verificat", description: apiErrorMessage(caught), variant: "error" });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (!definition) {
     return <PortalShell role="Platform Admin" title="Rută administrativă necunoscută" subtitle="Secțiunea cerută nu există." backHref="/admin" backLabel="Control center"><Card><CardContent className="p-6">Selectează o secțiune validă din Control center.</CardContent></Card></PortalShell>;
   }
@@ -226,8 +244,9 @@ export default function AdminSectionPage() {
               const audit = String(row.updatedAt ?? row.createdAt ?? row.environment ?? "Persistat");
               const isPolicy = key === "privacy" && typeof row.entityType === "string";
               const isSchedule = key === "backups" && typeof row.cronExpression === "string";
+              const isBackupRun = key === "backups" && !isSchedule;
               const scope = key === "users" ? "user" : key === "workspaces" ? "workspace" : key === "vendors" ? "vendor" : null;
-              return <TR key={String(item.id)}><TD><p className="font-medium text-ink">{label}</p></TD><TD><span className="font-mono text-xs text-muted">{String(item.id)}</span></TD><TD><Badge variant={/FAILED|SUSPENDED|CRITICAL|ACTION_REQUIRED/.test(status) ? "danger" : /PENDING|OPEN|DEGRADED/.test(status) ? "warning" : "success"}>{status}</Badge></TD><TD className="text-xs text-muted">{audit}</TD><TD align="right"><div className="flex justify-end gap-2">{scope ? <Button size="sm" variant={status === "SUSPENDED" ? "outline" : "destructive-outline"} loading={busyId === item.id} onClick={() => void changeStatus(item, scope)}>{status === "SUSPENDED" ? "Reactivează" : "Suspendă"}</Button> : null}{isPolicy ? <><Button size="sm" variant="outline" loading={busyId === `${item.id}:DRY_RUN`} onClick={() => void runRetention(item, "DRY_RUN")}>Dry-run</Button><Button size="sm" variant="destructive-outline" loading={busyId === `${item.id}:EXECUTE`} onClick={() => void runRetention(item, "EXECUTE")}>Execută</Button></> : null}{isSchedule ? <Button size="sm" variant="outline" loading={busyId === item.id} onClick={() => void toggleSchedule(item)}>{row.enabled === false ? "Reia" : "Oprește"}</Button> : null}{!scope && !isPolicy && !isSchedule ? <span className="text-xs text-faint">Doar citire</span> : null}</div></TD></TR>;
+              return <TR key={String(item.id)}><TD><p className="font-medium text-ink">{label}</p></TD><TD><span className="font-mono text-xs text-muted">{String(item.id)}</span></TD><TD><Badge variant={/FAILED|SUSPENDED|CRITICAL|ACTION_REQUIRED/.test(status) ? "danger" : /PENDING|OPEN|DEGRADED/.test(status) ? "warning" : "success"}>{status}</Badge></TD><TD className="text-xs text-muted">{audit}</TD><TD align="right"><div className="flex justify-end gap-2">{scope ? <Button size="sm" variant={status === "SUSPENDED" ? "outline" : "destructive-outline"} loading={busyId === item.id} onClick={() => void changeStatus(item, scope)}>{status === "SUSPENDED" ? "Reactivează" : "Suspendă"}</Button> : null}{isPolicy ? <><Button size="sm" variant="outline" loading={busyId === `${item.id}:DRY_RUN`} onClick={() => void runRetention(item, "DRY_RUN")}>Dry-run</Button><Button size="sm" variant="destructive-outline" loading={busyId === `${item.id}:EXECUTE`} onClick={() => void runRetention(item, "EXECUTE")}>Execută</Button></> : null}{isSchedule ? <Button size="sm" variant="outline" loading={busyId === item.id} onClick={() => void toggleSchedule(item)}>{row.enabled === false ? "Reia" : "Oprește"}</Button> : null}{isBackupRun ? <Button size="sm" variant="outline" loading={busyId === `${item.id}:verify`} disabled={!/COMPLETED|AVAILABLE|VERIFIED/.test(status)} onClick={() => void verifyBackup(item)}>Verifică integritatea</Button> : null}{!scope && !isPolicy && !isSchedule && !isBackupRun ? <span className="text-xs text-faint">Doar citire</span> : null}</div></TD></TR>;
             })}</TBody></Table>
           )}
 

@@ -26,23 +26,34 @@ export default function ContingencyPlanPage() {
   const { currentWorkspace, demoMode } = useWorkspace();
   const { toast } = useToast();
   const [plan, setPlan] = React.useState<ContingencyPlanResource | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
   const [title, setTitle] = React.useState("");
   const [summary, setSummary] = React.useState("");
 
   const load = React.useCallback(async () => {
-    if (!currentWorkspace || demoMode) return;
+    if (!currentWorkspace || demoMode) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadError(null);
     try {
       setPlan(
         await weddingOsApi.contingencyPlan(currentWorkspace.id, params.id),
       );
     } catch (error) {
+      setPlan(null);
+      setLoadError(apiErrorMessage(error));
       toast({
         title: "Planul B nu a putut fi încărcat",
         description: apiErrorMessage(error),
         variant: "error",
       });
+    } finally {
+      setLoading(false);
     }
   }, [currentWorkspace, demoMode, params.id, toast]);
   React.useEffect(() => {
@@ -165,12 +176,29 @@ export default function ContingencyPlanPage() {
     }
   };
 
-  if (!plan)
+  if (loading)
     return (
       <EmptyState
         icon={ShieldCheck}
         title="Planul B se încarcă"
         description="Verificăm resursa și accesul la workspace."
+      />
+    );
+
+  if (!plan)
+    return (
+      <EmptyState
+        icon={ShieldCheck}
+        title="Planul B nu este disponibil"
+        description={
+          loadError ??
+          "Planul nu există, nu mai este disponibil sau nu ai acces la el."
+        }
+        action={
+          currentWorkspace && !demoMode
+            ? { label: "Reîncearcă", onClick: () => void load() }
+            : undefined
+        }
       />
     );
   return (

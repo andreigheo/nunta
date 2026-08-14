@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, Download, Search, Send, Tag, Upload, UserPlus, Users, UsersRound } from "lucide-react";
+import { Archive, Download, Pencil, Search, Send, Tag, Trash2, Upload, UserPlus, Users, UsersRound } from "lucide-react";
 import type {
   CampaignResource, GuestImportResource, GuestImportRowResource, GuestResource,
   GuestTagResource, HouseholdResource,
@@ -9,7 +9,7 @@ import type {
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import {
-  Avatar, Badge, Button, Card, CardContent, Checkbox, Drawer, EmptyState, Field, Input,
+  Avatar, Badge, Button, Card, CardContent, Checkbox, ConfirmDialog, Drawer, EmptyState, Field, Input,
   Modal, PageHeader, Select, StatCard, Table, Tabs, TabsContent, TabsList,
   TabsTrigger, TBody, TD, Textarea, TH, THead, TR, useToast,
 } from "@/components/ui";
@@ -91,6 +91,8 @@ export default function GuestsPage() {
   const [reminderAudience, setReminderAudience] =
     React.useState<ReminderAudience | null>(null);
   const [tagOpen, setTagOpen] = React.useState(false);
+  const [editingTag, setEditingTag] = React.useState<GuestTagResource | null>(null);
+  const [tagToDelete, setTagToDelete] = React.useState<GuestTagResource | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [guestOpen, setGuestOpen] = React.useState(false);
@@ -178,9 +180,24 @@ export default function GuestsPage() {
     event.preventDefault(); if (!currentWorkspace || demoMode) return;
     const form = new FormData(event.currentTarget); setSaving(true);
     try {
-      await weddingOsApi.createGuestTag(currentWorkspace.id, { name: String(form.get("name")), color: String(form.get("color") || "") || null });
-      setTagOpen(false); toast({ title: "Etichetă creată", variant: "success" }); await load(query);
-    } catch (caught) { toast({ title: "Eticheta nu a fost creată", description: apiErrorMessage(caught), variant: "error" }); }
+      const input = { name: String(form.get("name")), color: String(form.get("color") || "") || null };
+      if (editingTag) await weddingOsApi.updateGuestTag(currentWorkspace.id, editingTag.id, editingTag.version, input);
+      else await weddingOsApi.createGuestTag(currentWorkspace.id, input);
+      setTagOpen(false); setEditingTag(null); toast({ title: editingTag ? "Etichetă actualizată" : "Etichetă creată", variant: "success" }); await load(query);
+    } catch (caught) { toast({ title: editingTag ? "Eticheta nu a fost actualizată" : "Eticheta nu a fost creată", description: apiErrorMessage(caught), variant: "error" }); }
+    finally { setSaving(false); }
+  };
+
+  const deleteTag = async () => {
+    if (!currentWorkspace || !tagToDelete || demoMode) return;
+    setSaving(true);
+    try {
+      const result = await weddingOsApi.deleteGuestTag(currentWorkspace.id, tagToDelete.id, tagToDelete.version);
+      setTagToDelete(null);
+      if (tagFilter === tagToDelete.id) setTagFilter("");
+      toast({ title: "Etichetă ștearsă", description: result.affectedGuests ? `Eliminată de la ${result.affectedGuests} invitați.` : undefined, variant: "success" });
+      await load(query);
+    } catch (caught) { toast({ title: "Eticheta nu a fost ștearsă", description: apiErrorMessage(caught), variant: "error" }); }
     finally { setSaving(false); }
   };
 
@@ -416,7 +433,7 @@ export default function GuestsPage() {
       <Field label="Meniu"><Select value={menuStatus} onChange={(event) => setMenuStatus(event.target.value)}><option value="">Toate</option><option value="complete">Selectat</option><option value="incomplete">Lipsă</option></Select></Field>
       <Field label="Etichetă"><Select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}><option value="">Toate</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</Select></Field>
       <Field label="Sortare"><Select value={sort} onChange={(event) => setSort(event.target.value)}><option value="last_name">Nume</option><option value="first_name">Prenume</option><option value="created_at">Adăugați recent</option></Select></Field>
-      <Button size="sm" variant="outline" disabled={!canWrite || demoMode} onClick={() => setTagOpen(true)}><Tag className="size-3.5" />Etichetă nouă</Button>
+      <Button size="sm" variant="outline" disabled={!canWrite || demoMode} onClick={() => { setEditingTag(null); setTagOpen(true); }}><Tag className="size-3.5" />Gestionează etichete</Button>
     </CardContent></Card>
     {selectedIds.size > 0 && <Card><CardContent className="flex flex-wrap items-end gap-3 p-4">
       <p className="mr-auto text-sm font-medium">{selectedIds.size} selectați</p>
@@ -492,7 +509,8 @@ export default function GuestsPage() {
         </div>
       </div>
     </Modal>
-    <Modal open={tagOpen} onClose={() => setTagOpen(false)} title="Etichetă nouă"><form className="space-y-4" onSubmit={createTag}><Field label="Nume" required><Input name="name" required /></Field><Field label="Culoare" hint="Format hex, de exemplu #6d5dfc"><Input name="color" defaultValue="#6d5dfc" pattern="#[0-9a-fA-F]{6}" /></Field><div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setTagOpen(false)}>Renunță</Button><Button type="submit" disabled={saving}>Creează</Button></div></form></Modal>
+    <Modal open={tagOpen} onClose={() => { setTagOpen(false); setEditingTag(null); }} title={editingTag ? "Editează eticheta" : "Gestionează etichetele"} description="Creează, redenumește sau elimină etichetele folosite pentru filtrare și acțiuni de grup."><div className="space-y-5">{!editingTag && tags.length ? <div className="space-y-2">{tags.map((tag) => <div key={tag.id} className="flex items-center justify-between gap-3 rounded-lg border border-line p-3"><span className="flex min-w-0 items-center gap-2"><span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: tag.color ?? "#6d5dfc" }} /><span className="truncate text-sm font-medium text-ink">{tag.name}</span><span className="text-xs text-muted">{tag.assignedGuests ?? 0} invitați</span></span><span className="flex gap-1"><Button type="button" size="icon-sm" variant="ghost" aria-label={`Editează eticheta ${tag.name}`} onClick={() => setEditingTag(tag)}><Pencil className="size-4" /></Button><Button type="button" size="icon-sm" variant="ghost" aria-label={`Șterge eticheta ${tag.name}`} onClick={() => setTagToDelete(tag)}><Trash2 className="size-4 text-danger" /></Button></span></div>)}</div> : null}<form key={editingTag?.id ?? "new"} className="space-y-4" onSubmit={createTag}><Field label={editingTag ? "Nume" : "Etichetă nouă"} required><Input name="name" defaultValue={editingTag?.name ?? ""} required /></Field><Field label="Culoare" hint="Format hex, de exemplu #6d5dfc"><Input name="color" defaultValue={editingTag?.color ?? "#6d5dfc"} pattern="#[0-9a-fA-F]{6}" /></Field><div className="flex justify-end gap-2">{editingTag ? <Button type="button" variant="ghost" onClick={() => setEditingTag(null)}>Înapoi la listă</Button> : <Button type="button" variant="ghost" onClick={() => setTagOpen(false)}>Închide</Button>}<Button type="submit" disabled={saving}>{editingTag ? "Salvează" : "Creează"}</Button></div></form></div></Modal>
+    <ConfirmDialog open={Boolean(tagToDelete)} onClose={() => setTagToDelete(null)} onConfirm={() => void deleteTag()} title="Ștergi eticheta?" description="Eticheta va fi eliminată și de la invitații care o folosesc. Invitații nu sunt șterși." confirmLabel="Șterge eticheta" destructive loading={saving} />
     <Modal open={Boolean(selectedHousehold)} onClose={() => setSelectedHousehold(null)} title="Editează gospodăria" description={selectedHousehold ? `${selectedHousehold.guestsCount} persoane asociate` : undefined}>{selectedHousehold && <form key={`${selectedHousehold.id}:${selectedHousehold.version}`} className="space-y-4" onSubmit={updateHousehold}><Field label="Nume" required><Input name="name" defaultValue={selectedHousehold.name} required /></Field><Field label="Oraș"><Input name="city" defaultValue={selectedHousehold.city ?? ""} /></Field><Field label="Parte"><Select name="side" defaultValue={sideInput(selectedHousehold.side)}><option value="COMMON">Comună</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="OTHER">Altele</option></Select></Field><p className="text-xs text-faint">Mutarea persoanelor se face din acțiunile bulk ale listei.</p><div className="flex justify-between gap-2"><Button type="button" variant="destructive" disabled={saving || !capabilities.includes("guest.archive")} onClick={() => void archiveHousehold()}><Archive className="size-4" />Arhivează</Button><span className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setSelectedHousehold(null)}>Renunță</Button><Button type="submit" disabled={saving}>Salvează</Button></span></div></form>}</Modal>
     <Modal open={Boolean(importReview)} onClose={() => setImportReview(null)} title="Revizuire import invitați" description={importReview?.resource.sourceFileName} size="full">
       {importReview && <div className="space-y-5">

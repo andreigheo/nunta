@@ -20,6 +20,7 @@ const definitions = {
 const definition = definitions[purpose];
 if (!definition)
   throw new Error(`Unknown isolated database purpose: ${purpose ?? "missing"}`);
+const resetRequested = process.env.WEDDINGOS_RESET_ISOLATED_DATABASE === "true";
 
 const adminUrl = new URL(
   process.env.TEST_DATABASE_ADMIN_URL ??
@@ -30,10 +31,44 @@ adminUrl.search = "";
 const admin = new Client({ connectionString: adminUrl.toString() });
 await admin.connect();
 try {
-  const exists = await admin.query(
+  let exists = await admin.query(
     "SELECT 1 FROM pg_database WHERE datname = $1",
     [definition.database],
   );
+  if (exists.rowCount && resetRequested) {
+    const existingTargetUrl = new URL(adminUrl);
+    existingTargetUrl.pathname = `/${definition.database}`;
+    existingTargetUrl.searchParams.set("schema", "public");
+    const existingTarget = new Client({
+      connectionString: existingTargetUrl.toString(),
+    });
+    await existingTarget.connect();
+    try {
+      const identity = await existingTarget.query(
+        "SELECT environment, database_purpose FROM database_identities WHERE id = 'singleton'",
+      );
+      const row = identity.rows[0];
+      if (
+        identity.rowCount !== 1 ||
+        row.environment !== definition.environment ||
+        row.database_purpose !== purpose
+      ) {
+        throw new Error(
+          `REFUSING_ISOLATED_DATABASE_RESET database=${definition.database} actual=${row?.environment ?? "missing"}/${row?.database_purpose ?? "missing"} expected=${definition.environment}/${purpose}`,
+        );
+      }
+    } finally {
+      await existingTarget.end();
+    }
+    await admin.query(
+      `SELECT pg_terminate_backend(pid)
+       FROM pg_stat_activity
+       WHERE datname = $1 AND pid <> pg_backend_pid()`,
+      [definition.database],
+    );
+    await admin.query(`DROP DATABASE "${definition.database}"`);
+    exists = { rowCount: 0 };
+  }
   if (!exists.rowCount) {
     await admin.query(
       `CREATE DATABASE "${definition.database}" OWNER weddingos`,

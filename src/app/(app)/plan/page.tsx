@@ -546,21 +546,10 @@ export default function PlanPage() {
         }
         actions={
           tasks.length === 0 ? (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>
-                <Plus className="size-4" />
-                Adaugă manual
-              </Button>
-              <Button
-                size="sm"
-                onClick={() =>
-                  proposal ? setProposalOpen(true) : void generatePlan("auto")
-                }
-              >
-                <Sparkles className="size-3.5" />
-                {proposal ? "Verifică propunerea" : "Creează propunerea"}
-              </Button>
-            </>
+            <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>
+              <Plus className="size-4" />
+              Adaugă manual
+            </Button>
           ) : (
             <>
             <Button

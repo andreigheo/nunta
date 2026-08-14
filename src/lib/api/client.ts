@@ -970,6 +970,40 @@ export const weddingOsApi = {
       body: { targetType: "USER_ACCOUNT", targetId: userId, reason },
       idempotencyKey: crypto.randomUUID(),
     }),
+  requestWorkspaceDataExport: (workspaceId: string) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/data-exports`,
+      {
+        method: "POST",
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  requestWorkspaceDeletion: (workspaceId: string, reason: string) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/deletion-requests`,
+      {
+        method: "POST",
+        body: { reason },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  requestVendorDataExport: (organizationId: string) =>
+    request<OperationResource>(
+      `/vendor-organizations/${encodeURIComponent(organizationId)}/data-exports`,
+      {
+        method: "POST",
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  requestVendorDeletion: (organizationId: string, reason: string) =>
+    request<OperationResource>(
+      `/vendor-organizations/${encodeURIComponent(organizationId)}/deletion-requests`,
+      {
+        method: "POST",
+        body: { reason },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   register: (input: RegisterRequest) =>
     request<RegisterResponse>("/auth/registrations", {
       method: "POST",
@@ -1846,6 +1880,25 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  updateTransportPlan: (
+    workspaceId: string,
+    planId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/transport-plans/${encodeURIComponent(planId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteTransportPlan: (
+    workspaceId: string,
+    planId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/transport-plans/${encodeURIComponent(planId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   createTransportVehicle: (
     workspaceId: string,
     planId: string,
@@ -1859,6 +1912,27 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  updateTransportVehicle: (
+    workspaceId: string,
+    planId: string,
+    vehicleId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/transport-plans/${encodeURIComponent(planId)}/vehicles/${encodeURIComponent(vehicleId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteTransportVehicle: (
+    workspaceId: string,
+    planId: string,
+    vehicleId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/transport-plans/${encodeURIComponent(planId)}/vehicles/${encodeURIComponent(vehicleId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   createTransportRoute: (
     workspaceId: string,
     planId: string,
@@ -1871,6 +1945,27 @@ export const weddingOsApi = {
         body: input,
         idempotencyKey: crypto.randomUUID(),
       },
+    ),
+  updateTransportRoute: (
+    workspaceId: string,
+    planId: string,
+    routeId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/transport-plans/${encodeURIComponent(planId)}/routes/${encodeURIComponent(routeId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteTransportRoute: (
+    workspaceId: string,
+    planId: string,
+    routeId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/transport-plans/${encodeURIComponent(planId)}/routes/${encodeURIComponent(routeId)}`,
+      { method: "DELETE", ifMatch: version },
     ),
   replaceTransportAssignments: (
     workspaceId: string,
@@ -2038,6 +2133,25 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  updateAccommodationProperty: (
+    workspaceId: string,
+    propertyId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteAccommodationProperty: (
+    workspaceId: string,
+    propertyId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   createAccommodationRoom: (
     workspaceId: string,
     propertyId: string,
@@ -2050,6 +2164,27 @@ export const weddingOsApi = {
         body: input,
         idempotencyKey: crypto.randomUUID(),
       },
+    ),
+  updateAccommodationRoom: (
+    workspaceId: string,
+    propertyId: string,
+    roomId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}/rooms/${encodeURIComponent(roomId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteAccommodationRoom: (
+    workspaceId: string,
+    propertyId: string,
+    roomId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}/rooms/${encodeURIComponent(roomId)}`,
+      { method: "DELETE", ifMatch: version },
     ),
   accommodationStays: (workspaceId: string) =>
     request<{ items: OperationResource[] }>(
@@ -2070,6 +2205,25 @@ export const weddingOsApi = {
         body: input,
         idempotencyKey: crypto.randomUUID(),
       },
+    ),
+  updateAccommodationStay: (
+    workspaceId: string,
+    stayId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-stays/${encodeURIComponent(stayId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteAccommodationStay: (
+    workspaceId: string,
+    stayId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-stays/${encodeURIComponent(stayId)}`,
+      { method: "DELETE", ifMatch: version },
     ),
   replaceAccommodationAllocations: (
     workspaceId: string,
@@ -2675,6 +2829,15 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/vendor-shortlists/${encodeURIComponent(shortlistId)}`,
       { method: "PATCH", body: input, ifMatch: version },
     ),
+  deleteVendorShortlist: (
+    workspaceId: string,
+    shortlistId: string,
+    version: number,
+  ) =>
+    request<{ id: string; deleted: true; version: number }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/vendor-shortlists/${encodeURIComponent(shortlistId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   setShortlistVendor: (
     workspaceId: string,
     shortlistId: string,
@@ -3053,6 +3216,33 @@ export const weddingOsApi = {
     request<{ url: string; expiresAt: string }>(
       `/documents/${encodeURIComponent(documentId)}/downloads?workspaceId=${encodeURIComponent(workspaceId)}`,
       { method: "POST" },
+    ),
+  createDocumentGrant: (
+    workspaceId: string,
+    documentId: string,
+    input: {
+      granteeType: "USER" | "WORKSPACE" | "VENDOR_ORGANIZATION" | "CONTRACT_PARTY" | "BOOKING_PARTY";
+      granteeId: string;
+      permission: "READ" | "DOWNLOAD" | "MANAGE" | "SHARE";
+      expiresAt?: string | null;
+    },
+  ) =>
+    request<OperationResource>(
+      `/documents/${encodeURIComponent(documentId)}/grants?workspaceId=${encodeURIComponent(workspaceId)}`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  revokeDocumentGrant: (
+    workspaceId: string,
+    documentId: string,
+    grantId: string,
+  ) =>
+    request<OperationResource>(
+      `/documents/${encodeURIComponent(documentId)}/grants/${encodeURIComponent(grantId)}?workspaceId=${encodeURIComponent(workspaceId)}`,
+      { method: "DELETE" },
     ),
   deleteVaultDocument: (workspaceId: string, documentId: string) =>
     request<OperationResource>(

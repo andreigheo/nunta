@@ -179,7 +179,10 @@ const routeCapabilityOverrides: Array<{
   capability: CapabilityKey;
 }> = [
   { prefix: "/invitations/editor", capability: "invitation.write" },
-  { prefix: "/provider/checkout", capability: "payment.write" },
+  {
+    prefix: "/provider/checkout",
+    capability: "online_payment.create_checkout",
+  },
 ];
 
 export function requiredCapabilityForPath(

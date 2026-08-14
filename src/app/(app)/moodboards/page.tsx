@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import {
   ArrowLeft,
   Download,
@@ -419,11 +420,16 @@ function ConnectedMoodboards({
                           className="overflow-hidden rounded-xl border border-line bg-surface"
                         >
                           {item.kind === "image" && imageUrl ? (
-                            <img
-                              src={imageUrl}
-                              alt={item.label}
-                              className="aspect-[4/3] w-full object-cover"
-                            />
+                            <div className="relative aspect-[4/3] w-full">
+                              <Image
+                                src={imageUrl}
+                                alt={item.label}
+                                fill
+                                unoptimized
+                                sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
+                                className="object-cover"
+                              />
+                            </div>
                           ) : item.kind === "color" && item.colorHex ? (
                             <div
                               className="aspect-[4/3] w-full"

@@ -195,7 +195,7 @@ test("E2E 3 — Planning persistence", async ({ page }) => {
   await authorizePage(page, main);
   await page.goto("/plan");
   const title = `Sarcină persistentă ${Date.now()}`;
-  await page.getByRole("button", { name: "Sarcină", exact: true }).click();
+  await page.getByRole("button", { name: "Sarcină nouă", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Sarcină nouă" });
   await dialog
     .getByPlaceholder("ex. Rezervă autocarele pentru oaspeți")
@@ -457,9 +457,7 @@ test("E2E 10 — Tenant isolation", async () => {
   ).toBe(403);
   expect(
     (
-      await main.api.get(
-        `/api/v1/workspaces/${otherWorkspace}/creative-state`,
-      )
+      await main.api.get(`/api/v1/workspaces/${otherWorkspace}/creative-state`)
     ).status(),
   ).toBe(403);
   const ownSearch = await apiData<{ items: Array<{ id: string }> }>(
@@ -590,28 +588,22 @@ test("E2E 12 — creative workspace, moodboard upload/download and post-event wo
   };
   expect(
     (
-      await main.api.put(
-        `/api/v1/workspaces/${workspaceId}/creative-state`,
-        {
-          headers: mutationHeaders({
-            "If-Match": `"${persistedState.version}"`,
-          }),
-          data: persistedPayload,
-        },
-      )
+      await main.api.put(`/api/v1/workspaces/${workspaceId}/creative-state`, {
+        headers: mutationHeaders({
+          "If-Match": `"${persistedState.version}"`,
+        }),
+        data: persistedPayload,
+      })
     ).status(),
   ).toBe(200);
   expect(
     (
-      await main.api.put(
-        `/api/v1/workspaces/${workspaceId}/creative-state`,
-        {
-          headers: mutationHeaders({
-            "If-Match": `"${persistedState.version}"`,
-          }),
-          data: persistedPayload,
-        },
-      )
+      await main.api.put(`/api/v1/workspaces/${workspaceId}/creative-state`, {
+        headers: mutationHeaders({
+          "If-Match": `"${persistedState.version}"`,
+        }),
+        data: persistedPayload,
+      })
     ).status(),
   ).toBe(412);
 
@@ -722,13 +714,13 @@ test("E2E 14 — Demo", async ({ page }) => {
   ]);
   await page.goto("/plan?demo=1");
   const taskTitle = `Task demo ${Date.now()}`;
-  await page.getByRole("button", { name: "Sarcină", exact: true }).click();
+  await page.getByRole("button", { name: "Sarcină nouă", exact: true }).click();
   const taskDialog = page.getByRole("dialog", { name: "Sarcină nouă" });
   await taskDialog
     .getByPlaceholder("ex. Rezervă autocarele pentru oaspeți")
     .fill(taskTitle);
   await taskDialog.getByRole("button", { name: "Creează sarcina" }).click();
-  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
+  await expect(page.getByText(taskTitle, { exact: true })).toHaveCount(2);
   await page.goto("/calendar?demo=1");
   await page.getByRole("button", { name: "Eveniment", exact: true }).click();
   const eventDialog = page.getByRole("dialog", { name: "Eveniment nou" });

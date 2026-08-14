@@ -92,7 +92,7 @@ export default function SettingsPage() {
 
 function SettingsFallback() {
   return (
-    <div className="mx-auto max-w-6xl space-y-5" aria-busy="true" aria-label="Se încarcă setările">
+    <div className="mx-auto max-w-6xl space-y-5" role="status" aria-busy="true" aria-label="Se încarcă setările">
       <PageHeader title="Setări" description="Configurează spațiul de lucru și preferințele contului." />
       <div className="h-10 w-full max-w-2xl animate-pulse rounded-xl bg-subtle" />
       <CardSkeleton lines={5} />
@@ -173,6 +173,11 @@ function GeneralSettings() {
   const [currency, setCurrency] = React.useState("RON");
   const [saving, setSaving] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [workspacePrivacyAction, setWorkspacePrivacyAction] = React.useState<
+    "export" | "delete" | null
+  >(null);
+  const canDeleteWorkspace =
+    bootstrap?.membership.capabilities.includes("workspace.delete") ?? false;
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -217,6 +222,54 @@ function GeneralSettings() {
       toast({ title: "Setările nu au fost salvate", description: apiErrorMessage(error), variant: "error" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const requestWorkspaceExport = async () => {
+    if (!currentWorkspace || demoMode) return;
+    setWorkspacePrivacyAction("export");
+    try {
+      await weddingOsApi.requestWorkspaceDataExport(currentWorkspace.id);
+      toast({
+        title: "Cererea de export a fost înregistrată",
+        description:
+          "Datele spațiului vor fi pregătite într-un artefact securizat după verificare.",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Cererea de export nu a fost înregistrată",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setWorkspacePrivacyAction(null);
+    }
+  };
+
+  const requestWorkspaceDeletion = async () => {
+    if (!currentWorkspace || demoMode || !canDeleteWorkspace) return;
+    setWorkspacePrivacyAction("delete");
+    try {
+      await weddingOsApi.requestWorkspaceDeletion(
+        currentWorkspace.id,
+        "Solicitată de proprietar din setările spațiului de lucru.",
+      );
+      setDeleteOpen(false);
+      toast({
+        title: "Cererea de ștergere a fost înregistrată",
+        description:
+          "Spațiul nu este șters instantaneu. Cererea intră în perioada de grație și verificarea obligațiilor de retenție.",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Cererea de ștergere nu a fost înregistrată",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setWorkspacePrivacyAction(null);
     }
   };
 
@@ -278,7 +331,7 @@ function GeneralSettings() {
         </div>
       </form>
 
-      {currentWorkspace ? <Card className="border-danger/30">
+      {currentWorkspace && canDeleteWorkspace ? <Card className="border-danger/30">
         <CardHeader>
           <div>
             <CardTitle>Zonă sensibilă</CardTitle>
@@ -288,26 +341,40 @@ function GeneralSettings() {
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-ink">Șterge spațiul de lucru</p>
-            <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-muted">Exportă datele înainte. Ștergerea elimină proiectul pentru toți membrii echipei.</p>
+            <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-muted">Solicită întâi exportul. Ștergerea are perioadă de grație, verifică retenția legală și elimină proiectul pentru toți membrii echipei.</p>
           </div>
-          <Button variant="destructive-outline" size="sm" onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="size-3.5" aria-hidden />Șterge
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              loading={workspacePrivacyAction === "export"}
+              disabled={demoMode || workspacePrivacyAction !== null}
+              onClick={() => void requestWorkspaceExport()}
+            >
+              <Download className="size-3.5" aria-hidden />Solicită exportul
+            </Button>
+            <Button
+              variant="destructive-outline"
+              size="sm"
+              disabled={demoMode || workspacePrivacyAction !== null}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="size-3.5" aria-hidden />Solicită ștergerea
+            </Button>
+          </div>
         </CardContent>
       </Card> : null}
 
-      {currentWorkspace ? <ConfirmDialog
+      {currentWorkspace && canDeleteWorkspace ? <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={() => {
-          setDeleteOpen(false);
-          toast({ title: "Ștergerea nu este activată în Slice 1", description: "Spațiul a rămas intact. Transferul de ownership și exportul vor preceda această funcție.", variant: "warning" });
-        }}
-        title="Ștergi spațiul de lucru?"
-        description="Această acțiune ar șterge planul, invitații, bugetul și documentele pentru toată echipa."
-        confirmLabel="Șterge definitiv"
+        onConfirm={() => void requestWorkspaceDeletion()}
+        title="Soliciți ștergerea spațiului?"
+        description="Cererea nu șterge instantaneu datele. Intră într-o perioadă de grație, este verificată pentru contracte și retenție legală, apoi elimină datele private eligibile."
+        confirmLabel="Trimite cererea"
         requireTypedConfirmation="ȘTERGE"
         destructive
+        loading={workspacePrivacyAction === "delete"}
       /> : null}
     </div>
   );

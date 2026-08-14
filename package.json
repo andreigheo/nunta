@@ -22,13 +22,13 @@
     "pretest": "pnpm run build:packages",
     "test": "pnpm test:web && pnpm --filter @weddingos/api test && pnpm --filter @weddingos/worker test",
     "test:web": "vitest run --config vitest.web.config.ts",
-    "test:integration": "pnpm db:test:prepare:integration && env DATABASE_PURPOSE=integration pnpm --filter @weddingos/api test:integration",
-    "test:e2e": "pnpm db:test:prepare:e2e && pnpm run build:packages && pnpm --filter @weddingos/api build && pnpm --filter @weddingos/worker build && playwright test",
+    "test:integration": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:integration && env DATABASE_PURPOSE=integration pnpm --filter @weddingos/api test:integration",
+    "test:e2e": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:e2e && pnpm --filter @weddingos/api build && pnpm --filter @weddingos/worker build && playwright test",
     "db:generate": "pnpm --filter @weddingos/database generate",
     "db:migrate": "pnpm --filter @weddingos/database migrate",
     "db:seed": "pnpm --filter @weddingos/database seed",
-    "db:test:prepare:integration": "node scripts/prepare-isolated-database.mjs integration",
-    "db:test:prepare:e2e": "node scripts/prepare-isolated-database.mjs e2e",
+    "db:test:prepare:integration": "pnpm run build:packages && node scripts/prepare-isolated-database.mjs integration",
+    "db:test:prepare:e2e": "pnpm run build:packages && node scripts/prepare-isolated-database.mjs e2e",
     "db:reference:verify": "node scripts/reference-data.mjs verify",
     "db:reference:repair": "node scripts/reference-data.mjs repair",
     "release:evidence": "node scripts/create-release-evidence.mjs",
@@ -86,7 +86,7 @@
       "js-yaml@>=4.0.0 <4.3.1": "4.3.1",
       "js-yaml@>=5.0.0 <=5.2.1": "5.2.2",
       "brace-expansion@<=5.0.8": "5.0.9",
-      "nanoid@>=3.0.0 <3.3.17": "3.3.17"
+      "nanoid@>=3.0.0 <3.3.18": "3.3.18"
     },
     "patchedDependencies": {
       "minimatch@3.1.5": "patches/minimatch@3.1.5.patch",

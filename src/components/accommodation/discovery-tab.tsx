@@ -243,7 +243,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
           </div>
 
           {loadingInitial ? (
-            <div className="space-y-3" aria-label="Se încarcă evenimentele">
+            <div className="space-y-3" role="status" aria-label="Se încarcă evenimentele">
               <div className="h-11 animate-pulse rounded-lg bg-subtle" />
               <div className="h-11 animate-pulse rounded-lg bg-subtle" />
             </div>
@@ -329,10 +329,10 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
                 <SlidersHorizontal className="size-4 text-brand" aria-hidden />
                 Filtre pentru ședere
               </span>
-              <span className="text-xs font-medium text-faint group-open:hidden">
+              <span className="text-xs font-medium text-muted group-open:hidden">
                 {types.length + facilities.length ? `${types.length + facilities.length} active` : "Opțional"}
               </span>
-              <span className="hidden text-xs font-medium text-faint group-open:inline">Închide</span>
+              <span className="hidden text-xs font-medium text-muted group-open:inline">Închide</span>
             </summary>
             <div className="space-y-5 border-t border-line px-4 pb-4 pt-4">
               <fieldset>

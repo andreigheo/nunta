@@ -135,10 +135,13 @@ export default function SeatingPage() {
   const [action, setAction] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [planOpen, setPlanOpen] = React.useState(false);
+  const [planEditOpen, setPlanEditOpen] = React.useState(false);
+  const [deletePlanOpen, setDeletePlanOpen] = React.useState(false);
   const [tableOpen, setTableOpen] = React.useState(false);
   const [tableDraft, setTableDraft] =
     React.useState<TableDraft>(blankTableDraft);
   const [planName, setPlanName] = React.useState("Plan principal");
+  const [planEditName, setPlanEditName] = React.useState("");
   const [eventId, setEventId] = React.useState("");
   const [spaceId, setSpaceId] = React.useState("");
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(
@@ -280,6 +283,57 @@ export default function SeatingPage() {
     } catch (cause) {
       toast({
         title: "Planul nu a putut fi creat",
+        description: apiErrorMessage(cause),
+        variant: "error",
+      });
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const updatePlan = async () => {
+    if (!currentWorkspace || !plan || !planEditName.trim()) return;
+    setAction("plan-update");
+    try {
+      const updated = await weddingOsApi.updateSeatingPlan(
+        currentWorkspace.id,
+        plan.id,
+        plan.version,
+        { name: planEditName.trim() },
+      );
+      setPlanEditOpen(false);
+      setPlans((items) =>
+        items.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      await loadPlan(plan.id);
+      toast({ title: "Planul de mese a fost redenumit", variant: "success" });
+    } catch (cause) {
+      toast({
+        title: "Planul nu a putut fi actualizat",
+        description: apiErrorMessage(cause),
+        variant: "error",
+      });
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const removePlan = async () => {
+    if (!currentWorkspace || !plan) return;
+    setAction("plan-delete");
+    try {
+      await weddingOsApi.deleteSeatingPlan(
+        currentWorkspace.id,
+        plan.id,
+        plan.version,
+      );
+      setDeletePlanOpen(false);
+      setPlan(null);
+      await load();
+      toast({ title: "Planul de mese a fost arhivat", variant: "success" });
+    } catch (cause) {
+      toast({
+        title: "Planul nu a putut fi arhivat",
         description: apiErrorMessage(cause),
         variant: "error",
       });
@@ -959,6 +1013,16 @@ export default function SeatingPage() {
                   Plan nou
                 </DropdownItem>
                 <DropdownItem
+                  icon={<Pencil />}
+                  onSelect={() => {
+                    setPlanEditName(String(plan.name));
+                    setPlanEditOpen(true);
+                  }}
+                  disabled={!canWrite}
+                >
+                  Redenumește planul
+                </DropdownItem>
+                <DropdownItem
                   icon={<UtensilsCrossed />}
                   onSelect={() => window.location.assign("/menus")}
                 >
@@ -973,6 +1037,19 @@ export default function SeatingPage() {
                       disabled={!canPublish}
                     >
                       Retrage din portalul invitaților
+                    </DropdownItem>
+                  </>
+                )}
+                {plan.status !== "published" && (
+                  <>
+                    <DropdownSeparator />
+                    <DropdownItem
+                      icon={<Trash2 />}
+                      destructive
+                      onSelect={() => setDeletePlanOpen(true)}
+                      disabled={!canWrite}
+                    >
+                      Arhivează planul
                     </DropdownItem>
                   </>
                 )}
@@ -1291,6 +1368,43 @@ export default function SeatingPage() {
         onClose={() => setPublishOpen(false)}
         onPublish={publish}
       />
+      <Modal
+        open={planEditOpen}
+        onClose={() => setPlanEditOpen(false)}
+        title="Redenumește planul de mese"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPlanEditOpen(false)}>
+              Renunță
+            </Button>
+            <Button
+              loading={action === "plan-update"}
+              disabled={!planEditName.trim() || action === "plan-update"}
+              onClick={() => void updatePlan()}
+            >
+              Salvează
+            </Button>
+          </>
+        }
+      >
+        <Field label="Numele planului">
+          <Input
+            autoFocus
+            value={planEditName}
+            onChange={(event) => setPlanEditName(event.target.value)}
+          />
+        </Field>
+      </Modal>
+      <ConfirmDialog
+        open={deletePlanOpen}
+        onClose={() => setDeletePlanOpen(false)}
+        onConfirm={() => void removePlan()}
+        title="Arhivezi planul de mese?"
+        description="Planul și mesele lui nu vor mai apărea în lucru. Lista invitaților și meniurile nu sunt șterse."
+        confirmLabel="Arhivează planul"
+        destructive
+        loading={action === "plan-delete"}
+      />
       <ConfirmDialog
         open={Boolean(deleteTable)}
         onClose={() => setDeleteTable(null)}
@@ -1313,6 +1427,7 @@ function SeatingLoading() {
   return (
     <div
       className="mx-auto max-w-[1560px] space-y-5"
+      role="status"
       aria-label="Se încarcă planul de mese"
     >
       <div className="space-y-2">

@@ -1,7 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { ExternalLink, ImageIcon, Store, Upload } from "lucide-react";
+import Image from "next/image";
+import {
+  Download,
+  ExternalLink,
+  ImageIcon,
+  Store,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { VendorPage } from "@/components/vendor/vendor-page";
 import {
   apiErrorMessage,
@@ -15,6 +23,7 @@ import {
   Button,
   Card,
   CardContent,
+  ConfirmDialog,
   EmptyState,
   Field,
   Input,
@@ -30,6 +39,10 @@ export default function VendorProfileEditorPage() {
   const [profile, setProfile] = React.useState<OperationResource | null>(null);
   const [assets, setAssets] = React.useState<OperationResource[]>([]);
   const [uploading, setUploading] = React.useState(false);
+  const [privacyAction, setPrivacyAction] = React.useState<
+    "export" | "delete" | null
+  >(null);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
   const fileInput = React.useRef<HTMLInputElement>(null);
   const [form, setForm] = React.useState<Record<string, string>>({
     category: "OTHER",
@@ -235,6 +248,53 @@ export default function VendorProfileEditorPage() {
         description: apiErrorMessage(error),
         variant: "error",
       });
+    }
+  };
+  const requestDataExport = async () => {
+    if (!context.organizationId) return;
+    setPrivacyAction("export");
+    try {
+      await weddingOsApi.requestVendorDataExport(context.organizationId);
+      toast({
+        title: "Cererea de export a fost înregistrată",
+        description:
+          "Datele organizației vor fi pregătite într-un artefact securizat după verificare.",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Cererea de export nu a fost înregistrată",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setPrivacyAction(null);
+    }
+  };
+  const requestDeletion = async () => {
+    if (!context.organizationId || organization?.role !== "vendor_owner")
+      return;
+    setPrivacyAction("delete");
+    try {
+      await weddingOsApi.requestVendorDeletion(
+        context.organizationId,
+        "Solicitată de proprietar din profilul organizației furnizorului.",
+      );
+      setDeleteOpen(false);
+      toast({
+        title: "Cererea de ștergere a fost înregistrată",
+        description:
+          "Organizația nu este ștearsă instantaneu. Cererea intră în perioada de grație și verificarea obligațiilor contractuale și legale.",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Cererea de ștergere nu a fost înregistrată",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setPrivacyAction(null);
     }
   };
   return (
@@ -533,12 +593,15 @@ export default function VendorProfileEditorPage() {
                       key={asset.id}
                       className="overflow-hidden rounded-xl border border-border bg-subtle"
                     >
-                      <div className="flex aspect-video items-center justify-center bg-surface">
+                      <div className="relative flex aspect-video items-center justify-center bg-surface">
                         {asset.url ? (
-                          <img
+                          <Image
                             src={String(asset.url)}
                             alt={String(asset.altText)}
-                            className="size-full object-cover"
+                            fill
+                            unoptimized
+                            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                            className="object-cover"
                           />
                         ) : (
                           <ImageIcon className="size-8 text-faint" />
@@ -612,6 +675,54 @@ export default function VendorProfileEditorPage() {
               )}
             </CardContent>
           </Card>
+          {organization?.role === "vendor_owner" ? (
+            <Card className="border-danger/30">
+              <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-ink">
+                    Datele organizației
+                  </p>
+                  <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted">
+                    Exportă datele înainte de a solicita ștergerea. Contractele,
+                    plățile și alte evidențe cu retenție obligatorie sunt
+                    verificate separat.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={privacyAction === "export"}
+                    disabled={privacyAction !== null}
+                    onClick={() => void requestDataExport()}
+                  >
+                    <Download className="size-4" aria-hidden />
+                    Solicită exportul organizației
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive-outline"
+                    disabled={privacyAction !== null}
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Solicită ștergerea organizației
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+          <ConfirmDialog
+            open={deleteOpen}
+            onClose={() => setDeleteOpen(false)}
+            onConfirm={() => void requestDeletion()}
+            title="Soliciți ștergerea organizației?"
+            description="Cererea intră într-o perioadă de grație și nu șterge instantaneu contractele sau evidențele care trebuie păstrate legal."
+            confirmLabel="Trimite cererea"
+            requireTypedConfirmation="ȘTERGE"
+            destructive
+            loading={privacyAction === "delete"}
+          />
         </div>
       )}
     </VendorPage>

@@ -506,7 +506,7 @@ export function QuickCreateModal() {
           {
             name: values.title.trim(),
             vehicleId: null,
-            direction: "to_event",
+            direction: values.direction || "to_event",
             departureAt: new Date(
               `${values.date}T${values.time || "09:00"}:00`,
             ).toISOString(),
@@ -519,10 +519,10 @@ export function QuickCreateModal() {
       } else if (quickCreate === "accommodation_property") {
         await weddingOsApi.createAccommodationProperty(currentWorkspace.id, {
           name: values.title.trim(),
-          type: "hotel",
+          type: values.propertyType || "hotel",
           address: values.address?.trim() || "Adresă de completat",
           city: values.city?.trim() || "Oraș de completat",
-          country: "România",
+          country: values.country?.trim() || "Republica Moldova",
         });
       } else if (quickCreate === "expense") {
         if (!values.parentId || !values.amount || !values.date)
@@ -1088,6 +1088,17 @@ export function QuickCreateModal() {
                     onChange={set("destination")}
                   />
                 </Field>
+                <Field label="Sensul rutei">
+                  <Select
+                    value={values.direction ?? "to_event"}
+                    onChange={set("direction")}
+                  >
+                    <option value="to_event">Spre eveniment</option>
+                    <option value="from_event">De la eveniment</option>
+                    <option value="round_trip">Dus-întors</option>
+                    <option value="custom">Rută personalizată</option>
+                  </Select>
+                </Field>
                 <Field label="Data" required>
                   <Input
                     type="date"
@@ -1105,6 +1116,19 @@ export function QuickCreateModal() {
               </>
             ) : quickCreate === "accommodation_property" ? (
               <>
+                <Field label="Tip">
+                  <Select
+                    value={values.propertyType ?? "hotel"}
+                    onChange={set("propertyType")}
+                  >
+                    <option value="hotel">Hotel</option>
+                    <option value="pension">Pensiune</option>
+                    <option value="hostel">Hostel</option>
+                    <option value="apartment">Apartament</option>
+                    <option value="house">Casă / cabană</option>
+                    <option value="other">Alt tip</option>
+                  </Select>
+                </Field>
                 <Field label="Adresă" className="sm:col-span-2">
                   <Input
                     value={values.address ?? ""}
@@ -1115,7 +1139,10 @@ export function QuickCreateModal() {
                   <Input value={values.city ?? ""} onChange={set("city")} />
                 </Field>
                 <Field label="Țară">
-                  <Input value="România" disabled />
+                  <Input
+                    value={values.country ?? "Republica Moldova"}
+                    onChange={set("country")}
+                  />
                 </Field>
               </>
             ) : quickCreate === "expense" || quickCreate === "payment" ? (

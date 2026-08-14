@@ -6,8 +6,10 @@ import {
   Building2,
   Download,
   LockKeyhole,
+  Pencil,
   Plus,
   Send,
+  Trash2,
   TriangleAlert,
   Users,
 } from "lucide-react";
@@ -23,6 +25,7 @@ import {
   Button,
   Card,
   CardContent,
+  ConfirmDialog,
   EmptyState,
   Field,
   Input,
@@ -30,6 +33,8 @@ import {
   Progress,
   Select,
   StatCard,
+  Switch,
+  Textarea,
   useToast,
 } from "@/components/ui";
 
@@ -39,19 +44,37 @@ export function ManagedAccommodationTab() {
   const [properties, setProperties] = React.useState<OperationResource[]>([]);
   const [stays, setStays] = React.useState<OperationResource[]>([]);
   const [stay, setStay] = React.useState<AccommodationStayResource | null>(null);
+  const activeStayId = React.useRef("");
   const [requests, setRequests] = React.useState<OperationResource[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [propertyOpen, setPropertyOpen] = React.useState(false);
+  const [editingPropertyId, setEditingPropertyId] = React.useState<string | null>(null);
+  const [deleteProperty, setDeleteProperty] = React.useState<OperationResource | null>(null);
   const [roomOpen, setRoomOpen] = React.useState(false);
+  const [editingRoomId, setEditingRoomId] = React.useState<string | null>(null);
+  const [deleteRoom, setDeleteRoom] = React.useState<OperationResource | null>(null);
   const [stayOpen, setStayOpen] = React.useState(false);
+  const [editingStayId, setEditingStayId] = React.useState<string | null>(null);
+  const [deleteStay, setDeleteStay] = React.useState<OperationResource | null>(null);
   const [propertyName, setPropertyName] = React.useState("");
+  const [propertyType, setPropertyType] = React.useState("hotel");
   const [address, setAddress] = React.useState("");
   const [city, setCity] = React.useState("");
+  const [country, setCountry] = React.useState("Republica Moldova");
+  const [contactName, setContactName] = React.useState("");
+  const [contactPhone, setContactPhone] = React.useState("");
+  const [checkInTime, setCheckInTime] = React.useState("");
+  const [checkOutTime, setCheckOutTime] = React.useState("");
+  const [propertyInstructions, setPropertyInstructions] = React.useState("");
   const [roomName, setRoomName] = React.useState("");
   const [roomAdults, setRoomAdults] = React.useState("2");
   const [roomChildren, setRoomChildren] = React.useState("0");
+  const [roomFloor, setRoomFloor] = React.useState("");
+  const [roomAccessible, setRoomAccessible] = React.useState(false);
+  const [roomStatus, setRoomStatus] = React.useState("available");
+  const [roomNotes, setRoomNotes] = React.useState("");
   const [propertyId, setPropertyId] = React.useState("");
   const [stayName, setStayName] = React.useState("Cazare nuntă");
   const [checkIn, setCheckIn] = React.useState("");
@@ -66,6 +89,7 @@ export function ManagedAccommodationTab() {
   const loadStay = React.useCallback(
     async (id: string) => {
       if (!currentWorkspace) return;
+      activeStayId.current = id;
       setStay(await weddingOsApi.accommodationStay(currentWorkspace.id, id));
     },
     [currentWorkspace],
@@ -84,7 +108,10 @@ export function ManagedAccommodationTab() {
       setStays(stayList.items);
       setRequests(requestList.items);
       setPropertyId((current) => current || propertyList.items[0]?.id || "");
-      if (stayList.items[0]) await loadStay(stayList.items[0].id);
+      const selected =
+        stayList.items.find((item) => item.id === activeStayId.current) ??
+        stayList.items[0];
+      if (selected) await loadStay(selected.id);
       else setStay(null);
       setError(null);
     } catch (cause) {
@@ -108,12 +135,14 @@ export function ManagedAccommodationTab() {
       setRoomOpen(false);
       setStayOpen(false);
       toast({ title: success, variant: "success" });
+      return true;
     } catch (cause) {
       toast({
         title: "Operația nu a reușit",
         description: apiErrorMessage(cause),
         variant: "error",
       });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -144,6 +173,168 @@ export function ManagedAccommodationTab() {
           },
         ),
       "Invitatul a fost alocat în cameră",
+    );
+  };
+
+  const openNewProperty = () => {
+    setEditingPropertyId(null);
+    setPropertyName("");
+    setPropertyType("hotel");
+    setAddress("");
+    setCity("");
+    setCountry("Republica Moldova");
+    setContactName("");
+    setContactPhone("");
+    setCheckInTime("");
+    setCheckOutTime("");
+    setPropertyInstructions("");
+    setPropertyOpen(true);
+  };
+
+  const openEditProperty = (property: OperationResource) => {
+    setEditingPropertyId(property.id);
+    setPropertyName(String(property.name ?? ""));
+    setPropertyType(String(property.type ?? "hotel"));
+    setAddress(String(property.address ?? ""));
+    setCity(String(property.city ?? ""));
+    setCountry(String(property.country ?? ""));
+    setContactName(String(property.contactName ?? ""));
+    setContactPhone(String(property.contactPhone ?? ""));
+    setCheckInTime(String(property.checkInTime ?? ""));
+    setCheckOutTime(String(property.checkOutTime ?? ""));
+    setPropertyInstructions(String(property.instructions ?? ""));
+    setPropertyOpen(true);
+  };
+
+  const saveProperty = () => {
+    const input = {
+      name: propertyName.trim(),
+      type: propertyType,
+      address: address.trim(),
+      city: city.trim(),
+      country: country.trim(),
+      contactName: contactName.trim() || null,
+      contactPhone: contactPhone.trim() || null,
+      checkInTime: checkInTime || null,
+      checkOutTime: checkOutTime || null,
+      instructions: propertyInstructions.trim() || null,
+    };
+    const current = properties.find((item) => item.id === editingPropertyId);
+    return run(
+      () =>
+        current
+          ? weddingOsApi.updateAccommodationProperty(
+              currentWorkspace!.id,
+              current.id,
+              current.version,
+              input,
+            )
+          : weddingOsApi.createAccommodationProperty(
+              currentWorkspace!.id,
+              input,
+            ),
+      current
+        ? "Proprietatea a fost actualizată"
+        : "Proprietatea a fost adăugată",
+    );
+  };
+
+  const openNewRoom = () => {
+    setEditingRoomId(null);
+    setRoomName("");
+    setRoomAdults("2");
+    setRoomChildren("0");
+    setRoomFloor("");
+    setRoomAccessible(false);
+    setRoomStatus("available");
+    setRoomNotes("");
+    setPropertyId(stay?.propertyId ?? properties[0]?.id ?? "");
+    setRoomOpen(true);
+  };
+
+  const openEditRoom = (room: OperationResource) => {
+    setEditingRoomId(room.id);
+    setPropertyId(stay?.propertyId ?? propertyId);
+    setRoomName(String(room.name ?? ""));
+    setRoomAdults(String(room.capacityAdults ?? 0));
+    setRoomChildren(String(room.capacityChildren ?? 0));
+    setRoomFloor(String(room.floor ?? ""));
+    setRoomAccessible(room.accessible === true);
+    setRoomStatus(String(room.status ?? "available"));
+    setRoomNotes(String(room.notesPrivate ?? ""));
+    setRoomOpen(true);
+  };
+
+  const saveRoom = () => {
+    const input = {
+      name: roomName.trim(),
+      floor: roomFloor.trim() || null,
+      capacityAdults: Number(roomAdults),
+      capacityChildren: Number(roomChildren),
+      accessible: roomAccessible,
+      status: roomStatus,
+      notesPrivate: roomNotes.trim() || null,
+    };
+    const current = stay?.rooms.find((item) => item.id === editingRoomId);
+    return run(
+      () =>
+        current
+          ? weddingOsApi.updateAccommodationRoom(
+              currentWorkspace!.id,
+              propertyId,
+              current.id,
+              current.version,
+              input,
+            )
+          : weddingOsApi.createAccommodationRoom(
+              currentWorkspace!.id,
+              propertyId,
+              input,
+            ),
+      current ? "Camera a fost actualizată" : "Camera a fost adăugată",
+    );
+  };
+
+  const openNewStay = () => {
+    setEditingStayId(null);
+    setStayName("Cazare nuntă");
+    setCheckIn("");
+    setCheckOut("");
+    setPropertyId(properties[0]?.id ?? "");
+    setStayOpen(true);
+  };
+
+  const openEditStay = () => {
+    if (!stay) return;
+    setEditingStayId(stay.id);
+    setStayName(String(stay.name));
+    setCheckIn(stay.checkInDate.slice(0, 10));
+    setCheckOut(stay.checkOutDate.slice(0, 10));
+    setPropertyId(stay.propertyId);
+    setStayOpen(true);
+  };
+
+  const saveStay = () => {
+    const input = {
+      propertyId,
+      name: stayName.trim(),
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+    };
+    return run(
+      () =>
+        stay && editingStayId === stay.id
+          ? weddingOsApi.updateAccommodationStay(
+              currentWorkspace!.id,
+              stay.id,
+              stay.version,
+              input,
+            )
+          : weddingOsApi.createAccommodationStay(
+              currentWorkspace!.id,
+              input,
+            ),
+      editingStayId ? "Sejurul a fost actualizat" : "Sejurul a fost creat",
     );
   };
 
@@ -206,7 +397,7 @@ export function ManagedAccommodationTab() {
           </p>
         </div>
         <div className="flex max-w-full flex-wrap items-center gap-2 lg:shrink-0">
-            {stays.length > 1 && (
+          {stays.length > 1 && (
               <Select value={stay?.id ?? ""} onChange={(event) => void loadStay(event.target.value)}>
                 {stays.map((item) => (
                   <option key={item.id} value={item.id}>
@@ -214,21 +405,21 @@ export function ManagedAccommodationTab() {
                   </option>
                 ))}
               </Select>
-            )}
-            {stay && (
+          )}
+          {stay && (
               <Badge variant={stay.status === "published" ? "success" : "warning"}>
                 {stay.status === "published" ? "Publicat" : "Draft"}
               </Badge>
-            )}
-            <Button
+          )}
+          <Button
               variant="outline"
               size="sm"
-              onClick={() => setRoomOpen(true)}
+              onClick={openNewRoom}
               disabled={!canWrite || !properties.length}
             >
               <BedDouble className="size-3.5" /> Cameră
-            </Button>
-            {stay && (
+          </Button>
+          {stay && (
               <Button
                 variant="outline"
                 size="sm"
@@ -255,8 +446,8 @@ export function ManagedAccommodationTab() {
               >
                 <Download className="size-3.5" /> Rooming list
               </Button>
-            )}
-            {stay && (
+          )}
+          {stay && (
               <Button
                 size="sm"
                 onClick={() =>
@@ -274,15 +465,15 @@ export function ManagedAccommodationTab() {
               >
                 <Send className="size-3.5" /> Publică
               </Button>
-            )}
-            <Button
+          )}
+          <Button
               size="sm"
               variant="secondary"
-              onClick={() => setPropertyOpen(true)}
+              onClick={openNewProperty}
               disabled={!canWrite}
             >
               <Plus className="size-4" /> Proprietate
-            </Button>
+          </Button>
         </div>
       </section>
 
@@ -302,6 +493,39 @@ export function ManagedAccommodationTab() {
         />
       </div>
 
+      {properties.length ? (
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-ink">Proprietăți confirmate</h2>
+                <p className="text-xs text-muted">Corectează datele de contact și instrucțiunile înainte de alocare.</p>
+              </div>
+              <Badge variant="neutral">{properties.length}</Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {properties.map((property) => (
+                <div key={property.id} className="rounded-xl border border-line p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-ink">{String(property.name)}</p>
+                      <p className="mt-1 text-xs text-muted">{String(property.type).replaceAll("_", " ")} · {String(property.city)}, {String(property.country)}</p>
+                      <p className="mt-1 text-xs text-faint">{String(property.address)}</p>
+                    </div>
+                    {canWrite ? (
+                      <div className="flex gap-1">
+                        <Button size="icon-sm" variant="ghost" aria-label={`Editează ${String(property.name)}`} onClick={() => openEditProperty(property)}><Pencil className="size-4" /></Button>
+                        <Button size="icon-sm" variant="ghost" aria-label={`Șterge ${String(property.name)}`} onClick={() => setDeleteProperty(property)}><Trash2 className="size-4 text-danger" /></Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {!stay ? (
         <EmptyState
           icon={BedDouble}
@@ -315,7 +539,7 @@ export function ManagedAccommodationTab() {
             canWrite
               ? {
                   label: properties.length ? "Creează sejur" : "Adaugă proprietate",
-                  onClick: () => (properties.length ? setStayOpen(true) : setPropertyOpen(true)),
+                  onClick: () => (properties.length ? openNewStay() : openNewProperty()),
                   icon: <Plus className="size-4" />,
                 }
               : undefined
@@ -337,7 +561,7 @@ export function ManagedAccommodationTab() {
 
           <Card>
             <CardContent className="p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold text-ink">{stay.name}</h2>
                   <p className="text-xs text-muted">
@@ -345,7 +569,11 @@ export function ManagedAccommodationTab() {
                     {stay.checkOutDate.slice(0, 10)}
                   </p>
                 </div>
-                <Badge variant="brand">{allocations}/{totalCapacity || "—"} persoane</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant="brand">{allocations}/{totalCapacity || "—"} persoane</Badge>
+                  {canWrite ? <Button size="icon-sm" variant="ghost" aria-label="Editează sejurul" onClick={openEditStay}><Pencil className="size-4" /></Button> : null}
+                  {canWrite && stay.status !== "published" ? <Button size="icon-sm" variant="ghost" aria-label="Șterge sejurul" onClick={() => setDeleteStay(stay)}><Trash2 className="size-4 text-danger" /></Button> : null}
+                </div>
               </div>
               <div className="mb-4">
                 <Progress
@@ -358,10 +586,8 @@ export function ManagedAccommodationTab() {
                 {stay.rooms.map((room) => (
                   <div key={room.id} className="rounded-xl border border-line p-3">
                     <div className="flex justify-between gap-3">
-                      <p className="font-medium text-ink">{String(room.name)}</p>
-                      <Badge variant={room.status === "available" ? "success" : "neutral"}>
-                        {String(room.status)}
-                      </Badge>
+                      <div><p className="font-medium text-ink">{String(room.name)}</p><Badge className="mt-1" variant={room.status === "available" ? "success" : "neutral"}>{String(room.status)}</Badge></div>
+                      {canWrite ? <div className="flex gap-1"><Button size="icon-sm" variant="ghost" aria-label={`Editează ${String(room.name)}`} onClick={() => openEditRoom(room)}><Pencil className="size-4" /></Button><Button size="icon-sm" variant="ghost" aria-label={`Șterge ${String(room.name)}`} onClick={() => setDeleteRoom(room)}><Trash2 className="size-4 text-danger" /></Button></div> : null}
                     </div>
                     <p className="mt-1 text-xs text-faint">
                       {String(room.capacityAdults)} adulți · {String(room.capacityChildren)} copii
@@ -380,7 +606,7 @@ export function ManagedAccommodationTab() {
                   icon={BedDouble}
                   title="Nu există camere în proprietate"
                   description="Adaugă camere cu capacitate separată pentru adulți și copii."
-                  action={canWrite ? { label: "Adaugă cameră", onClick: () => setRoomOpen(true) } : undefined}
+                  action={canWrite ? { label: "Adaugă cameră", onClick: openNewRoom } : undefined}
                 />
               )}
             </CardContent>
@@ -440,43 +666,58 @@ export function ManagedAccommodationTab() {
       <Modal
         open={propertyOpen}
         onClose={() => setPropertyOpen(false)}
-        title="Proprietate nouă"
+        title={editingPropertyId ? "Editează proprietatea" : "Proprietate nouă"}
+        description="Datele de contact și check-in vor fi disponibile echipei și în listele operaționale."
+        size="lg"
         footer={
           <>
             <Button variant="ghost" onClick={() => setPropertyOpen(false)}>Renunță</Button>
             <Button
-              disabled={saving || !propertyName || !address || !city}
-              onClick={() =>
-                void run(
-                  () =>
-                    weddingOsApi.createAccommodationProperty(currentWorkspace!.id, {
-                      name: propertyName,
-                      type: "hotel",
-                      address,
-                      city,
-                      country: "România",
-                    }),
-                  "Proprietatea a fost adăugată",
-                )
-              }
+              disabled={saving || !propertyName.trim() || !address.trim() || !city.trim() || !country.trim()}
+              onClick={() => void saveProperty()}
             >
-              Adaugă
+              {editingPropertyId ? "Salvează" : "Adaugă"}
             </Button>
           </>
         }
       >
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Nume" className="col-span-2">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Nume" className="sm:col-span-2">
             <Input value={propertyName} onChange={(event) => setPropertyName(event.target.value)} />
           </Field>
-          <Field label="Adresă" className="col-span-2">
+          <Field label="Adresă" className="sm:col-span-2">
             <Input value={address} onChange={(event) => setAddress(event.target.value)} />
           </Field>
           <Field label="Oraș">
             <Input value={city} onChange={(event) => setCity(event.target.value)} />
           </Field>
+          <Field label="Țară">
+            <Input value={country} onChange={(event) => setCountry(event.target.value)} />
+          </Field>
           <Field label="Tip">
-            <Select disabled><option>Hotel</option></Select>
+            <Select value={propertyType} onChange={(event) => setPropertyType(event.target.value)}>
+              <option value="hotel">Hotel</option>
+              <option value="pension">Pensiune</option>
+              <option value="apartment">Apartament</option>
+              <option value="house">Casă</option>
+              <option value="hostel">Hostel</option>
+              <option value="other">Alt tip</option>
+            </Select>
+          </Field>
+          <Field label="Persoană de contact">
+            <Input value={contactName} onChange={(event) => setContactName(event.target.value)} />
+          </Field>
+          <Field label="Telefon contact">
+            <Input type="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} />
+          </Field>
+          <Field label="Check-in">
+            <Input type="time" value={checkInTime} onChange={(event) => setCheckInTime(event.target.value)} />
+          </Field>
+          <Field label="Check-out">
+            <Input type="time" value={checkOutTime} onChange={(event) => setCheckOutTime(event.target.value)} />
+          </Field>
+          <Field label="Instrucțiuni pentru oaspeți" className="sm:col-span-2">
+            <Textarea rows={3} value={propertyInstructions} onChange={(event) => setPropertyInstructions(event.target.value)} placeholder="Acces, parcare, recepție sau alte detalii utile" />
           </Field>
         </div>
       </Modal>
@@ -484,40 +725,30 @@ export function ManagedAccommodationTab() {
       <Modal
         open={roomOpen}
         onClose={() => setRoomOpen(false)}
-        title="Cameră nouă"
+        title={editingRoomId ? "Editează camera" : "Cameră nouă"}
+        description="Definește capacitatea reală și cerințele de accesibilitate înainte de alocare."
+        size="lg"
         footer={
           <>
             <Button variant="ghost" onClick={() => setRoomOpen(false)}>Renunță</Button>
             <Button
               disabled={saving || !propertyId || !roomName}
-              onClick={() =>
-                void run(
-                  () =>
-                    weddingOsApi.createAccommodationRoom(currentWorkspace!.id, propertyId, {
-                      name: roomName,
-                      capacityAdults: Number(roomAdults),
-                      capacityChildren: Number(roomChildren),
-                      accessible: false,
-                      status: "available",
-                    }),
-                  "Camera a fost adăugată",
-                )
-              }
+              onClick={() => void saveRoom()}
             >
-              Adaugă camera
+              {editingRoomId ? "Salvează camera" : "Adaugă camera"}
             </Button>
           </>
         }
       >
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Proprietate" className="col-span-2">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Proprietate" className="sm:col-span-2">
             <Select value={propertyId} onChange={(event) => setPropertyId(event.target.value)}>
               {properties.map((property) => (
                 <option key={property.id} value={property.id}>{String(property.name)}</option>
               ))}
             </Select>
           </Field>
-          <Field label="Cameră" className="col-span-2">
+          <Field label="Cameră" className="sm:col-span-2">
             <Input
               value={roomName}
               onChange={(event) => setRoomName(event.target.value)}
@@ -540,32 +771,43 @@ export function ManagedAccommodationTab() {
               onChange={(event) => setRoomChildren(event.target.value)}
             />
           </Field>
+          <Field label="Etaj / zonă">
+            <Input value={roomFloor} onChange={(event) => setRoomFloor(event.target.value)} placeholder="Etajul 1" />
+          </Field>
+          <Field label="Stare inițială">
+            <Select value={roomStatus} onChange={(event) => setRoomStatus(event.target.value)}>
+              <option value="available">Disponibilă</option>
+              <option value="held">Rezervată temporar</option>
+              <option value="occupied">Ocupată</option>
+              <option value="unavailable">Indisponibilă</option>
+            </Select>
+          </Field>
+          <Switch checked={roomAccessible} onCheckedChange={setRoomAccessible} label="Cameră accesibilă" description="Poate fi alocată invitaților cu cerințe de accesibilitate." className="sm:col-span-2" />
+          <Field label="Note private" className="sm:col-span-2">
+            <Textarea rows={3} value={roomNotes} onChange={(event) => setRoomNotes(event.target.value)} />
+          </Field>
         </div>
       </Modal>
 
       <Modal
         open={stayOpen}
         onClose={() => setStayOpen(false)}
-        title="Sejur nou"
+        title={editingStayId ? "Editează sejurul" : "Sejur nou"}
         footer={
           <>
             <Button variant="ghost" onClick={() => setStayOpen(false)}>Renunță</Button>
             <Button
-              disabled={saving || !propertyId || !stayName || !checkIn || !checkOut}
-              onClick={() =>
-                void run(
-                  () =>
-                    weddingOsApi.createAccommodationStay(currentWorkspace!.id, {
-                      propertyId,
-                      name: stayName,
-                      checkInDate: checkIn,
-                      checkOutDate: checkOut,
-                    }),
-                  "Sejurul a fost creat",
-                )
+              disabled={
+                saving ||
+                !propertyId ||
+                !stayName.trim() ||
+                !checkIn ||
+                !checkOut ||
+                checkOut <= checkIn
               }
+              onClick={() => void saveStay()}
             >
-              Creează sejurul
+              {editingStayId ? "Salvează sejurul" : "Creează sejurul"}
             </Button>
           </>
         }
@@ -588,7 +830,86 @@ export function ManagedAccommodationTab() {
             <Input type="date" value={checkOut} onChange={(event) => setCheckOut(event.target.value)} />
           </Field>
         </div>
+        {checkIn && checkOut && checkOut <= checkIn ? (
+          <p role="alert" className="mt-3 text-sm text-danger">
+            Check-out trebuie să fie după check-in.
+          </p>
+        ) : null}
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteProperty)}
+        onClose={() => setDeleteProperty(null)}
+        onConfirm={async () => {
+          const current = deleteProperty;
+          if (!current) return;
+          const deleted = await run(
+            () =>
+              weddingOsApi.deleteAccommodationProperty(
+                currentWorkspace!.id,
+                current.id,
+                current.version,
+              ),
+            "Proprietatea a fost eliminată",
+          );
+          if (deleted) setDeleteProperty(null);
+        }}
+        title="Ștergi proprietatea?"
+        description="Proprietatea poate fi eliminată numai dacă nu mai are camere sau sejururi active."
+        confirmLabel="Șterge proprietatea"
+        destructive
+        loading={saving}
+      />
+      <ConfirmDialog
+        open={Boolean(deleteRoom)}
+        onClose={() => setDeleteRoom(null)}
+        onConfirm={async () => {
+          const current = deleteRoom;
+          if (!current || !stay) return;
+          const deleted = await run(
+            () =>
+              weddingOsApi.deleteAccommodationRoom(
+                currentWorkspace!.id,
+                stay.propertyId,
+                current.id,
+                current.version,
+              ),
+            "Camera a fost eliminată",
+          );
+          if (deleted) setDeleteRoom(null);
+        }}
+        title="Ștergi camera?"
+        description="Camera poate fi eliminată numai dacă nu are invitați alocați."
+        confirmLabel="Șterge camera"
+        destructive
+        loading={saving}
+      />
+      <ConfirmDialog
+        open={Boolean(deleteStay)}
+        onClose={() => setDeleteStay(null)}
+        onConfirm={async () => {
+          const current = deleteStay;
+          if (!current) return;
+          const deleted = await run(
+            () =>
+              weddingOsApi.deleteAccommodationStay(
+                currentWorkspace!.id,
+                current.id,
+                current.version,
+              ),
+            "Sejurul a fost eliminat",
+          );
+          if (deleted) {
+            activeStayId.current = "";
+            setDeleteStay(null);
+          }
+        }}
+        title="Ștergi sejurul?"
+        description="Sejurul poate fi eliminat numai cât timp este draft și nu are alocări active."
+        confirmLabel="Șterge sejurul"
+        destructive
+        loading={saving}
+      />
     </div>
   );
 }

@@ -104,7 +104,7 @@ describe("route capability boundaries", () => {
       "invitation.write",
     );
     expect(requiredCapabilityForPath("/provider/checkout/test-id")).toBe(
-      "payment.write",
+      "online_payment.create_checkout",
     );
   });
 

@@ -5,12 +5,13 @@ import { resolve } from "node:path";
 
 const webUrl = "http://127.0.0.1:3117";
 const apiUrl = "http://127.0.0.1:4117";
+const e2eDistDir = process.env.NEXT_DIST_DIR ?? ".next-e2e";
 const artifactRoot =
   process.env.WEDDINGOS_E2E_ARTIFACT_ROOT ??
   resolve(process.cwd(), "ops/artifacts/e2e-activity-exports");
 const webServerCommand = process.env.WEDDINGOS_E2E_REUSE_BUILD
-  ? "env WEDDINGOS_E2E=true NEXT_DIST_DIR=.next-e2e API_INTERNAL_URL=http://127.0.0.1:4117 NEXT_PUBLIC_DEMO_MODE_ENABLED=true corepack pnpm exec next start --hostname 127.0.0.1 --port 3117"
-  : "env WEDDINGOS_E2E=true NEXT_DIST_DIR=.next-e2e API_INTERNAL_URL=http://127.0.0.1:4117 NEXT_PUBLIC_DEMO_MODE_ENABLED=true sh -c 'corepack pnpm exec next build --webpack && exec corepack pnpm exec next start --hostname 127.0.0.1 --port 3117'";
+  ? `env WEDDINGOS_E2E=true NEXT_DIST_DIR=${e2eDistDir} API_INTERNAL_URL=http://127.0.0.1:4117 NEXT_PUBLIC_DEMO_MODE_ENABLED=true corepack pnpm exec next start --hostname 127.0.0.1 --port 3117`
+  : `env WEDDINGOS_E2E=true NEXT_DIST_DIR=${e2eDistDir} API_INTERNAL_URL=http://127.0.0.1:4117 NEXT_PUBLIC_DEMO_MODE_ENABLED=true sh -c 'corepack pnpm exec next build --webpack && exec corepack pnpm exec next start --hostname 127.0.0.1 --port 3117'`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
