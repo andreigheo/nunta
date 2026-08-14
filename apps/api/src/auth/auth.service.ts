@@ -441,7 +441,11 @@ export class AuthService {
     });
   }
 
-  async requestPasswordReset(emailInput: string, request: WeddingOsRequest) {
+  async requestPasswordReset(
+    emailInput: string,
+    returnTo: string | undefined,
+    request: WeddingOsRequest,
+  ) {
     const email = emailInput.trim().toLowerCase();
     const user = await this.database.user.findUnique({
       where: { email },
@@ -458,6 +462,7 @@ export class AuthService {
           recipient: email,
           values: { firstName: user.profile?.firstName ?? "" },
         },
+        { returnTo: returnTo ?? null },
       );
       if (token) {
         await this.audit.record({
@@ -540,10 +545,17 @@ export class AuthService {
       requestId: request.requestId,
       correlationId: request.correlationId,
     });
-    return { reset: true as const };
+    return {
+      reset: true as const,
+      returnTo: registrationReturnTo(record.metadata),
+    };
   }
 
-  async requestMagicLink(emailInput: string, request: WeddingOsRequest) {
+  async requestMagicLink(
+    emailInput: string,
+    returnTo: string | undefined,
+    request: WeddingOsRequest,
+  ) {
     if (!this.environment.FEATURE_MAGIC_LINK_ENABLED) {
       problem(
         "FEATURE_DISABLED",
@@ -567,6 +579,7 @@ export class AuthService {
           recipient: email,
           values: { firstName: user.profile?.firstName ?? "" },
         },
+        { returnTo: returnTo ?? null },
       );
       if (token) {
         await this.audit.record({
@@ -618,7 +631,10 @@ export class AuthService {
       requestId: request.requestId,
       correlationId: request.correlationId,
     });
-    return session;
+    return {
+      session,
+      returnTo: registrationReturnTo(record.metadata),
+    };
   }
 
   private async issueTokenWithCooldown(
@@ -631,6 +647,7 @@ export class AuthService {
       recipient: string;
       values: Record<string, string>;
     },
+    metadata?: Record<string, string | null>,
   ) {
     const latest = await this.database.authOneTimeToken.findFirst({
       where: { userId, purpose },
@@ -653,6 +670,7 @@ export class AuthService {
           purpose,
           tokenHash: hashSecret(token),
           expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000),
+          metadata: metadata ?? undefined,
         },
       });
       await this.asyncEvents.record(transaction, {

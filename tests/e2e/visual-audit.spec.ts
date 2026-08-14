@@ -175,6 +175,144 @@ test("Visual audit — platform administrator lands in the real control center",
   await admin.close();
 });
 
+test("Visual audit — organizer has one clear path from setup to plan and budget", async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  const desktop = await signedInContext(browser, "owner@weddingos.local", {
+    width: 1440,
+    height: 1000,
+  });
+  const page = await desktop.newPage();
+
+  await page.goto("/overview");
+  await expect(page.getByText("De aici începi", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Completează detaliile" }),
+  ).toBeVisible();
+  await captureGuidedSurface(page, "08-guided-overview-empty-desktop.png");
+
+  await page.getByRole("button", { name: "Completează detaliile" }).click();
+  await expect(page.getByRole("heading", { name: "Cuplul" })).toBeVisible();
+  await page.getByLabel("Numele partenerului 1").fill("Olivia");
+  await page.getByLabel("Numele partenerului 2").fill("Paul");
+  await page.getByLabel("Titlul nunții").fill("Olivia & Paul");
+  await page.getByLabel("Cum vă numim în interfață?").fill("Olivia și Paul");
+  await captureGuidedSurface(page, "09-guided-onboarding-start-desktop.png");
+  await page.getByRole("button", { name: "Continuă" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Data & evenimentele" }),
+  ).toBeVisible();
+  await page.getByLabel("Data nunții").fill("2027-09-12");
+  await page.getByRole("button", { name: "Continuă" }).click();
+
+  await expect(page.getByRole("heading", { name: "Locația" })).toBeVisible();
+  await page.getByLabel("Țară").selectOption("Republica Moldova");
+  await page.getByLabel("Județ / regiune").fill("Chișinău");
+  await page.getByLabel("Oraș").fill("Chișinău");
+  await page.getByLabel("Numele locației").fill("Grădina Botanică");
+  await page.getByLabel("Adresa").fill("Chișinău, Republica Moldova");
+  await page.getByRole("button", { name: "Continuă" }).click();
+
+  await expect(page.getByRole("heading", { name: "Invitații" })).toBeVisible();
+  await page.getByLabel("Invitați estimați (total)").fill("120");
+  await page.getByLabel("Adulți").fill("104");
+  await page.getByLabel("Copii").fill("16");
+  await page.getByRole("button", { name: "Continuă" }).click();
+
+  await expect(page.getByRole("heading", { name: "Bugetul" })).toBeVisible();
+  await page.getByLabel("Buget țintă").fill("185000");
+  await page.getByLabel("Monedă").selectOption("RON");
+  await page.getByRole("button", { name: "Continuă" }).click();
+
+  await expect(page.getByRole("heading", { name: "Stilul" })).toBeVisible();
+  await page.getByRole("button", { name: "Continuă" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Progres existent" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Continuă" }).click();
+
+  await expect(page.getByRole("heading", { name: "Preferințe" })).toBeVisible();
+  await captureGuidedSurface(page, "10-guided-onboarding-finish-desktop.png");
+  await page
+    .getByRole("button", { name: "Salvează și creează planul" })
+    .click();
+
+  await expect(page).toHaveURL(/\/plan(?:\?|$)/, { timeout: 30_000 });
+  await expect(
+    page.getByRole("heading", { name: "Planul evenimentului" }),
+  ).toBeVisible();
+  await expect(page.getByText("Acoperire minimă")).toBeVisible({
+    timeout: 90_000,
+  });
+  await expect(
+    page.getByText("Data exactă a nunții nu este confirmată."),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(/Data este flexibilă; termenele rămân relative/),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: resolve(auditRoot, "11-guided-plan-proposal-desktop.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Aplică planul" }).click();
+  await expect(page.getByText("Plan aplicat")).toBeVisible({ timeout: 45_000 });
+
+  await page.goto("/overview");
+  await expect(
+    page.getByRole("button", { name: "Configurează bugetul" }),
+  ).toBeVisible();
+  await captureGuidedSurface(page, "12-guided-overview-plan-ready-desktop.png");
+
+  await page.getByRole("button", { name: "Configurează bugetul" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Bugetul nunții" }),
+  ).toBeVisible();
+  await expect(page.getByText("185.000 RON")).toBeVisible();
+  await captureGuidedSurface(page, "13-guided-budget-import-desktop.png");
+  await page.getByRole("button", { name: "Folosește această țintă" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Ținta bugetului" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Țintă totală (RON)")).toHaveValue("185000");
+  await page.getByRole("button", { name: "Salvează", exact: true }).click();
+  await expect(page.getByText("Buget actualizat")).toBeVisible();
+  await captureGuidedSurface(page, "14-guided-budget-configured-desktop.png");
+
+  await page.goto("/calendar");
+  await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
+  await captureGuidedSurface(page, "15-guided-calendar-desktop.png");
+  await desktop.close();
+
+  const mobile = await signedInContext(browser, "owner@weddingos.local", {
+    width: 390,
+    height: 844,
+  });
+  const mobilePage = await mobile.newPage();
+  for (const [path, heading, filename] of [
+    ["/overview", "Olivia & Paul", "16-guided-overview-mobile.png"],
+    ["/plan", "Planul evenimentului", "17-guided-plan-mobile.png"],
+    ["/budget", "Bugetul nunții", "18-guided-budget-mobile.png"],
+    ["/calendar", "Calendar", "19-guided-calendar-mobile.png"],
+  ] as const) {
+    await mobilePage.goto(path);
+    await expect(
+      mobilePage.getByRole("heading", { name: heading }).first(),
+    ).toBeVisible();
+    if (path === "/plan") {
+      await expect(
+        mobilePage.getByRole("button", { name: /^Deschide sarcina/ }).first(),
+      ).toBeVisible();
+    }
+    await captureGuidedSurface(mobilePage, filename);
+  }
+  await mobile.close();
+});
+
 async function signedInContext(
   browser: Browser,
   email: string,
@@ -198,6 +336,16 @@ async function expectNoHorizontalOverflow(page: Page) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(widths.scrollWidth).toBe(widths.clientWidth);
+}
+
+async function captureGuidedSurface(page: Page, filename: string) {
+  await expectNoHorizontalOverflow(page);
+  await expectNoSeriousAxeViolations(page);
+  await page.screenshot({
+    path: resolve(auditRoot, filename),
+    fullPage: true,
+    animations: "disabled",
+  });
 }
 
 async function expectNoSeriousAxeViolations(page: Page) {

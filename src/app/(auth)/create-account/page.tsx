@@ -65,8 +65,14 @@ export default function CreateAccountPage() {
     if (!values.firstName.trim()) er.firstName = "Prenumele este obligatoriu.";
     if (!values.lastName.trim()) er.lastName = "Numele este obligatoriu.";
     if (!/^\S+@\S+\.\S+$/.test(values.email)) er.email = "Introdu o adresă de email validă.";
-    if (values.password.length < 8 || !/[A-Z]/.test(values.password) || !/\d/.test(values.password)) {
-      er.password = "Folosește minim 8 caractere, o majusculă și o cifră.";
+    if (
+      values.password.length < 8 ||
+      !/[a-z]/.test(values.password) ||
+      !/[A-Z]/.test(values.password) ||
+      !/\d/.test(values.password)
+    ) {
+      er.password =
+        "Folosește minim 8 caractere, o literă mică, o majusculă și o cifră.";
     }
     if (values.confirm !== values.password) er.confirm = "Parolele nu coincid.";
     if (!terms) er.terms = "Trebuie să accepți termenii pentru a continua.";
@@ -104,7 +110,16 @@ export default function CreateAccountPage() {
     }
   };
 
-  const strength = values.password.length === 0 ? 0 : values.password.length < 8 ? 1 : /[A-Z]/.test(values.password) && /\d/.test(values.password) ? 3 : 2;
+  const strength =
+    values.password.length === 0
+      ? 0
+      : values.password.length < 8
+        ? 1
+        : /[a-z]/.test(values.password) &&
+            /[A-Z]/.test(values.password) &&
+            /\d/.test(values.password)
+          ? 3
+          : 2;
 
   return (
     <div>
@@ -167,7 +182,7 @@ export default function CreateAccountPage() {
           <Field label="Email" error={errors.email}>
             <Input type="email" autoComplete="email" value={values.email} onChange={set("email")} invalid={!!errors.email} placeholder="ana@email.com" />
           </Field>
-          <Field label="Parolă" error={errors.password} hint={!errors.password && values.password ? undefined : "Minim 8 caractere, ideal cu majuscule și cifre."}>
+          <Field label="Parolă" error={errors.password} hint={!errors.password && values.password ? undefined : "Minim 8 caractere, cu literă mică, majusculă și cifră."}>
             <Input type="password" autoComplete="new-password" value={values.password} onChange={set("password")} invalid={!!errors.password} placeholder="••••••••" />
             {values.password.length > 0 && (
               <div className="mt-2 flex items-center gap-2" aria-hidden>
@@ -187,11 +202,25 @@ export default function CreateAccountPage() {
 
           <div className="space-y-2.5">
             <div>
-              <Checkbox
-                checked={terms}
-                onCheckedChange={setTerms}
-                label="Accept Termenii și Politica de confidențialitate"
-              />
+              <div className="flex items-start gap-2.5">
+                <Checkbox
+                  checked={terms}
+                  onCheckedChange={setTerms}
+                  aria-label="Accept termenii și politica de confidențialitate"
+                  className="min-w-11 shrink-0"
+                />
+                <p className="pt-3 text-sm text-ink">
+                  Accept{" "}
+                  <Link href="/terms" target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                    Termenii
+                  </Link>{" "}
+                  și{" "}
+                  <Link href="/privacy" target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+                    Politica de confidențialitate
+                  </Link>
+                  .
+                </p>
+              </div>
               {errors.terms && <p role="alert" className="mt-1 text-xs text-danger">{errors.terms}</p>}
             </div>
             <Checkbox

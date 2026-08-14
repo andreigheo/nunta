@@ -4,7 +4,12 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui";
-import { AuthError, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
+import {
+  AuthActionLink,
+  AuthError,
+  AuthHeading,
+  AuthInfo,
+} from "@/components/auth/auth-bits";
 import {
   ApiClientError,
   apiErrorMessage,
@@ -23,6 +28,7 @@ export default function VendorInvitationPage() {
     React.useState<VendorInvitationPreview | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [declined, setDeclined] = React.useState(false);
 
   const signIn = React.useCallback(
     (value: string) => {
@@ -66,7 +72,8 @@ export default function VendorInvitationPage() {
         );
       } else {
         await weddingOsApi.declineVendorInvitation(token);
-        router.push("/sign-in?vendorInvitationDeclined=1");
+        setInvitation(null);
+        setDeclined(true);
       }
       router.refresh();
     } catch (cause) {
@@ -95,11 +102,27 @@ export default function VendorInvitationPage() {
       />
 
       {error ? (
-        <div className="mb-4 text-left">
+        <div className="mb-4 space-y-3 text-left">
           <AuthError message={error} />
+          {token ? (
+            <AuthActionLink
+              href={`/sign-in?switch=1&returnTo=${encodeURIComponent(`/vendor-invitation?token=${encodeURIComponent(token)}`)}`}
+              variant="outline"
+            >
+              Încearcă alt cont
+            </AuthActionLink>
+          ) : null}
         </div>
       ) : null}
-      {!invitation && !error ? (
+      {declined ? (
+        <div className="mb-4 space-y-4 text-left">
+          <AuthInfo message="Invitația furnizorului a fost refuzată. Celelalte contexte ale contului nu au fost afectate." />
+          <AuthActionLink href="/start" variant="outline">
+            Înapoi la contul meu
+          </AuthActionLink>
+        </div>
+      ) : null}
+      {!invitation && !error && !declined ? (
         <div className="mb-4 text-left">
           <AuthInfo message="Se încarcă detaliile invitației…" />
         </div>
@@ -126,7 +149,7 @@ export default function VendorInvitationPage() {
         </dl>
       ) : null}
 
-      <div className="mt-4 space-y-2.5">
+      {!declined ? <div className="mt-4 space-y-2.5">
         <Button
           size="lg"
           className="w-full"
@@ -145,7 +168,7 @@ export default function VendorInvitationPage() {
         >
           Refuză
         </Button>
-      </div>
+      </div> : null}
     </div>
   );
 }

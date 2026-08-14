@@ -116,6 +116,7 @@ export default function PlanPage() {
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const automaticGenerationStarted = React.useRef(false);
 
   const load = React.useCallback(async () => {
     if (!currentWorkspace) return;
@@ -299,6 +300,26 @@ export default function PlanPage() {
       });
     });
   };
+
+  React.useEffect(() => {
+    if (loading || automaticGenerationStarted.current) return;
+    const requested =
+      new URLSearchParams(window.location.search).get("generate") === "1";
+    if (!requested) return;
+    automaticGenerationStarted.current = true;
+    router.replace("/plan");
+    const timer = window.setTimeout(() => {
+      if (proposal) {
+        setProposalOpen(true);
+        return;
+      }
+      if (tasks.length === 0) void generatePlan("auto");
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // The generation function intentionally uses the state captured when the
+    // one-shot `?generate=1` navigation is consumed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, proposal, router, tasks.length]);
 
   const createTask = async (input: CreateTask, subtasks: string[]) => {
     if (!currentWorkspace) return;
@@ -524,15 +545,24 @@ export default function PlanPage() {
           </>
         }
         actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              title="Catalogul de șabloane este planificat"
-            >
-              Import șablon · planificat
-            </Button>
+          tasks.length === 0 ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>
+                <Plus className="size-4" />
+                Adaugă manual
+              </Button>
+              <Button
+                size="sm"
+                onClick={() =>
+                  proposal ? setProposalOpen(true) : void generatePlan("auto")
+                }
+              >
+                <Sparkles className="size-3.5" />
+                {proposal ? "Verifică propunerea" : "Creează propunerea"}
+              </Button>
+            </>
+          ) : (
+            <>
             <Button
               variant="outline"
               size="sm"
@@ -596,11 +626,40 @@ export default function PlanPage() {
             </Button>
             <Button size="sm" onClick={() => setModalOpen(true)}>
               <Plus className="size-4" />
-              Sarcină
+              Sarcină nouă
             </Button>
-          </>
+            </>
+          )
         }
       />
+
+      {tasks.length === 0 && !error ? (
+        <section className="overflow-hidden rounded-2xl border border-brand/20 bg-gradient-to-br from-brand-softer via-surface to-accent-soft/35 p-5 sm:p-7" aria-labelledby="plan-start-title">
+          <Badge variant="brand">Primul pas recomandat</Badge>
+          <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,.85fr)] lg:items-end">
+            <div>
+              <h2 id="plan-start-title" className="max-w-2xl font-brand text-2xl font-semibold tracking-[-0.02em] text-ink sm:text-3xl">
+                Transformă detaliile nunții într-un plan pe care îl controlezi.
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">
+                Sarbato pregătește o propunere pe baza răspunsurilor tale. Nimic nu intră în plan până nu verifici și aprobi fiecare etapă.
+              </p>
+            </div>
+            <ol className="grid gap-2 text-sm" aria-label="Cum se creează planul">
+              {[
+                ["1", "Folosim detaliile salvate la configurare"],
+                ["2", "Îți arătăm propunerea înainte de aplicare"],
+                ["3", "Tu alegi ce sarcini intră în plan"],
+              ].map(([number, copy]) => (
+                <li key={number} className="flex items-center gap-3 rounded-xl border border-line/80 bg-surface/85 px-3 py-2.5">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-on-brand">{number}</span>
+                  <span className="font-medium text-ink">{copy}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      ) : null}
 
       {generation && generation.status !== "completed" && (
         <div className="rounded-xl border border-brand/20 bg-brand-soft/40 p-4">
@@ -621,7 +680,7 @@ export default function PlanPage() {
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
+      {tasks.length > 0 ? <div className="flex flex-wrap items-center gap-2">
         <SegmentedControl<View>
           ariaLabel="Schimbă vizualizarea"
           value={view}
@@ -725,19 +784,19 @@ export default function PlanPage() {
           <ArrowUpDown className="size-3.5" />
           Sortare: {sortKey}
         </Button>
-      </div>
+      </div> : null}
 
       {tasks.length === 0 ? (
         <EmptyState
           icon={Sparkles}
-          title="Planul tău nu a fost generat încă"
-          description="Completează onboardingul și generează prima propunere sau adaugă primul task."
+          title={proposal ? "Propunerea este pregătită pentru verificare" : "Creează prima propunere de plan"}
+          description={proposal ? "Deschide propunerea, ajustează ce ai nevoie și aplică doar sarcinile pe care le aprobi." : "Procesul durează de obicei sub un minut și nu modifică planul fără confirmarea ta."}
           action={{
-            label: "Generează planul",
-            onClick: () => void generatePlan("auto"),
+            label: proposal ? "Verifică propunerea" : "Creează propunerea",
+            onClick: () => proposal ? setProposalOpen(true) : void generatePlan("auto"),
           }}
           secondaryAction={{
-            label: "Adaugă task",
+            label: "Adaugă o sarcină manual",
             onClick: () => setModalOpen(true),
           }}
         />
@@ -790,8 +849,61 @@ export default function PlanPage() {
           ))}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-line bg-elevated">
-          <Table>
+        <div>
+          <div className="space-y-2 sm:hidden">
+            {filtered.map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                onClick={() => setSelected(task)}
+                aria-label={`Deschide sarcina ${task.title}`}
+                className="w-full rounded-xl border border-line bg-elevated p-4 text-left transition-colors hover:border-brand/40"
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span
+                    className={cn(
+                      "min-w-0 text-sm font-semibold leading-5 text-ink",
+                      task.status === "completed" &&
+                        "text-faint line-through",
+                    )}
+                  >
+                    {task.title}
+                  </span>
+                  <Badge variant={statusTones[task.status]}>
+                    {statusLabels[task.status]}
+                  </Badge>
+                </span>
+                <span className="mt-3 flex flex-wrap items-center gap-2">
+                  <Badge variant="neutral">{task.category}</Badge>
+                  <Badge variant={priorityTones[task.priority]}>
+                    {priorityLabels[task.priority]}
+                  </Badge>
+                  <span
+                    className={cn(
+                      "text-xs text-muted",
+                      daysUntil(task.deadline) < 0 &&
+                        task.status !== "completed" &&
+                        "font-semibold text-danger",
+                    )}
+                  >
+                    {formatDateShort(task.deadline)}
+                  </span>
+                </span>
+                <span className="mt-3 flex items-center gap-2 text-xs text-muted">
+                  <Avatar name={task.owner} size="xs" />
+                  {task.owner}
+                  {task.subtasks?.length ? (
+                    <span className="ml-auto text-faint">
+                      {task.subtasks.filter((item) => item.done).length}/
+                      {task.subtasks.length} pași
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="hidden overflow-hidden rounded-xl border border-line bg-elevated sm:block">
+            <Table>
             <THead>
               <TR>
                 <TH>Sarcină</TH>
@@ -860,7 +972,8 @@ export default function PlanPage() {
                 </TR>
               ))}
             </TBody>
-          </Table>
+            </Table>
+          </div>
         </div>
       )}
 

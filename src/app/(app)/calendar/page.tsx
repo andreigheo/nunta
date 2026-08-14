@@ -112,7 +112,7 @@ function EventModal({
       open={open}
       onClose={onClose}
       title={event ? "Editează evenimentul" : "Eveniment nou"}
-      description="Evenimentele native sunt editabile; proiecțiile deschid resursa sursă."
+      description="Evenimentele adăugate aici pot fi editate. Termenele preluate din plan se modifică din pagina în care au fost create."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -289,17 +289,9 @@ export default function CalendarPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <PageHeader
         title="Calendar"
-        description="Evenimente native, deadline-uri, starturi de task și milestone-uri într-o singură vedere."
+        description="Vezi într-un singur loc evenimentele nunții și termenele preluate din plan."
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              title="Sincronizarea Google/Outlook este planificată"
-            >
-              Sync extern · planificat
-            </Button>
             <Button
               variant="outline"
               size="sm"

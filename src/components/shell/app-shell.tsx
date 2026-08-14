@@ -14,10 +14,12 @@ import { QuickCreateModal } from "./quick-create";
 import { MobileBottomNav, MobileNavSheet } from "./mobile-nav";
 import { WorkspaceProvider, useWorkspace } from "@/lib/api/workspace-context";
 import { requiredCapabilityForPath } from "@/lib/navigation";
+import { PortalShell } from "@/components/portals/portal-shell";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   return (
-    <WorkspaceProvider>
+    <WorkspaceProvider allowNoWorkspace={pathname === "/settings"}>
       <AppShellContent>{children}</AppShellContent>
     </WorkspaceProvider>
   );
@@ -29,6 +31,19 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   const { loading, demoMode, bootstrap } = useWorkspace();
   if (loading) {
     return <div className="min-h-dvh animate-pulse bg-canvas" aria-label="Se încarcă spațiul de lucru" />;
+  }
+  if (pathname === "/settings" && !bootstrap && !demoMode) {
+    return (
+      <PortalShell
+        role="Cont Sarbato"
+        title="Setările contului"
+        subtitle="Profil, notificări, aspect, confidențialitate și securitate, independent de un eveniment."
+        backHref="/start"
+        backLabel="Cont și contexte"
+      >
+        {children}
+      </PortalShell>
+    );
   }
   const requiredCapability = requiredCapabilityForPath(pathname);
   const allowed =

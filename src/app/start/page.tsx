@@ -6,6 +6,8 @@ import {
   BriefcaseBusiness,
   CalendarHeart,
   MailCheck,
+  LogOut,
+  Settings2,
   ShieldCheck,
 } from "lucide-react";
 import { WorkspaceProvider, useWorkspace } from "@/lib/api/workspace-context";
@@ -21,7 +23,7 @@ export default function AccountStartPage() {
 }
 
 function AccountStartContent() {
-  const { user, workspaces, loading } = useWorkspace();
+  const { user, workspaces, loading, logout } = useWorkspace();
   const [invitationLink, setInvitationLink] = React.useState("");
   const [error, setError] = React.useState("");
 
@@ -31,11 +33,12 @@ function AccountStartContent() {
       const url = new URL(invitationLink);
       if (url.origin !== window.location.origin) throw new Error();
       if (
-        !url.pathname.startsWith("/invitation") &&
-        !url.pathname.startsWith("/vendor-invitation")
+        url.pathname !== "/invitation" &&
+        url.pathname !== "/vendor-invitation"
       ) {
         throw new Error();
       }
+      if (!url.searchParams.get("token")) throw new Error();
       window.location.assign(`${url.pathname}${url.search}`);
     } catch {
       setError("Lipește linkul complet primit în invitația Sarbato.");
@@ -144,6 +147,33 @@ function AccountStartContent() {
           >
             Deschide invitația
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-ink">Cont și securitate</h2>
+            <p className="mt-1 text-sm text-muted">
+              Profilul, parola și sesiunile rămân accesibile indiferent de contextul ales.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link href="/settings?tab=security">
+              <Button variant="outline" className="w-full sm:w-auto">
+                <Settings2 className="size-4" aria-hidden />
+                Setările contului
+              </Button>
+            </Link>
+            <Button
+              variant="ghost"
+              className="w-full sm:w-auto"
+              onClick={() => void logout()}
+            >
+              <LogOut className="size-4" aria-hidden />
+              Deconectare
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </PortalShell>

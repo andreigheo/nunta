@@ -857,6 +857,31 @@ function hasUnsafeInternalPathCharacter(value: string) {
   });
 }
 
+const internalReturnToSchema = z
+  .string()
+  .trim()
+  .max(4096)
+  .refine(
+    (value) => {
+      if (
+        !value.startsWith("/") ||
+        value.startsWith("//") ||
+        hasUnsafeInternalPathCharacter(value)
+      ) {
+        return false;
+      }
+      try {
+        const decoded = decodeURIComponent(value);
+        return (
+          !decoded.startsWith("//") && !hasUnsafeInternalPathCharacter(decoded)
+        );
+      } catch {
+        return false;
+      }
+    },
+    { message: "Ruta de continuare trebuie să fie internă." },
+  );
+
 export const registerRequestSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
@@ -865,32 +890,7 @@ export const registerRequestSchema = z.object({
   registrationIntent: registrationIntentSchema
     .optional()
     .default("EVENT_ORGANIZER"),
-  returnTo: z
-    .string()
-    .trim()
-    .max(4096)
-    .refine(
-      (value) => {
-        if (
-          !value.startsWith("/") ||
-          value.startsWith("//") ||
-          hasUnsafeInternalPathCharacter(value)
-        ) {
-          return false;
-        }
-        try {
-          const decoded = decodeURIComponent(value);
-          return (
-            !decoded.startsWith("//") &&
-            !hasUnsafeInternalPathCharacter(decoded)
-          );
-        } catch {
-          return false;
-        }
-      },
-      { message: "Ruta de continuare trebuie să fie internă." },
-    )
-    .optional(),
+  returnTo: internalReturnToSchema.optional(),
   acceptedTermsVersion: z.string().min(1).max(40),
   marketingConsent: z.boolean().optional().default(false),
 });
@@ -936,7 +936,10 @@ export const sessionCreatedSchema = z.object({
 });
 export type SessionCreated = z.infer<typeof sessionCreatedSchema>;
 
-export const passwordResetRequestSchema = z.object({ email: emailSchema });
+export const passwordResetRequestSchema = z.object({
+  email: emailSchema,
+  returnTo: internalReturnToSchema.optional(),
+});
 export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;
 
 export const passwordResetSchema = z.object({
@@ -945,7 +948,10 @@ export const passwordResetSchema = z.object({
 });
 export type PasswordReset = z.infer<typeof passwordResetSchema>;
 
-export const magicLinkRequestSchema = z.object({ email: emailSchema });
+export const magicLinkRequestSchema = z.object({
+  email: emailSchema,
+  returnTo: internalReturnToSchema.optional(),
+});
 export type MagicLinkRequest = z.infer<typeof magicLinkRequestSchema>;
 
 export const magicLinkExchangeSchema = z.object({ token: z.string().min(32) });
@@ -962,7 +968,17 @@ export const verifiedResponseSchema = z.object({
   returnTo: z.string().nullable(),
 });
 export type VerifiedResponse = z.infer<typeof verifiedResponseSchema>;
-export const passwordResetResponseSchema = z.object({ reset: z.literal(true) });
+export const passwordResetResponseSchema = z.object({
+  reset: z.literal(true),
+  returnTo: internalReturnToSchema.nullable(),
+});
+export type PasswordResetResponse = z.infer<typeof passwordResetResponseSchema>;
+export const magicLinkSessionCreatedSchema = sessionCreatedSchema.extend({
+  returnTo: internalReturnToSchema.nullable(),
+});
+export type MagicLinkSessionCreated = z.infer<
+  typeof magicLinkSessionCreatedSchema
+>;
 export const profileUpdatedSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),

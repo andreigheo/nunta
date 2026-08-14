@@ -8,6 +8,8 @@ import {
   FileSignature,
   Inbox,
   Plus,
+  LogOut,
+  Settings2,
   Star,
   Store,
 } from "lucide-react";
@@ -33,7 +35,7 @@ import {
 import type { CapabilityKey } from "@weddingos/contracts";
 
 export default function VendorPortalPage() {
-  const { user, workspaces, demoMode } = useWorkspace();
+  const { user, workspaces, demoMode, logout } = useWorkspace();
   const { toast } = useToast();
   const [organizations, setOrganizations] = React.useState<OperationResource[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -44,10 +46,11 @@ export default function VendorPortalPage() {
   const [contracts, setContracts] = React.useState<OperationResource[]>([]);
   const [monetization, setMonetization] = React.useState<Record<string, unknown>>({});
   const [open, setOpen] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
   const [form, setForm] = React.useState({
     legalName: "",
     displayName: "",
-    country: "România",
+    country: "",
     contactEmail: "",
   });
 
@@ -129,10 +132,14 @@ export default function VendorPortalPage() {
   useDeferredLoad(loadCommercial);
 
   const create = async () => {
+    if (creating) return;
+    setCreating(true);
     try {
       const organization = await weddingOsApi.createVendorOrganization({
-        ...form,
-        contactEmail: form.contactEmail || user?.user.email || "",
+        legalName: form.legalName.trim(),
+        displayName: form.displayName.trim(),
+        country: form.country.trim(),
+        contactEmail: (form.contactEmail || user?.user.email || "").trim(),
       });
       setOpen(false);
       await loadOrganizations();
@@ -149,6 +156,8 @@ export default function VendorPortalPage() {
         description: apiErrorMessage(error),
         variant: "error",
       });
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -161,6 +170,12 @@ export default function VendorPortalPage() {
   );
   const can = (capability: CapabilityKey) =>
     activeCapabilities.has(capability);
+  const contactEmail = (form.contactEmail || user?.user.email || "").trim();
+  const vendorFormValid =
+    form.legalName.trim().length >= 2 &&
+    form.displayName.trim().length >= 2 &&
+    form.country.trim().length >= 2 &&
+    /^\S+@\S+\.\S+$/.test(contactEmail);
   const backHref = workspaces.length ? "/overview" : "/start";
   const backLabel = workspaces.length ? "Evenimente" : "Contul meu";
 
@@ -182,6 +197,14 @@ export default function VendorPortalPage() {
           }
           actions={
             <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.location.assign("/settings?tab=security")}
+              >
+                <Settings2 className="size-4" />
+                Cont
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
                 <Plus className="size-4" />
                 Profil profesional
@@ -200,6 +223,14 @@ export default function VendorPortalPage() {
                   ))}
                 </select>
               ) : null}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void logout()}
+              >
+                <LogOut className="size-4" />
+                Deconectare
+              </Button>
             </>
           }
         />
@@ -227,19 +258,18 @@ export default function VendorPortalPage() {
 
         <Modal
           open={open}
-          onClose={() => setOpen(false)}
+          onClose={() => {
+            if (!creating) setOpen(false);
+          }}
           title="Profil pentru servicii de evenimente"
           footer={
             <>
-              <Button variant="ghost" onClick={() => setOpen(false)}>
+              <Button variant="ghost" disabled={creating} onClick={() => setOpen(false)}>
                 Renunță
               </Button>
               <Button
-                disabled={
-                  !form.legalName ||
-                  !form.displayName ||
-                  !(form.contactEmail || user?.user.email)
-                }
+                disabled={!vendorFormValid || creating}
+                loading={creating}
                 onClick={() => void create()}
               >
                 Creează profilul
@@ -250,7 +280,7 @@ export default function VendorPortalPage() {
           <div className="space-y-3">
             <Field
               label="Nume legal sau numele persoanei"
-              hint="Folosit pentru contracte și verificări, nu ca nume public."
+              hint="Minimum 2 caractere. Folosit pentru contracte și verificări, nu ca nume public."
             >
               <Input
                 value={form.legalName}
@@ -259,7 +289,7 @@ export default function VendorPortalPage() {
                 }
               />
             </Field>
-            <Field label="Nume public">
+            <Field label="Nume public" hint="Minimum 2 caractere.">
               <Input
                 value={form.displayName}
                 onChange={(event) =>
@@ -267,9 +297,10 @@ export default function VendorPortalPage() {
                 }
               />
             </Field>
-            <Field label="Țară">
+            <Field label="Țară" hint="Scrie țara în care furnizezi serviciile.">
               <Input
                 value={form.country}
+                placeholder="România"
                 onChange={(event) =>
                   setForm({ ...form, country: event.target.value })
                 }

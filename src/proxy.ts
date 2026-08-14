@@ -86,15 +86,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL("/__sarbato_not_found__", request.url));
   }
 
-  if (pathname === "/access-denied") {
-    const signIn = new URL("/sign-in", request.url);
-    signIn.searchParams.set("switch", "1");
-    const response = NextResponse.redirect(signIn);
-    expireCookie(response, authCookie, true);
-    expireCookie(response, "weddingos_demo", false);
-    return response;
-  }
-
   if (realAuthEntryPaths.has(pathname)) {
     const response = NextResponse.next();
     if (request.cookies.has("weddingos_demo")) {

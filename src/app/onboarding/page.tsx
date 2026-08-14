@@ -3,6 +3,10 @@
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import type {
+  OnboardingDraftResource,
+  UpdateOnboardingDraft,
+} from "@weddingos/contracts";
 import {
   ArrowLeft,
   ArrowRight,
@@ -78,8 +82,8 @@ export default function OnboardingPage() {
   const { toast } = useToast();
   const [step, setStep] = React.useState(1);
   const [values, setValues] = React.useState<Record<string, string>>({
-    country: "România",
-    region: "Brașov",
+    country: "",
+    region: "",
     currency: "RON",
     flexibility: "moderat",
     aiLevel: "echilibrat",
@@ -188,11 +192,12 @@ export default function OnboardingPage() {
   const canContinue = step !== 1 || Boolean(values.partnerOne?.trim() && values.partnerTwo?.trim());
   const canSkip = [4, 5, 6].includes(step);
 
-  const hydrateDraft = React.useCallback((draft: import("@weddingos/contracts").OnboardingDraftResource) => {
+  const hydrateDraft = React.useCallback((draft: OnboardingDraftResource) => {
     const sections = [draft.couple, draft.dateEvents, draft.location, draft.guests, draft.budget, draft.style, draft.planningPreferences];
     const nextValues: Record<string, string> = {};
     for (const section of sections) {
-      for (const [key, value] of Object.entries(section)) if (typeof value === "string") nextValues[key] = value;
+      for (const [key, value] of Object.entries(section))
+        if (typeof value === "string" && value.trim()) nextValues[key] = value;
     }
     setValues((current) => ({ ...current, ...nextValues }));
     setToggles((current) => ({ ...current, ...booleanRecord(draft.dateEvents), ...booleanRecord(draft.location) }));
@@ -217,6 +222,12 @@ export default function OnboardingPage() {
           const current = workspaces[0];
           if (!current || cancelled) return;
           setWorkspaceId(current.id);
+          setValues((values) => ({
+            ...values,
+            title: values.title || current.title,
+            date: values.date || current.weddingDate || "",
+            city: values.city || current.location || "",
+          }));
           const draft = await weddingOsApi.onboarding(current.id);
           if (!cancelled) hydrateDraft(draft);
         })
@@ -297,7 +308,7 @@ export default function OnboardingPage() {
 
   const complete = async () => {
     if (hasDemoCookie()) {
-      router.push("/overview?demo=1");
+      router.push("/plan?demo=1");
       return;
     }
     setSaving(true);
@@ -306,7 +317,7 @@ export default function OnboardingPage() {
       if (!saved) throw new Error("Draftul nu a fost salvat.");
       const result = await weddingOsApi.completeOnboarding(saved.workspaceId, saved.version);
       toast({ title: "Configurare finalizată", description: result.message, variant: "success" });
-      router.push("/overview");
+      router.push("/plan?generate=1");
       router.refresh();
     } catch (error) {
       toast({ title: "Configurarea nu a putut fi finalizată", description: apiErrorMessage(error), variant: "error" });
@@ -403,6 +414,7 @@ export default function OnboardingPage() {
                           }}
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
+                          aria-label={`Selectează fotografia pentru ${slot.label}`}
                           className="sr-only"
                           onChange={(event) => {
                             selectProfilePhoto(slot.id, event.target.files?.[0]);
@@ -462,7 +474,7 @@ export default function OnboardingPage() {
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Data nunții">
-                  <Input type="date" value={values.date ?? "2027-09-12"} onChange={set("date")} />
+                  <Input type="date" value={values.date ?? ""} onChange={set("date")} />
                 </Field>
                 <Field label="Date alternative">
                   <Input placeholder="ex. 5 sau 19 septembrie 2027" value={values.altDates ?? ""} onChange={set("altDates")} />
@@ -500,8 +512,10 @@ export default function OnboardingPage() {
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Field label="Țară">
-                  <Select value={values.country} onChange={set("country")}>
+                  <Select value={values.country ?? ""} onChange={set("country")}>
+                    <option value="" disabled>Alege țara</option>
                     <option>România</option>
+                    <option>Republica Moldova</option>
                     <option>Italia</option>
                     <option>Grecia</option>
                     <option>Portugalia</option>
@@ -509,11 +523,7 @@ export default function OnboardingPage() {
                   </Select>
                 </Field>
                 <Field label="Județ / regiune">
-                  <Select value={values.region} onChange={set("region")}>
-                    {["Brașov", "București", "Cluj", "Sibiu", "Constanța", "Iași", "Timiș"].map((r) => (
-                      <option key={r}>{r}</option>
-                    ))}
-                  </Select>
+                  <Input placeholder="Chișinău, Brașov, Cluj…" value={values.region ?? ""} onChange={set("region")} />
                 </Field>
                 <Field label="Oraș">
                   <Input placeholder="Brașov" value={values.city ?? ""} onChange={set("city")} />
@@ -760,9 +770,9 @@ export default function OnboardingPage() {
                 </Button>
                 <Button className="col-span-2 w-full sm:w-auto" onClick={() => void complete()} disabled={saving}>
                   <Save className="size-4" aria-hidden />
-                  {saving ? "Se salvează…" : "Finalizează configurarea"}
+                  {saving ? "Se salvează…" : "Salvează și creează planul"}
                 </Button>
-                <span className="sr-only">Planul nu este generat în această etapă.</span>
+                <span className="sr-only">După salvare, vei vedea și vei putea verifica propunerea planului.</span>
               </>
             )}
           </div>
@@ -786,7 +796,7 @@ function sectionForStep(
   priorities: string[],
   progress: Record<string, boolean>,
   extraEvents: string[],
-): import("@weddingos/contracts").UpdateOnboardingDraft {
+): UpdateOnboardingDraft {
   const pick = (...keys: string[]) =>
     Object.fromEntries(keys.map((key) => [key, values[key] ?? ""]));
   if (step === 1) return { couple: { confirmed: true, ...pick("partnerOne", "partnerTwo", "title", "preferred", "partnerOnePhotoId", "partnerTwoPhotoId") } };

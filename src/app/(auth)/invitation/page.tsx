@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { HeartHandshake } from "lucide-react";
 import type { TeamInvitation } from "@weddingos/contracts";
 import { Avatar, Button } from "@/components/ui";
-import { AuthError, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
+import {
+  AuthActionLink,
+  AuthError,
+  AuthHeading,
+  AuthInfo,
+} from "@/components/auth/auth-bits";
 import { ApiClientError, apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { formatDateLong } from "@/lib/utils";
 
@@ -25,6 +30,8 @@ export default function InvitationAcceptPage() {
   >(null);
   const [error, setError] = React.useState("");
   const [token, setToken] = React.useState("");
+  const [declined, setDeclined] = React.useState(false);
+  const returnPath = `/invitation?token=${encodeURIComponent(token)}`;
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -70,7 +77,8 @@ export default function InvitationAcceptPage() {
     setError("");
     try {
       await weddingOsApi.declineInvitation(token);
-      router.push("/sign-in?invitationDeclined=1");
+      setInvitation(null);
+      setDeclined(true);
     } catch (cause) {
       if (cause instanceof ApiClientError && cause.status === 401) {
         redirectToSignIn();
@@ -97,11 +105,27 @@ export default function InvitationAcceptPage() {
       />
 
       {error && (
-        <div className="mb-4 text-left">
+        <div className="mb-4 space-y-3 text-left">
           <AuthError message={error} />
+          {token ? (
+            <AuthActionLink
+              href={`/sign-in?switch=1&returnTo=${encodeURIComponent(returnPath)}`}
+              variant="outline"
+            >
+              Încearcă alt cont
+            </AuthActionLink>
+          ) : null}
         </div>
       )}
-      {!invitation && !error && (
+      {declined ? (
+        <div className="space-y-4 text-left">
+          <AuthInfo message="Invitația a fost refuzată. Contul tău și celelalte contexte nu au fost afectate." />
+          <AuthActionLink href="/start" variant="outline">
+            Înapoi la contul meu
+          </AuthActionLink>
+        </div>
+      ) : null}
+      {!invitation && !error && !declined && (
         <div className="mb-4 text-left">
           <AuthInfo message="Se încarcă detaliile invitației…" />
         </div>
@@ -141,7 +165,7 @@ export default function InvitationAcceptPage() {
         </div>
       )}
 
-      <div className="mt-4 space-y-2.5">
+      {!declined ? <div className="mt-4 space-y-2.5">
         <Button
           size="lg"
           className="w-full"
@@ -160,7 +184,7 @@ export default function InvitationAcceptPage() {
         >
           Refuză
         </Button>
-      </div>
+      </div> : null}
     </div>
   );
 }

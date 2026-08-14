@@ -5,8 +5,19 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Mail, Wand2 } from "lucide-react";
 import { Button, Checkbox, Field, Input } from "@/components/ui";
-import { AuthError, AuthHeading, AuthInfo, Divider, SocialButtons } from "@/components/auth/auth-bits";
-import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
+import {
+  AuthActionLink,
+  AuthError,
+  AuthHeading,
+  AuthInfo,
+  Divider,
+  SocialButtons,
+} from "@/components/auth/auth-bits";
+import {
+  ApiClientError,
+  apiErrorMessage,
+  weddingOsApi,
+} from "@/lib/api/client";
 import {
   destinationAfterAuthentication,
   inferredRegistrationIntent,
@@ -21,11 +32,26 @@ export default function SignInPage() {
   const [remember, setRemember] = React.useState(true);
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [magicLoading, setMagicLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [formError, setFormError] = React.useState("");
   const [info, setInfo] = React.useState("");
+  const [needsVerification, setNeedsVerification] = React.useState(false);
   const demoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true";
   const returnTo = safeInternalPath(searchParams.get("returnTo"));
+  const entryInfo = React.useMemo(() => {
+    if (searchParams.get("verified") === "1")
+      return "Email confirmat. Te poți conecta acum.";
+    if (searchParams.get("passwordReset") === "1")
+      return "Parola a fost schimbată. Toate sesiunile vechi au fost închise.";
+    if (searchParams.get("switch") === "1")
+      return "Sesiunea anterioară a fost închisă. Conectează-te cu contul potrivit.";
+    return "";
+  }, [searchParams]);
+  const forgotPasswordHref = React.useMemo(() => {
+    if (!returnTo) return "/forgot-password";
+    return `/forgot-password?returnTo=${encodeURIComponent(returnTo)}`;
+  }, [returnTo]);
   const registrationHref = React.useMemo(() => {
     if (!returnTo) return "/create-account";
     const next = new URLSearchParams({ returnTo });
@@ -38,6 +64,7 @@ export default function SignInPage() {
     e.preventDefault();
     setFormError("");
     setInfo("");
+    setNeedsVerification(false);
     const er: Record<string, string> = {};
     if (!/^\S+@\S+\.\S+$/.test(email)) er.email = "Introdu o adresă de email validă.";
     if (password.length < 6) er.password = "Parola trebuie să aibă cel puțin 6 caractere.";
@@ -64,6 +91,9 @@ export default function SignInPage() {
       window.location.assign(destination);
     } catch (error) {
       setFormError(apiErrorMessage(error));
+      setNeedsVerification(
+        error instanceof ApiClientError && error.code === "EMAIL_NOT_VERIFIED",
+      );
     } finally {
       setLoading(false);
     }
@@ -78,7 +108,18 @@ export default function SignInPage() {
         <Divider label="sau cu email" />
 
         {formError && <AuthError message={formError} />}
-        {info && <AuthInfo message={info} />}
+        {needsVerification ? (
+          <AuthActionLink
+            href={`/verify-email?${new URLSearchParams({
+              email: email.trim().toLowerCase(),
+              ...(returnTo ? { returnTo } : {}),
+            }).toString()}`}
+            variant="outline"
+          >
+            Retrimite verificarea
+          </AuthActionLink>
+        ) : null}
+        {(info || entryInfo) && <AuthInfo message={info || entryInfo} />}
 
         <form onSubmit={submit} className="space-y-4" noValidate>
           <Field label="Email" error={errors.email}>
@@ -116,12 +157,12 @@ export default function SignInPage() {
 
           <div className="flex items-center justify-between">
             <Checkbox checked={remember} onCheckedChange={setRemember} label="Ține-mă conectat" />
-            <Link href="/forgot-password" className="text-[13px] font-medium text-brand hover:underline">
+            <Link href={forgotPasswordHref} className="text-[13px] font-medium text-brand hover:underline">
               Ai uitat parola?
             </Link>
           </div>
 
-          <Button type="submit" size="lg" className="w-full" loading={loading}>
+          <Button type="submit" size="lg" className="w-full" loading={loading} disabled={magicLoading}>
             Conectează-te
           </Button>
         </form>
@@ -130,17 +171,22 @@ export default function SignInPage() {
           variant="outline"
           size="lg"
           className="w-full"
+          loading={magicLoading}
+          disabled={loading || magicLoading}
           onClick={async () => {
             setFormError("");
             if (!/^\S+@\S+\.\S+$/.test(email)) {
               setErrors({ email: "Introdu adresa de email pentru linkul magic." });
               return;
             }
+            setMagicLoading(true);
             try {
-              await weddingOsApi.requestMagicLink(email);
+              await weddingOsApi.requestMagicLink(email, returnTo);
               setInfo("Dacă există un cont verificat, livrarea linkului magic a fost pusă în coadă.");
             } catch (error) {
               setFormError(apiErrorMessage(error));
+            } finally {
+              setMagicLoading(false);
             }
           }}
         >

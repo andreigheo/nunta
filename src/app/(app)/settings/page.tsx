@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Bell,
@@ -101,12 +102,14 @@ function SettingsFallback() {
 
 function SettingsContent() {
   const searchParams = useSearchParams();
-  const { bootstrap } = useWorkspace();
+  const { bootstrap, currentWorkspace } = useWorkspace();
   const canManagePublicAggregation =
     bootstrap?.membership.capabilities.includes(
       "workspace.manage_public_aggregation",
     ) ?? false;
-  const visibleTabs = settingsTabs;
+  const visibleTabs = currentWorkspace
+    ? settingsTabs
+    : settingsTabs.filter((item) => item.value !== "billing");
   const tab = normalizeTab(searchParams.get("tab"), visibleTabs);
 
   const changeTab = (next: string) => {
@@ -120,7 +123,9 @@ function SettingsContent() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <PageHeader title="Setări" description="Configurează spațiul de lucru și preferințele contului." />
+      {currentWorkspace ? (
+        <PageHeader title="Setări" description="Configurează spațiul de lucru și preferințele contului." />
+      ) : null}
 
       <Tabs value={tab} onValueChange={changeTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
@@ -188,19 +193,24 @@ function GeneralSettings() {
       toast({ title: "Mod demo", description: "Modificarea rămâne izolată și nu este persistentă.", variant: "info" });
       return;
     }
-    if (!currentWorkspace || !bootstrap) return;
+    if (!user) return;
     setSaving(true);
     try {
-      await Promise.all([
+      const operations: Array<Promise<unknown>> = [
         weddingOsApi.updateProfile(firstName, lastName),
-        weddingOsApi.updateWorkspace(currentWorkspace.id, {
-          title: workspaceName,
-          location: city || null,
-          weddingDate: weddingDate || null,
-          currency,
-          version: bootstrap.workspace.version,
-        }),
-      ]);
+      ];
+      if (currentWorkspace && bootstrap) {
+        operations.push(
+          weddingOsApi.updateWorkspace(currentWorkspace.id, {
+            title: workspaceName,
+            location: city || null,
+            weddingDate: weddingDate || null,
+            currency,
+            version: bootstrap.workspace.version,
+          }),
+        );
+      }
+      await Promise.all(operations);
       await refresh();
       toast({ title: "Setări salvate", description: "Profilul și spațiul de lucru au fost actualizate.", variant: "success" });
     } catch (error) {
@@ -235,7 +245,7 @@ function GeneralSettings() {
           </CardContent>
         </Card>
 
-        <Card>
+        {currentWorkspace ? <Card>
           <CardHeader>
             <div>
               <CardTitle>Spațiu de lucru</CardTitle>
@@ -261,14 +271,14 @@ function GeneralSettings() {
               </Field>
             </div>
           </CardContent>
-        </Card>
+        </Card> : null}
 
         <div className="lg:col-span-2">
           <Button type="submit" loading={saving}>Salvează modificările</Button>
         </div>
       </form>
 
-      <Card className="border-danger/30">
+      {currentWorkspace ? <Card className="border-danger/30">
         <CardHeader>
           <div>
             <CardTitle>Zonă sensibilă</CardTitle>
@@ -284,9 +294,9 @@ function GeneralSettings() {
             <Trash2 className="size-3.5" aria-hidden />Șterge
           </Button>
         </CardContent>
-      </Card>
+      </Card> : null}
 
-      <ConfirmDialog
+      {currentWorkspace ? <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={() => {
@@ -298,7 +308,7 @@ function GeneralSettings() {
         confirmLabel="Șterge definitiv"
         requireTypedConfirmation="ȘTERGE"
         destructive
-      />
+      /> : null}
     </div>
   );
 }
@@ -1328,7 +1338,7 @@ function SecuritySettings() {
         <Card>
           <CardHeader><div><CardTitle className="flex items-center gap-2"><LockKeyhole className="size-4.5 text-brand" aria-hidden />Autentificare</CardTitle><CardDescription>Protejează accesul la datele evenimentului.</CardDescription></div></CardHeader>
           <CardContent className="divide-y divide-line">
-            <div className="pb-4"><Switch checked={false} disabled label="Verificare în doi pași" description="Fundația MFA există, dar activarea pentru conturile couple este oprită prin feature flag în Slice 1." /></div>
+            <div className="pb-4"><Switch checked={false} disabled label="Verificare în doi pași" description="Activarea pentru acest tip de cont nu este disponibilă încă." /></div>
             <div className="py-4"><Switch checked={securityEmail} onCheckedChange={(checked) => void changeSecurityEmail(checked)} label="Alerte de securitate prin e-mail" description="Primește alerte pentru autentificări și modificări sensibile." /></div>
             <div className="flex items-center justify-between gap-4 pt-4"><div><p className="text-sm font-medium text-ink">Parolă</p><p className="text-xs text-muted">Schimbarea parolei revocă toate sesiunile active</p></div><Button variant="outline" size="sm" onClick={() => void requestPasswordChange()}><KeyRound className="size-3.5" aria-hidden />Schimbă</Button></div>
           </CardContent>
@@ -1349,9 +1359,9 @@ function SecuritySettings() {
       <Card className="h-fit">
         <CardHeader><div><CardTitle>Date și confidențialitate</CardTitle><CardDescription>Ai control asupra datelor contului.</CardDescription></div></CardHeader>
         <CardContent className="space-y-2">
-          <button type="button" disabled title="Disponibil într-o etapă viitoare" className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-muted opacity-60">
+          <Link href="/settings?tab=privacy" className="flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-muted transition-colors hover:bg-subtle hover:text-ink">
             <Download className="size-4 text-faint" aria-hidden /><span className="flex-1">Exportă datele contului</span><ChevronRight className="size-4 text-faint" aria-hidden />
-          </button>
+          </Link>
           <button type="button" disabled title="Disponibil într-o etapă viitoare" className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-muted opacity-60">
             <ShieldCheck className="size-4 text-faint" aria-hidden /><span className="flex-1">Vezi jurnalul de acces</span><ChevronRight className="size-4 text-faint" aria-hidden />
           </button>

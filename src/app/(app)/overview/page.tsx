@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import type { PlanningDashboard } from "@weddingos/contracts";
+import type {
+  OnboardingDraftResource,
+  PlanningDashboard,
+} from "@weddingos/contracts";
 import {
   AlertTriangle,
   Armchair,
@@ -263,10 +266,12 @@ function demoDashboard(
 export default function OverviewPage() {
   const router = useRouter();
   const shell = useShell();
-  const { currentWorkspace, demoMode } = useWorkspace();
+  const { currentWorkspace, demoMode, bootstrap } = useWorkspace();
   const [dashboard, setDashboard] = React.useState<OverviewDashboard | null>(
     null,
   );
+  const [onboarding, setOnboarding] =
+    React.useState<OnboardingDraftResource | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
 
@@ -275,21 +280,34 @@ export default function OverviewPage() {
     setLoading(true);
     setError("");
     try {
-      setDashboard(
-        demoMode
-          ? demoDashboard(
-              currentWorkspace.title,
-              currentWorkspace.weddingDate,
-              currentWorkspace.location,
-            )
-          : await weddingOsApi.dashboard(currentWorkspace.id),
-      );
+      if (demoMode) {
+        setDashboard(
+          demoDashboard(
+            currentWorkspace.title,
+            currentWorkspace.weddingDate,
+            currentWorkspace.location,
+          ),
+        );
+        setOnboarding(null);
+      } else {
+        const canReadOnboarding =
+          bootstrap?.membership.capabilities.includes("workspace.update") ??
+          false;
+        const [nextDashboard, nextOnboarding] = await Promise.all([
+          weddingOsApi.dashboard(currentWorkspace.id),
+          canReadOnboarding
+            ? weddingOsApi.onboarding(currentWorkspace.id)
+            : Promise.resolve(null),
+        ]);
+        setDashboard(nextDashboard);
+        setOnboarding(nextOnboarding);
+      }
     } catch (caught) {
       setError(apiErrorMessage(caught));
     } finally {
       setLoading(false);
     }
-  }, [currentWorkspace, demoMode]);
+  }, [bootstrap, currentWorkspace, demoMode]);
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
       void load();
@@ -331,6 +349,62 @@ export default function OverviewPage() {
     }).format(minor / 100);
   const countStatuses = (statuses: Record<string, number>) =>
     Object.values(statuses).reduce((total, count) => total + count, 0);
+  const capabilities = new Set<string>(
+    bootstrap?.membership.capabilities ?? [],
+  );
+  const canGuideSetup = [
+    "workspace.update",
+    "planning.write",
+    "budget.write",
+    "guest.write",
+    "invitation.write",
+  ].some((capability) => capabilities.has(capability));
+  const setupSteps = [
+    {
+      label: "Detaliile nunții",
+      description: "Cuplu, dată, locație și preferințe",
+      complete: demoMode || onboarding?.status === "ready",
+      href: "/onboarding",
+      action: "Completează detaliile",
+      capability: "workspace.update",
+    },
+    {
+      label: "Planul nunții",
+      description: "Sarcini și termene verificate de tine",
+      complete: planning.totalTasks > 0,
+      href: "/plan?generate=1",
+      action: "Creează planul",
+      capability: "planning.write",
+    },
+    {
+      label: "Bugetul",
+      description: "Țintă, categorii și cheltuieli",
+      complete: dashboard.commercial.budget.configured,
+      href: "/budget",
+      action: "Configurează bugetul",
+      capability: "budget.write",
+    },
+    {
+      label: "Lista de invitați",
+      description: "Familii, persoane și date de contact",
+      complete: dashboard.guestCrm.activeGuests > 0,
+      href: "/guests",
+      action: "Adaugă invitații",
+      capability: "guest.write",
+    },
+    {
+      label: "Invitația",
+      description: "Design, publicare și livrare controlată",
+      complete: dashboard.guestCrm.invited > 0,
+      href: "/invitations",
+      action: "Pregătește invitația",
+      capability: "invitation.write",
+    },
+  ];
+  const nextSetupStep = setupSteps.find(
+    (step) => !step.complete && capabilities.has(step.capability),
+  );
+  const completedSetupSteps = setupSteps.filter((step) => step.complete).length;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
@@ -362,7 +436,7 @@ export default function OverviewPage() {
             <Badge variant="warning">Dată flexibilă</Badge>
           )
         }
-        actions={
+        actions={completedSetupSteps === setupSteps.length ? (
           <>
             <Button
               variant="outline"
@@ -377,8 +451,64 @@ export default function OverviewPage() {
               Sarcină
             </Button>
           </>
-        }
+        ) : undefined}
       />
+
+      {canGuideSetup && completedSetupSteps < setupSteps.length ? (
+        <section className="overflow-hidden rounded-2xl border border-brand/20 bg-surface shadow-card" aria-labelledby="guided-start-title">
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="brand">De aici începi</Badge>
+                <span className="text-xs font-medium text-muted">
+                  {completedSetupSteps} din {setupSteps.length} repere pregătite
+                </span>
+              </div>
+              <h2 id="guided-start-title" className="mt-3 font-brand text-2xl font-semibold tracking-[-0.02em] text-ink">
+                Un singur pas important acum, restul rămâne la îndemână.
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
+                Urmează reperele în ordinea de mai jos. Sarbato păstrează toate modulele, dar îți arată întâi ce deblochează următoarea etapă.
+              </p>
+              <ol className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5" aria-label="Pașii de pornire ai organizării">
+                {setupSteps.map((step, index) => (
+                  <li key={step.href} className={`rounded-xl border p-3 ${step.complete ? "border-success/25 bg-success-soft/35" : step === nextSetupStep ? "border-brand/35 bg-brand-softer" : "border-line bg-subtle/45"}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${step.complete ? "bg-success text-white" : step === nextSetupStep ? "bg-brand text-on-brand" : "bg-surface text-muted"}`}>
+                        {step.complete ? <CheckCircle2 className="size-3.5" aria-hidden /> : index + 1}
+                      </span>
+                      <span className="text-sm font-semibold text-ink">{step.label}</span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted">{step.description}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            {nextSetupStep ? (
+              <div className="flex items-center border-t border-line bg-brand-softer/65 p-5 lg:w-72 lg:border-l lg:border-t-0 lg:p-6">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-brand">Următorul pas</p>
+                  <p className="mt-2 font-brand text-xl font-semibold text-ink">{nextSetupStep.label}</p>
+                  <p className="mt-1 text-sm leading-6 text-muted">{nextSetupStep.description}</p>
+                  <Button className="mt-4 w-full" onClick={() => router.push(nextSetupStep.href)}>
+                    {nextSetupStep.action}
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {completedSetupSteps < setupSteps.length ? (
+        <div className="pt-1">
+          <h2 className="font-brand text-xl font-semibold text-ink">Toate modulele evenimentului</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Le poți deschide oricând. Reperele de mai sus îți arată doar ordinea recomandată pentru pornire.
+          </p>
+        </div>
+      ) : null}
 
       <EventThread
         items={[
@@ -490,7 +620,7 @@ export default function OverviewPage() {
             </Button>
           </div>
         </section>
-      ) : (
+      ) : planning.totalTasks > 0 ? (
         <EmptyState
           icon={Sparkles}
           title="Nu există încă o acțiune recomandată"
@@ -500,7 +630,7 @@ export default function OverviewPage() {
             onClick: () => router.push("/plan"),
           }}
         />
-      )}
+      ) : null}
 
       {weddingDay ? (
         <Card

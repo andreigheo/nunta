@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasDependencyCycle,
   nextBestAction,
+  onboardingBudgetProjection,
   resolveTransition,
 } from "../src/planning/planning.service";
 
@@ -79,5 +80,21 @@ describe("Slice 2B planning rules", () => {
     const action = nextBestAction([ordinary], [], [milestone]);
     expect(action?.type).toBe("milestone");
     expect(action?.reason).toMatch(/milestone/i);
+  });
+
+  it("projects the budget saved by onboarding without losing its currency", () => {
+    expect(
+      onboardingBudgetProjection({
+        confirmed: true,
+        budget: "185000",
+        currency: "EUR",
+      }),
+    ).toEqual({ targetTotalMinor: 18_500_000, currency: "EUR" });
+    expect(
+      onboardingBudgetProjection({ confirmed: false, budget: "185000" }),
+    ).toEqual({ targetTotalMinor: 0, currency: "RON" });
+    expect(
+      onboardingBudgetProjection({ confirmed: true, amount: "90000" }),
+    ).toEqual({ targetTotalMinor: 9_000_000, currency: "RON" });
   });
 });

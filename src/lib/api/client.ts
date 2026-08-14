@@ -15,6 +15,8 @@ import type {
   RegisterRequest,
   RegisterResponse,
   SessionCreated,
+  MagicLinkSessionCreated,
+  PasswordResetResponse,
   SessionSummary,
   TeamInvitation,
   TeamList,
@@ -85,7 +87,11 @@ import type {
   VerifiedResponse,
   WorkspaceCreativeState,
 } from "@weddingos/contracts";
-import { classifyApiProblem, isDemoCookieHeader } from "./transport-policy";
+import {
+  classifyApiProblem,
+  isDemoCookieHeader,
+  type ApiProblemPolicy,
+} from "./transport-policy";
 
 export { classifyApiProblem } from "./transport-policy";
 export type { ApiProblemPolicy } from "./transport-policy";
@@ -118,6 +124,7 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   idempotencyKey?: string;
   ifMatch?: number;
+  problemPolicy?: ApiProblemPolicy;
 };
 
 let csrfToken: string | null = null;
@@ -217,7 +224,8 @@ async function request<T>(
         new CustomEvent("weddingos:api-problem", {
           detail: {
             problem: error.problem,
-            policy: classifyApiProblem(error.status),
+            policy:
+              options.problemPolicy ?? classifyApiProblem(error.status),
           },
         }),
       );
@@ -981,27 +989,36 @@ export const weddingOsApi = {
     request<SessionCreated>("/auth/sessions", {
       method: "POST",
       body: { email, password, remember },
+      problemPolicy: "inline",
     }),
-  logout: () => request<void>("/auth/session", { method: "DELETE" }),
-  requestPasswordReset: (email: string) =>
+  logout: () =>
+    request<void>("/auth/session", {
+      method: "DELETE",
+      problemPolicy: "inline",
+    }),
+  requestPasswordReset: (email: string, returnTo?: string | null) =>
     request<{ accepted: true }>("/auth/password-reset-requests", {
       method: "POST",
-      body: { email },
+      body: { email, returnTo: returnTo ?? undefined },
+      problemPolicy: "inline",
     }),
   resetPassword: (token: string, password: string) =>
-    request<{ reset: true }>("/auth/password-resets", {
+    request<PasswordResetResponse>("/auth/password-resets", {
       method: "POST",
       body: { token, password },
+      problemPolicy: "inline",
     }),
-  requestMagicLink: (email: string) =>
+  requestMagicLink: (email: string, returnTo?: string | null) =>
     request<{ accepted: true }>("/auth/magic-link-requests", {
       method: "POST",
-      body: { email },
+      body: { email, returnTo: returnTo ?? undefined },
+      problemPolicy: "inline",
     }),
   exchangeMagicLink: (token: string) =>
-    request<SessionCreated>("/auth/magic-link-exchanges", {
+    request<MagicLinkSessionCreated>("/auth/magic-link-exchanges", {
       method: "POST",
       body: { token },
+      problemPolicy: "inline",
     }),
   me: () => request<CurrentUser>("/me"),
   updateProfile: (firstName: string, lastName: string) =>
@@ -1113,13 +1130,14 @@ export const weddingOsApi = {
   acceptInvitation: (token: string) =>
     request<{ workspaceId: string; membershipId: string }>(
       `/team-invitations/${encodeURIComponent(token)}/accept`,
-      { method: "POST" },
+      { method: "POST", problemPolicy: "inline" },
     ),
   declineInvitation: (token: string) =>
     request<{ declined: true }>(
       `/team-invitations/${encodeURIComponent(token)}/decline`,
       {
         method: "POST",
+        problemPolicy: "inline",
       },
     ),
   vendorInvitationPreview: (token: string) =>
@@ -1130,18 +1148,27 @@ export const weddingOsApi = {
       roleName: string;
       expiresAt: string;
       version: number;
-    }>("/vendor-invitations/preview", { method: "POST", body: { token } }),
+    }>("/vendor-invitations/preview", {
+      method: "POST",
+      body: { token },
+      problemPolicy: "inline",
+    }),
   acceptVendorInvitation: (token: string) =>
     request<{
       accepted: true;
       invitationId: string;
       vendorOrganizationId: string;
       membershipId: string;
-    }>("/vendor-invitations/accept", { method: "POST", body: { token } }),
+    }>("/vendor-invitations/accept", {
+      method: "POST",
+      body: { token },
+      problemPolicy: "inline",
+    }),
   declineVendorInvitation: (token: string) =>
     request<{ declined: true }>("/vendor-invitations/decline", {
       method: "POST",
       body: { token },
+      problemPolicy: "inline",
     }),
   resendInvitation: (workspaceId: string, invitationId: string) =>
     request<TeamInvitation>(
@@ -1237,7 +1264,7 @@ export const weddingOsApi = {
     request<{
       completed: true;
       planGeneration: "not_started";
-      message: "Date salvate. Generarea planului urmează în etapa următoare.";
+      message: "Date salvate. Pregătim propunerea planului tău.";
       jobId: string;
     }>(`/workspaces/${encodeURIComponent(workspaceId)}/onboarding/complete`, {
       method: "POST",

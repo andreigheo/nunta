@@ -179,6 +179,15 @@ export class OnboardingService {
             version: { increment: 1 },
           },
         });
+        await materializeWeddingProfile(
+          transaction,
+          userId,
+          workspaceId,
+          draft.couple,
+          draft.dateEvents,
+          draft.location,
+          draft.budget,
+        );
         await materializeWeddingEvents(
           transaction,
           workspaceId,
@@ -201,9 +210,9 @@ export class OnboardingService {
             notification: {
               recipientUserId: userId,
               kind: "onboarding",
-              title: "Onboarding finalizat",
-              body: "Datele nunții au fost salvate. Generarea planului urmează într-o etapă viitoare.",
-              actionUrl: "/overview",
+              title: "Configurarea nunții este gata",
+              body: "Datele au fost salvate. Următorul pas este propunerea planului nunții.",
+              actionUrl: "/plan?generate=1",
             },
             activity: {
               category: "onboarding",
@@ -227,8 +236,7 @@ function completion(jobId: string) {
   return {
     completed: true as const,
     planGeneration: "not_started" as const,
-    message:
-      "Date salvate. Generarea planului urmează în etapa următoare." as const,
+    message: "Date salvate. Pregătim propunerea planului tău." as const,
     jobId,
   };
 }
@@ -273,6 +281,78 @@ function asRecord(value: Prisma.JsonValue): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+async function materializeWeddingProfile(
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  workspaceId: string,
+  coupleValue: Prisma.JsonValue,
+  dateEventsValue: Prisma.JsonValue,
+  locationValue: Prisma.JsonValue,
+  budgetValue: Prisma.JsonValue,
+) {
+  const couple = asRecord(coupleValue);
+  const dateEvents = asRecord(dateEventsValue);
+  const location = asRecord(locationValue);
+  const budget = asRecord(budgetValue);
+  const title = onboardingText(couple.title, 160);
+  const partnerOneName = onboardingText(couple.partnerOne, 100);
+  const partnerTwoName = onboardingText(couple.partnerTwo, 100);
+  const weddingDate = onboardingDate(dateEvents.date ?? dateEvents.exactDate);
+  const profileLocation = onboardingText(
+    location.venueAddress ?? location.venue ?? location.city ?? location.region,
+    160,
+  );
+  const currency =
+    typeof budget.currency === "string" && /^[A-Z]{3}$/.test(budget.currency)
+      ? budget.currency
+      : null;
+
+  if (title || currency) {
+    await transaction.workspace.update({
+      where: { id: workspaceId },
+      data: {
+        ...(title ? { title } : {}),
+        ...(currency ? { currency } : {}),
+        updatedById: userId,
+        version: { increment: 1 },
+      },
+    });
+  }
+  await transaction.weddingProfile.upsert({
+    where: { workspaceId },
+    create: {
+      workspaceId,
+      partnerOneName,
+      partnerTwoName,
+      weddingDate,
+      location: profileLocation,
+      createdById: userId,
+      updatedById: userId,
+    },
+    update: {
+      partnerOneName,
+      partnerTwoName,
+      weddingDate,
+      location: profileLocation,
+      updatedById: userId,
+      version: { increment: 1 },
+    },
+  });
+}
+
+function onboardingText(value: unknown, maximumLength: number) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, maximumLength)
+    : null;
+}
+
+function onboardingDate(value: unknown) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 async function materializeWeddingEvents(

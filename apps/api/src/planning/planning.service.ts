@@ -2179,13 +2179,9 @@ export class PlanningService {
         const onboardingGuests = record(onboarding?.guests);
         const estimatedValue = Number(onboardingGuests.guestCount);
         const onboardingBudget = record(onboarding?.budget);
-        const onboardingBudgetAmount = Number(onboardingBudget.amount);
-        const onboardingTargetMinor =
-          onboardingBudget.confirmed === true &&
-          Number.isFinite(onboardingBudgetAmount) &&
-          onboardingBudgetAmount >= 0
-            ? Math.round(onboardingBudgetAmount * 100)
-            : 0;
+        const onboardingProjection =
+          onboardingBudgetProjection(onboardingBudget);
+        const onboardingTargetMinor = onboardingProjection.targetTotalMinor;
         const guestCrm = {
           estimatedGuests:
             Number.isFinite(estimatedValue) && estimatedValue >= 0
@@ -2425,9 +2421,9 @@ export class PlanningService {
             entry.dueAt < now && !["PAID", "CANCELLED"].includes(entry.status),
         );
         const commercial = {
-          currency: budgetPlan?.currency ?? "RON",
+          currency: budgetPlan?.currency ?? onboardingProjection.currency,
           budget: {
-            configured: Boolean(budgetPlan) || onboardingTargetMinor > 0,
+            configured: Boolean(budgetPlan),
             targetTotalMinor: budgetPlan
               ? safeMinor(budgetPlan.targetTotalMinor)
               : onboardingTargetMinor,
@@ -5293,6 +5289,25 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+export function onboardingBudgetProjection(value: unknown): {
+  targetTotalMinor: number;
+  currency: string;
+} {
+  const budget = record(value);
+  const amount = Number(budget.budget ?? budget.amount);
+  const currency =
+    typeof budget.currency === "string" && /^[A-Z]{3}$/.test(budget.currency)
+      ? budget.currency
+      : "RON";
+  return {
+    targetTotalMinor:
+      budget.confirmed === true && Number.isFinite(amount) && amount >= 0
+        ? Math.round(amount * 100)
+        : 0,
+    currency,
+  };
 }
 function jsonStrings(value: unknown): string[] {
   return Array.isArray(value)

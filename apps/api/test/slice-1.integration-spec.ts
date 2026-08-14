@@ -683,6 +683,7 @@ describe.sequential("Slice 1 API integration and isolation", () => {
 
   it("resets a password once and immediately revokes every existing session", async () => {
     const account = await createVerifiedAccount("password-reset");
+    const returnTo = "/vendor-invitation?token=password-reset-return";
     const secondAgent = request.agent(application.getHttpServer());
     await secondAgent
       .post("/api/v1/auth/sessions")
@@ -697,17 +698,18 @@ describe.sequential("Slice 1 API integration and isolation", () => {
     await request(application.getHttpServer())
       .post("/api/v1/auth/password-reset-requests")
       .set("Origin", origin)
-      .send({ email: account.email })
+      .send({ email: account.email, returnTo })
       .expect(202);
     const token = await waitForEmailToken(
       account.email,
       "Resetează parola Sarbato",
     );
-    await request(application.getHttpServer())
+    const reset = await request(application.getHttpServer())
       .post("/api/v1/auth/password-resets")
       .set("Origin", origin)
       .send({ token, password: "WeddingOS2027!" })
       .expect(200);
+    expect(reset.body.data).toEqual({ reset: true, returnTo });
     await account.agent.get("/api/v1/me").expect(401);
     await secondAgent.get("/api/v1/me").expect(401);
     const replay = await request(application.getHttpServer())
@@ -716,6 +718,31 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .send({ token, password: "WeddingOS2028!" })
       .expect(400);
     expect(replay.body.code).toBe("TOKEN_INVALID");
+  }, 180_000);
+
+  it("preserves the requested destination through a magic-link session", async () => {
+    const account = await createVerifiedAccount("magic-link-return");
+    const returnTo = "/invitation?token=magic-link-return";
+    await request(application.getHttpServer())
+      .post("/api/v1/auth/magic-link-requests")
+      .set("Origin", origin)
+      .send({ email: account.email, returnTo })
+      .expect(202);
+    const token = await waitForEmailToken(
+      account.email,
+      "Linkul tău magic Sarbato",
+    );
+    const magicAgent = request.agent(application.getHttpServer());
+    const exchanged = await magicAgent
+      .post("/api/v1/auth/magic-link-exchanges")
+      .set("Origin", origin)
+      .send({ token })
+      .expect(200);
+    expect(exchanged.body.data).toMatchObject({
+      authenticated: true,
+      returnTo,
+    });
+    await magicAgent.get("/api/v1/me").expect(200);
   }, 180_000);
 
   it("lists two sessions, revokes one owned session, and preserves the other", async () => {
@@ -849,7 +876,12 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .set("If-Match", `"${first.body.data.version}"`)
       .send({
         currentStep: 8,
-        couple: { confirmed: true, partnerOne: "Ana", partnerTwo: "Mihai" },
+        couple: {
+          confirmed: true,
+          partnerOne: "Ana",
+          partnerTwo: "Mihai",
+          title: "Ana & Mihai",
+        },
         dateEvents: { confirmed: true, exactDate: "2027-09-12" },
         location: { confirmed: true, city: "Brașov" },
         guests: { confirmed: true, estimatedTotal: 160 },
@@ -931,6 +963,32 @@ describe.sequential("Slice 1 API integration and isolation", () => {
     expect(reloaded.body.data).toMatchObject({
       status: "ready",
       currentStep: 8,
+    });
+    expect(
+      await ownerDatabase.workspace.findUniqueOrThrow({
+        where: { id: workspaceId },
+        select: {
+          title: true,
+          currency: true,
+          weddingProfile: {
+            select: {
+              partnerOneName: true,
+              partnerTwoName: true,
+              weddingDate: true,
+              location: true,
+            },
+          },
+        },
+      }),
+    ).toMatchObject({
+      title: "Ana & Mihai",
+      currency: "RON",
+      weddingProfile: {
+        partnerOneName: "Ana",
+        partnerTwoName: "Mihai",
+        weddingDate: new Date("2027-09-12T00:00:00.000Z"),
+        location: "Brașov",
+      },
     });
     const notifications = await owner.agent
       .get(`/api/v1/workspaces/${workspaceId}/notifications`)

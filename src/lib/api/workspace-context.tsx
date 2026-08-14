@@ -157,7 +157,10 @@ export function WorkspaceProvider({
         );
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
-        router.replace("/session-expired");
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        router.replace(
+          `/session-expired?returnTo=${encodeURIComponent(returnTo)}`,
+        );
         return;
       }
       throw error;
@@ -199,11 +202,17 @@ export function WorkspaceProvider({
   );
 
   const logout = React.useCallback(async () => {
-    if (!demoMode) await weddingOsApi.logout();
-    document.cookie = "weddingos_demo=; Path=/; Max-Age=0; SameSite=Lax";
-    router.replace("/sign-in");
-    router.refresh();
-  }, [demoMode, router]);
+    try {
+      if (!demoMode) await weddingOsApi.logout();
+    } catch {
+      // The sign-in switch route clears even an expired or otherwise stale
+      // HttpOnly session cookie, so logout remains recoverable if the API call
+      // cannot complete.
+    } finally {
+      document.cookie = "weddingos_demo=; Path=/; Max-Age=0; SameSite=Lax";
+      window.location.assign("/sign-in?switch=1");
+    }
+  }, [demoMode]);
 
   return (
     <WorkspaceContext.Provider

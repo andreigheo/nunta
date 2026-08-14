@@ -15,9 +15,17 @@ export default function VerifyEmailPage() {
   const [code, setCode] = React.useState("");
   const [resent, setResent] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [resending, setResending] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState("");
   const [returnTo, setReturnTo] = React.useState<string | null>(null);
+  const [intent, setIntent] = React.useState<string | null>(null);
+
+  const clearPendingRegistration = React.useCallback(() => {
+    sessionStorage.removeItem("weddingos.pendingVerificationEmail");
+    sessionStorage.removeItem("sarbato.registrationIntent");
+    sessionStorage.removeItem("sarbato.registrationReturnTo");
+  }, []);
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -28,13 +36,24 @@ export default function VerifyEmailPage() {
         params.get("returnTo") ?? sessionStorage.getItem("sarbato.registrationReturnTo"),
       );
       setReturnTo(nextReturnTo);
+      const nextIntent =
+        params.get("intent") ??
+        sessionStorage.getItem("sarbato.registrationIntent");
+      setIntent(
+        nextIntent === "EVENT_ORGANIZER" ||
+          nextIntent === "SERVICE_PROVIDER" ||
+          nextIntent === "INVITED_MEMBER"
+          ? nextIntent
+          : null,
+      );
       setEmail(nextEmail);
       if (token) {
         setLoading(true);
         weddingOsApi
           .verifyEmail({ token })
           .then((result) => {
-            const destination = result.returnTo ?? nextReturnTo;
+            clearPendingRegistration();
+            const destination = result.returnTo;
             const params = new URLSearchParams({ verified: "1" });
             if (destination) params.set("returnTo", destination);
             router.replace(`/sign-in?${params.toString()}`);
@@ -44,7 +63,21 @@ export default function VerifyEmailPage() {
       }
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [router]);
+  }, [clearPendingRegistration, router]);
+
+  const changeEmailHref = React.useMemo(() => {
+    const params = new URLSearchParams();
+    if (returnTo) params.set("returnTo", returnTo);
+    if (intent) params.set("intent", intent);
+    const query = params.toString();
+    return `/create-account${query ? `?${query}` : ""}`;
+  }, [intent, returnTo]);
+  const signInHref = returnTo
+    ? `/sign-in?returnTo=${encodeURIComponent(returnTo)}`
+    : "/sign-in";
+  const forgotPasswordHref = returnTo
+    ? `/forgot-password?returnTo=${encodeURIComponent(returnTo)}`
+    : "/forgot-password";
 
   return (
     <div className="text-center">
@@ -66,7 +99,8 @@ export default function VerifyEmailPage() {
           setLoading(true);
           try {
             const result = await weddingOsApi.verifyEmail({ email, code });
-            const destination = result.returnTo ?? returnTo;
+            clearPendingRegistration();
+            const destination = result.returnTo;
             const params = new URLSearchParams({ verified: "1" });
             if (destination) params.set("returnTo", destination);
             router.push(`/sign-in?${params.toString()}`);
@@ -87,7 +121,7 @@ export default function VerifyEmailPage() {
           className="h-13 text-center text-xl font-semibold tracking-[0.4em] tabular-nums"
           aria-label="Cod de verificare din 6 cifre"
         />
-        <Button type="submit" size="lg" className="w-full" loading={loading} disabled={code.length < 6}>
+        <Button type="submit" size="lg" className="w-full" loading={loading} disabled={!email || code.length < 6}>
           Confirmă emailul
         </Button>
       </form>
@@ -95,24 +129,39 @@ export default function VerifyEmailPage() {
       <div className="mt-5 space-y-2 text-sm">
         <button
           type="button"
+          disabled={!email || loading || resending}
           onClick={async () => {
             setError("");
+            setResending(true);
             try {
               await weddingOsApi.requestEmailVerification(email);
               setResent(true);
             } catch (cause) {
               setError(apiErrorMessage(cause));
+            } finally {
+              setResending(false);
             }
           }}
           className="inline-flex min-h-11 cursor-pointer items-center px-2 font-medium text-brand hover:underline"
         >
-          Retrimite emailul
+          {resending ? "Se retrimite…" : "Retrimite emailul"}
         </button>
         <p className="text-muted">
           Adresă greșită?{" "}
-          <Link href="/create-account" className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
+          <Link href={changeEmailHref} className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
             Schimbă emailul
           </Link>
+        </p>
+        <p className="text-muted">
+          Este posibil să ai deja cont?{" "}
+          <Link href={signInHref} className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
+            Conectează-te
+          </Link>{" "}
+          sau{" "}
+          <Link href={forgotPasswordHref} className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
+            resetează parola
+          </Link>
+          .
         </p>
       </div>
     </div>

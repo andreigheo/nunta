@@ -14,17 +14,19 @@ export default function MagicLinkPage() {
     const timeoutId = window.setTimeout(() => {
       const token = new URLSearchParams(window.location.search).get("token");
       if (!token) {
+        setError("Linkul magic este incomplet. Solicită unul nou din pagina de conectare.");
         setLoading(false);
         return;
       }
       weddingOsApi
         .exchangeMagicLink(token)
-        .then(async () => {
+        .then(async (session) => {
           const [currentUser, workspaces] = await Promise.all([
             weddingOsApi.me(),
             weddingOsApi.workspaces(),
           ]);
           const destination = destinationAfterAuthentication({
+            returnTo: session.returnTo,
             registrationIntent: currentUser.preferences.registrationIntent,
             workspaceCount: workspaces.length,
             hasVendorOrganizations: currentUser.contexts.vendorOrganizations,
@@ -47,7 +49,7 @@ export default function MagicLinkPage() {
         <Wand2 className="size-7" aria-hidden />
       </span>
       <AuthHeading
-        title={loading ? "Verificăm linkul magic" : "Verifică-ți inboxul"}
+        title={loading ? "Verificăm linkul magic" : error ? "Linkul nu poate fi folosit" : "Conectare finalizată"}
         subtitle="Linkul magic este valabil 15 minute și creează o sesiune securizată, fără parolă."
       />
       {loading && <div className="mb-4 text-left"><AuthInfo message="Conectarea este în curs…" /></div>}

@@ -4,6 +4,8 @@ import {
   createTeamInvitationRequestSchema,
   defaultRoleTemplates,
   moneySchema,
+  magicLinkRequestSchema,
+  passwordResetRequestSchema,
   registerRequestSchema,
   semanticEvents,
   isOnboardingComplete,
@@ -108,6 +110,33 @@ describe("Slice 0/1 foundation", () => {
       registerRequestSchema.parse({
         ...parsed,
         returnTo: "/%2F%2Fevil.example/provider",
+      }),
+    ).toThrow();
+  });
+
+  it("accepts only safe internal continuation paths for recovery authentication", () => {
+    expect(
+      magicLinkRequestSchema.parse({
+        email: "ana@example.test",
+        returnTo: "/vendor-invitation?token=opaque",
+      }).returnTo,
+    ).toBe("/vendor-invitation?token=opaque");
+    expect(
+      passwordResetRequestSchema.parse({
+        email: "ana@example.test",
+        returnTo: "/invitation?token=opaque",
+      }).returnTo,
+    ).toBe("/invitation?token=opaque");
+    expect(() =>
+      magicLinkRequestSchema.parse({
+        email: "ana@example.test",
+        returnTo: "https://evil.example/steal",
+      }),
+    ).toThrow();
+    expect(() =>
+      passwordResetRequestSchema.parse({
+        email: "ana@example.test",
+        returnTo: "/%2F%2Fevil.example/steal",
       }),
     ).toThrow();
   });

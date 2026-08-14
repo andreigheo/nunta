@@ -93,7 +93,18 @@ function WorkspaceSwitcher() {
 
 function NavGroupSection({ group }: { group: (typeof navGroups)[number] }) {
   const pathname = usePathname();
-  const [open, setOpen] = React.useState(true);
+  const containsActiveItem = group.items.some(
+    (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
+  );
+  const [open, setOpen] = React.useState(
+    containsActiveItem || group.id === "overview" || group.id === "planning",
+  );
+
+  React.useEffect(() => {
+    if (!containsActiveItem) return;
+    const timer = window.setTimeout(() => setOpen(true), 0);
+    return () => window.clearTimeout(timer);
+  }, [containsActiveItem]);
 
   return (
     <div>

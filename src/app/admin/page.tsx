@@ -177,12 +177,12 @@ export default function AdminPage() {
   };
 
   if (loading && !state) {
-    return <PortalShell role="Platform Admin" title="Centru de control" subtitle="Starea reală a platformei, accesibilă numai prin capabilități administrative." backHref="/sign-in" backLabel="Ieșire"><CardSkeleton lines={8} /></PortalShell>;
+    return <PortalShell role="Platform Admin" title="Centru de control" subtitle="Starea reală a platformei, accesibilă numai prin capabilități administrative." backHref="/start" backLabel="Cont și contexte"><CardSkeleton lines={8} /></PortalShell>;
   }
 
   if (error || !state) {
     return (
-      <PortalShell role="Platform Admin" title="Acces administrativ" subtitle="Această zonă necesită un grant activ pentru mediul curent." backHref="/sign-in" backLabel="Ieșire">
+      <PortalShell role="Platform Admin" title="Acces administrativ" subtitle="Această zonă necesită un grant activ pentru mediul curent." backHref="/start" backLabel="Cont și contexte">
         <Card><CardContent className="p-6"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-5 text-danger" /><div><p className="font-semibold text-ink">Acces refuzat sau serviciu indisponibil</p><p className="mt-1 text-sm text-muted">{error ?? "Datele administrative nu sunt disponibile."}</p><Button className="mt-4" variant="outline" onClick={() => void load()}><RefreshCw className="size-4" />Reîncearcă</Button></div></div></CardContent></Card>
       </PortalShell>
     );
@@ -196,8 +196,8 @@ export default function AdminPage() {
       role="Platform Admin"
       title="Centru de control"
       subtitle="Administrare, confidențialitate, securitate și operare pe date persistente."
-      backHref="/sign-in"
-      backLabel="Ieșire"
+      backHref="/start"
+      backLabel="Cont și contexte"
     >
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2"><Badge variant="info">{environmentLabel[state.dashboard.environment] ?? state.dashboard.environment}</Badge><Badge variant={state.system.status === "OPERATIONAL" ? "success" : "warning"} dot>{systemStatusLabel[state.system.status] ?? state.system.status}</Badge><Badge variant="warning">{readinessVerdictLabel[readiness.verdict] ?? readiness.verdict.replaceAll("_", " ")}</Badge></div>

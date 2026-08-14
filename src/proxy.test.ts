@@ -35,7 +35,7 @@ describe("authentication entry routing", () => {
     expect(response.cookies.get("weddingos_demo")?.maxAge).toBe(0);
   });
 
-  it("keeps the access-denied recovery redirect and clears stale state", () => {
+  it("keeps an authenticated session available on the access-denied recovery page", () => {
     const request = new NextRequest("http://localhost/access-denied", {
       headers: {
         cookie: "weddingos_session=stale; weddingos_demo=1",
@@ -44,12 +44,10 @@ describe("authentication entry routing", () => {
 
     const response = proxy(request);
 
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "http://localhost/sign-in?switch=1",
-    );
-    expect(response.cookies.get("weddingos_session")?.maxAge).toBe(0);
-    expect(response.cookies.get("weddingos_demo")?.maxAge).toBe(0);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.cookies.get("weddingos_session")).toBeUndefined();
+    expect(response.cookies.get("weddingos_demo")).toBeUndefined();
   });
 
   it("honors the configured production session cookie on protected routes", () => {

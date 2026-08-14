@@ -2,18 +2,25 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { Button, Field, Input } from "@/components/ui";
 import { AuthActionLink, AuthHeading, AuthInfo } from "@/components/auth/auth-bits";
 import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
+import { safeInternalPath } from "@/lib/account-routing";
 
 export default function ForgotPasswordPage() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState("");
   const [sent, setSent] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [formError, setFormError] = React.useState("");
+  const returnTo = safeInternalPath(searchParams.get("returnTo"));
+  const signInHref = returnTo
+    ? `/sign-in?returnTo=${encodeURIComponent(returnTo)}`
+    : "/sign-in";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +32,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setFormError("");
     try {
-      await weddingOsApi.requestPasswordReset(email);
+      await weddingOsApi.requestPasswordReset(email, returnTo);
       setSent(true);
     } catch (cause) {
       setFormError(apiErrorMessage(cause));
@@ -44,7 +51,7 @@ export default function ForgotPasswordPage() {
       {sent ? (
         <div className="space-y-4">
           <AuthInfo message={`Dacă există un cont pentru ${email}, cererea de livrare a linkului a fost pusă în coadă.`} />
-          <AuthActionLink href="/sign-in" variant="outline">
+          <AuthActionLink href={signInHref} variant="outline">
             Înapoi la conectare
           </AuthActionLink>
         </div>
@@ -62,7 +69,7 @@ export default function ForgotPasswordPage() {
 
       <p className="mt-5 text-center text-sm text-muted">
         Ți-ai amintit parola?{" "}
-        <Link href="/sign-in" className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline">
+        <Link href={signInHref} className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline">
           Înapoi la conectare
         </Link>
       </p>

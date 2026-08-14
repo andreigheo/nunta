@@ -139,7 +139,11 @@ export class AuthController {
     const input = parseWithSchema(passwordResetRequestSchema, body);
     return apiResponse(
       request,
-      await this.auth.requestPasswordReset(input.email, request),
+      await this.auth.requestPasswordReset(
+        input.email,
+        input.returnTo,
+        request,
+      ),
     );
   }
 
@@ -164,7 +168,7 @@ export class AuthController {
     const input = parseWithSchema(magicLinkRequestSchema, body);
     return apiResponse(
       request,
-      await this.auth.requestMagicLink(input.email, request),
+      await this.auth.requestMagicLink(input.email, input.returnTo, request),
     );
   }
 
@@ -177,15 +181,16 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const input = parseWithSchema(magicLinkExchangeSchema, body);
-    const session = await this.auth.exchangeMagicLink(input.token, request);
+    const result = await this.auth.exchangeMagicLink(input.token, request);
     response.cookie(
       this.sessions.cookieName,
-      session.rawToken,
-      this.sessions.cookieOptions(session.expiresAt),
+      result.session.rawToken,
+      this.sessions.cookieOptions(result.session.expiresAt),
     );
     return apiResponse(request, {
       authenticated: true as const,
-      sessionId: session.id,
+      sessionId: result.session.id,
+      returnTo: result.returnTo,
     });
   }
 }

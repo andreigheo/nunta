@@ -33,7 +33,7 @@ export default function AccessDeniedPage() {
         subtitle="Nu ai permisiunea de a vedea această pagină. Cere proprietarului spațiului de lucru să-ți extindă accesul."
       />
       <div className="space-y-2.5">
-        <AuthActionLink href="/overview">Înapoi la prezentare generală</AuthActionLink>
+        <AuthActionLink href="/start">Înapoi la cont și contexte</AuthActionLink>
         <Button
           variant="ghost"
           size="lg"

@@ -55,21 +55,22 @@ export interface NavGroup {
 export const navGroups: NavGroup[] = [
   {
     id: "overview",
-    label: "Privire de ansamblu",
+    label: "Începe aici",
     items: [
       {
-        label: "Prezentare generală",
+        label: "Acasă",
         href: "/overview",
         icon: LayoutDashboard,
         capability: "planning.read",
       },
+      { label: "Planul nunții", href: "/plan", icon: ListChecks, capability: "planning.read" },
+      { label: "Buget", href: "/budget", icon: Wallet, capability: "budget.read" },
     ],
   },
   {
     id: "planning",
-    label: "Planificare",
+    label: "Program și progres",
     items: [
-      { label: "Plan", href: "/plan", icon: ListChecks, capability: "planning.read" },
       { label: "Calendar", href: "/calendar", icon: CalendarDays, capability: "calendar.read" },
       { label: "Cronologie", href: "/timeline", icon: Timer, capability: "timeline.read" },
     ],
@@ -103,7 +104,6 @@ export const navGroups: NavGroup[] = [
     id: "finance",
     label: "Finanțe & Documente",
     items: [
-      { label: "Buget", href: "/budget", icon: Wallet, capability: "budget.read" },
       { label: "Plăți", href: "/payments", icon: PieChart, capability: "payment.read" },
       { label: "Contracte", href: "/contracts", icon: FileSignature, capability: "contract.read", minimumPlan: "PLUS" },
       { label: "Documente", href: "/documents", icon: FileText, capability: "document.read", minimumPlan: "PLUS" },
