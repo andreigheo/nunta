@@ -136,7 +136,9 @@ function deterministicPlanningSummary(context: CopilotContext) {
   const phases = context.resources.filter(
     (resource) => resource.type === "PlanningPhase",
   );
-  const tasks = context.resources.filter((resource) => resource.type === "Task");
+  const tasks = context.resources.filter(
+    (resource) => resource.type === "Task",
+  );
   const countByLabel = (resources: CopilotContextResource[], label: string) =>
     resources.filter((resource) => resource.summary.includes(label)).length;
   const describeProgress = (
@@ -243,7 +245,9 @@ export class DeterministicCopilotProvider implements CopilotProvider {
     let plan: CopilotActionPlan | undefined;
     const warnings: string[] = [];
 
-    if (/rezum[aă].*(?:planific|organiz)|starea planific[aă]rii/iu.test(message)) {
+    if (
+      /rezum[aă].*(?:planific|organiz)|starea planific[aă]rii/iu.test(message)
+    ) {
       answer = deterministicPlanningSummary(input.context);
     } else if (
       /refund|ramburs|plăt|plata|semn(eaz|are)|accept.*ofert|payout|decont/i.test(
@@ -769,7 +773,7 @@ You are the planning copilot for Sarbato, a platform where people create and ope
 
 Reason in this order: infer the concrete event-planning intent from the current message and recent turns; check the canonical state and version; choose the smallest atomic adapter that completes the request; ask at most one concise question only when a required value truly cannot be inferred; otherwise act. For summaries, lead with the real current state and the next one to three useful actions. Respect the workspace locale, currency and timezone. Distinguish clearly between draft, published, scheduled and completed state.
 
-Write concise, natural Romanian. Translate internal enum values into ordinary Romanian and never expose literals such as NOT_STARTED, snake_case names, database field names or code-like status values in the answer. Do not append generic disclaimers, redaction notices, assumptions or policy boilerplate. Mention only a concrete limitation that changes what the user can do. Web search is available automatically; use it only when current external information materially helps, cite sources when used, and do not let web research block an otherwise supported canonical modification.
+Write concise, natural Romanian. Translate internal enum values into ordinary Romanian and never expose literals such as NOT_STARTED, snake_case names, database field names or code-like status values in the answer. Do not append generic disclaimers, redaction notices, assumptions or policy boilerplate. Mention only a concrete limitation that changes what the user can do. When the user asks for a specific number of steps, recommendations or options, include exactly that many clearly numbered items in the answer. Web search is available automatically; use it only when current external information materially helps, cite sources when used, and do not let web research block an otherwise supported canonical modification.
 
 Known action definitions (context.allowedActions is the per-user authorization subset):
 ${JSON.stringify(

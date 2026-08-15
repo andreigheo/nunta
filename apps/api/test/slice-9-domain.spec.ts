@@ -954,6 +954,9 @@ describe("Slice 9 intelligence contracts", () => {
     expect(body.messages[0]?.content).toContain('"CREATE_TASK"');
     expect(body.messages[0]?.content).not.toContain('"UPSERT_BUDGET_PLAN"');
     expect(body.messages[0]?.content).toContain('"priority"');
+    expect(body.messages[0]?.content).toContain(
+      "include exactly that many clearly numbered items",
+    );
     expect(body.messages[1]?.content).toContain(
       "Fotograful este următoarea prioritate",
     );

@@ -74,6 +74,7 @@ import {
   type DomainEventJob,
   type EmailCommand,
   type CopilotContextResource,
+  type CopilotProviderOutput,
   type OutboxConsumerName,
   type PlanGenerationInput,
   type PlanGenerationOutput,
@@ -6486,30 +6487,45 @@ async function processCopilotRun(
             environment.COPILOT_PROVIDER_API_KEY,
           )
       : new DeterministicCopilotProvider();
-  const generated = cachedResearch
+  const explicitMemoryRequest = extractExplicitCopilotMemory(
+    prepared.message.content,
+  );
+  const generated: CopilotProviderOutput = explicitMemoryRequest
     ? {
-        answer: cachedResearch.research.answer,
-        provider: cachedResearch.research.provider,
-        model: cachedResearch.research.model,
+        answer: "",
+        provider: "deterministic-memory",
+        model: null,
         fallbackUsed: false,
-        assumptions: [] as string[],
-        warnings: [
-          "Rezultat reutilizat din cache-ul verificabil al workspace-ului.",
-        ],
-        followUpSuggestions: ["Actualizează cercetarea web"],
+        assumptions: [],
+        warnings: [],
+        followUpSuggestions: [],
         sources: [],
-        webCitations: cachedResearch.citations.map((citation) => ({
-          url: citation.url,
-          title: citation.title,
-          excerpt: citation.excerpt,
-        })),
         usage: { inputUnits: 0, outputUnits: 0 },
       }
-    : await provider.run({
-        message: prepared.message.content,
-        context: prepared.context,
-        research: researchRequested,
-      });
+    : cachedResearch
+      ? {
+          answer: cachedResearch.research.answer,
+          provider: cachedResearch.research.provider,
+          model: cachedResearch.research.model,
+          fallbackUsed: false,
+          assumptions: [] as string[],
+          warnings: [
+            "Rezultat reutilizat din cache-ul verificabil al workspace-ului.",
+          ],
+          followUpSuggestions: ["Actualizează cercetarea web"],
+          sources: [],
+          webCitations: cachedResearch.citations.map((citation) => ({
+            url: citation.url,
+            title: citation.title,
+            excerpt: citation.excerpt,
+          })),
+          usage: { inputUnits: 0, outputUnits: 0 },
+        }
+      : await provider.run({
+          message: prepared.message.content,
+          context: prepared.context,
+          research: researchRequested,
+        });
   return withPersistedContext(snapshot, async (transaction) => {
     const latest = await transaction.copilotRun.findFirst({
       where: {
@@ -6525,9 +6541,7 @@ async function processCopilotRun(
       );
     if (latest.status === "COMPLETED")
       return { runId, status: "completed", replayed: true };
-    const explicitMemory = extractExplicitCopilotMemory(
-      prepared.message.content,
-    );
+    const explicitMemory = explicitMemoryRequest;
     let memoryNotice = "";
     let rememberedMemoryId: string | null = null;
     if (explicitMemory) {
@@ -6595,7 +6609,9 @@ async function processCopilotRun(
         workspaceId: snapshot.workspace_id!,
         conversationId: latest.conversationId,
         role: "ASSISTANT",
-        content: `${generated.answer.trim()}${memoryNotice}`,
+        content: [generated.answer.trim(), memoryNotice.trim()]
+          .filter(Boolean)
+          .join(" "),
         metadata: {
           provider: generated.provider,
           model: generated.model,
