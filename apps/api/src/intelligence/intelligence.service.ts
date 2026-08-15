@@ -859,6 +859,11 @@ export class IntelligenceService {
     const replayKey = `copilot:${proposalId}:${actionId}`;
     const targetId = optionalString(payload.targetId);
     const targetVersion = Number(payload.targetVersion);
+    const optionalTargetVersion =
+      typeof payload.targetVersion === "number" &&
+      Number.isInteger(payload.targetVersion)
+        ? payload.targetVersion
+        : null;
 
     if (actionType === "CREATE_TASK") {
       const row = await this.planning.createTask(
@@ -937,7 +942,7 @@ export class IntelligenceService {
       const row = await this.commercial.upsertBudget(
         userId,
         workspaceId,
-        Number.isInteger(targetVersion) ? targetVersion : null,
+        optionalTargetVersion,
         replayKey,
         payload,
         correlationId,

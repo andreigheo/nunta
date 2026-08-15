@@ -177,6 +177,7 @@ export function AICopilot() {
   const [research, setResearch] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [requestError, setRequestError] = React.useState<string | null>(null);
   const [sourcesOpen, setSourcesOpen] = React.useState(false);
   const [view, setView] = React.useState<"conversation" | "memory">(
     "conversation",
@@ -385,6 +386,7 @@ export function AICopilot() {
       const content = text.trim();
       if (!content || !currentWorkspace || !conversationId || loading) return;
       setInput("");
+      setRequestError(null);
       setLoading(true);
       try {
         const result = await weddingOsApi.sendCopilotMessage(
@@ -396,10 +398,12 @@ export function AICopilot() {
         setRun(result.run);
         await waitForRun(result.run.id);
       } catch (error) {
+        const description = apiErrorMessage(error);
         setInput(content);
+        setRequestError(description);
         toast({
           title: "Cererea nu a fost finalizată",
-          description: apiErrorMessage(error),
+          description,
           variant: "error",
         });
       } finally {
@@ -506,6 +510,8 @@ export function AICopilot() {
           item.id === selected.id ? { ...item, status: "executed" } : item,
         ),
       );
+      setRequestError(null);
+      window.dispatchEvent(new CustomEvent("weddingos:planning-changed"));
       toast({
         title: "Propunerea a fost executată",
         description: `${result.resources.length} resurse canonice au fost create sau actualizate.`,
@@ -637,6 +643,19 @@ export function AICopilot() {
             {run?.status === "running"
               ? "Analizez contextul autorizat…"
               : "Pregătesc cererea…"}
+          </div>
+        ) : null}
+        {requestError ? (
+          <div
+            role="alert"
+            className="rounded-xl border border-danger/30 bg-danger-soft p-3"
+          >
+            <p className="text-sm font-semibold text-danger">
+              Cererea nu a fost finalizată
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              {requestError}
+            </p>
           </div>
         ) : null}
         {run?.status === "completed" && run.fallbackUsed ? (

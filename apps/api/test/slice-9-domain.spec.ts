@@ -618,6 +618,50 @@ describe("Slice 9 intelligence contracts", () => {
     expect(result.answer).toContain("nimic nu a fost modificat");
   });
 
+  it("creates a reviewable budget target when the external provider falls back", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message: "Setează bugetul nunții la 190.000 RON",
+      context: { ...context, surface: "/budget" },
+    });
+    expect(result.proposal).toMatchObject({
+      actionType: "UPSERT_BUDGET_PLAN",
+      riskLevel: "MEDIUM",
+      preview: {
+        name: "Bugetul nunții",
+        targetTotalMinor: 19_000_000,
+        contingencyPercent: 0,
+        status: "ACTIVE",
+        targetVersion: null,
+      },
+    });
+    expect(result.answer).toContain("aprobi și execuți");
+  });
+
+  it("preserves the budget version and contingency in deterministic updates", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message: "Bugetul meu este 200000 de lei",
+      context: {
+        ...context,
+        surface: "/budget",
+        resources: [
+          {
+            type: "BudgetSummary",
+            id,
+            title: "Buget nuntă",
+            summary: "versiune 3; țintă 18000000 RON; rezervă 12%",
+            sensitivity: "normal",
+          },
+        ],
+      },
+    });
+    expect(result.proposal?.preview).toMatchObject({
+      name: "Buget nuntă",
+      targetTotalMinor: 20_000_000,
+      contingencyPercent: 12,
+      targetVersion: 3,
+    });
+  });
+
   it("creates a deterministic multi-step plan with separately reviewable actions", async () => {
     const result = await new DeterministicCopilotProvider().run({
       message: "Pregătește un plan în 2 pași pentru confirmarea locației",

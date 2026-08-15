@@ -151,6 +151,46 @@ export class DeterministicCopilotProvider implements CopilotProvider {
       };
       answer +=
         " Am pregătit un plan în doi pași; fiecare pas rămâne separat și nu modifică nimic fără aprobarea ta.";
+    } else if (
+      /buget|budget/iu.test(message) &&
+      /seteaz|stabile|țint|tinta|bugetul\s+(?:meu|nostru)\s+(?:este|e)/iu.test(
+        message,
+      )
+    ) {
+      const amountMinor = budgetAmountMinor(input.message);
+      if (amountMinor === null) {
+        answer =
+          "Spune suma totală și moneda, de exemplu «Setează bugetul la 180.000 RON». Nu am pregătit nicio modificare fără o sumă clară.";
+        warnings.push("Suma totală a bugetului nu a putut fi determinată.");
+      } else {
+        const currentBudget = input.context.resources.find(
+          (resource) => resource.type === "BudgetSummary",
+        );
+        const currentVersion =
+          currentBudget?.summary.match(/versiune\s+(\d+)/iu)?.[1];
+        const currentContingency =
+          currentBudget?.summary.match(/rezerv[ăa]\s+(\d+)%/iu)?.[1];
+        proposal = {
+          actionType: "UPSERT_BUDGET_PLAN",
+          riskLevel: "MEDIUM",
+          title: `Setează bugetul la ${new Intl.NumberFormat("ro-RO").format(amountMinor / 100)} RON`,
+          preview: {
+            name: currentBudget?.title || "Bugetul nunții",
+            targetTotalMinor: amountMinor,
+            contingencyPercent: currentContingency
+              ? Number(currentContingency)
+              : 0,
+            status: "ACTIVE",
+            targetVersion: currentVersion ? Number(currentVersion) : null,
+          },
+        };
+        answer =
+          "Am pregătit ținta bugetului pentru verificare. Bugetul nu este modificat până când aprobi și execuți propunerea.";
+        if (!currentBudget)
+          warnings.push(
+            "Nu există încă un plan de buget; propunerea va crea primul plan.",
+          );
+      }
     } else if (/plan b|contingen/i.test(message)) {
       proposal = {
         actionType: "CREATE_CONTINGENCY_PLAN",
@@ -1086,6 +1126,17 @@ function extractTitle(message: string, fallback: string) {
     )
     .trim();
   return (cleaned || fallback).slice(0, 180);
+}
+
+function budgetAmountMinor(message: string) {
+  const match = message.match(
+    /(?:^|\s)(\d{1,3}(?:[ .]\d{3})+|\d{4,9})(?:[,.]\d{1,2})?\s*(?:ron|lei)?(?:\s|$)/iu,
+  );
+  if (!match?.[1]) return null;
+  const amount = Number(match[1].replace(/[ .]/g, ""));
+  if (!Number.isSafeInteger(amount) || amount <= 0) return null;
+  const amountMinor = amount * 100;
+  return Number.isSafeInteger(amountMinor) ? amountMinor : null;
 }
 
 function stringArray(

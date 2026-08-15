@@ -5983,7 +5983,7 @@ async function processCopilotRun(
               type: "BudgetSummary",
               id: budgetPlan.id,
               title: budgetPlan.name,
-              summary: `versiune ${budgetPlan.version}; țintă ${budgetPlan.targetTotalMinor.toString()} ${budgetPlan.currency}; estimat ${totalMinor(budgetItems.map((item) => item.estimatedMinor))}; angajat ${totalMinor(budgetItems.map((item) => item.committedMinor ?? 0n))}; plătit ${totalMinor(budgetItems.map((item) => item.paidMinor))}`,
+              summary: `versiune ${budgetPlan.version}; țintă ${budgetPlan.targetTotalMinor.toString()} ${budgetPlan.currency}; rezervă ${budgetPlan.contingencyPercent}%; estimat ${totalMinor(budgetItems.map((item) => item.estimatedMinor))}; angajat ${totalMinor(budgetItems.map((item) => item.committedMinor ?? 0n))}; plătit ${totalMinor(budgetItems.map((item) => item.paidMinor))}`,
               updatedAt: budgetPlan.updatedAt.toISOString(),
               sensitivity: "normal" as const,
             },
