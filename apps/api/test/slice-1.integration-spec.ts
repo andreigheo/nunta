@@ -997,7 +997,9 @@ describe.sequential("Slice 1 API integration and isolation", () => {
         location: "Brașov",
       },
     });
-    const workspaceList = await owner.agent.get("/api/v1/workspaces").expect(200);
+    const workspaceList = await owner.agent
+      .get("/api/v1/workspaces")
+      .expect(200);
     expect(
       workspaceList.body.data.find(
         (item: { id: string }) => item.id === workspaceId,

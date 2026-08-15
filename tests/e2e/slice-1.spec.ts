@@ -91,6 +91,55 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   expect(browserApiOrigins).not.toContain(apiUrl);
 });
 
+test("E2E 1B — provider registration preserves intent through verification and opens professional setup", async ({
+  page,
+}) => {
+  const email = uniqueEmail("provider-onboarding");
+  await page.goto("/create-account");
+  await page
+    .getByRole("button", { name: /Ofer servicii pentru evenimente/ })
+    .click();
+  await page.locator('input[autocomplete="given-name"]').fill("Irina");
+  await page.locator('input[autocomplete="family-name"]').fill("Furnizor");
+  await page.locator('input[type="email"]').fill(email);
+  await page
+    .locator('input[autocomplete="new-password"]')
+    .nth(0)
+    .fill(password);
+  await page
+    .locator('input[autocomplete="new-password"]')
+    .nth(1)
+    .fill(password);
+  await page.getByRole("checkbox", { name: /Accept termenii/i }).click();
+  await page.getByRole("button", { name: "Creează contul" }).click();
+  await expect(page).toHaveURL(/\/verify-email/);
+
+  const token = await waitForEmailToken(
+    email,
+    "Confirmă adresa de email Sarbato",
+  );
+  await page.goto(
+    `/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`,
+  );
+  await expect(page).toHaveURL(/\/sign-in\?verified=1/);
+
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[autocomplete="current-password"]').fill(password);
+  await page.getByRole("button", { name: "Conectează-te" }).click();
+  await expect(page).toHaveURL(/\/vendor\?setup=1$/);
+  await expect(
+    page.getByRole("dialog", {
+      name: "Profil pentru servicii de evenimente",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Nume legal sau numele persoanei", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Bună, Irina/ }),
+  ).toBeVisible();
+});
+
 test("E2E 2 — owner invitation email and partner acceptance", async ({
   page,
   browser,

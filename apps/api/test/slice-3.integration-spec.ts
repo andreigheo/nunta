@@ -2719,7 +2719,8 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .get(`/api/v1/workspaces/${workspaceId}/transport-requests`)
       .expect(200);
     const transportRequest = transportRequests.body.data.items.find(
-      (item: { guestId: string }) => item.guestId === primaryGuestId,
+      (item: { guestId: string; weddingEventId: string }) =>
+        item.guestId === primaryGuestId && item.weddingEventId === eventId,
     );
     expect(transportRequest).toBeTruthy();
     const transportPlan = await owner.agent

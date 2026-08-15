@@ -1462,7 +1462,9 @@ export class OperationsService {
       const householdNames = new Map(
         households.map((household) => [household.id, household.name]),
       );
-      const eventTitles = new Map(events.map((event) => [event.id, event.title]));
+      const eventTitles = new Map(
+        events.map((event) => [event.id, event.title]),
+      );
       return {
         items: rows.map((row) => ({
           ...resource(row),
@@ -2168,10 +2170,7 @@ export class OperationsService {
             validation(
               "Invitatul nu are o cerere de transport; override-ul necesită motiv.",
             );
-          if (
-            requestRow &&
-            requestRow.weddingEventId !== plan.weddingEventId
-          )
+          if (requestRow && requestRow.weddingEventId !== plan.weddingEventId)
             validation(
               "Cererea de transport aparține altui eveniment decât planul selectat.",
             );

@@ -110,8 +110,9 @@ describe("Slice 2B complete OpenAPI surface", () => {
       expect(
         slice2B
           .filter(({ method }) => ["post", "patch", "put"].includes(method))
-          .every(({ operation }) => Boolean(operation.requestBody)),
-      ).toBe(true);
+          .filter(({ operation }) => !operation.requestBody)
+          .map(({ path, method }) => `${method.toUpperCase()} ${path}`),
+      ).toEqual([]);
       await expect(
         SwaggerParser.validate(document as never),
       ).resolves.toBeDefined();

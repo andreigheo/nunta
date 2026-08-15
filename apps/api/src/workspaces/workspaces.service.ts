@@ -46,17 +46,20 @@ export class WorkspacesService {
     // workspace context so the switcher receives the real date and location.
     const profiles = new Map(
       await Promise.all(
-        memberships.map(async (membership) => [
-          membership.workspaceId,
-          await this.database.withContext(
-            { userId, workspaceId: membership.workspaceId },
-            (transaction) =>
-              transaction.weddingProfile.findUnique({
-                where: { workspaceId: membership.workspaceId },
-                select: { weddingDate: true, location: true },
-              }),
-          ),
-        ] as const),
+        memberships.map(
+          async (membership) =>
+            [
+              membership.workspaceId,
+              await this.database.withContext(
+                { userId, workspaceId: membership.workspaceId },
+                (transaction) =>
+                  transaction.weddingProfile.findUnique({
+                    where: { workspaceId: membership.workspaceId },
+                    select: { weddingDate: true, location: true },
+                  }),
+              ),
+            ] as const,
+        ),
       ),
     );
     return memberships.map((membership) => {
@@ -67,8 +70,7 @@ export class WorkspacesService {
         weddingDate: dateOnly(profile?.weddingDate),
         location: profile?.location ?? null,
         status: membership.workspace.status.toLowerCase() as
-          | "active"
-          | "archived",
+          "active" | "archived",
         role: membership.roleTemplate.key,
         capabilities: resolvePlanCapabilities(
           resolveCapabilities(

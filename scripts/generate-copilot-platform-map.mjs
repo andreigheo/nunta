@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import prettier from "prettier";
 
 const root = process.cwd();
 const checkOnly = process.argv.includes("--check");
@@ -384,9 +385,10 @@ ${pageRows}
 }
 
 async function writeOrCheck(file, content) {
+  const formatted = await prettier.format(content, { filepath: file });
   if (checkOnly) {
     const current = await fs.readFile(file, "utf8").catch(() => "");
-    if (current !== content) {
+    if (current !== formatted) {
       process.stderr.write(
         `Copilot map is stale: ${path.relative(root, file)}\n`,
       );
@@ -395,7 +397,7 @@ async function writeOrCheck(file, content) {
     return;
   }
   await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, content);
+  await fs.writeFile(file, formatted);
 }
 
 const pageFiles = await filesBelow(pageRoot, (file) =>

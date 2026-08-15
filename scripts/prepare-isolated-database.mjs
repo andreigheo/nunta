@@ -6,6 +6,8 @@ const requireFromApi = createRequire(
   new URL("../apps/api/package.json", import.meta.url),
 );
 const { Client } = requireFromApi("pg");
+const RedisModule = requireFromApi("ioredis");
+const Redis = RedisModule.default ?? RedisModule;
 
 const purpose = process.argv[2];
 const definitions = {
@@ -21,6 +23,22 @@ const definition = definitions[purpose];
 if (!definition)
   throw new Error(`Unknown isolated database purpose: ${purpose ?? "missing"}`);
 const resetRequested = process.env.WEDDINGOS_RESET_ISOLATED_DATABASE === "true";
+
+if (resetRequested && (purpose === "integration" || purpose === "e2e")) {
+  const redisUrl =
+    purpose === "integration"
+      ? (process.env.TEST_INTEGRATION_REDIS_URL ?? "redis://127.0.0.1:56379/14")
+      : (process.env.TEST_E2E_REDIS_URL ?? "redis://127.0.0.1:56379/15");
+  const redis = new Redis(redisUrl, {
+    connectTimeout: 5_000,
+    maxRetriesPerRequest: 1,
+  });
+  try {
+    await redis.flushdb();
+  } finally {
+    await redis.quit();
+  }
+}
 
 const adminUrl = new URL(
   process.env.TEST_DATABASE_ADMIN_URL ??
