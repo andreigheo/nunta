@@ -904,26 +904,32 @@ enum PaymentLedgerEntryType {
 }
 
 model User {
-  id                             String                   @id @default(uuid()) @db.Uuid
-  email                          String                   @unique @db.VarChar(320)
-  emailVerifiedAt                DateTime?                @map("email_verified_at")
-  status                         UserStatus               @default(ACTIVE)
-  acceptedTermsVersion           String                   @map("accepted_terms_version") @db.VarChar(40)
-  acceptedTermsAt                DateTime                 @map("accepted_terms_at")
-  marketingConsent               Boolean                  @default(false) @map("marketing_consent")
-  createdAt                      DateTime                 @default(now()) @map("created_at")
-  updatedAt                      DateTime                 @updatedAt @map("updated_at")
-  version                        Int                      @default(1)
+  id                             String                     @id @default(uuid()) @db.Uuid
+  email                          String                     @unique @db.VarChar(320)
+  emailVerifiedAt                DateTime?                  @map("email_verified_at")
+  status                         UserStatus                 @default(ACTIVE)
+  acceptedTermsVersion           String                     @map("accepted_terms_version") @db.VarChar(40)
+  acceptedTermsAt                DateTime                   @map("accepted_terms_at")
+  marketingConsent               Boolean                    @default(false) @map("marketing_consent")
+  createdAt                      DateTime                   @default(now()) @map("created_at")
+  updatedAt                      DateTime                   @updatedAt @map("updated_at")
+  version                        Int                        @default(1)
   profile                        UserProfile?
   identities                     Identity[]
   sessions                       Session[]
   oneTimeTokens                  AuthOneTimeToken[]
   memberships                    WorkspaceMembership[]
-  acceptedInvitations            TeamInvitation[]         @relation("InvitationAcceptedBy")
+  acceptedInvitations            TeamInvitation[]           @relation("InvitationAcceptedBy")
   preference                     UserPreference?
   notificationPreference         NotificationPreference?
-  publicAggregateConsentsGranted PublicAggregateConsent[] @relation("PublicAggregateConsentedBy")
-  publicAggregateConsentsRevoked PublicAggregateConsent[] @relation("PublicAggregateRevokedBy")
+  publicAggregateConsentsGranted PublicAggregateConsent[]   @relation("PublicAggregateConsentedBy")
+  publicAggregateConsentsRevoked PublicAggregateConsent[]   @relation("PublicAggregateRevokedBy")
+  copilotMemoriesCreated         CopilotMemory[]            @relation("CopilotMemoryCreatedBy")
+  copilotMemoriesUpdated         CopilotMemory[]            @relation("CopilotMemoryUpdatedBy")
+  copilotMemoriesOwned           CopilotMemory[]            @relation("CopilotMemoryOwner")
+  copilotSettingsCreated         CopilotWorkspaceSettings[] @relation("CopilotSettingsCreatedBy")
+  copilotSettingsUpdated         CopilotWorkspaceSettings[] @relation("CopilotSettingsUpdatedBy")
+  copilotToolInvocations         CopilotToolInvocation[]
 
   @@map("users")
 }
@@ -1001,30 +1007,34 @@ model AuthOneTimeToken {
 }
 
 model Workspace {
-  id                     String                          @id @default(uuid()) @db.Uuid
-  title                  String                          @db.VarChar(160)
-  locale                 String                          @default("ro-RO") @db.VarChar(16)
-  timezone               String                          @default("Europe/Bucharest") @db.VarChar(80)
-  currency               String                          @default("RON") @db.Char(3)
-  status                 WorkspaceStatus                 @default(ACTIVE)
-  imageUrl               String?                         @map("image_url") @db.VarChar(2048)
-  createdById            String                          @map("created_by") @db.Uuid
-  updatedById            String                          @map("updated_by") @db.Uuid
-  deletedAt              DateTime?                       @map("deleted_at")
-  createdAt              DateTime                        @default(now()) @map("created_at")
-  updatedAt              DateTime                        @updatedAt @map("updated_at")
-  version                Int                             @default(1)
-  weddingProfile         WeddingProfile?
-  memberships            WorkspaceMembership[]
-  invitations            TeamInvitation[]
-  auditEvents            AuditEvent[]
-  idempotencyRecords     IdempotencyRecord[]
-  publicAggregateConsent PublicAggregateConsent?
-  subscription           WorkspaceSubscription?
-  billingCheckouts       WorkspaceBillingCheckout[]
-  billingProviderEvents  WorkspaceBillingProviderEvent[]
-  billingTransactions    WorkspaceBillingTransaction[]
-  creativeState          WorkspaceCreativeState?
+  id                      String                          @id @default(uuid()) @db.Uuid
+  title                   String                          @db.VarChar(160)
+  locale                  String                          @default("ro-RO") @db.VarChar(16)
+  timezone                String                          @default("Europe/Bucharest") @db.VarChar(80)
+  currency                String                          @default("RON") @db.Char(3)
+  status                  WorkspaceStatus                 @default(ACTIVE)
+  imageUrl                String?                         @map("image_url") @db.VarChar(2048)
+  createdById             String                          @map("created_by") @db.Uuid
+  updatedById             String                          @map("updated_by") @db.Uuid
+  deletedAt               DateTime?                       @map("deleted_at")
+  createdAt               DateTime                        @default(now()) @map("created_at")
+  updatedAt               DateTime                        @updatedAt @map("updated_at")
+  version                 Int                             @default(1)
+  weddingProfile          WeddingProfile?
+  memberships             WorkspaceMembership[]
+  invitations             TeamInvitation[]
+  auditEvents             AuditEvent[]
+  idempotencyRecords      IdempotencyRecord[]
+  publicAggregateConsent  PublicAggregateConsent?
+  subscription            WorkspaceSubscription?
+  billingCheckouts        WorkspaceBillingCheckout[]
+  billingProviderEvents   WorkspaceBillingProviderEvent[]
+  billingTransactions     WorkspaceBillingTransaction[]
+  creativeState           WorkspaceCreativeState?
+  copilotSettings         CopilotWorkspaceSettings?
+  copilotMemories         CopilotMemory[]
+  copilotMemoryEmbeddings CopilotMemoryEmbedding[]
+  copilotToolInvocations  CopilotToolInvocation[]
 
   @@index([createdById])
   @@map("workspaces")
@@ -6244,6 +6254,42 @@ enum IntelligenceRiskLevel {
   CRITICAL
 }
 
+enum CopilotMemoryScope {
+  WORKSPACE
+  USER
+}
+
+enum CopilotMemoryKind {
+  FACT
+  PREFERENCE
+  DECISION
+  CONSTRAINT
+  CONVERSATION_SUMMARY
+  DOCUMENT_NOTE
+  WEB_RESEARCH
+}
+
+enum CopilotMemorySourceType {
+  USER_CONFIRMED
+  CANONICAL_RESOURCE
+  CONVERSATION
+  DOCUMENT
+  WEB
+  SYSTEM
+}
+
+enum CopilotMemorySensitivity {
+  NORMAL
+  SENSITIVE
+  RESTRICTED
+}
+
+enum CopilotMemoryStatus {
+  ACTIVE
+  SUPERSEDED
+  DELETED
+}
+
 enum RiskStatus {
   OPEN
   MONITORING
@@ -6320,25 +6366,26 @@ model CopilotMessage {
 }
 
 model CopilotRun {
-  id                 String           @id @default(uuid()) @db.Uuid
-  workspaceId        String           @map("workspace_id") @db.Uuid
-  conversationId     String           @map("conversation_id") @db.Uuid
-  userMessageId      String           @unique @map("user_message_id") @db.Uuid
-  assistantMessageId String?          @unique @map("assistant_message_id") @db.Uuid
-  requestedById      String           @map("requested_by") @db.Uuid
-  backgroundJobId    String           @unique @map("background_job_id") @db.Uuid
-  status             CopilotRunStatus @default(QUEUED)
-  requestedMode      String           @map("requested_mode") @db.VarChar(40)
-  provider           String?          @db.VarChar(120)
-  model              String?          @db.VarChar(120)
-  policyVersion      String           @map("policy_version") @db.VarChar(80)
-  contextHash        String?          @map("context_hash") @db.Char(64)
-  fallbackUsed       Boolean          @default(false) @map("fallback_used")
-  errorCode          String?          @map("error_code") @db.VarChar(120)
-  errorRedacted      String?          @map("error_redacted") @db.VarChar(1000)
-  startedAt          DateTime?        @map("started_at")
-  completedAt        DateTime?        @map("completed_at")
-  createdAt          DateTime         @default(now()) @map("created_at")
+  id                 String                  @id @default(uuid()) @db.Uuid
+  workspaceId        String                  @map("workspace_id") @db.Uuid
+  conversationId     String                  @map("conversation_id") @db.Uuid
+  userMessageId      String                  @unique @map("user_message_id") @db.Uuid
+  assistantMessageId String?                 @unique @map("assistant_message_id") @db.Uuid
+  requestedById      String                  @map("requested_by") @db.Uuid
+  backgroundJobId    String                  @unique @map("background_job_id") @db.Uuid
+  status             CopilotRunStatus        @default(QUEUED)
+  requestedMode      String                  @map("requested_mode") @db.VarChar(40)
+  provider           String?                 @db.VarChar(120)
+  model              String?                 @db.VarChar(120)
+  policyVersion      String                  @map("policy_version") @db.VarChar(80)
+  contextHash        String?                 @map("context_hash") @db.Char(64)
+  fallbackUsed       Boolean                 @default(false) @map("fallback_used")
+  errorCode          String?                 @map("error_code") @db.VarChar(120)
+  errorRedacted      String?                 @map("error_redacted") @db.VarChar(1000)
+  startedAt          DateTime?               @map("started_at")
+  completedAt        DateTime?               @map("completed_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  toolInvocations    CopilotToolInvocation[]
 
   @@index([workspaceId, conversationId, createdAt])
   @@map("copilot_runs")
@@ -6374,23 +6421,74 @@ model CopilotFeedback {
 }
 
 model CopilotProposal {
-  id          String                @id @default(uuid()) @db.Uuid
-  workspaceId String                @map("workspace_id") @db.Uuid
-  runId       String                @map("run_id") @db.Uuid
-  title       String                @db.VarChar(180)
-  summary     String                @db.VarChar(2000)
-  status      CopilotProposalStatus @default(READY_FOR_REVIEW)
-  riskLevel   IntelligenceRiskLevel @map("risk_level")
-  createdById String                @map("created_by") @db.Uuid
-  version     Int                   @default(1)
-  approvedAt  DateTime?             @map("approved_at")
-  rejectedAt  DateTime?             @map("rejected_at")
-  executedAt  DateTime?             @map("executed_at")
-  createdAt   DateTime              @default(now()) @map("created_at")
-  updatedAt   DateTime              @updatedAt @map("updated_at")
+  id           String                @id @default(uuid()) @db.Uuid
+  workspaceId  String                @map("workspace_id") @db.Uuid
+  runId        String                @map("run_id") @db.Uuid
+  planId       String?               @map("plan_id") @db.Uuid
+  stepPosition Int?                  @map("step_position")
+  title        String                @db.VarChar(180)
+  summary      String                @db.VarChar(2000)
+  status       CopilotProposalStatus @default(READY_FOR_REVIEW)
+  riskLevel    IntelligenceRiskLevel @map("risk_level")
+  createdById  String                @map("created_by") @db.Uuid
+  version      Int                   @default(1)
+  approvedAt   DateTime?             @map("approved_at")
+  rejectedAt   DateTime?             @map("rejected_at")
+  executedAt   DateTime?             @map("executed_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
 
   @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, planId, stepPosition])
   @@map("copilot_proposals")
+}
+
+model CopilotPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  runId       String   @map("run_id") @db.Uuid
+  title       String   @db.VarChar(180)
+  summary     String   @db.VarChar(2000)
+  status      String   @default("READY_FOR_REVIEW") @db.VarChar(40)
+  createdById String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([workspaceId, runId, createdAt])
+  @@map("copilot_plans")
+}
+
+model CopilotWebResearch {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  runId       String?  @unique @map("run_id") @db.Uuid
+  queryHash   String   @map("query_hash") @db.Char(64)
+  query       String   @db.VarChar(1000)
+  answer      String   @db.Text
+  provider    String   @db.VarChar(120)
+  model       String?  @db.VarChar(120)
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, queryHash])
+  @@index([workspaceId, expiresAt])
+  @@map("copilot_web_research")
+}
+
+model CopilotWebCitation {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  researchId  String   @map("research_id") @db.Uuid
+  url         String   @db.VarChar(2048)
+  title       String   @db.VarChar(300)
+  excerpt     String   @db.VarChar(1000)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([researchId, url])
+  @@index([workspaceId, researchId, position])
+  @@map("copilot_web_citations")
 }
 
 model CopilotProposalVersion {
@@ -6467,6 +6565,109 @@ model CopilotUsageRecord {
 
   @@index([workspaceId, createdAt])
   @@map("copilot_usage_records")
+}
+
+model CopilotWorkspaceSettings {
+  id                   String    @id @default(uuid()) @db.Uuid
+  workspaceId          String    @unique @map("workspace_id") @db.Uuid
+  memoryEnabled        Boolean   @default(true) @map("memory_enabled")
+  webResearchEnabled   Boolean   @default(false) @map("web_research_enabled")
+  proactiveSuggestions Boolean   @default(true) @map("proactive_suggestions")
+  memoryRetentionDays  Int       @default(180) @map("memory_retention_days")
+  createdById          String    @map("created_by") @db.Uuid
+  updatedById          String    @map("updated_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  version              Int       @default(1)
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy            User      @relation("CopilotSettingsCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy            User      @relation("CopilotSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("copilot_workspace_settings")
+}
+
+model CopilotMemory {
+  id              String                   @id @default(uuid()) @db.Uuid
+  workspaceId     String                   @map("workspace_id") @db.Uuid
+  scope           CopilotMemoryScope       @default(WORKSPACE)
+  ownerUserId     String?                  @map("owner_user_id") @db.Uuid
+  subjectType     String?                  @map("subject_type") @db.VarChar(80)
+  subjectId       String?                  @map("subject_id") @db.VarChar(160)
+  kind            CopilotMemoryKind
+  title           String                   @db.VarChar(180)
+  content         String                   @db.Text
+  sourceType      CopilotMemorySourceType  @map("source_type")
+  sourceId        String?                  @map("source_id") @db.VarChar(200)
+  confidence      Decimal                  @default(1) @db.Decimal(4, 3)
+  confirmedByUser Boolean                  @default(false) @map("confirmed_by_user")
+  sensitivity     CopilotMemorySensitivity @default(NORMAL)
+  status          CopilotMemoryStatus      @default(ACTIVE)
+  metadata        Json                     @default("{}")
+  expiresAt       DateTime?                @map("expires_at")
+  lastUsedAt      DateTime?                @map("last_used_at")
+  useCount        Int                      @default(0) @map("use_count")
+  createdById     String                   @map("created_by") @db.Uuid
+  updatedById     String                   @map("updated_by") @db.Uuid
+  deletedAt       DateTime?                @map("deleted_at")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  version         Int                      @default(1)
+  workspace       Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner           User?                    @relation("CopilotMemoryOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  createdBy       User                     @relation("CopilotMemoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User                     @relation("CopilotMemoryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  embedding       CopilotMemoryEmbedding?
+
+  @@index([workspaceId, status, kind, updatedAt])
+  @@index([workspaceId, ownerUserId, status, updatedAt])
+  @@index([workspaceId, subjectType, subjectId])
+  @@map("copilot_memories")
+}
+
+model CopilotMemoryEmbedding {
+  id          String                      @id @default(uuid()) @db.Uuid
+  workspaceId String                      @map("workspace_id") @db.Uuid
+  memoryId    String                      @unique @map("memory_id") @db.Uuid
+  model       String                      @db.VarChar(120)
+  dimensions  Int                         @default(1536)
+  contentHash String                      @map("content_hash") @db.Char(64)
+  embedding   Unsupported("vector(1536)")
+  createdAt   DateTime                    @default(now()) @map("created_at")
+  updatedAt   DateTime                    @updatedAt @map("updated_at")
+  workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memory      CopilotMemory               @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, updatedAt])
+  @@map("copilot_memory_embeddings")
+}
+
+model CopilotToolInvocation {
+  id                 String                @id @default(uuid()) @db.Uuid
+  workspaceId        String                @map("workspace_id") @db.Uuid
+  userId             String                @map("user_id") @db.Uuid
+  runId              String?               @map("run_id") @db.Uuid
+  toolKey            String                @map("tool_key") @db.VarChar(160)
+  operation          String                @db.VarChar(40)
+  requiredCapability String?               @map("required_capability") @db.VarChar(120)
+  riskLevel          IntelligenceRiskLevel @map("risk_level")
+  status             String                @default("STARTED") @db.VarChar(40)
+  input              Json                  @default("{}")
+  output             Json                  @default("{}")
+  resourceType       String?               @map("resource_type") @db.VarChar(80)
+  resourceId         String?               @map("resource_id") @db.VarChar(160)
+  idempotencyKey     String?               @map("idempotency_key") @db.VarChar(200)
+  errorCode          String?               @map("error_code") @db.VarChar(120)
+  startedAt          DateTime              @default(now()) @map("started_at")
+  completedAt        DateTime?             @map("completed_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  workspace          Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  run                CopilotRun?           @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, toolKey, createdAt])
+  @@index([workspaceId, runId, createdAt])
+  @@map("copilot_tool_invocations")
 }
 
 model DocumentTextExtraction {

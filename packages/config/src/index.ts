@@ -114,6 +114,44 @@ export const apiEnvironmentSchema = z
       z.string().min(1).optional(),
     ),
     PLAN_GENERATION_PROVIDER_MODEL: z.string().min(1).default("configured"),
+    COPILOT_EXTERNAL_ENABLED: environmentBoolean.default(false),
+    COPILOT_EXTERNAL_DATA_ALLOWED: environmentBoolean.default(false),
+    COPILOT_PROVIDER_PROTOCOL: z
+      .enum(["generic-json", "openrouter-chat"])
+      .default("openrouter-chat"),
+    COPILOT_PROVIDER_ENDPOINT: z.preprocess(
+      emptyToUndefined,
+      z.string().url().default("https://openrouter.ai/api/v1/chat/completions"),
+    ),
+    COPILOT_PROVIDER_API_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(1).optional(),
+    ),
+    COPILOT_PROVIDER_MODEL: z.string().min(1).default("openai/gpt-5.6-luna"),
+    COPILOT_MAX_CONTEXT_BYTES: z.coerce
+      .number()
+      .int()
+      .min(8_000)
+      .max(256_000)
+      .default(64_000),
+    COPILOT_DAILY_COST_LIMIT_MINOR: z.coerce.number().int().min(1).default(500),
+    COPILOT_MAX_RUN_COST_MINOR: z.coerce.number().int().min(1).default(25),
+    COPILOT_INPUT_COST_MINOR_PER_MILLION: z.coerce.number().min(0).default(10),
+    COPILOT_OUTPUT_COST_MINOR_PER_MILLION: z.coerce.number().min(0).default(60),
+    COPILOT_WEB_SEARCH_COST_MINOR: z.coerce.number().int().min(0).default(1),
+    COPILOT_EMBEDDING_ENABLED: environmentBoolean.default(false),
+    COPILOT_EMBEDDING_ENDPOINT: z
+      .string()
+      .url()
+      .default("https://api.openai.com/v1/embeddings"),
+    COPILOT_EMBEDDING_API_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(1).optional(),
+    ),
+    COPILOT_EMBEDDING_MODEL: z
+      .string()
+      .min(1)
+      .default("text-embedding-3-small"),
     OBJECT_STORAGE_PROVIDER: z.enum(["minio", "s3"]).default("minio"),
     OBJECT_STORAGE_ENDPOINT: z.string().url().default("http://127.0.0.1:59000"),
     OBJECT_STORAGE_PUBLIC_ENDPOINT: z
@@ -331,6 +369,14 @@ export const apiEnvironmentSchema = z
     BETA_ANALYTICS_ENABLED: environmentBoolean.default(false),
   })
   .superRefine((env, context) => {
+    if (env.COPILOT_MAX_RUN_COST_MINOR > env.COPILOT_DAILY_COST_LIMIT_MINOR) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["COPILOT_MAX_RUN_COST_MINOR"],
+        message:
+          "Maximum Copilot run cost reservation cannot exceed the daily workspace budget.",
+      });
+    }
     if (
       env.NODE_ENV === "production" ||
       env.NODE_ENV === "staging" ||
@@ -446,8 +492,17 @@ export const apiEnvironmentSchema = z
           ["OBJECT_STORAGE_SECRET_KEY", env.OBJECT_STORAGE_SECRET_KEY],
           ["SMTP_PASSWORD", env.SMTP_PASSWORD],
           ["METRICS_TOKEN", env.METRICS_TOKEN],
+          ["COPILOT_PROVIDER_API_KEY", env.COPILOT_PROVIDER_API_KEY],
+          ["COPILOT_EMBEDDING_API_KEY", env.COPILOT_EMBEDDING_API_KEY],
         ];
         for (const [path, value] of protectedValues) {
+          if (
+            (path === "COPILOT_PROVIDER_API_KEY" &&
+              !env.COPILOT_EXTERNAL_ENABLED) ||
+            (path === "COPILOT_EMBEDDING_API_KEY" &&
+              !env.COPILOT_EMBEDDING_ENABLED)
+          )
+            continue;
           if (!value || forbiddenMarker.test(value)) {
             context.addIssue({
               code: z.ZodIssueCode.custom,
@@ -474,6 +529,70 @@ export const apiEnvironmentSchema = z
           path: ["PLAN_GENERATION_PROVIDER_KEY"],
           message:
             "Configured plan provider requires an API key in production.",
+        });
+      }
+      if (env.COPILOT_EMBEDDING_ENABLED && !env.COPILOT_EMBEDDING_API_KEY) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["COPILOT_EMBEDDING_API_KEY"],
+          message: "Semantic Copilot memory requires an embedding API key.",
+        });
+      }
+      if (
+        env.COPILOT_EXTERNAL_ENABLED &&
+        (!env.COPILOT_PROVIDER_ENDPOINT || !env.COPILOT_PROVIDER_API_KEY)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["COPILOT_PROVIDER_ENDPOINT"],
+          message:
+            "External Copilot requires both a provider endpoint and API key.",
+        });
+      }
+      if (
+        env.COPILOT_EXTERNAL_ENABLED &&
+        (env.COPILOT_INPUT_COST_MINOR_PER_MILLION <= 0 ||
+          env.COPILOT_OUTPUT_COST_MINOR_PER_MILLION <= 0)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["COPILOT_INPUT_COST_MINOR_PER_MILLION"],
+          message:
+            "External Copilot requires explicit non-zero model pricing for cost controls.",
+        });
+      }
+      if (
+        env.COPILOT_EXTERNAL_ENABLED &&
+        env.COPILOT_PROVIDER_PROTOCOL === "openrouter-chat" &&
+        new URL(env.COPILOT_PROVIDER_ENDPOINT).origin !==
+          "https://openrouter.ai"
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["COPILOT_PROVIDER_ENDPOINT"],
+          message:
+            "OpenRouter protocol requires an endpoint hosted on openrouter.ai.",
+        });
+      }
+      if (
+        env.COPILOT_EXTERNAL_ENABLED &&
+        env.COPILOT_PROVIDER_ENDPOINT &&
+        !env.COPILOT_PROVIDER_ENDPOINT.startsWith("https://")
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["COPILOT_PROVIDER_ENDPOINT"],
+          message: "Production Copilot provider must use HTTPS.",
+        });
+      }
+      if (
+        env.COPILOT_EMBEDDING_ENABLED &&
+        !env.COPILOT_EMBEDDING_ENDPOINT.startsWith("https://")
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["COPILOT_EMBEDDING_ENDPOINT"],
+          message: "Production Copilot embeddings must use HTTPS.",
         });
       }
       if (

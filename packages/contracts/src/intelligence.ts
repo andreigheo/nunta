@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  copilotProposalActionTypeSchema,
+  validateCopilotActionPayload,
+} from "./copilot-actions";
+
+export { copilotProposalActionTypeSchema } from "./copilot-actions";
 
 const uuid = z.string().uuid();
 const version = z.number().int().positive();
@@ -44,6 +50,7 @@ export const updateCopilotConversationSchema = z.object({
 export const createCopilotMessageSchema = z.object({
   content: boundedText(8_000),
   mode: z.enum(["deterministic", "ai_enriched", "auto"]).default("auto"),
+  research: z.boolean().default(false),
   context: z
     .object({
       resourceType: z.string().trim().max(80),
@@ -58,14 +65,94 @@ export const createCopilotFeedbackSchema = z.object({
   reason: z.string().trim().max(1000).optional(),
 });
 
-export const copilotProposalActionTypeSchema = z.enum([
-  "CREATE_TASK",
-  "UPDATE_TASK",
-  "CREATE_CALENDAR_EVENT",
-  "CREATE_RISK",
-  "UPDATE_RISK",
-  "CREATE_CONTINGENCY_PLAN",
+export const copilotMemoryScopeSchema = z.enum(["WORKSPACE", "USER"]);
+export const copilotMemoryKindSchema = z.enum([
+  "FACT",
+  "PREFERENCE",
+  "DECISION",
+  "CONSTRAINT",
+  "CONVERSATION_SUMMARY",
+  "DOCUMENT_NOTE",
+  "WEB_RESEARCH",
 ]);
+export const copilotMemorySourceTypeSchema = z.enum([
+  "USER_CONFIRMED",
+  "CANONICAL_RESOURCE",
+  "CONVERSATION",
+  "DOCUMENT",
+  "WEB",
+  "SYSTEM",
+]);
+export const copilotMemorySensitivitySchema = z.enum(["NORMAL", "SENSITIVE"]);
+export const copilotMemoryStatusSchema = z.enum([
+  "ACTIVE",
+  "SUPERSEDED",
+  "DELETED",
+]);
+
+export const updateCopilotSettingsSchema = z.object({
+  memoryEnabled: z.boolean().optional(),
+  webResearchEnabled: z.boolean().optional(),
+  proactiveSuggestions: z.boolean().optional(),
+  memoryRetentionDays: z.number().int().min(30).max(730).optional(),
+  version,
+});
+
+export const createCopilotMemorySchema = z
+  .object({
+    scope: copilotMemoryScopeSchema.default("WORKSPACE"),
+    subjectType: z.string().trim().min(1).max(80).optional(),
+    subjectId: z.string().trim().min(1).max(160).optional(),
+    kind: copilotMemoryKindSchema,
+    title: boundedText(180),
+    content: boundedText(4_000),
+    sourceType: z
+      .enum(["USER_CONFIRMED", "CANONICAL_RESOURCE"])
+      .default("USER_CONFIRMED"),
+    sourceId: z.string().trim().min(1).max(200).optional(),
+    confidence: z.number().min(0).max(1).default(1),
+    confirmedByUser: z.boolean().default(true),
+    sensitivity: copilotMemorySensitivitySchema.default("NORMAL"),
+    expiresAt: z.string().datetime().optional(),
+    metadata: z.record(z.unknown()).default({}),
+  })
+  .superRefine((input, context) => {
+    if (input.sourceType === "USER_CONFIRMED" && !input.confirmedByUser) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["confirmedByUser"],
+        message: "Memoria introdusă de utilizator trebuie confirmată explicit.",
+      });
+    }
+  });
+export type CreateCopilotMemory = z.infer<typeof createCopilotMemorySchema>;
+
+export const updateCopilotMemorySchema = z.object({
+  title: boundedText(180).optional(),
+  content: boundedText(4_000).optional(),
+  subjectType: z.string().trim().min(1).max(80).nullable().optional(),
+  subjectId: z.string().trim().min(1).max(160).nullable().optional(),
+  kind: copilotMemoryKindSchema.optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  confirmedByUser: z.boolean().optional(),
+  sensitivity: copilotMemorySensitivitySchema.optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  metadata: z.record(z.unknown()).optional(),
+  version,
+});
+
+export const copilotMemoryQuerySchema = z.object({
+  kind: copilotMemoryKindSchema.optional(),
+  scope: copilotMemoryScopeSchema.optional(),
+  status: copilotMemoryStatusSchema.default("ACTIVE"),
+  cursor: uuid.optional(),
+});
+
+export const searchCopilotMemorySchema = z.object({
+  query: boundedText(1_000),
+  kinds: z.array(copilotMemoryKindSchema).max(7).default([]),
+  limit: z.number().int().min(1).max(20).default(8),
+});
 
 export const reviewCopilotProposalSchema = z.object({
   decision: z.enum(["APPROVE", "REJECT"]),
@@ -84,15 +171,28 @@ export const updateCopilotProposalSchema = z.object({
   version,
   actions: z
     .array(
-      z.object({
-        actionType: copilotProposalActionTypeSchema,
-        payload: z.record(z.unknown()),
-        riskLevel: proposalRiskLevelSchema,
-        position: z.number().int().min(0),
-      }),
+      z
+        .object({
+          actionType: copilotProposalActionTypeSchema,
+          payload: z.record(z.unknown()),
+          riskLevel: proposalRiskLevelSchema,
+          position: z.number().int().min(0),
+        })
+        .superRefine((action, context) => {
+          const parsed = validateCopilotActionPayload(
+            action.actionType,
+            action.payload,
+          );
+          if (!parsed.success)
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["payload"],
+              message: parsed.error.issues[0]?.message ?? "Payload invalid",
+            });
+        }),
     )
     .min(1)
-    .max(20)
+    .max(1)
     .optional(),
 });
 
@@ -302,6 +402,7 @@ export const riskQuerySchema = z.object({
 
 export const copilotConversationQuerySchema = z.object({
   cursor: uuid.optional(),
+  surface: z.string().trim().min(1).max(80).optional(),
 });
 export const automationRuleQuerySchema = z.object({
   status: automationRuleStatusSchema.optional(),

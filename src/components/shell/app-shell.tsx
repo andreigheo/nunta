@@ -28,7 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function AppShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { loading, demoMode, bootstrap } = useWorkspace();
+  const { loading, demoMode, bootstrap, currentWorkspace } = useWorkspace();
   if (loading) {
     return <div className="min-h-dvh animate-pulse bg-canvas" role="status" aria-label="Se încarcă spațiul de lucru" />;
   }
@@ -88,7 +88,9 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
       </div>
       <CommandPalette />
       <NotificationsDrawer />
-      <AICopilot />
+      <AICopilot
+        key={`${currentWorkspace?.id ?? "no-workspace"}:${pathname}`}
+      />
       <QuickCreateModal />
       <MobileBottomNav />
       <MobileNavSheet />

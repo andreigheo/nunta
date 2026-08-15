@@ -26,5 +26,6 @@ import { RsvpMenuService } from "./rsvp-menu.service";
     RsvpMenuController,
   ],
   providers: [GuestCrmService, InvitationCampaignService, RsvpMenuService],
+  exports: [GuestCrmService, InvitationCampaignService, RsvpMenuService],
 })
 export class GuestsModule {}

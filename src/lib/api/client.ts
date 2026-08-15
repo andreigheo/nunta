@@ -455,10 +455,25 @@ export type CopilotRunResource = {
     excerpt: string | null;
   }>;
   proposal?: CopilotProposalResource | null;
+  proposals?: CopilotProposalResource[];
+  plan?: {
+    id: string;
+    title: string;
+    summary: string;
+    status: string;
+  } | null;
+  webResearch?: {
+    id: string;
+    query: string;
+    expiresAt: string;
+    citations: Array<{ url: string; title: string; excerpt: string }>;
+  } | null;
 };
 
 export type CopilotProposalResource = OperationResource & {
   runId: string;
+  planId?: string | null;
+  stepPosition?: number | null;
   title: string;
   summary: string;
   riskLevel: string;
@@ -470,6 +485,42 @@ export type CopilotProposalResource = OperationResource & {
       position: number;
     }
   >;
+};
+
+export type CopilotSettingsResource = {
+  id: string | null;
+  workspaceId: string;
+  memoryEnabled: boolean;
+  webResearchEnabled: boolean;
+  webResearchAvailable: boolean;
+  proactiveSuggestions: boolean;
+  memoryRetentionDays: number;
+  version: number;
+  updatedAt: string | null;
+};
+
+export type CopilotMemoryResource = {
+  id: string;
+  workspaceId: string;
+  scope: "WORKSPACE" | "USER";
+  ownerUserId: string | null;
+  subjectType: string | null;
+  subjectId: string | null;
+  kind: string;
+  title: string;
+  content: string;
+  sourceType: string;
+  sourceId: string | null;
+  confidence: number;
+  confirmedByUser: boolean;
+  sensitivity: "NORMAL" | "SENSITIVE" | "RESTRICTED";
+  status: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  useCount: number;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
 };
 
 export type RiskResource = OperationResource & {
@@ -4132,11 +4183,68 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
-  copilotConversations: (workspaceId: string) =>
+  copilotConversations: (workspaceId: string, surface?: string) =>
     request<{
       items: CopilotConversationResource[];
       nextCursor: string | null;
-    }>(`/workspaces/${encodeURIComponent(workspaceId)}/copilot/conversations`),
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/copilot/conversations${surface ? `?surface=${encodeURIComponent(surface)}` : ""}`,
+    ),
+  copilotSettings: (workspaceId: string) =>
+    request<CopilotSettingsResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/copilot/settings`,
+    ),
+  updateCopilotSettings: (
+    workspaceId: string,
+    input: Partial<
+      Pick<
+        CopilotSettingsResource,
+        | "memoryEnabled"
+        | "webResearchEnabled"
+        | "proactiveSuggestions"
+        | "memoryRetentionDays"
+      >
+    > & { version: number },
+  ) =>
+    request<CopilotSettingsResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/copilot/settings`,
+      { method: "PATCH", body: input, ifMatch: input.version },
+    ),
+  copilotMemories: (workspaceId: string) =>
+    request<{ items: CopilotMemoryResource[]; nextCursor: string | null }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/copilot/memories`,
+    ),
+  createCopilotMemory: (
+    workspaceId: string,
+    input: {
+      scope: "WORKSPACE" | "USER";
+      kind: "FACT" | "PREFERENCE" | "DECISION" | "CONSTRAINT";
+      title: string;
+      content: string;
+      sensitivity?: "NORMAL" | "SENSITIVE";
+    },
+  ) =>
+    request<CopilotMemoryResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/copilot/memories`,
+      {
+        method: "POST",
+        body: {
+          ...input,
+          sourceType: "USER_CONFIRMED",
+          confirmedByUser: true,
+        },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  deleteCopilotMemory: (
+    workspaceId: string,
+    memoryId: string,
+    version: number,
+  ) =>
+    request<CopilotMemoryResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/copilot/memories/${encodeURIComponent(memoryId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   createCopilotConversation: (
     workspaceId: string,
     input: { title?: string; surface?: string } = {},
@@ -4156,7 +4264,11 @@ export const weddingOsApi = {
   sendCopilotMessage: (
     workspaceId: string,
     conversationId: string,
-    input: { content: string; mode?: "deterministic" | "ai_enriched" | "auto" },
+    input: {
+      content: string;
+      mode?: "deterministic" | "ai_enriched" | "auto";
+      research?: boolean;
+    },
   ) =>
     request<{
       message: CopilotMessageResource;

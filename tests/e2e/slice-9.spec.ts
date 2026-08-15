@@ -77,6 +77,35 @@ test("E2E 3 — Automations page renders the controlled engine", async ({
   ).toBeVisible();
 });
 
+test("E2E 3B — Copilot explains the current surface and enables explicit research", async ({
+  page,
+}) => {
+  const settings = await apiData<{
+    version: number;
+    webResearchAvailable: boolean;
+  }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/copilot/settings`));
+  expect(settings.webResearchAvailable).toBe(true);
+  await apiData(
+    await owner.api.patch(
+      `/api/v1/workspaces/${workspaceId}/copilot/settings`,
+      {
+        headers: mutationHeaders({ "If-Match": `"${settings.version}"` }),
+        data: { version: settings.version, webResearchEnabled: true },
+      },
+    ),
+  );
+  await authorizePage(page, owner);
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Copilot AI", exact: true }).click();
+  await expect(page.getByText("Context: Buget", { exact: true })).toBeVisible();
+  const research = page.getByRole("switch", {
+    name: "Folosește cercetarea web pentru următorul mesaj",
+  });
+  await expect(research).toBeEnabled();
+  await research.click();
+  await expect(research).toHaveAttribute("aria-checked", "true");
+});
+
 test("E2E 4 — Create a persistent Copilot conversation", async () => {
   conversation = await apiData(
     await owner.api.post(
@@ -242,7 +271,346 @@ test("E2E 14 — Assistant feedback is persisted", async () => {
   expect(feedback.rating).toBe("HELPFUL");
 });
 
-test("E2E 15 — Create a canonical risk and open its real detail page", async ({
+test("E2E 14B — Multi-step plan persists as independently reviewable proposals", async () => {
+  const planConversation = await apiData<Resource>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `plan-conversation-${randomUUID()}`,
+        }),
+        data: { title: "Plan în pași", surface: "/plan" },
+      },
+    ),
+  );
+  const request = await apiData<{ run: { id: string }; job: { id: string } }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations/${planConversation.id}/messages`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `plan-run-${randomUUID()}`,
+        }),
+        data: {
+          content: "Pregătește un plan în 2 pași pentru confirmarea locației",
+          mode: "deterministic",
+        },
+      },
+    ),
+  );
+  await waitForJob(request.job.id);
+  const completedRun = await apiData<{
+    plan: { id: string; title: string } | null;
+    proposals: Array<{ id: string; planId: string; stepPosition: number }>;
+  }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/runs/${request.run.id}`,
+    ),
+  );
+  expect(completedRun.plan?.title).toBe("Plan de lucru propus de Copilot");
+  expect(completedRun.proposals).toHaveLength(2);
+  expect(completedRun.proposals.map((item) => item.stepPosition)).toEqual([
+    0, 1,
+  ]);
+  expect(
+    completedRun.proposals.every(
+      (item) => item.planId === completedRun.plan?.id,
+    ),
+  ).toBe(true);
+});
+
+test("E2E 15 — Copilot executes the real budget adapter", async () => {
+  const budgetConversation = await apiData<Resource>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `budget-conversation-${randomUUID()}`,
+        }),
+        data: { title: "Buget prin Copilot", surface: "/budget" },
+      },
+    ),
+  );
+  const request = await apiData<{ run: { id: string }; job: { id: string } }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations/${budgetConversation.id}/messages`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `budget-proposal-${randomUUID()}`,
+        }),
+        data: {
+          content: "Creează un task temporar pentru buget",
+          mode: "deterministic",
+        },
+      },
+    ),
+  );
+  await waitForJob(request.job.id);
+  const completedRun = await apiData<{
+    proposal: { id: string } | null;
+  }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/runs/${request.run.id}`,
+    ),
+  );
+  expect(completedRun.proposal).not.toBeNull();
+  let budgetProposal = await apiData<Resource & { actions: unknown[] }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${completedRun.proposal!.id}`,
+    ),
+  );
+  const currentBudgetResponse = await owner.api.get(
+    `/api/v1/workspaces/${workspaceId}/budget`,
+  );
+  const currentBudget = currentBudgetResponse.ok()
+    ? await apiData<{ plan: Resource | null }>(currentBudgetResponse)
+    : null;
+  budgetProposal = await apiData(
+    await owner.api.patch(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${budgetProposal.id}`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${budgetProposal.version}"`,
+        }),
+        data: {
+          version: budgetProposal.version,
+          title: "Buget canonic prin Copilot",
+          actions: [
+            {
+              actionType: "UPSERT_BUDGET_PLAN",
+              payload: {
+                targetVersion: currentBudget?.plan?.version ?? null,
+                name: "Buget E2E Copilot",
+                targetTotalMinor: 15_000_000,
+                contingencyPercent: 12,
+                status: "ACTIVE",
+              },
+              riskLevel: "MEDIUM",
+              position: 0,
+            },
+          ],
+        },
+      },
+    ),
+  );
+  budgetProposal = await apiData(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${budgetProposal.id}/approve`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${budgetProposal.version}"`,
+          "Idempotency-Key": `budget-approve-${randomUUID()}`,
+        }),
+        data: { reason: "Buget verificat în E2E" },
+      },
+    ),
+  );
+  const execution = await apiData<{
+    resources: Array<{ type: string; id: string }>;
+  }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${budgetProposal.id}/execute`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${budgetProposal.version}"`,
+          "Idempotency-Key": `budget-execute-${randomUUID()}`,
+        }),
+        data: {},
+      },
+    ),
+  );
+  expect(execution.resources).toEqual(
+    expect.arrayContaining([expect.objectContaining({ type: "BudgetPlan" })]),
+  );
+  const updatedBudget = await apiData<{
+    plan: Resource & { name: string };
+  }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/budget`));
+  expect(updatedBudget.plan.name).toBe("Buget E2E Copilot");
+});
+
+test("E2E 16 — Copilot executes the real calendar adapter", async () => {
+  const calendarConversation = await apiData<Resource>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `calendar-conversation-${randomUUID()}`,
+        }),
+        data: { title: "Calendar prin Copilot", surface: "/calendar" },
+      },
+    ),
+  );
+  const request = await apiData<{ run: { id: string }; job: { id: string } }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations/${calendarConversation.id}/messages`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `calendar-proposal-${randomUUID()}`,
+        }),
+        data: {
+          content:
+            "Creează un eveniment în calendar pentru degustarea meniului",
+          mode: "deterministic",
+        },
+      },
+    ),
+  );
+  await waitForJob(request.job.id);
+  const completedRun = await apiData<{
+    proposal: { id: string } | null;
+  }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/runs/${request.run.id}`,
+    ),
+  );
+  let calendarProposal = await apiData<Resource>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${completedRun.proposal!.id}`,
+    ),
+  );
+  calendarProposal = await apiData(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${calendarProposal.id}/approve`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${calendarProposal.version}"`,
+          "Idempotency-Key": `calendar-approve-${randomUUID()}`,
+        }),
+        data: { reason: "Eveniment verificat în E2E" },
+      },
+    ),
+  );
+  const execution = await apiData<{
+    resources: Array<{ type: string; id: string }>;
+  }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${calendarProposal.id}/execute`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${calendarProposal.version}"`,
+          "Idempotency-Key": `calendar-execute-${randomUUID()}`,
+        }),
+        data: {},
+      },
+    ),
+  );
+  const calendarResource = execution.resources.find(
+    (resource) => resource.type === "CalendarEvent",
+  );
+  expect(calendarResource).toBeTruthy();
+  const createdEvent = await apiData<Resource & { title: string }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/calendar-events/${calendarResource!.id}`,
+    ),
+  );
+  expect(createdEvent.title).toContain("degustarea meniului");
+});
+
+test("E2E 16B — Copilot executes a logistics adapter through approval", async () => {
+  const logisticsConversation = await apiData<Resource>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `logistics-conversation-${randomUUID()}`,
+        }),
+        data: { title: "Cazare prin Copilot", surface: "/accommodation" },
+      },
+    ),
+  );
+  const request = await apiData<{ run: { id: string }; job: { id: string } }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations/${logisticsConversation.id}/messages`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `logistics-proposal-${randomUUID()}`,
+        }),
+        data: {
+          content: "Creează un task temporar pentru cazarea invitaților",
+          mode: "deterministic",
+        },
+      },
+    ),
+  );
+  await waitForJob(request.job.id);
+  const completedRun = await apiData<{
+    proposal: { id: string } | null;
+  }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/runs/${request.run.id}`,
+    ),
+  );
+  let logisticsProposal = await apiData<Resource>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${completedRun.proposal!.id}`,
+    ),
+  );
+  logisticsProposal = await apiData(
+    await owner.api.patch(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${logisticsProposal.id}`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${logisticsProposal.version}"`,
+        }),
+        data: {
+          version: logisticsProposal.version,
+          title: "Cazare verificată prin Copilot",
+          actions: [
+            {
+              actionType: "CREATE_ACCOMMODATION_PROPERTY",
+              payload: {
+                name: "Hotel E2E Copilot",
+                type: "hotel",
+                address: "Strada Testelor 1",
+                city: "Chișinău",
+                country: "Moldova",
+              },
+              riskLevel: "LOW",
+              position: 0,
+            },
+          ],
+        },
+      },
+    ),
+  );
+  logisticsProposal = await apiData(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${logisticsProposal.id}/approve`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${logisticsProposal.version}"`,
+          "Idempotency-Key": `logistics-approve-${randomUUID()}`,
+        }),
+        data: { reason: "Proprietate verificată în E2E" },
+      },
+    ),
+  );
+  const execution = await apiData<{
+    resources: Array<{ type: string; id: string }>;
+  }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${logisticsProposal.id}/execute`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${logisticsProposal.version}"`,
+          "Idempotency-Key": `logistics-execute-${randomUUID()}`,
+        }),
+        data: {},
+      },
+    ),
+  );
+  const property = execution.resources.find(
+    (resource) => resource.type === "AccommodationProperty",
+  );
+  expect(property).toBeTruthy();
+  const createdProperty = await apiData<{ name: string }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/accommodation-properties/${property!.id}`,
+    ),
+  );
+  expect(createdProperty.name).toBe("Hotel E2E Copilot");
+});
+
+test("E2E 17 — Create a canonical risk and open its real detail page", async ({
   page,
 }) => {
   const key = `risk-${randomUUID()}`;

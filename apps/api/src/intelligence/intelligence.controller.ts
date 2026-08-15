@@ -22,11 +22,14 @@ import {
   contingencyTransitionSchema,
   contingencySimulationSchema,
   copilotConversationQuerySchema,
+  copilotMemoryQuerySchema,
+  createCopilotMemorySchema,
   createAutomationRuleSchema,
   createContingencyPlanSchema,
   createCopilotConversationSchema,
   createCopilotFeedbackSchema,
   createCopilotMessageSchema,
+  searchCopilotMemorySchema,
   createRiskMitigationSchema,
   createRiskAssessmentSchema,
   createRiskSchema,
@@ -39,9 +42,19 @@ import {
   updateAutomationRuleSchema,
   updateContingencyPlanSchema,
   updateCopilotConversationSchema,
+  updateCopilotMemorySchema,
   updateCopilotProposalSchema,
+  updateCopilotSettingsSchema,
   updateRiskSchema,
 } from "@weddingos/contracts";
+import {
+  copilotApiOperations,
+  copilotDomainCatalog,
+  copilotImplementedActionDefinitions,
+  copilotPageSurfaces,
+  sarbatoCopilotPolicy,
+  SARBATO_COPILOT_POLICY_VERSION,
+} from "@weddingos/jobs";
 import { CurrentAuth } from "../auth/current-auth.decorator";
 import { SessionAuthGuard } from "../auth/session-auth.guard";
 import { apiResponse } from "../common/api-response";
@@ -54,6 +67,7 @@ import { parseUuid, parseWithSchema } from "../common/validation";
 import { RequireCapability } from "../workspaces/capability.decorator";
 import { CapabilityGuard } from "../workspaces/capability.guard";
 import { IntelligenceService } from "./intelligence.service";
+import { CopilotMemoryService } from "./copilot-memory.service";
 
 @ApiTags("intelligence")
 @ApiCookieAuth()
@@ -62,7 +76,166 @@ import { IntelligenceService } from "./intelligence.service";
 export class IntelligenceController {
   constructor(
     @Inject(IntelligenceService) private readonly service: IntelligenceService,
+    @Inject(CopilotMemoryService)
+    private readonly memory: CopilotMemoryService,
   ) {}
+
+  @Get("copilot/tool-registry")
+  @RequireCapability("copilot.read")
+  toolRegistry(@Req() request: WeddingOsRequest) {
+    const capabilities = new Set<string>(
+      request.membership?.capabilities ?? [],
+    );
+    const operations = copilotApiOperations.filter(
+      (operation) =>
+        operation.route.startsWith("/api/v1/workspaces") &&
+        operation.capability !== null &&
+        capabilities.has(operation.capability),
+    );
+    return apiResponse(request, {
+      policyVersion: SARBATO_COPILOT_POLICY_VERSION,
+      policy: sarbatoCopilotPolicy,
+      domains: copilotDomainCatalog,
+      pages: copilotPageSurfaces,
+      operations,
+      implementedProposalActions: copilotImplementedActionDefinitions.filter(
+        (definition) => capabilities.has(definition.requiredCapability),
+      ),
+      coverage: {
+        mappedOperations: operations.length,
+        visibleOperations: operations.length,
+      },
+    });
+  }
+
+  @Get("copilot/settings")
+  @RequireCapability("copilot.read")
+  async copilotSettings(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.memory.settings(auth.userId, uuid(workspaceId));
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Patch("copilot/settings")
+  @RequireCapability("workspace.update")
+  async updateCopilotSettings(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.memory.updateSettings(
+      auth.userId,
+      uuid(workspaceId),
+      parseWithSchema(updateCopilotSettingsSchema, body),
+    );
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Get("copilot/memories")
+  @RequireCapability("copilot.read")
+  async copilotMemories(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.memory.list(
+      auth.userId,
+      uuid(workspaceId),
+      parseWithSchema(copilotMemoryQuerySchema, query),
+    );
+    return apiResponse(request, data, {
+      nextCursor: data.nextCursor ?? undefined,
+    });
+  }
+
+  @Post("copilot/memories")
+  @RequireCapability("copilot.use")
+  async createCopilotMemory(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(createCopilotMemorySchema, body);
+    if (
+      input.scope === "WORKSPACE" &&
+      !request.membership?.capabilities.includes("workspace.update")
+    )
+      problem(
+        "FORBIDDEN",
+        HttpStatus.FORBIDDEN,
+        "Nu ai permisiunea de a crea o memorie pentru întreaga echipă.",
+      );
+    const data = await this.memory.create(
+      auth.userId,
+      uuid(workspaceId),
+      idempotencyKey(key),
+      input,
+    );
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Patch("copilot/memories/:memoryId")
+  @RequireCapability("copilot.use")
+  async updateCopilotMemory(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("memoryId") memoryId: string,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.memory.update(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(memoryId),
+      parseWithSchema(updateCopilotMemorySchema, body),
+      request.membership?.capabilities.includes("workspace.update") ?? false,
+    );
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Delete("copilot/memories/:memoryId")
+  @RequireCapability("copilot.use")
+  async deleteCopilotMemory(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("memoryId") memoryId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.memory.remove(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(memoryId),
+      parseVersion(ifMatch),
+      request.membership?.capabilities.includes("workspace.update") ?? false,
+    );
+    return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Post("copilot/memories/search")
+  @RequireCapability("copilot.read")
+  async searchCopilotMemories(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.memory.search(
+        auth.userId,
+        uuid(workspaceId),
+        parseWithSchema(searchCopilotMemorySchema, body),
+      ),
+    );
+  }
 
   @Get("copilot/conversations")
   @RequireCapability("copilot.read")
@@ -79,6 +252,7 @@ export class IntelligenceController {
         auth.userId,
         uuid(workspaceId),
         parsed.cursor,
+        parsed.surface,
       ),
     );
   }
@@ -377,6 +551,7 @@ export class IntelligenceController {
         uuid(proposalId),
         idempotencyKey(key),
         parseWithSchema(executeCopilotProposalSchema, body),
+        request.membership?.capabilities ?? [],
         request.correlationId,
       ),
     );
@@ -405,6 +580,7 @@ export class IntelligenceController {
         uuid(proposalId),
         idempotencyKey(key),
         input,
+        request.membership?.capabilities ?? [],
         request.correlationId,
       ),
     );

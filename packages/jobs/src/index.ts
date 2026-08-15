@@ -9,6 +9,8 @@ import { z } from "zod";
 export * from "./planning";
 export * from "./operations";
 export * from "./intelligence";
+export * from "./copilot-platform";
+export * from "./generated/copilot-platform-map";
 
 export const DOMAIN_EVENT_QUEUE = "weddingos-domain-events" as const;
 export const DOMAIN_EVENT_JOB = "domain-event.consumer.v1" as const;

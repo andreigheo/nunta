@@ -1705,5 +1705,6 @@ export * from "./planning";
 export * from "./secure-commerce";
 export * from "./wedding-day";
 export * from "./intelligence";
+export * from "./copilot-actions";
 export * from "./platform";
 export * from "./creative";

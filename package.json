@@ -38,6 +38,8 @@
     "smoke": "node scripts/smoke.mjs",
     "verify:marketing-capabilities": "pnpm --filter @weddingos/contracts build && pnpm run verify:marketing-capabilities:built",
     "verify:marketing-capabilities:built": "node scripts/verify-marketing-capabilities.mjs",
+    "copilot:map": "node scripts/generate-copilot-platform-map.mjs",
+    "copilot:map:check": "node scripts/generate-copilot-platform-map.mjs --check",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration && pnpm build",
     "verify:beta": "node scripts/verify-beta.mjs",
     "verify:beta-environment": "node scripts/verify-beta-environment.mjs",

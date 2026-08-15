@@ -21,5 +21,6 @@ import {
     CommercialController,
   ],
   providers: [CommercialService, VendorCapabilityGuard],
+  exports: [CommercialService],
 })
 export class CommercialModule {}

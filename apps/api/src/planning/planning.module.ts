@@ -9,5 +9,6 @@ import { PlanningService } from "./planning.service";
   imports: [AsyncModule, AuthModule, WorkspacesModule],
   controllers: [PlanningController],
   providers: [PlanningService],
+  exports: [PlanningService],
 })
 export class PlanningModule {}

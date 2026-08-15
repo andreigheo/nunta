@@ -62,6 +62,18 @@ x-api-environment: &api-environment
   PAYOUT_HOLD_DAYS: 7
   PAYOUT_MINIMUM_MINOR: 10000
   WORKER_STALE_AFTER_SECONDS: 45
+  COPILOT_EXTERNAL_ENABLED: ${COPILOT_EXTERNAL_ENABLED:-false}
+  COPILOT_EXTERNAL_DATA_ALLOWED: ${COPILOT_EXTERNAL_DATA_ALLOWED:-false}
+  COPILOT_PROVIDER_PROTOCOL: ${COPILOT_PROVIDER_PROTOCOL:-openrouter-chat}
+  COPILOT_PROVIDER_ENDPOINT: ${COPILOT_PROVIDER_ENDPOINT:-https://openrouter.ai/api/v1/chat/completions}
+  COPILOT_PROVIDER_API_KEY: ${COPILOT_PROVIDER_API_KEY:-}
+  COPILOT_PROVIDER_MODEL: ${COPILOT_PROVIDER_MODEL:-openai/gpt-5.6-luna}
+  COPILOT_MAX_CONTEXT_BYTES: ${COPILOT_MAX_CONTEXT_BYTES:-64000}
+  COPILOT_DAILY_COST_LIMIT_MINOR: ${COPILOT_DAILY_COST_LIMIT_MINOR:-500}
+  COPILOT_MAX_RUN_COST_MINOR: ${COPILOT_MAX_RUN_COST_MINOR:-25}
+  COPILOT_INPUT_COST_MINOR_PER_MILLION: ${COPILOT_INPUT_COST_MINOR_PER_MILLION:-10}
+  COPILOT_OUTPUT_COST_MINOR_PER_MILLION: ${COPILOT_OUTPUT_COST_MINOR_PER_MILLION:-60}
+  COPILOT_WEB_SEARCH_COST_MINOR: ${COPILOT_WEB_SEARCH_COST_MINOR:-1}
   ACCOMMODATION_OVERPASS_URL: ${ACCOMMODATION_OVERPASS_URL:-https://overpass-api.de/api/interpreter}
   ACCOMMODATION_NOMINATIM_URL: ${ACCOMMODATION_NOMINATIM_URL:-https://nominatim.openstreetmap.org/search}
   ACCOMMODATION_DISCOVERY_TTL_SECONDS: ${ACCOMMODATION_DISCOVERY_TTL_SECONDS:-21600}
@@ -78,7 +90,7 @@ x-api-environment: &api-environment
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:0.8.6-pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: weddingos
@@ -123,7 +135,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "redis-cli --tls --cacert /tls/ca.crt -a \"$$REDISCLI_AUTH\" ping",
+          'redis-cli --tls --cacert /tls/ca.crt -a "$$REDISCLI_AUTH" ping',
         ]
       interval: 5s
       timeout: 3s
@@ -201,6 +213,10 @@ services:
     environment:
       <<: *api-environment
       DATABASE_URL: postgresql://weddingos_app:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD is required}@postgres:5432/weddingos?schema=public
+      COPILOT_EMBEDDING_ENABLED: ${COPILOT_EMBEDDING_ENABLED:-false}
+      COPILOT_EMBEDDING_ENDPOINT: ${COPILOT_EMBEDDING_ENDPOINT:-https://api.openai.com/v1/embeddings}
+      COPILOT_EMBEDDING_API_KEY: ${COPILOT_EMBEDDING_API_KEY:-}
+      COPILOT_EMBEDDING_MODEL: ${COPILOT_EMBEDDING_MODEL:-text-embedding-3-small}
     volumes:
       - activity-exports:/var/lib/sarbato/activity-exports
       - /etc/sarbato/redis-tls/ca.crt:/etc/ssl/certs/sarbato-redis-ca.crt:ro
@@ -227,6 +243,10 @@ services:
     environment:
       <<: *api-environment
       DATABASE_URL: postgresql://weddingos_worker:${POSTGRES_WORKER_PASSWORD:?POSTGRES_WORKER_PASSWORD is required}@postgres:5432/weddingos?schema=public
+      COPILOT_EMBEDDING_ENABLED: ${COPILOT_EMBEDDING_ENABLED:-false}
+      COPILOT_EMBEDDING_ENDPOINT: ${COPILOT_EMBEDDING_ENDPOINT:-https://api.openai.com/v1/embeddings}
+      COPILOT_EMBEDDING_API_KEY: ${COPILOT_EMBEDDING_API_KEY:-}
+      COPILOT_EMBEDDING_MODEL: ${COPILOT_EMBEDDING_MODEL:-text-embedding-3-small}
     volumes:
       - activity-exports:/var/lib/sarbato/activity-exports
       - /etc/sarbato/redis-tls/ca.crt:/etc/ssl/certs/sarbato-redis-ca.crt:ro

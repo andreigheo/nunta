@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:0.8.6-pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: weddingos
@@ -215,6 +215,20 @@ services:
       REDIS_URL: redis://redis:6379
       OUTBOX_ENCRYPTION_KEY: local-compose-outbox-encryption-key-change-production
       WORKER_STALE_AFTER_SECONDS: 45
+      COPILOT_EXTERNAL_ENABLED: "false"
+      COPILOT_EXTERNAL_DATA_ALLOWED: "false"
+      COPILOT_PROVIDER_PROTOCOL: openrouter-chat
+      COPILOT_PROVIDER_ENDPOINT: https://openrouter.ai/api/v1/chat/completions
+      COPILOT_PROVIDER_MODEL: openai/gpt-5.6-luna
+      COPILOT_MAX_CONTEXT_BYTES: 64000
+      COPILOT_DAILY_COST_LIMIT_MINOR: 500
+      COPILOT_MAX_RUN_COST_MINOR: 25
+      COPILOT_INPUT_COST_MINOR_PER_MILLION: 10
+      COPILOT_OUTPUT_COST_MINOR_PER_MILLION: 60
+      COPILOT_WEB_SEARCH_COST_MINOR: 1
+      COPILOT_EMBEDDING_ENABLED: "false"
+      COPILOT_EMBEDDING_ENDPOINT: https://api.openai.com/v1/embeddings
+      COPILOT_EMBEDDING_MODEL: text-embedding-3-small
       MARKETING_SNAPSHOT_INTERVAL_SECONDS: 900
       MARKETING_SNAPSHOT_WINDOW_DAYS: 365
       MARKETING_SNAPSHOT_MIN_COHORT: 20

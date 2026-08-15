@@ -1,26 +1,46 @@
 import { createHash, randomUUID } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type {
+  CapabilityKey,
+  CreateCalendarEvent,
+  CreateCampaign,
+  CreateGuest,
+  CreateHousehold,
+  CreateMenu,
+  CreateTask,
   CreateAutomationRule,
   CreateContingencyPlan,
   CreateCopilotConversation,
   CreateCopilotMessage,
   CreateRisk,
+  CopilotProposalActionType,
   UpdateContingencyPlan,
+  UpdateGuest,
+  UpdateHousehold,
   UpdateRisk,
+  UpdateTask,
 } from "@weddingos/contracts";
-import { riskScore } from "@weddingos/contracts";
+import { parseCopilotActionPayload, riskScore } from "@weddingos/contracts";
 import type { Prisma } from "@weddingos/database";
 import {
   AUTOMATION_DSL_VERSION,
+  copilotDefinitionForAction,
   COPILOT_POLICY_VERSION,
   RISK_RULES_VERSION,
+  requiredCapabilityForCopilotAction,
 } from "@weddingos/jobs";
 import { AsyncService } from "../async/async.service";
 import { DatabaseService } from "../common/database.service";
 import { problem } from "../common/problem";
 import { mapJob } from "../jobs/jobs.service";
 import { WorkspaceEntitlementService } from "../workspace-billing/workspace-entitlement.service";
+import { CommercialService } from "../commercial/commercial.service";
+import { GuestCrmService } from "../guests/guest-crm.service";
+import { InvitationCampaignService } from "../guests/invitation-campaign.service";
+import { RsvpMenuService } from "../guests/rsvp-menu.service";
+import { OperationsService } from "../operations/operations.service";
+import { PlanningService } from "../planning/planning.service";
+import { WeddingDayService } from "../wedding-day/wedding-day.service";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -31,12 +51,31 @@ export class IntelligenceService {
     @Inject(AsyncService) private readonly asyncEvents: AsyncService,
     @Inject(WorkspaceEntitlementService)
     private readonly entitlements: WorkspaceEntitlementService,
+    @Inject(PlanningService) private readonly planning: PlanningService,
+    @Inject(CommercialService) private readonly commercial: CommercialService,
+    @Inject(GuestCrmService) private readonly guests: GuestCrmService,
+    @Inject(RsvpMenuService) private readonly menus: RsvpMenuService,
+    @Inject(OperationsService) private readonly operations: OperationsService,
+    @Inject(InvitationCampaignService)
+    private readonly invitations: InvitationCampaignService,
+    @Inject(WeddingDayService)
+    private readonly weddingDay: WeddingDayService,
   ) {}
 
-  conversations(userId: string, workspaceId: string, cursor?: string) {
+  conversations(
+    userId: string,
+    workspaceId: string,
+    cursor?: string,
+    surface?: string,
+  ) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       const rows = await tx.copilotConversation.findMany({
-        where: { workspaceId },
+        where: {
+          workspaceId,
+          createdById: userId,
+          status: "ACTIVE",
+          ...(surface ? { surface } : {}),
+        },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: 21,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -144,7 +183,7 @@ export class IntelligenceService {
   conversation(userId: string, workspaceId: string, conversationId: string) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       const conversation = await tx.copilotConversation.findFirst({
-        where: { id: conversationId, workspaceId },
+        where: { id: conversationId, workspaceId, createdById: userId },
       });
       if (!conversation) notFound("Conversația nu a fost găsită.");
       const [messages, proposals] = await Promise.all([
@@ -203,29 +242,89 @@ export class IntelligenceService {
           1,
           Number(process.env.COPILOT_DAILY_RUN_LIMIT ?? 100),
         );
-        const [userRuns, workspaceRuns] = await Promise.all([
-          tx.copilotRun.count({
-            where: {
-              workspaceId,
-              requestedById: userId,
-              createdAt: { gte: new Date(Date.now() - 86_400_000) },
-            },
-          }),
-          tx.copilotRun.count({
-            where: {
-              workspaceId,
-              createdAt: { gte: new Date(Date.now() - 86_400_000) },
-            },
-          }),
-        ]);
+        const dailyCostLimit = Math.max(
+          1,
+          Number(process.env.COPILOT_DAILY_COST_LIMIT_MINOR ?? 500),
+        );
+        const maximumRunCost = Math.max(
+          1,
+          Number(process.env.COPILOT_MAX_RUN_COST_MINOR ?? 25),
+        );
+        const dailyStart = new Date(Date.now() - 86_400_000);
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtextextended(${`copilot.daily-budget:${workspaceId}`}, 0))
+        `;
+        const [userRuns, workspaceRuns, dailyUsage, inFlightRuns] =
+          await Promise.all([
+            tx.copilotRun.count({
+              where: {
+                workspaceId,
+                requestedById: userId,
+                createdAt: { gte: dailyStart },
+              },
+            }),
+            tx.copilotRun.count({
+              where: {
+                workspaceId,
+                createdAt: { gte: dailyStart },
+              },
+            }),
+            tx.copilotUsageRecord.aggregate({
+              where: {
+                workspaceId,
+                createdAt: { gte: dailyStart },
+              },
+              _sum: { estimatedCostMinor: true },
+            }),
+            tx.copilotRun.count({
+              where: {
+                workspaceId,
+                status: { in: ["QUEUED", "RUNNING"] },
+                createdAt: { gte: dailyStart },
+              },
+            }),
+          ]);
         if (userRuns >= dailyLimit || workspaceRuns >= dailyLimit * 10)
           problem(
             "RATE_LIMITED",
             HttpStatus.TOO_MANY_REQUESTS,
             "Limita zilnică pentru Copilot a fost atinsă. Datele produsului rămân disponibile.",
           );
+        if (
+          (dailyUsage._sum.estimatedCostMinor ?? 0) +
+            (inFlightRuns + 1) * maximumRunCost >
+          dailyCostLimit
+        )
+          problem(
+            "RATE_LIMITED",
+            HttpStatus.TOO_MANY_REQUESTS,
+            "Bugetul zilnic configurat pentru Copilot nu mai permite o rulare nouă.",
+          );
+        if (input.research) {
+          const settings = await tx.copilotWorkspaceSettings.findUnique({
+            where: { workspaceId },
+            select: { webResearchEnabled: true },
+          });
+          if (!settings?.webResearchEnabled)
+            problem(
+              "FORBIDDEN",
+              HttpStatus.FORBIDDEN,
+              "Cercetarea web trebuie activată explicit din setările Copilot.",
+            );
+          if (input.mode === "deterministic")
+            problem(
+              "VALIDATION_FAILED",
+              HttpStatus.UNPROCESSABLE_ENTITY,
+              "Cercetarea web necesită modul AI sau automat.",
+            );
+        }
         const conversation = await tx.copilotConversation.findFirst({
-          where: { id: conversationId, workspaceId, status: "ACTIVE" },
+          where: {
+            id: conversationId,
+            workspaceId,
+            createdById: userId,
+            status: "ACTIVE",
+          },
         });
         if (!conversation) notFound("Conversația nu este activă.");
         const userMessage = await tx.copilotMessage.create({
@@ -235,7 +334,10 @@ export class IntelligenceService {
             authorUserId: userId,
             role: "USER",
             content: input.content,
-            metadata: (input.context ?? {}) as Prisma.InputJsonValue,
+            metadata: {
+              ...(input.context ?? {}),
+              research: input.research ?? false,
+            } as Prisma.InputJsonValue,
           },
         });
         const runId = randomUUID();
@@ -309,16 +411,27 @@ export class IntelligenceService {
   run(userId: string, workspaceId: string, runId: string) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       const run = await tx.copilotRun.findFirst({
-        where: { id: runId, workspaceId },
+        where: { id: runId, workspaceId, requestedById: userId },
       });
       if (!run) notFound("Rularea Copilot nu a fost găsită.");
-      const [sources, proposal] = await Promise.all([
+      const [sources, proposals, plan, research] = await Promise.all([
         tx.copilotSourceReference.findMany({
           where: { runId, workspaceId },
           orderBy: { position: "asc" },
         }),
-        tx.copilotProposal.findFirst({ where: { runId, workspaceId } }),
+        tx.copilotProposal.findMany({
+          where: { runId, workspaceId },
+          orderBy: [{ stepPosition: "asc" }, { createdAt: "asc" }],
+        }),
+        tx.copilotPlan.findFirst({ where: { runId, workspaceId } }),
+        tx.copilotWebResearch.findUnique({ where: { runId } }),
       ]);
+      const webCitations = research
+        ? await tx.copilotWebCitation.findMany({
+            where: { workspaceId, researchId: research.id },
+            orderBy: { position: "asc" },
+          })
+        : [];
       return {
         ...mapRun(run),
         sources: sources.map((source) => ({
@@ -327,7 +440,28 @@ export class IntelligenceService {
           resourceId: source.resourceId,
           excerpt: source.excerpt,
         })),
-        proposal: proposal ? mapProposal(proposal) : null,
+        proposal: proposals[0] ? mapProposal(proposals[0]) : null,
+        proposals: proposals.map(mapProposal),
+        plan: plan
+          ? {
+              id: plan.id,
+              title: plan.title,
+              summary: plan.summary,
+              status: plan.status.toLowerCase(),
+            }
+          : null,
+        webResearch: research
+          ? {
+              id: research.id,
+              query: research.query,
+              expiresAt: research.expiresAt.toISOString(),
+              citations: webCitations.map((citation) => ({
+                url: citation.url,
+                title: citation.title,
+                excerpt: citation.excerpt,
+              })),
+            }
+          : null,
       };
     });
   }
@@ -343,6 +477,15 @@ export class IntelligenceService {
         where: { id: messageId, workspaceId, role: "ASSISTANT" },
       });
       if (!message) notFound("Mesajul Copilot nu a fost găsit.");
+      const conversation = await tx.copilotConversation.findFirst({
+        where: {
+          id: message.conversationId,
+          workspaceId,
+          createdById: userId,
+        },
+        select: { id: true },
+      });
+      if (!conversation) notFound("Mesajul Copilot nu a fost găsit.");
       const feedback = await tx.copilotFeedback.upsert({
         where: { messageId_userId: { messageId, userId } },
         create: { workspaceId, messageId, userId, ...input },
@@ -529,6 +672,7 @@ export class IntelligenceService {
     proposalId: string,
     idempotencyKey: string,
     input: { version: number; confirmHighRisk?: boolean },
+    actorCapabilities: CapabilityKey[],
     correlationId: string,
   ) {
     return this.database.withContext(
@@ -568,6 +712,7 @@ export class IntelligenceService {
           where: { proposalId, workspaceId },
           orderBy: { position: "asc" },
         });
+        assertCopilotActionCapabilities(actions, actorCapabilities);
         for (const action of actions) {
           const payload = record(action.payload);
           if (action.actionType === "UPDATE_TASK") {
@@ -609,138 +754,47 @@ export class IntelligenceService {
         }
         const resources: Array<{ type: string; id: string }> = [];
         for (const action of actions) {
-          const payload = record(action.payload);
-          if (action.actionType === "CREATE_TASK") {
-            const task = await tx.task.create({
-              data: {
-                workspaceId,
-                title: stringValue(payload.title, "Task propus de Copilot"),
-                description: optionalString(payload.description),
-                category: optionalString(payload.category) ?? "other",
-                priority: planningPriority(payload.priority),
-                createdById: userId,
-              },
-            });
-            resources.push({ type: "Task", id: task.id });
-          } else if (action.actionType === "UPDATE_TASK") {
-            const taskId = stringValue(payload.targetId, "");
-            const task = await tx.task.update({
-              where: { id: taskId },
-              data: {
-                title: optionalString(payload.title),
-                description: optionalString(payload.description),
-                priority: payload.priority
-                  ? planningPriority(payload.priority)
-                  : undefined,
-                dueAt: payload.dueAt ? dateValue(payload.dueAt) : undefined,
-                version: { increment: 1 },
-              },
-            });
-            resources.push({ type: "Task", id: task.id });
-          } else if (action.actionType === "CREATE_RISK") {
-            const probability = boundedNumber(payload.probability, 3);
-            const impact = boundedNumber(payload.impact, 3);
-            const score = riskScore(probability, impact);
-            const risk = await tx.risk.create({
-              data: {
-                workspaceId,
-                title: stringValue(payload.title, "Risc propus de Copilot"),
-                description: optionalString(payload.description),
-                category: riskCategory(payload.category),
-                probability,
-                impact,
-                score: score.score,
-                level: score.level,
-                source: "COPILOT",
-                sourceType: "CopilotProposal",
-                sourceId: proposalId,
-                dedupeKey: `copilot-proposal:${proposalId}:${action.id}`,
-                createdById: userId,
-              },
-            });
-            resources.push({ type: "Risk", id: risk.id });
-          } else if (action.actionType === "UPDATE_RISK") {
-            const riskId = stringValue(payload.targetId, "");
-            const currentRisk = await tx.risk.findUniqueOrThrow({
-              where: { id: riskId },
-            });
-            const probability = payload.probability
-              ? boundedNumber(payload.probability, currentRisk.probability)
-              : currentRisk.probability;
-            const impact = payload.impact
-              ? boundedNumber(payload.impact, currentRisk.impact)
-              : currentRisk.impact;
-            const score = riskScore(probability, impact);
-            const risk = await tx.risk.update({
-              where: { id: riskId },
-              data: {
-                title: optionalString(payload.title),
-                description: optionalString(payload.description),
-                probability,
-                impact,
-                score: score.score,
-                level: score.level,
-                version: { increment: 1 },
-              },
-            });
-            resources.push({ type: "Risk", id: risk.id });
-          } else if (action.actionType === "CREATE_CALENDAR_EVENT") {
-            const startAt =
-              dateValue(payload.startAt) ?? new Date(Date.now() + 86_400_000);
-            const event = await tx.calendarEvent.create({
-              data: {
-                workspaceId,
-                title: stringValue(
-                  payload.title,
-                  "Eveniment propus de Copilot",
-                ),
-                description: optionalString(payload.description),
-                eventType: "other",
-                startAt,
-                endAt:
-                  dateValue(payload.endAt) ??
-                  new Date(startAt.getTime() + 3_600_000),
-                allDay: false,
-                timezone: "Europe/Chisinau",
-                source: "manual",
-                createdById: userId,
-              },
-            });
-            resources.push({ type: "CalendarEvent", id: event.id });
-          } else if (action.actionType === "CREATE_CONTINGENCY_PLAN") {
-            const riskId = optionalString(payload.riskId);
-            if (riskId) {
-              const risk = await tx.risk.findFirst({
-                where: { id: riskId, workspaceId, deletedAt: null },
-                select: { id: true },
-              });
-              if (!risk)
-                problem(
-                  "VERSION_CONFLICT",
-                  HttpStatus.CONFLICT,
-                  "Proposal target is no longer available",
-                );
-            }
-            const plan = await tx.contingencyPlan.create({
-              data: {
-                workspaceId,
-                riskId,
-                title: stringValue(payload.title, "Plan B propus de Copilot"),
-                summary: optionalString(payload.summary),
-                createdById: userId,
-              },
-            });
-            await tx.contingencyPlanVersion.create({
-              data: {
-                workspaceId,
-                planId: plan.id,
-                version: 1,
-                snapshot: payload as Prisma.InputJsonValue,
-                createdById: userId,
-              },
-            });
-            resources.push({ type: "ContingencyPlan", id: plan.id });
-          }
+          const actionType = action.actionType as CopilotProposalActionType;
+          const payload = parseCopilotActionPayload(
+            actionType,
+            record(action.payload),
+          );
+          const requiredCapability =
+            requiredCapabilityForCopilotAction(actionType)!;
+          const invocation = await tx.copilotToolInvocation.create({
+            data: {
+              workspaceId,
+              userId,
+              runId: proposal.runId,
+              toolKey: `proposal.${actionType.toLowerCase()}`,
+              operation: "EXECUTE",
+              requiredCapability,
+              riskLevel: action.riskLevel,
+              input: redactCopilotAuditValue(payload),
+              idempotencyKey: `copilot-action:${proposalId}:${action.id}`,
+            },
+          });
+          const resource = await this.executeCopilotAction({
+            actionType,
+            payload,
+            userId,
+            workspaceId,
+            proposalId,
+            actionId: action.id,
+            correlationId,
+            actorCapabilities,
+          });
+          resources.push(resource);
+          await tx.copilotToolInvocation.update({
+            where: { id: invocation.id },
+            data: {
+              status: "COMPLETED",
+              output: resource,
+              resourceType: resource.type,
+              resourceId: resource.id,
+              completedAt: new Date(),
+            },
+          });
         }
         const result = { executionId: execution.id, resources };
         await tx.copilotExecution.update({
@@ -778,7 +832,511 @@ export class IntelligenceService {
         });
         return result;
       },
+      { timeout: 60_000, maxWait: 10_000 },
     );
+  }
+
+  private async executeCopilotAction(input: {
+    actionType: CopilotProposalActionType;
+    payload: Record<string, unknown>;
+    userId: string;
+    workspaceId: string;
+    proposalId: string;
+    actionId: string;
+    correlationId: string;
+    actorCapabilities: CapabilityKey[];
+  }): Promise<{ type: string; id: string }> {
+    const {
+      actionType,
+      payload,
+      userId,
+      workspaceId,
+      proposalId,
+      actionId,
+      correlationId,
+      actorCapabilities,
+    } = input;
+    const replayKey = `copilot:${proposalId}:${actionId}`;
+    const targetId = optionalString(payload.targetId);
+    const targetVersion = Number(payload.targetVersion);
+
+    if (actionType === "CREATE_TASK") {
+      const row = await this.planning.createTask(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as CreateTask,
+        correlationId,
+      );
+      return resourceReference("Task", row);
+    }
+    if (actionType === "UPDATE_TASK") {
+      const row = await this.planning.updateTask(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as UpdateTask,
+        correlationId,
+      );
+      return resourceReference("Task", row);
+    }
+    if (actionType === "CREATE_CALENDAR_EVENT") {
+      const row = await this.planning.createEvent(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as CreateCalendarEvent,
+        correlationId,
+      );
+      return resourceReference("CalendarEvent", row);
+    }
+    if (actionType === "UPDATE_CALENDAR_EVENT") {
+      const row = await this.planning.updateEvent(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as Partial<CreateCalendarEvent>,
+        correlationId,
+      );
+      return resourceReference("CalendarEvent", row);
+    }
+    if (actionType === "CREATE_RISK") {
+      const row = await this.createRisk(
+        userId,
+        workspaceId,
+        replayKey,
+        { ...(payload as CreateRisk), source: "COPILOT" },
+        correlationId,
+      );
+      return resourceReference("Risk", row);
+    }
+    if (actionType === "UPDATE_RISK") {
+      const row = await this.updateRisk(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as UpdateRisk,
+        correlationId,
+      );
+      return resourceReference("Risk", row);
+    }
+    if (actionType === "CREATE_CONTINGENCY_PLAN") {
+      const row = await this.createContingencyPlan(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as CreateContingencyPlan,
+        correlationId,
+      );
+      return resourceReference("ContingencyPlan", row);
+    }
+    if (actionType === "UPSERT_BUDGET_PLAN") {
+      const row = await this.commercial.upsertBudget(
+        userId,
+        workspaceId,
+        Number.isInteger(targetVersion) ? targetVersion : null,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("BudgetPlan", row);
+    }
+    if (actionType === "CREATE_BUDGET_CATEGORY") {
+      const row = await this.commercial.createBudgetCategory(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("BudgetCategory", row);
+    }
+    if (actionType === "UPDATE_BUDGET_CATEGORY") {
+      const row = await this.commercial.updateBudgetCategory(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+        correlationId,
+      );
+      return resourceReference("BudgetCategory", row);
+    }
+    if (actionType === "CREATE_BUDGET_ITEM") {
+      const row = await this.commercial.createBudgetItem(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("BudgetItem", row);
+    }
+    if (actionType === "UPDATE_BUDGET_ITEM") {
+      const row = await this.commercial.updateBudgetItem(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+        correlationId,
+      );
+      return resourceReference("BudgetItem", row);
+    }
+    if (actionType === "CREATE_EXPENSE") {
+      const row = await this.commercial.createExpense(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("ExpenseRecord", row);
+    }
+    if (actionType === "UPDATE_EXPENSE") {
+      const row = await this.commercial.updateExpense(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+        correlationId,
+      );
+      return resourceReference("ExpenseRecord", row);
+    }
+    if (actionType === "CREATE_HOUSEHOLD") {
+      const row = await this.guests.createHousehold(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as CreateHousehold,
+        correlationId,
+      );
+      return resourceReference("Household", row);
+    }
+    if (actionType === "UPDATE_HOUSEHOLD") {
+      const row = await this.guests.updateHousehold(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as UpdateHousehold,
+        correlationId,
+      );
+      return resourceReference("Household", row);
+    }
+    if (actionType === "CREATE_GUEST") {
+      const row = await this.guests.createGuest(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as CreateGuest,
+        correlationId,
+        actorCapabilities,
+      );
+      return resourceReference("Guest", row);
+    }
+    if (actionType === "UPDATE_GUEST") {
+      const row = await this.guests.updateGuest(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as UpdateGuest,
+        correlationId,
+        actorCapabilities,
+      );
+      return resourceReference("Guest", row);
+    }
+    if (actionType === "CREATE_MENU") {
+      const row = await this.menus.createMenu(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as CreateMenu,
+        correlationId,
+      );
+      return resourceReference("Menu", row);
+    }
+    if (actionType === "UPDATE_MENU") {
+      const row = await this.menus.updateMenu(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as Partial<CreateMenu>,
+        correlationId,
+      );
+      return resourceReference("Menu", row);
+    }
+    if (actionType === "CREATE_SEATING_PLAN") {
+      const row = await this.operations.createSeatingPlan(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("SeatingPlan", row);
+    }
+    if (actionType === "UPDATE_SEATING_PLAN") {
+      const row = await this.operations.updateSeatingPlan(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+        correlationId,
+      );
+      return resourceReference("SeatingPlan", row);
+    }
+    if (actionType === "CREATE_SEATING_TABLE") {
+      const row = await this.operations.createTable(
+        userId,
+        workspaceId,
+        stringValue(payload.planId, ""),
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("SeatingTable", row);
+    }
+    if (actionType === "UPDATE_SEATING_TABLE") {
+      const row = await this.operations.updateTable(
+        userId,
+        workspaceId,
+        stringValue(payload.planId, ""),
+        targetId!,
+        targetVersion,
+        payload,
+      );
+      return resourceReference("SeatingTable", row);
+    }
+    if (actionType === "REPLACE_SEATING_ASSIGNMENTS") {
+      const planId = stringValue(payload.planId, "");
+      await this.operations.replaceSeatingAssignments(
+        userId,
+        workspaceId,
+        planId,
+        targetVersion,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return { type: "SeatingPlan", id: planId };
+    }
+    if (actionType === "CREATE_VENDOR_SHORTLIST") {
+      const row = await this.commercial.createShortlist(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+      );
+      return resourceReference("VendorShortlist", row);
+    }
+    if (actionType === "ADD_VENDOR_TO_SHORTLIST") {
+      const shortlistId = stringValue(payload.shortlistId, "");
+      await this.commercial.setShortlistVendor(
+        userId,
+        workspaceId,
+        shortlistId,
+        stringValue(payload.vendorOrganizationId, ""),
+        true,
+      );
+      return { type: "VendorShortlist", id: shortlistId };
+    }
+    if (actionType === "FAVORITE_VENDOR") {
+      const vendorOrganizationId = stringValue(
+        payload.vendorOrganizationId,
+        "",
+      );
+      await this.commercial.setFavorite(
+        userId,
+        workspaceId,
+        vendorOrganizationId,
+        true,
+      );
+      return { type: "VendorOrganization", id: vendorOrganizationId };
+    }
+    if (actionType === "SYNC_INVITATION_DATA") {
+      const preview = await this.invitations.syncPreview(userId, workspaceId);
+      const availablePaths = new Set(
+        preview.differences.map((difference) => difference.path),
+      );
+      const paths = (
+        payload.paths as Array<(typeof preview.differences)[number]["path"]>
+      ).filter((path) => availablePaths.has(path));
+      if (!paths.length) {
+        const current = await this.invitations.site(userId, workspaceId);
+        return resourceReference("InvitationSite", current);
+      }
+      const row = await this.invitations.syncApply(
+        userId,
+        workspaceId,
+        targetVersion,
+        replayKey,
+        { sourceRevision: preview.sourceRevision, paths },
+        correlationId,
+      );
+      return resourceReference("InvitationSite", row);
+    }
+    if (actionType === "CREATE_TRANSPORT_PLAN") {
+      const row = await this.operations.createTransportPlan(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("TransportPlan", row);
+    }
+    if (actionType === "UPDATE_TRANSPORT_PLAN") {
+      const row = await this.operations.updateTransportPlan(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+      );
+      return resourceReference("TransportPlan", row);
+    }
+    if (actionType === "CREATE_TRANSPORT_STOP") {
+      const row = await this.operations.createTransportStop(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+      );
+      return resourceReference("TransportStop", row);
+    }
+    if (actionType === "UPDATE_TRANSPORT_STOP") {
+      const row = await this.operations.updateTransportStop(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+      );
+      return resourceReference("TransportStop", row);
+    }
+    if (actionType === "CREATE_ACCOMMODATION_PROPERTY") {
+      const row = await this.operations.createAccommodationProperty(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("AccommodationProperty", row);
+    }
+    if (actionType === "UPDATE_ACCOMMODATION_PROPERTY") {
+      const row = await this.operations.updateAccommodationProperty(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+      );
+      return resourceReference("AccommodationProperty", row);
+    }
+    if (actionType === "CREATE_ACCOMMODATION_STAY") {
+      const row = await this.operations.createAccommodationStay(
+        userId,
+        workspaceId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("AccommodationStay", row);
+    }
+    if (actionType === "UPDATE_ACCOMMODATION_STAY") {
+      const row = await this.operations.updateAccommodationStay(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload,
+      );
+      return resourceReference("AccommodationStay", row);
+    }
+    if (actionType === "CREATE_RFQ") {
+      const row = await this.commercial.createRfq(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as Prisma.JsonObject,
+        correlationId,
+      );
+      return resourceReference("RequestForQuote", row);
+    }
+    if (actionType === "UPDATE_RFQ") {
+      const row = await this.commercial.updateRfq(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as Prisma.JsonObject,
+        correlationId,
+      );
+      return resourceReference("RequestForQuote", row);
+    }
+    if (actionType === "CREATE_CAMPAIGN_DRAFT") {
+      const row = await this.invitations.createCampaign(
+        userId,
+        workspaceId,
+        replayKey,
+        payload as CreateCampaign,
+        correlationId,
+      );
+      return resourceReference("Campaign", row);
+    }
+    if (actionType === "UPDATE_CAMPAIGN_DRAFT") {
+      const row = await this.invitations.updateCampaign(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as Partial<CreateCampaign>,
+      );
+      return resourceReference("Campaign", row);
+    }
+    if (actionType === "CREATE_WEDDING_DAY_INCIDENT") {
+      const row = await this.weddingDay.createIncident(
+        userId,
+        workspaceId,
+        stringValue(payload.planId, ""),
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("WeddingDayIncident", row);
+    }
+    if (actionType === "CREATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT") {
+      const row = await this.weddingDay.createAnnouncement(
+        userId,
+        workspaceId,
+        stringValue(payload.planId, ""),
+        replayKey,
+        { ...payload, publishAt: null },
+      );
+      return resourceReference("WeddingDayAnnouncement", row);
+    }
+    if (actionType === "UPDATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT") {
+      const row = await this.weddingDay.updateAnnouncement(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        { ...payload, publishAt: null },
+      );
+      return resourceReference("WeddingDayAnnouncement", row);
+    }
+
+    const exhaustive: never = actionType;
+    throw new Error(`Unsupported Copilot action: ${String(exhaustive)}`);
   }
 
   risks(
@@ -2452,6 +3010,46 @@ export class IntelligenceService {
   }
 }
 
+function assertCopilotActionCapabilities(
+  actions: Array<{
+    actionType: string;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  }>,
+  actorCapabilities: CapabilityKey[],
+) {
+  const granted = new Set(actorCapabilities);
+  for (const action of actions) {
+    const definition = copilotDefinitionForAction(action.actionType);
+    if (!definition)
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        "Acțiunea Copilot nu are un adaptor autorizat.",
+      );
+    const required = definition.requiredCapability;
+    if (!granted.has(required as CapabilityKey))
+      problem(
+        "FORBIDDEN",
+        HttpStatus.FORBIDDEN,
+        "Nu ai permisiunea necesară pentru această acțiune Copilot.",
+        `Este necesară capabilitatea ${required}.`,
+      );
+    if (
+      copilotRiskRank(action.riskLevel) <
+      copilotRiskRank(definition.minimumRisk)
+    )
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        "Nivelul de risc al acțiunii este sub minimul impus de platformă.",
+      );
+  }
+}
+
+function copilotRiskRank(value: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL") {
+  return ["LOW", "MEDIUM", "HIGH", "CRITICAL"].indexOf(value);
+}
+
 async function runIds(tx: Transaction, conversationId: string) {
   return (
     await tx.copilotRun.findMany({
@@ -2535,6 +3133,8 @@ function mapProposal(value: Prisma.CopilotProposalGetPayload<object>) {
   return {
     id: value.id,
     runId: value.runId,
+    planId: value.planId,
+    stepPosition: value.stepPosition,
     title: value.title,
     summary: value.summary,
     status: value.status.toLowerCase(),
@@ -2599,6 +3199,16 @@ function mapAutomationRule(value: Prisma.AutomationRuleGetPayload<object>) {
   };
 }
 
+function resourceReference(type: string, value: unknown) {
+  const id =
+    value && typeof value === "object" && "id" in value
+      ? (value as { id?: unknown }).id
+      : undefined;
+  if (typeof id !== "string" || !id)
+    throw new Error(`Copilot adapter ${type} returned no resource id`);
+  return { type, id };
+}
+
 function record(value: Prisma.JsonValue): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -2615,54 +3225,6 @@ function optionalString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function boundedNumber(value: unknown, fallback: number) {
-  return typeof value === "number" && Number.isInteger(value)
-    ? Math.min(5, Math.max(1, value))
-    : fallback;
-}
-
-function planningPriority(
-  value: unknown,
-): "LOW" | "MEDIUM" | "HIGH" | "URGENT" {
-  return ["LOW", "MEDIUM", "HIGH", "URGENT"].includes(
-    String(value).toUpperCase(),
-  )
-    ? (String(value).toUpperCase() as "LOW" | "MEDIUM" | "HIGH" | "URGENT")
-    : "MEDIUM";
-}
-
-function riskCategory(
-  value: unknown,
-):
-  | "SCHEDULE"
-  | "VENDOR"
-  | "BUDGET"
-  | "GUEST"
-  | "LOGISTICS"
-  | "WEATHER"
-  | "SAFETY"
-  | "OTHER" {
-  const candidate = String(value).toUpperCase();
-  return [
-    "SCHEDULE",
-    "VENDOR",
-    "BUDGET",
-    "GUEST",
-    "LOGISTICS",
-    "WEATHER",
-    "SAFETY",
-    "OTHER",
-  ].includes(candidate)
-    ? (candidate as ReturnType<typeof riskCategory>)
-    : "OTHER";
-}
-
-function dateValue(value: unknown) {
-  if (typeof value !== "string") return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 function iso(value: Date | null) {
   return value?.toISOString() ?? null;
 }
@@ -2673,6 +3235,20 @@ function hashJson(value: unknown) {
 
 function jsonSnapshot(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function redactCopilotAuditValue(value: unknown): Prisma.InputJsonValue {
+  if (Array.isArray(value)) return value.map(redactCopilotAuditValue);
+  if (!value || typeof value !== "object")
+    return value as Prisma.InputJsonValue;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      key,
+      /password|secret|token|api.?key|mfa|card/i.test(key)
+        ? "[REDACTED]"
+        : redactCopilotAuditValue(item),
+    ]),
+  ) as Prisma.InputJsonValue;
 }
 
 function versionMatch(current: number, expected: number) {

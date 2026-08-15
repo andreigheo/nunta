@@ -28,7 +28,10 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { parseApiEnvironment } from "@weddingos/config";
-import { detectMediaType } from "@weddingos/contracts";
+import {
+  detectMediaType,
+  parseCopilotActionPayload,
+} from "@weddingos/contracts";
 import { Prisma, PrismaClient } from "@weddingos/database";
 import {
   asyncEventNameSchema,
@@ -43,14 +46,20 @@ import {
   DOMAIN_EVENT_QUEUE,
   ConfiguredAiPlanProvider,
   ConfiguredAiCopilotProvider,
+  copilotMemoryContentCanPersist,
   DeterministicCopilotProvider,
   DeterministicPlanProvider,
   detectDeterministicRisks,
   routeCopilotProvider,
+  requestCopilotEmbedding,
+  copilotDomainCatalog,
+  copilotImplementedActionDefinitions,
+  copilotReadToolDefinitions,
   COPILOT_POLICY_VERSION,
   RISK_RULES_VERSION,
   buildDeterministicSeatingSuggestion,
   notificationDedupeKey,
+  OpenRouterCopilotProvider,
   isUntrustedDocumentInstruction,
   outboxConsumerNameSchema,
   PermanentJobError,
@@ -5597,6 +5606,19 @@ async function processCopilotRun(
         "Copilot user message is missing",
         "COPILOT_MESSAGE_MISSING",
       );
+    const conversation = await transaction.copilotConversation.findFirst({
+      where: {
+        id: run.conversationId,
+        workspaceId: snapshot.workspace_id!,
+        createdById: snapshot.actor_user_id!,
+      },
+      select: { surface: true },
+    });
+    if (!conversation)
+      throw new PermanentJobError(
+        "Copilot conversation does not belong to the persisted actor",
+        "COPILOT_CONVERSATION_CONTEXT_MISMATCH",
+      );
     await transaction.copilotRun.update({
       where: { id: run.id },
       data: { status: "RUNNING", startedAt: run.startedAt ?? new Date() },
@@ -5627,6 +5649,34 @@ async function processCopilotRun(
         effectiveCapabilities.add(override.capability);
       else effectiveCapabilities.delete(override.capability);
     }
+    const copilotSettings =
+      await transaction.copilotWorkspaceSettings.findUnique({
+        where: { workspaceId: snapshot.workspace_id! },
+      });
+    const memories =
+      copilotSettings?.memoryEnabled === false
+        ? []
+        : await transaction.copilotMemory.findMany({
+            where: {
+              workspaceId: snapshot.workspace_id!,
+              status: "ACTIVE",
+              OR: [
+                { scope: "WORKSPACE" },
+                { scope: "USER", ownerUserId: snapshot.actor_user_id! },
+              ],
+              AND: [
+                {
+                  OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+                },
+              ],
+            },
+            orderBy: [
+              { confirmedByUser: "desc" },
+              { lastUsedAt: "desc" },
+              { updatedAt: "desc" },
+            ],
+            take: 12,
+          });
     const [tasks, milestones, risks, events, phases] = await Promise.all([
       effectiveCapabilities.has("task.read")
         ? transaction.task.findMany({
@@ -5718,11 +5768,8 @@ async function processCopilotRun(
       effectiveCapabilities.has("budget.read")
         ? transaction.budgetItem.findMany({
             where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
-            select: {
-              estimatedMinor: true,
-              committedMinor: true,
-              paidMinor: true,
-            },
+            orderBy: { updatedAt: "desc" },
+            take: 20,
           })
         : Promise.resolve([]),
       effectiveCapabilities.has("guest.read")
@@ -5757,6 +5804,176 @@ async function processCopilotRun(
           })
         : Promise.resolve([]),
     ]);
+    const [
+      budgetCategories,
+      expenses,
+      households,
+      guests,
+      menus,
+      seatingPlans,
+      seatingTables,
+      venueSpaces,
+      shortlists,
+      invitationSite,
+      transportPlans,
+      transportRoutes,
+      accommodationProperties,
+      accommodationStays,
+      rfqs,
+      campaigns,
+      weddingDayIncidents,
+      weddingDayAnnouncements,
+    ] = await Promise.all([
+      effectiveCapabilities.has("budget.read")
+        ? transaction.budgetCategory.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+            take: 12,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("expense.read")
+        ? transaction.expenseRecord.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
+            take: 8,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("guest.read")
+        ? transaction.household.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            select: {
+              id: true,
+              version: true,
+              preferredLanguage: true,
+              side: true,
+              updatedAt: true,
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 12,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("guest.read")
+        ? transaction.guest.findMany({
+            where: {
+              workspaceId: snapshot.workspace_id!,
+              deletedAt: null,
+              status: "ACTIVE",
+            },
+            select: {
+              id: true,
+              householdId: true,
+              version: true,
+              preferredLanguage: true,
+              side: true,
+              isChild: true,
+              isPlusOne: true,
+              plusOneAllowed: true,
+              updatedAt: true,
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 16,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("menu.read")
+        ? transaction.menu.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+            take: 12,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("seating.read")
+        ? transaction.seatingPlan.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { updatedAt: "desc" },
+            take: 8,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("seating.read")
+        ? transaction.seatingTable.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: [{ seatingPlanId: "asc" }, { position: "asc" }],
+            take: 20,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("seating.read")
+        ? transaction.venueSpace.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { updatedAt: "desc" },
+            take: 8,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("marketplace.shortlist")
+        ? transaction.vendorShortlist.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { updatedAt: "desc" },
+            take: 8,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("invitation.read")
+        ? transaction.invitationSite.findUnique({
+            where: { workspaceId: snapshot.workspace_id! },
+          })
+        : Promise.resolve(null),
+      effectiveCapabilities.has("transport.read")
+        ? transaction.transportPlan.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { updatedAt: "desc" },
+            take: 8,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("transport.read")
+        ? transaction.transportRoute.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { departureAt: "asc" },
+            take: 12,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("accommodation.read")
+        ? transaction.accommodationProperty.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { updatedAt: "desc" },
+            take: 8,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("accommodation.read")
+        ? transaction.accommodationStay.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { checkInDate: "asc" },
+            take: 8,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("rfq.read")
+        ? transaction.requestForQuote.findMany({
+            where: { workspaceId: snapshot.workspace_id!, deletedAt: null },
+            orderBy: { updatedAt: "desc" },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("campaign.read")
+        ? transaction.campaign.findMany({
+            where: { workspaceId: snapshot.workspace_id! },
+            orderBy: { updatedAt: "desc" },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("incident.read")
+        ? transaction.weddingDayIncident.findMany({
+            where: {
+              workspaceId: snapshot.workspace_id!,
+              status: { notIn: ["CLOSED", "CANCELLED"] },
+            },
+            orderBy: [{ severity: "desc" }, { updatedAt: "desc" }],
+            take: 10,
+          })
+        : Promise.resolve([]),
+      effectiveCapabilities.has("announcement.read")
+        ? transaction.weddingDayAnnouncement.findMany({
+            where: { workspaceId: snapshot.workspace_id! },
+            orderBy: { updatedAt: "desc" },
+            take: 10,
+          })
+        : Promise.resolve([]),
+    ]);
     const totalMinor = (values: bigint[]) =>
       values.reduce((sum, value) => sum + value, 0n).toString();
     const aggregateResources: CopilotContextResource[] = [
@@ -5766,7 +5983,7 @@ async function processCopilotRun(
               type: "BudgetSummary",
               id: budgetPlan.id,
               title: budgetPlan.name,
-              summary: `țintă ${budgetPlan.targetTotalMinor.toString()} ${budgetPlan.currency}; estimat ${totalMinor(budgetItems.map((item) => item.estimatedMinor))}; angajat ${totalMinor(budgetItems.map((item) => item.committedMinor ?? 0n))}; plătit ${totalMinor(budgetItems.map((item) => item.paidMinor))}`,
+              summary: `versiune ${budgetPlan.version}; țintă ${budgetPlan.targetTotalMinor.toString()} ${budgetPlan.currency}; estimat ${totalMinor(budgetItems.map((item) => item.estimatedMinor))}; angajat ${totalMinor(budgetItems.map((item) => item.committedMinor ?? 0n))}; plătit ${totalMinor(budgetItems.map((item) => item.paidMinor))}`,
               updatedAt: budgetPlan.updatedAt.toISOString(),
               sensitivity: "normal" as const,
             },
@@ -5824,14 +6041,221 @@ async function processCopilotRun(
         updatedAt: plan.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
+      ...(invitationSite
+        ? [
+            {
+              type: "InvitationSite",
+              id: invitationSite.id,
+              title: "Invitația evenimentului",
+              summary: `versiune ${invitationSite.version}; status ${invitationSite.status.toLowerCase()}; sincronizare disponibilă pentru hero.names, hero.date, hero.venue, schedule.items, locations.items, rsvp.deadline și accommodation.items`,
+              updatedAt: invitationSite.updatedAt.toISOString(),
+              sensitivity: "normal" as const,
+            },
+          ]
+        : []),
     ];
+    const actionableResources: CopilotContextResource[] = [
+      ...budgetCategories.map((category) => ({
+        type: "BudgetCategory",
+        id: category.id,
+        title: category.name,
+        summary: `versiune ${category.version}; plan ${category.budgetPlanId}; alocat ${category.allocatedMinor.toString()}; poziția ${category.position}`,
+        updatedAt: category.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...budgetItems.slice(0, 12).map((item) => ({
+        type: "BudgetItem",
+        id: item.id,
+        title: item.name,
+        summary: `versiune ${item.version}; categorie ${item.categoryId}; status ${item.status.toLowerCase()}; estimat ${item.estimatedMinor.toString()}; plătit ${item.paidMinor.toString()}${item.dueAt ? `; termen ${item.dueAt.toISOString()}` : ""}`,
+        updatedAt: item.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...expenses.map((expense) => ({
+        type: "ExpenseRecord",
+        id: expense.id,
+        title: "Cheltuială bugetară",
+        summary: `versiune ${expense.version}; element buget ${expense.budgetItemId}; status ${expense.status.toLowerCase()}; sumă ${expense.amountMinor.toString()}; data ${expense.expenseDate.toISOString().slice(0, 10)}`,
+        updatedAt: expense.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...households.map((household, index) => ({
+        type: "Household",
+        id: household.id,
+        title: `Gospodărie ${index + 1}`,
+        summary: `versiune ${household.version}; ${guests.filter((guest) => guest.householdId === household.id).length} membri în contextul curent; limbă ${household.preferredLanguage}; parte ${household.side.toLowerCase()}; numele și contactele sunt excluse`,
+        updatedAt: household.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...guests.map((guest, index) => ({
+        type: "Guest",
+        id: guest.id,
+        title: `Invitat ${index + 1}`,
+        summary: `versiune ${guest.version}; gospodărie ${guest.householdId}; limbă ${guest.preferredLanguage}; parte ${guest.side.toLowerCase()}; copil ${guest.isChild}; plus-one ${guest.isPlusOne}; permite plus-one ${guest.plusOneAllowed}; numele și contactele sunt excluse`,
+        updatedAt: guest.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...menus.map((menu) => ({
+        type: "Menu",
+        id: menu.id,
+        title: menu.name,
+        summary: `versiune ${menu.version}; audiență ${menu.audience.toLowerCase()}; status ${menu.status.toLowerCase()}${menu.priceMinor !== null ? `; preț ${menu.priceMinor} ${menu.currency ?? ""}` : ""}`,
+        updatedAt: menu.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...seatingPlans.map((plan) => ({
+        type: "SeatingPlan",
+        id: plan.id,
+        title: plan.name,
+        summary: `versiune ${plan.version}; eveniment ${plan.weddingEventId}; spațiu ${plan.venueSpaceId}; status ${plan.status.toLowerCase()}`,
+        updatedAt: plan.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...seatingTables.map((table) => ({
+        type: "SeatingTable",
+        id: table.id,
+        title: table.name,
+        summary: `versiune ${table.version}; plan ${table.seatingPlanId}; etichetă ${table.label}; formă ${table.shape.toLowerCase()}; capacitate ${table.capacity}; poziție ${table.position}`,
+        updatedAt: table.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...venueSpaces.map((space) => ({
+        type: "VenueSpace",
+        id: space.id,
+        title: space.name,
+        summary: `capacitate ${space.capacity ?? "nespecificată"}; resursă disponibilă pentru planurile de mese`,
+        updatedAt: space.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...shortlists.map((shortlist) => ({
+        type: "VendorShortlist",
+        id: shortlist.id,
+        title: shortlist.name,
+        summary: `versiune ${shortlist.version}; categorie ${shortlist.category?.toLowerCase() ?? "toate"}`,
+        updatedAt: shortlist.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...transportPlans.map((plan) => ({
+        type: "TransportPlan",
+        id: plan.id,
+        title: plan.name,
+        summary: `versiune ${plan.version}; eveniment ${plan.weddingEventId}; status ${plan.status.toLowerCase()}; ${transportRoutes.filter((route) => route.transportPlanId === plan.id).length} rute în context`,
+        updatedAt: plan.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...transportRoutes.map((route) => ({
+        type: "TransportRoute",
+        id: route.id,
+        title: route.name,
+        summary: `versiune ${route.version}; plan ${route.transportPlanId}; ${route.originName} → ${route.destinationName}; plecare ${route.departureAt.toISOString()}; status ${route.status.toLowerCase()}`,
+        updatedAt: route.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...accommodationProperties.map((property) => ({
+        type: "AccommodationProperty",
+        id: property.id,
+        title: property.name,
+        summary: `versiune ${property.version}; ${property.type.toLowerCase()} în ${property.city}; status ${property.status.toLowerCase()}; contactele sunt excluse`,
+        updatedAt: property.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...accommodationStays.map((stay) => ({
+        type: "AccommodationStay",
+        id: stay.id,
+        title: stay.name,
+        summary: `versiune ${stay.version}; proprietate ${stay.propertyId}; ${stay.checkInDate.toISOString().slice(0, 10)}–${stay.checkOutDate.toISOString().slice(0, 10)}; status ${stay.status.toLowerCase()}`,
+        updatedAt: stay.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...rfqs.map((rfq) => ({
+        type: "RequestForQuote",
+        id: rfq.id,
+        title: rfq.title,
+        summary: `versiune ${rfq.version}; categorie ${rfq.category.toLowerCase()}; status ${rfq.status.toLowerCase()}; termen ${rfq.responseDeadline.toISOString()}`,
+        updatedAt: rfq.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...campaigns.map((campaign) => ({
+        type: "CampaignSummary",
+        id: campaign.id,
+        title: campaign.name,
+        summary: `versiune ${campaign.version}; scop ${campaign.purpose.toLowerCase()}; status ${campaign.status.toLowerCase()}${campaign.scheduledAt ? `; programată ${campaign.scheduledAt.toISOString()}` : ""}; conținutul mesajului este exclus`,
+        updatedAt: campaign.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...weddingDayIncidents.map((incident) => ({
+        type: "WeddingDayIncidentSummary",
+        id: incident.id,
+        title: incident.title,
+        summary: `versiune ${incident.version}; tip ${incident.type.toLowerCase()}; severitate ${incident.severity.toLowerCase()}; status ${incident.status.toLowerCase()}; descrierea privată este exclusă`,
+        updatedAt: incident.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+      ...weddingDayAnnouncements.map((announcement) => ({
+        type: "WeddingDayAnnouncementSummary",
+        id: announcement.id,
+        title: announcement.title,
+        summary: `versiune ${announcement.version}; prioritate ${announcement.priority.toLowerCase()}; status ${announcement.status.toLowerCase()}; textul mesajului este exclus`,
+        updatedAt: announcement.updatedAt.toISOString(),
+        sensitivity: "normal" as const,
+      })),
+    ];
+    const surfaceTypes = conversation.surface.includes("budget")
+      ? new Set(["BudgetCategory", "BudgetItem", "ExpenseRecord"])
+      : conversation.surface.includes("guest")
+        ? new Set(["Household", "Guest", "Menu"])
+        : conversation.surface.includes("menu")
+          ? new Set(["Menu", "Household", "Guest"])
+          : conversation.surface.includes("seating")
+            ? new Set(["SeatingPlan", "SeatingTable", "VenueSpace"])
+            : conversation.surface.includes("transport")
+              ? new Set(["TransportPlan", "TransportRoute"])
+              : conversation.surface.includes("accommodation")
+                ? new Set(["AccommodationProperty", "AccommodationStay"])
+                : conversation.surface.includes("invitation")
+                  ? new Set(["InvitationSite", "CampaignSummary"])
+                  : conversation.surface.includes("wedding-day")
+                    ? new Set([
+                        "WeddingDayPlan",
+                        "WeddingDayIncidentSummary",
+                        "WeddingDayAnnouncementSummary",
+                      ])
+                    : conversation.surface.includes("marketplace") ||
+                        conversation.surface.includes("vendor")
+                      ? new Set([
+                          "VendorShortlist",
+                          "RequestForQuote",
+                          "BookingSummary",
+                          "ContractSummary",
+                        ])
+                      : new Set<string>();
+    const prioritizedActionableResources = [
+      ...actionableResources.filter((resource) =>
+        surfaceTypes.has(resource.type),
+      ),
+      ...actionableResources.filter(
+        (resource) => !surfaceTypes.has(resource.type),
+      ),
+    ].slice(0, 24);
     const resources: CopilotContextResource[] = [
+      ...memories.slice(0, 8).map((memory) => ({
+        type: `CopilotMemory:${memory.kind}`,
+        id: memory.id,
+        title: memory.title,
+        summary: memory.content.slice(0, 800),
+        updatedAt: memory.updatedAt.toISOString(),
+        sensitivity:
+          memory.sensitivity === "NORMAL"
+            ? ("normal" as const)
+            : ("sensitive" as const),
+      })),
       ...aggregateResources,
+      ...prioritizedActionableResources,
       ...tasks.map((task) => ({
         type: "Task",
         id: task.id,
         title: task.title,
-        summary: `${task.status.toLowerCase()}, prioritate ${task.priority.toLowerCase()}${task.dueAt ? `, termen ${task.dueAt.toISOString()}` : ""}${task.blockedReason ? `, blocat: ${task.blockedReason}` : ""}`,
+        summary: `versiune ${task.version}; ${task.status.toLowerCase()}, prioritate ${task.priority.toLowerCase()}${task.dueAt ? `, termen ${task.dueAt.toISOString()}` : ""}${task.blockedReason ? `, blocat: ${task.blockedReason}` : ""}`,
         updatedAt: task.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -5847,7 +6271,7 @@ async function processCopilotRun(
         type: "Risk",
         id: risk.id,
         title: risk.title,
-        summary: `${risk.level.toLowerCase()}, scor ${risk.score}, ${risk.status.toLowerCase()}`,
+        summary: `versiune ${risk.version}; ${risk.level.toLowerCase()}, scor ${risk.score}, ${risk.status.toLowerCase()}`,
         updatedAt: risk.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -5855,7 +6279,7 @@ async function processCopilotRun(
         type: "CalendarEvent",
         id: event.id,
         title: event.title,
-        summary: `${event.startAt.toISOString()}${event.endAt ? ` – ${event.endAt.toISOString()}` : ""}`,
+        summary: `versiune ${event.version}; ${event.startAt.toISOString()}${event.endAt ? ` – ${event.endAt.toISOString()}` : ""}; fus ${event.timezone}`,
         updatedAt: event.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -5887,7 +6311,7 @@ async function processCopilotRun(
     ].slice(0, 50);
     const maximumContextBytes = Math.max(
       8_000,
-      Number(process.env.COPILOT_MAX_CONTEXT_BYTES ?? 64_000),
+      environment.COPILOT_MAX_CONTEXT_BYTES,
     );
     while (
       resources.length > 1 &&
@@ -5898,11 +6322,34 @@ async function processCopilotRun(
       completed: false as const,
       run,
       message,
+      webResearchEnabled: copilotSettings?.webResearchEnabled === true,
       context: {
         workspaceId: snapshot.workspace_id!,
         locale: "ro-RO",
+        surface: conversation.surface,
+        allowedActions: copilotImplementedActionDefinitions
+          .filter((definition) =>
+            effectiveCapabilities.has(definition.requiredCapability),
+          )
+          .map((definition) => definition.actionType),
         resources,
-        unavailableModules: [],
+        unavailableModules: copilotDomainCatalog
+          .filter(
+            (domain) =>
+              !copilotImplementedActionDefinitions.some(
+                (definition) =>
+                  effectiveCapabilities.has(definition.requiredCapability) &&
+                  domain.capabilityPrefixes.some((prefix) =>
+                    definition.requiredCapability.startsWith(`${prefix}.`),
+                  ),
+              ) &&
+              !copilotReadToolDefinitions.some(
+                (definition) =>
+                  definition.domain === domain.key &&
+                  effectiveCapabilities.has(definition.requiredCapability),
+              ),
+          )
+          .map((domain) => domain.key),
         redactions: documentChunks.length
           ? [
               "Fragmentele autorizate din documente rămân în procesarea deterministă locală și nu sunt trimise providerului extern.",
@@ -5916,26 +6363,116 @@ async function processCopilotRun(
   });
   if (prepared.completed) return { runId, status: "completed", replayed: true };
 
-  const externalEnabled = process.env.COPILOT_EXTERNAL_ENABLED === "true";
+  const researchRequested =
+    jsonObjectValue(prepared.message.metadata).research === true;
+  if (researchRequested && !prepared.webResearchEnabled)
+    throw new PermanentJobError(
+      "Web research is disabled for this workspace",
+      "COPILOT_WEB_RESEARCH_DISABLED",
+    );
+  const researchQueryHash = researchRequested
+    ? createHash("sha256")
+        .update(prepared.message.content.trim().toLocaleLowerCase("ro"))
+        .digest("hex")
+    : null;
+  const cachedResearch = researchQueryHash
+    ? await withPersistedContext(snapshot, async (transaction) => {
+        const research = await transaction.copilotWebResearch.findFirst({
+          where: {
+            workspaceId: snapshot.workspace_id!,
+            queryHash: researchQueryHash,
+            expiresAt: { gt: new Date() },
+          },
+        });
+        if (!research) return null;
+        const citations = await transaction.copilotWebCitation.findMany({
+          where: {
+            workspaceId: snapshot.workspace_id!,
+            researchId: research.id,
+          },
+          orderBy: { position: "asc" },
+        });
+        return { research, citations };
+      })
+    : null;
+
+  if (
+    environment.COPILOT_EMBEDDING_ENABLED &&
+    environment.COPILOT_EMBEDDING_API_KEY &&
+    copilotMemoryContentCanPersist(prepared.message.content)
+  ) {
+    const queryEmbedding = await requestCopilotEmbedding({
+      endpoint: environment.COPILOT_EMBEDDING_ENDPOINT,
+      apiKey: environment.COPILOT_EMBEDDING_API_KEY,
+      model: environment.COPILOT_EMBEDDING_MODEL,
+      text: prepared.message.content,
+    });
+    if (queryEmbedding) {
+      const semanticMemory = await semanticCopilotMemoryContext(
+        snapshot,
+        queryEmbedding,
+      );
+      if (semanticMemory.length) {
+        prepared.context.resources = [
+          ...semanticMemory,
+          ...prepared.context.resources.filter(
+            (resource) => !resource.type.startsWith("CopilotMemory:"),
+          ),
+        ].slice(0, 50);
+      }
+    }
+  }
+
+  const externalEnabled =
+    environment.COPILOT_EXTERNAL_ENABLED &&
+    environment.COPILOT_EXTERNAL_DATA_ALLOWED;
   const providerChoice = routeCopilotProvider({
     mode: prepared.run.requestedMode as
       "deterministic" | "ai_enriched" | "auto",
-    containsSensitiveContext: prepared.context.resources.some(
-      (resource) => resource.sensitivity === "sensitive",
-    ),
+    containsSensitiveContext:
+      !copilotMemoryContentCanPersist(prepared.message.content) ||
+      prepared.context.resources.some(
+        (resource) => resource.sensitivity === "sensitive",
+      ),
     externalEnabled,
   });
   const provider =
     providerChoice === "configured-ai"
-      ? new ConfiguredAiCopilotProvider(
-          process.env.COPILOT_PROVIDER_ENDPOINT,
-          process.env.COPILOT_PROVIDER_API_KEY,
-        )
+      ? environment.COPILOT_PROVIDER_PROTOCOL === "openrouter-chat"
+        ? new OpenRouterCopilotProvider(
+            environment.COPILOT_PROVIDER_ENDPOINT,
+            environment.COPILOT_PROVIDER_API_KEY,
+            environment.COPILOT_PROVIDER_MODEL,
+          )
+        : new ConfiguredAiCopilotProvider(
+            environment.COPILOT_PROVIDER_ENDPOINT,
+            environment.COPILOT_PROVIDER_API_KEY,
+          )
       : new DeterministicCopilotProvider();
-  const generated = await provider.run({
-    message: prepared.message.content,
-    context: prepared.context,
-  });
+  const generated = cachedResearch
+    ? {
+        answer: cachedResearch.research.answer,
+        provider: cachedResearch.research.provider,
+        model: cachedResearch.research.model,
+        fallbackUsed: false,
+        assumptions: [] as string[],
+        warnings: [
+          "Rezultat reutilizat din cache-ul verificabil al workspace-ului.",
+        ],
+        followUpSuggestions: ["Actualizează cercetarea web"],
+        sources: [],
+        webCitations: cachedResearch.citations.map((citation) => ({
+          url: citation.url,
+          title: citation.title,
+          excerpt: citation.excerpt,
+        })),
+        usage: { inputUnits: 0, outputUnits: 0 },
+      }
+    : await provider.run({
+        message: prepared.message.content,
+        context: prepared.context,
+        research: researchRequested,
+      });
   return withPersistedContext(snapshot, async (transaction) => {
     const latest = await transaction.copilotRun.findFirst({
       where: {
@@ -5966,6 +6503,14 @@ async function processCopilotRun(
           warnings: generated.warnings,
           followUpSuggestions: generated.followUpSuggestions,
           confidence: generated.confidence,
+          plan: generated.plan
+            ? {
+                title: generated.plan.title,
+                summary: generated.plan.summary,
+                stepCount: generated.plan.steps.length,
+              }
+            : null,
+          webCitations: generated.webCitations ?? [],
           redactions: prepared.context.redactions,
         },
       },
@@ -5995,9 +6540,73 @@ async function processCopilotRun(
         model: generated.model,
         inputUnits: generated.usage.inputUnits,
         outputUnits: generated.usage.outputUnits,
+        estimatedCostMinor:
+          Math.ceil(
+            (generated.usage.inputUnits *
+              environment.COPILOT_INPUT_COST_MINOR_PER_MILLION +
+              generated.usage.outputUnits *
+                environment.COPILOT_OUTPUT_COST_MINOR_PER_MILLION) /
+              1_000_000,
+          ) +
+          (researchRequested && !cachedResearch
+            ? environment.COPILOT_WEB_SEARCH_COST_MINOR
+            : 0),
       },
       update: {},
     });
+    if (
+      researchRequested &&
+      researchQueryHash &&
+      !generated.fallbackUsed &&
+      (generated.webCitations?.length ?? 0) > 0
+    ) {
+      const research = await transaction.copilotWebResearch.upsert({
+        where: {
+          workspaceId_queryHash: {
+            workspaceId: snapshot.workspace_id!,
+            queryHash: researchQueryHash,
+          },
+        },
+        create: {
+          workspaceId: snapshot.workspace_id!,
+          runId,
+          queryHash: researchQueryHash,
+          query: prepared.message.content.slice(0, 1000),
+          answer: generated.answer,
+          provider: generated.provider,
+          model: generated.model,
+          expiresAt: new Date(Date.now() + 21_600_000),
+        },
+        update: {
+          runId,
+          answer: generated.answer,
+          provider: generated.provider,
+          model: generated.model,
+          expiresAt: new Date(Date.now() + 21_600_000),
+        },
+      });
+      if (!cachedResearch) {
+        await transaction.copilotWebCitation.deleteMany({
+          where: {
+            workspaceId: snapshot.workspace_id!,
+            researchId: research.id,
+          },
+        });
+        for (const [position, citation] of (
+          generated.webCitations ?? []
+        ).entries())
+          await transaction.copilotWebCitation.create({
+            data: {
+              workspaceId: snapshot.workspace_id!,
+              researchId: research.id,
+              url: citation.url,
+              title: citation.title,
+              excerpt: citation.excerpt,
+              position,
+            },
+          });
+      }
+    }
     for (const [position, source] of generated.sources.entries()) {
       await transaction.copilotSourceReference.upsert({
         where: {
@@ -6018,34 +6627,43 @@ async function processCopilotRun(
         update: { excerpt: source.excerpt, position },
       });
     }
-    let proposalId: string | null = null;
-    if (generated.proposal) {
+    const proposalIds: string[] = [];
+    let planId: string | null = null;
+    const persistProposal = async (
+      generatedProposal: NonNullable<typeof generated.proposal>,
+      stepPosition?: number,
+    ) => {
       const proposedActions = [
         {
-          actionType: generated.proposal.actionType,
-          riskLevel: generated.proposal.riskLevel,
-          preview: generated.proposal.preview,
+          actionType: generatedProposal.actionType,
+          riskLevel: generatedProposal.riskLevel,
+          preview: generatedProposal.preview,
         },
-        ...(generated.proposal.additionalActions ?? []),
-      ];
+        ...(generatedProposal.additionalActions ?? []),
+      ].map((action) => ({
+        ...action,
+        preview: parseCopilotActionPayload(action.actionType, action.preview),
+      }));
       const proposal = await transaction.copilotProposal.create({
         data: {
           workspaceId: snapshot.workspace_id!,
           runId,
-          title: generated.proposal.title,
+          planId,
+          stepPosition: stepPosition ?? null,
+          title: generatedProposal.title,
           summary:
             "Acțiune structurată pregătită pentru verificare și aprobare.",
-          riskLevel: generated.proposal.riskLevel,
+          riskLevel: generatedProposal.riskLevel,
           createdById: latest.requestedById,
         },
       });
-      proposalId = proposal.id;
+      proposalIds.push(proposal.id);
       await transaction.copilotProposalVersion.create({
         data: {
           workspaceId: snapshot.workspace_id!,
           proposalId: proposal.id,
           version: 1,
-          snapshot: generated.proposal as unknown as Prisma.InputJsonValue,
+          snapshot: generatedProposal as unknown as Prisma.InputJsonValue,
           createdById: latest.requestedById,
         },
       });
@@ -6060,7 +6678,25 @@ async function processCopilotRun(
             position,
           },
         });
+      return proposal.id;
+    };
+    if (generated.plan) {
+      const plan = await transaction.copilotPlan.create({
+        data: {
+          workspaceId: snapshot.workspace_id!,
+          runId,
+          title: generated.plan.title,
+          summary: generated.plan.summary,
+          createdById: latest.requestedById,
+        },
+      });
+      planId = plan.id;
+      for (const [stepPosition, step] of generated.plan.steps.entries())
+        await persistProposal(step, stepPosition);
+    } else if (generated.proposal) {
+      await persistProposal(generated.proposal);
     }
+    const proposalId = proposalIds[0] ?? null;
     await recordWorkerEvent(transaction, snapshot, {
       eventName: "copilot.response_ready.v1",
       aggregateType: "CopilotRun",
@@ -6069,7 +6705,13 @@ async function processCopilotRun(
       deduplicationKey: `copilot-response-ready:${runId}`,
       payload: {
         occurredAt: new Date().toISOString(),
-        subject: { runId, assistantMessageId: assistant.id, proposalId },
+        subject: {
+          runId,
+          assistantMessageId: assistant.id,
+          proposalId,
+          proposalIds,
+          planId,
+        },
         notification: {
           recipientUserId: latest.requestedById,
           module: "copilot",
@@ -6083,26 +6725,90 @@ async function processCopilotRun(
         },
       },
     });
-    if (proposalId)
+    for (const readyProposalId of proposalIds)
       await recordWorkerEvent(transaction, snapshot, {
         eventName: "copilot.proposal_ready.v1",
         aggregateType: "CopilotProposal",
-        aggregateId: proposalId,
+        aggregateId: readyProposalId,
         aggregateVersion: 1,
-        deduplicationKey: `copilot-proposal-ready:${proposalId}`,
+        deduplicationKey: `copilot-proposal-ready:${readyProposalId}`,
         payload: {
           occurredAt: new Date().toISOString(),
-          subject: { proposalId, runId },
+          subject: { proposalId: readyProposalId, runId, planId },
         },
       });
     return {
       runId,
       assistantMessageId: assistant.id,
       proposalId,
+      proposalIds,
+      planId,
       provider: generated.provider,
       fallbackUsed: generated.fallbackUsed,
       status: "completed",
     };
+  });
+}
+
+function jsonObjectValue(value: Prisma.JsonValue | null | undefined) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Prisma.JsonObject)
+    : {};
+}
+
+async function semanticCopilotMemoryContext(
+  snapshot: PersistedConsumer,
+  embedding: number[],
+): Promise<CopilotContextResource[]> {
+  const vector = `[${embedding.join(",")}]`;
+  return withPersistedContext(snapshot, async (transaction) => {
+    const rows = await transaction.$queryRaw<
+      Array<{
+        id: string;
+        kind: string;
+        title: string;
+        content: string;
+        sensitivity: string;
+        updatedAt: Date;
+      }>
+    >`
+      SELECT
+        memory.id,
+        memory.kind::text,
+        memory.title,
+        memory.content,
+        memory.sensitivity::text,
+        memory.updated_at AS "updatedAt"
+      FROM copilot_memories memory
+      JOIN copilot_memory_embeddings embedding
+        ON embedding.memory_id = memory.id
+      WHERE memory.workspace_id = ${snapshot.workspace_id!}::uuid
+        AND memory.status = 'ACTIVE'
+        AND memory.sensitivity = 'NORMAL'
+        AND (
+          memory.scope = 'WORKSPACE'
+          OR memory.owner_user_id = ${snapshot.actor_user_id!}::uuid
+        )
+        AND (memory.expires_at IS NULL OR memory.expires_at > CURRENT_TIMESTAMP)
+      ORDER BY embedding.embedding <=> ${vector}::vector, memory.updated_at DESC
+      LIMIT 12
+    `;
+    if (rows.length)
+      await transaction.copilotMemory.updateMany({
+        where: {
+          workspaceId: snapshot.workspace_id!,
+          id: { in: rows.map((row) => row.id) },
+        },
+        data: { lastUsedAt: new Date(), useCount: { increment: 1 } },
+      });
+    return rows.map((memory) => ({
+      type: `CopilotMemory:${memory.kind}`,
+      id: memory.id,
+      title: memory.title,
+      summary: memory.content.slice(0, 800),
+      updatedAt: memory.updatedAt.toISOString(),
+      sensitivity: "normal" as const,
+    }));
   });
 }
 

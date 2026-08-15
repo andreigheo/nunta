@@ -4,27 +4,47 @@ import {
   automationTransitionSchema,
   capabilityKeySchema,
   contingencySimulationSchema,
+  copilotProposalActionTypes,
   createAutomationRuleSchema,
   createContingencyPlanSchema,
   createCopilotMessageSchema,
+  createCopilotMemorySchema,
   createRiskSchema,
   executeCopilotProposalSchema,
   riskScore,
   riskTransitionSchema,
   updateCopilotProposalSchema,
+  validateCopilotActionPayload,
 } from "@weddingos/contracts";
 import {
   ConfiguredAiCopilotProvider,
+  copilotApiOperations,
+  copilotDomainCatalog,
+  copilotImplementedActionDefinitions,
+  copilotMemoryContentCanPersist,
+  copilotPageSurfaces,
   DeterministicCopilotProvider,
   detectDeterministicRisks,
+  generatedCopilotContentIsAcceptable,
   intelligenceDedupeKey,
+  OpenRouterCopilotProvider,
+  parseOpenRouterCitations,
+  requiredCapabilityForCopilotAction,
+  requestCopilotEmbedding,
   routeCopilotProvider,
+  selectRelevantCopilotActions,
+  sarbatoCopilotPolicy,
+  sarbatoCopilotSystemInstructions,
+  type CopilotContext,
 } from "@weddingos/jobs";
 
 const id = "00000000-0000-4000-8000-000000000001";
-const context = {
+const context: CopilotContext = {
   workspaceId: id,
   locale: "ro",
+  allowedActions: copilotImplementedActionDefinitions.map(
+    (definition) => definition.actionType,
+  ),
   unavailableModules: [],
   redactions: [],
   resources: [
@@ -39,6 +59,278 @@ const context = {
 };
 
 describe("Slice 9 intelligence contracts", () => {
+  it("maps every current UI and API surface without pretending it is implemented", () => {
+    expect(copilotPageSurfaces.length).toBeGreaterThanOrEqual(80);
+    expect(copilotApiOperations.length).toBeGreaterThanOrEqual(670);
+    expect(copilotPageSurfaces.every((surface) => surface.source)).toBe(true);
+    expect(
+      copilotApiOperations.every((operation) => operation.controller),
+    ).toBe(true);
+    expect(
+      copilotApiOperations.filter(
+        (operation) => operation.adapterStatus === "ACTIVE",
+      ),
+    ).toHaveLength(44);
+    expect(
+      copilotApiOperations.every((operation) =>
+        [
+          "ACTIVE",
+          "READ_ONLY",
+          "GUIDE_ONLY",
+          "INTENTIONALLY_UNSUPPORTED",
+        ].includes(operation.adapterStatus),
+      ),
+    ).toBe(true);
+    expect(
+      copilotApiOperations.map(
+        (operation) => operation.adapterStatus as string,
+      ),
+    ).not.toContain("UNMAPPED");
+  });
+
+  it("keeps domain, policy and action-capability mappings explicit", () => {
+    const domainKeys = copilotDomainCatalog.map((domain) => domain.key);
+    expect(new Set(domainKeys).size).toBe(domainKeys.length);
+    expect(domainKeys).toEqual(
+      expect.arrayContaining([
+        "calendar",
+        "budget",
+        "guests",
+        "invitations",
+        "vendor-profile",
+        "wedding-day",
+      ]),
+    );
+    expect(sarbatoCopilotPolicy.security.authorization).toContain("tenantul");
+    expect(sarbatoCopilotPolicy.approvals.prohibited).toContain("Plățile");
+    expect(sarbatoCopilotSystemInstructions()).toContain(
+      "platformă în care oamenii creează",
+    );
+    expect(requiredCapabilityForCopilotAction("CREATE_CALENDAR_EVENT")).toBe(
+      "calendar.write",
+    );
+    expect(
+      requiredCapabilityForCopilotAction("TRANSFER_MONEY"),
+    ).toBeUndefined();
+    expect(
+      copilotImplementedActionDefinitions.every(
+        (definition) => definition.adapterStatus === "ACTIVE",
+      ),
+    ).toBe(true);
+    expect(
+      copilotImplementedActionDefinitions.map(
+        (definition) => definition.actionType,
+      ),
+    ).toEqual(copilotProposalActionTypes);
+  });
+
+  it("validates real adapter payloads before they reach domain services", () => {
+    expect(
+      validateCopilotActionPayload("UPSERT_BUDGET_PLAN", {
+        targetVersion: null,
+        name: "Buget nuntă",
+        targetTotalMinor: 12_500_000,
+        contingencyPercent: 10,
+        status: "ACTIVE",
+      }).success,
+    ).toBe(true);
+    expect(
+      validateCopilotActionPayload("UPDATE_CALENDAR_EVENT", {
+        targetId: id,
+        targetVersion: 3,
+        title: "Degustare meniu",
+      }).success,
+    ).toBe(true);
+    expect(
+      validateCopilotActionPayload("UPDATE_CALENDAR_EVENT", {
+        targetId: id,
+        title: "Fără versiune",
+      }).success,
+    ).toBe(false);
+    expect(
+      validateCopilotActionPayload("SYNC_INVITATION_DATA", {
+        targetVersion: 2,
+        paths: ["hero.date", "schedule.items"],
+      }).success,
+    ).toBe(true);
+    expect(
+      validateCopilotActionPayload("SYNC_INVITATION_DATA", {
+        targetVersion: 2,
+        paths: ["unknown.path"],
+      }).success,
+    ).toBe(false);
+
+    const extendedAdapters: Array<
+      [Parameters<typeof validateCopilotActionPayload>[0], unknown]
+    > = [
+      ["CREATE_TRANSPORT_PLAN", { weddingEventId: id, name: "Transport" }],
+      [
+        "UPDATE_TRANSPORT_PLAN",
+        { targetId: id, targetVersion: 1, status: "ready" },
+      ],
+      [
+        "CREATE_TRANSPORT_STOP",
+        { name: "Hotel", address: "Strada Centrală 1" },
+      ],
+      [
+        "UPDATE_TRANSPORT_STOP",
+        { targetId: id, targetVersion: 1, accessible: true },
+      ],
+      [
+        "CREATE_ACCOMMODATION_PROPERTY",
+        {
+          name: "Hotel Central",
+          type: "hotel",
+          address: "Strada Centrală 1",
+          city: "Chișinău",
+          country: "Moldova",
+        },
+      ],
+      [
+        "UPDATE_ACCOMMODATION_PROPERTY",
+        { targetId: id, targetVersion: 1, status: "active" },
+      ],
+      [
+        "CREATE_ACCOMMODATION_STAY",
+        {
+          propertyId: id,
+          name: "Sejur invitați",
+          checkInDate: "2027-09-11",
+          checkOutDate: "2027-09-13",
+        },
+      ],
+      [
+        "UPDATE_ACCOMMODATION_STAY",
+        { targetId: id, targetVersion: 1, status: "ready" },
+      ],
+      [
+        "CREATE_RFQ",
+        {
+          title: "Fotografie nuntă",
+          category: "PHOTOGRAPHY",
+          description: "Cerere pentru ziua nunții.",
+          currency: "MDL",
+          responseDeadline: "2027-07-19T10:00:00.000Z",
+        },
+      ],
+      [
+        "UPDATE_RFQ",
+        { targetId: id, targetVersion: 1, title: "Foto și video" },
+      ],
+      [
+        "CREATE_CAMPAIGN_DRAFT",
+        {
+          name: "Invitația principală",
+          purpose: "INVITATION",
+          channel: "EMAIL",
+          template: { subject: "Invitație", body: "Te așteptăm." },
+        },
+      ],
+      [
+        "UPDATE_CAMPAIGN_DRAFT",
+        { targetId: id, targetVersion: 1, name: "Invitația finală" },
+      ],
+      [
+        "CREATE_WEDDING_DAY_INCIDENT",
+        {
+          planId: id,
+          type: "WEATHER",
+          severity: "HIGH",
+          title: "Ploaie puternică",
+          descriptionPrivate: "Echipa mută ceremonia în interior.",
+        },
+      ],
+      [
+        "CREATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT",
+        {
+          planId: id,
+          title: "Schimbare acces",
+          body: "Folosiți intrarea de nord.",
+          channels: ["GUEST_COMPANION"],
+          audiences: [{ type: "ALL_CONFIRMED_GUESTS", selector: {} }],
+        },
+      ],
+      [
+        "UPDATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT",
+        { targetId: id, targetVersion: 1, priority: "IMPORTANT" },
+      ],
+    ];
+    for (const [actionType, payload] of extendedAdapters)
+      expect(
+        validateCopilotActionPayload(actionType, payload).success,
+        actionType,
+      ).toBe(true);
+  });
+
+  it("limits external tool contracts to the request domain and current surface", () => {
+    expect(
+      selectRelevantCopilotActions(
+        "Adaugă 5.000 lei pentru flori",
+        "/budget",
+        context.allowedActions,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        "UPSERT_BUDGET_PLAN",
+        "CREATE_BUDGET_ITEM",
+        "UPDATE_BUDGET_ITEM",
+      ]),
+    );
+    expect(
+      selectRelevantCopilotActions(
+        "Schimbă ora degustării",
+        "/calendar",
+        context.allowedActions,
+      ),
+    ).toEqual(["CREATE_CALENDAR_EVENT", "UPDATE_CALENDAR_EVENT"]);
+  });
+
+  it("accepts normal user language but blocks obscene generated communication", () => {
+    expect(
+      generatedCopilotContentIsAcceptable(
+        "Utilizatorul este nervos; răspunde calm și ajută-l.",
+      ),
+    ).toBe(true);
+    expect(generatedCopilotContentIsAcceptable("Mesaj cu muie")).toBe(false);
+  });
+
+  it("only persists explicit and privacy-bounded memory", () => {
+    expect(
+      createCopilotMemorySchema.safeParse({
+        scope: "USER",
+        kind: "PREFERENCE",
+        title: "Stil preferat",
+        content: "Preferă un stil minimalist.",
+        sourceType: "USER_CONFIRMED",
+        confirmedByUser: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      createCopilotMemorySchema.safeParse({
+        kind: "PREFERENCE",
+        title: "Presupunere",
+        content: "Poate preferă verde.",
+        sourceType: "USER_CONFIRMED",
+        confirmedByUser: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      createCopilotMemorySchema.safeParse({
+        kind: "FACT",
+        title: "Secret",
+        content: "Nu trebuie stocat.",
+        sensitivity: "RESTRICTED",
+      }).success,
+    ).toBe(false);
+    expect(copilotMemoryContentCanPersist("Preferă decor minimalist")).toBe(
+      true,
+    );
+    expect(copilotMemoryContentCanPersist("Are alergie la arahide")).toBe(
+      false,
+    );
+    expect(copilotMemoryContentCanPersist("Parola este secret123")).toBe(false);
+  });
+
   it("bounds Copilot message content", () => {
     expect(
       createCopilotMessageSchema.safeParse({ content: "Ajută-mă" }).success,
@@ -65,7 +357,7 @@ describe("Slice 9 intelligence contracts", () => {
         actions: [
           {
             actionType: "CREATE_TASK",
-            payload: {},
+            payload: { title: "Confirmă locația", priority: "medium" },
             riskLevel: "LOW",
             position: 0,
           },
@@ -212,6 +504,31 @@ describe("Slice 9 intelligence contracts", () => {
       }),
     ).toBe("configured-ai"));
 
+  it("accepts only a finite embedding with the configured dimensions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: [{ embedding: [0.1, 0.2, 0.3] }] }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      ),
+    );
+    await expect(
+      requestCopilotEmbedding({
+        endpoint: "https://embeddings.example.test",
+        apiKey: "secret",
+        model: "test-embedding",
+        text: "decor minimalist",
+        dimensions: 3,
+      }),
+    ).resolves.toEqual([0.1, 0.2, 0.3]);
+    vi.unstubAllGlobals();
+  });
+
   it("creates stable intelligence dedupe keys", () => {
     expect(intelligenceDedupeKey([id, "risk", 1])).toBe(
       intelligenceDedupeKey([id, "risk", 1]),
@@ -301,6 +618,40 @@ describe("Slice 9 intelligence contracts", () => {
     expect(result.answer).toContain("nimic nu a fost modificat");
   });
 
+  it("creates a deterministic multi-step plan with separately reviewable actions", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message: "Pregătește un plan în 2 pași pentru confirmarea locației",
+      context,
+    });
+    expect(result.proposal).toBeUndefined();
+    expect(result.plan?.steps).toHaveLength(2);
+    expect(result.plan?.steps.map((step) => step.actionType)).toEqual([
+      "CREATE_TASK",
+      "CREATE_TASK",
+    ]);
+    expect(result.answer).toContain("fără aprobarea ta");
+  });
+
+  it("prioritizes the requested calendar domain over the generic create verb", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message: "Creează un eveniment în calendar pentru degustarea meniului",
+      context: { ...context, surface: "/calendar" },
+    });
+    expect(result.proposal).toMatchObject({
+      actionType: "CREATE_CALENDAR_EVENT",
+      riskLevel: "LOW",
+    });
+  });
+
+  it("does not persist an obscene title copied from the request", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message: "Creează un task cu titlul muie",
+      context,
+    });
+    expect(result.proposal).toBeUndefined();
+    expect(result.warnings[0]).toContain("politica de comunicare");
+  });
+
   it("requires separate high-risk Plan B activation", async () => {
     const result = await new DeterministicCopilotProvider().run({
       message: "Creează Plan B pentru ploaie",
@@ -338,6 +689,327 @@ describe("Slice 9 intelligence contracts", () => {
       "secret",
     ).run({ message: "Ce urmează?", context });
     expect(result.fallbackUsed).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("accepts only a typed, policy-bounded proposal from the configured AI", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            answer: "Am pregătit taskul pentru verificare.",
+            model: "test-model",
+            proposal: {
+              actionType: "CREATE_TASK",
+              riskLevel: "LOW",
+              title: "Confirmă floristul",
+              preview: { title: "Confirmă floristul", priority: "high" },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const result = await new ConfiguredAiCopilotProvider(
+      "https://provider.example.test",
+      "secret",
+    ).run({ message: "Creează taskul", context });
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.proposal).toMatchObject({ actionType: "CREATE_TASK" });
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the OpenRouter chat envelope and validates its JSON proposal", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "generation-test",
+          model: "openai/gpt-5.6-luna",
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: JSON.stringify({
+                  answer: "Am pregătit taskul pentru aprobare.",
+                  assumptions: [],
+                  warnings: [],
+                  followUpSuggestions: ["Verifică termenul"],
+                  proposal: {
+                    actionType: "CREATE_TASK",
+                    riskLevel: "LOW",
+                    title: "Confirmă fotograful",
+                    preview: {
+                      title: "Confirmă fotograful",
+                      priority: "medium",
+                    },
+                    additionalActions: [],
+                  },
+                }),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 123, completion_tokens: 45 },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new OpenRouterCopilotProvider(
+      "https://openrouter.ai/api/v1/chat/completions",
+      "test-only-key",
+      "openai/gpt-5.6-luna",
+    ).run({ message: "Creează taskul pentru fotograf", context });
+
+    expect(result).toMatchObject({
+      provider: "openrouter",
+      model: "openai/gpt-5.6-luna",
+      fallbackUsed: false,
+      usage: { inputUnits: 123, outputUnits: 45 },
+      proposal: { actionType: "CREATE_TASK", riskLevel: "LOW" },
+    });
+    const [endpoint, request] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(endpoint).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect(request.headers).toMatchObject({
+      authorization: "Bearer test-only-key",
+      "http-referer": "https://sarbato.space",
+      "x-openrouter-title": "Sarbato Copilot",
+    });
+    const body = JSON.parse(String(request.body)) as {
+      model: string;
+      response_format: { type: string };
+      messages: Array<{ role: string; content: string }>;
+      user: string;
+    };
+    expect(body.model).toBe("openai/gpt-5.6-luna");
+    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.messages.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+    ]);
+    expect(body.messages[0]?.content).toContain('"CREATE_TASK"');
+    expect(body.messages[0]?.content).not.toContain('"UPSERT_BUDGET_PLAN"');
+    expect(body.messages[0]?.content).toContain('"priority"');
+    expect(body.user).toMatch(/^[a-f0-9]{64}$/);
+    expect(body.user).not.toContain(id);
+    vi.unstubAllGlobals();
+  });
+
+  it("falls back when OpenRouter returns malformed or unsafe content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            model: "openai/gpt-5.6-luna",
+            choices: [{ message: { content: "not-json" } }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const result = await new OpenRouterCopilotProvider(
+      "https://openrouter.ai/api/v1/chat/completions",
+      "test-only-key",
+    ).run({ message: "Ce urmează?", context });
+    expect(result.provider).toBe("openrouter");
+    expect(result.fallbackUsed).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("accepts a bounded multi-step plan with independent typed steps", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            model: "openai/gpt-5.6-luna",
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    answer: "Am pregătit doi pași separați.",
+                    plan: {
+                      title: "Plan de lucru",
+                      summary: "Fiecare pas se aprobă separat.",
+                      steps: [
+                        {
+                          actionType: "CREATE_TASK",
+                          riskLevel: "LOW",
+                          title: "Confirmă locația",
+                          preview: {
+                            title: "Confirmă locația",
+                            priority: "medium",
+                          },
+                          additionalActions: [],
+                        },
+                        {
+                          actionType: "CREATE_CALENDAR_EVENT",
+                          riskLevel: "LOW",
+                          title: "Adaugă vizionarea",
+                          preview: {
+                            title: "Vizionare locație",
+                            startAt: "2026-09-01T10:00:00.000Z",
+                            timezone: "Europe/Chisinau",
+                          },
+                          additionalActions: [],
+                        },
+                      ],
+                    },
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const result = await new OpenRouterCopilotProvider(
+      "https://openrouter.ai/api/v1/chat/completions",
+      "test-only-key",
+    ).run({
+      message: "Fă-mi un plan cu un task și un eveniment în calendar",
+      context,
+    });
+    expect(result.plan?.steps).toHaveLength(2);
+    expect(result.proposal).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("uses explicit web research without returning executable actions", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: "openai/gpt-5.6-luna",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  answer: "Am găsit două surse relevante.",
+                  proposal: null,
+                  plan: null,
+                }),
+                annotations: [
+                  {
+                    type: "url_citation",
+                    url_citation: {
+                      url: "https://example.org/ghid#fragment",
+                      title: "Ghid verificat",
+                      content: "Rezumatul sursei.",
+                    },
+                  },
+                  {
+                    type: "url_citation",
+                    url_citation: {
+                      url: "http://127.0.0.1/private",
+                      title: "Adresă privată",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await new OpenRouterCopilotProvider(
+      "https://openrouter.ai/api/v1/chat/completions",
+      "test-only-key",
+    ).run({
+      message: "Caută tendințe pentru locații",
+      context,
+      research: true,
+    });
+    expect(result.webCitations).toEqual([
+      {
+        url: "https://example.org/ghid",
+        title: "Ghid verificat",
+        excerpt: "Rezumatul sursei.",
+      },
+    ]);
+    expect(result.proposal).toBeUndefined();
+    expect(result.plan).toBeUndefined();
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as {
+      tools: Array<{ type: string }>;
+    };
+    expect(body.tools).toEqual([
+      {
+        type: "openrouter:web_search",
+        parameters: { engine: "auto", max_results: 5 },
+      },
+    ]);
+    expect(parseOpenRouterCitations(undefined)).toEqual([]);
+    vi.unstubAllGlobals();
+  });
+
+  it("fails web research honestly when the provider returns no citations", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            model: "openai/gpt-5.6-luna",
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({ answer: "Răspuns fără dovezi" }),
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const result = await new OpenRouterCopilotProvider(
+      "https://openrouter.ai/api/v1/chat/completions",
+      "test-only-key",
+    ).run({
+      message: "Caută tendințe pentru locații",
+      context,
+      research: true,
+    });
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.answer).toContain(
+      "Nu am putut accesa surse web verificabile",
+    );
+    expect(result.webCitations).toBeUndefined();
+    expect(result.proposal).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects an AI proposal that understates the enforced risk", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            answer: "Am pregătit planul.",
+            proposal: {
+              actionType: "CREATE_CONTINGENCY_PLAN",
+              riskLevel: "LOW",
+              title: "Plan B",
+              preview: { title: "Plan B" },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const result = await new ConfiguredAiCopilotProvider(
+      "https://provider.example.test",
+      "secret",
+    ).run({ message: "Ajută-mă cu vremea", context });
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.proposal).toBeUndefined();
     vi.unstubAllGlobals();
   });
 
