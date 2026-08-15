@@ -8,8 +8,12 @@ import type {
   TaskTransitionRequest,
 } from "@weddingos/contracts";
 import {
+  AlertTriangle,
   ArrowUpDown,
+  ArrowRight,
   CalendarDays,
+  CircleCheckBig,
+  CircleDashed,
   Download,
   Filter,
   GanttChart,
@@ -18,12 +22,17 @@ import {
   Plus,
   Search,
   Sparkles,
+  UserRoundX,
 } from "lucide-react";
 import type { Task, TaskStatus } from "@/lib/types";
-import { tasks as demoTasks, taskCategories } from "@/lib/data/tasks";
+import { tasks as demoTasks } from "@/lib/data/tasks";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
-import { taskFromApi, transitionForStatus } from "@/lib/planning-adapter";
+import {
+  taskCategoryLabel,
+  taskFromApi,
+  transitionForStatus,
+} from "@/lib/planning-adapter";
 import { cn, daysUntil, formatDateShort, percent } from "@/lib/utils";
 import {
   Avatar,
@@ -56,6 +65,7 @@ import { TaskModal } from "@/components/plan/task-modal";
 
 type View = "list" | "board" | "timeline" | "calendar";
 type SortKey = "deadline" | "priority" | "title";
+type FocusFilter = "overdue" | "unassigned" | null;
 const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
 const priorityLabels = {
   low: "Scăzută",
@@ -83,6 +93,47 @@ const statusTones = {
   blocked: "danger",
   completed: "success",
 } as const;
+const sortLabels: Record<SortKey, string> = {
+  deadline: "termen",
+  priority: "prioritate",
+  title: "titlu",
+};
+const viewDescriptions: Record<View, string> = {
+  list: "Vezi toate detaliile și compară rapid sarcinile.",
+  board: "Mută sarcinile între stări, de la neînceput la finalizat.",
+  timeline: "Urmărește ordinea sarcinilor după termen.",
+  calendar: "Vezi când este programată fiecare sarcină.",
+};
+
+function isUnassigned(task: Task) {
+  return task.owner.trim().toLocaleLowerCase("ro-RO") === "nealocat";
+}
+
+function recommendedTask(tasks: Task[]) {
+  const incomplete = tasks.filter((task) => task.status !== "completed");
+  const compare = (left: Task, right: Task) =>
+    priorityOrder[left.priority] - priorityOrder[right.priority] ||
+    left.deadline.localeCompare(right.deadline);
+  return (
+    incomplete
+      .filter((task) => daysUntil(task.deadline) < 0)
+      .sort(compare)[0] ??
+    incomplete
+      .filter((task) => task.status === "in-progress")
+      .sort(compare)[0] ??
+    incomplete.sort(compare)[0] ??
+    null
+  );
+}
+
+function taskDueLabel(task: Task) {
+  const days = daysUntil(task.deadline);
+  if (days < -1) return `Termen depășit cu ${Math.abs(days)} zile`;
+  if (days === -1) return "Termen depășit de ieri";
+  if (days === 0) return "Termen astăzi";
+  if (days === 1) return "Termen mâine";
+  return `Termen în ${days} zile`;
+}
 
 export default function PlanPage() {
   const router = useRouter();
@@ -109,6 +160,7 @@ export default function PlanPage() {
   const [statusFilter, setStatusFilter] = React.useState<TaskStatus | null>(
     null,
   );
+  const [focusFilter, setFocusFilter] = React.useState<FocusFilter>(null);
   const [sortKey, setSortKey] = React.useState<SortKey>("deadline");
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
   const [modalOpen, setModalOpen] = React.useState(false);
@@ -316,9 +368,6 @@ export default function PlanPage() {
       if (tasks.length === 0) void generatePlan("auto");
     }, 0);
     return () => window.clearTimeout(timer);
-    // The generation function intentionally uses the state captured when the
-    // one-shot `?generate=1` navigation is consumed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, proposal, router, tasks.length]);
 
   const createTask = async (input: CreateTask, subtasks: string[]) => {
@@ -493,6 +542,11 @@ export default function PlanPage() {
       list = list.filter((task) => task.category === categoryFilter);
     if (statusFilter)
       list = list.filter((task) => task.status === statusFilter);
+    if (focusFilter === "overdue")
+      list = list.filter(
+        (task) => task.status !== "completed" && daysUntil(task.deadline) < 0,
+      );
+    if (focusFilter === "unassigned") list = list.filter(isUnassigned);
     list.sort((a, b) => {
       const comparison =
         sortKey === "deadline"
@@ -503,13 +557,39 @@ export default function PlanPage() {
       return sortDir === "asc" ? comparison : -comparison;
     });
     return list;
-  }, [tasks, query, categoryFilter, statusFilter, sortKey, sortDir]);
+  }, [
+    tasks,
+    query,
+    categoryFilter,
+    statusFilter,
+    focusFilter,
+    sortKey,
+    sortDir,
+  ]);
 
   const doneCount = tasks.filter((task) => task.status === "completed").length;
   const overdueCount = tasks.filter(
     (task) => task.status !== "completed" && daysUntil(task.deadline) < 0,
   ).length;
-  const activeFilterCount = Number(!!categoryFilter) + Number(!!statusFilter);
+  const blockedCount = tasks.filter((task) => task.status === "blocked").length;
+  const unassignedCount = tasks.filter(isUnassigned).length;
+  const nextTask = recommendedTask(tasks);
+  const taskCategoryOptions = React.useMemo(
+    () =>
+      Array.from(new Set(tasks.map((task) => task.category))).sort((a, b) =>
+        taskCategoryLabel(a).localeCompare(taskCategoryLabel(b), "ro"),
+      ),
+    [tasks],
+  );
+  const activeFilterCount =
+    Number(!!categoryFilter) + Number(!!statusFilter) + Number(!!focusFilter);
+
+  const resetFilters = () => {
+    setQuery("");
+    setCategoryFilter(null);
+    setStatusFilter(null);
+    setFocusFilter(null);
+  };
 
   if (!currentWorkspace || loading)
     return (
@@ -521,127 +601,127 @@ export default function PlanPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <PageHeader
-        title="Planul evenimentului"
-        description="Sarcinile, termenele și progresul echipei, într-o singură vedere."
-        meta={
-          <>
-            <span className="inline-flex items-center gap-2 text-sm text-muted">
-              <Progress
-                value={doneCount}
-                max={Math.max(tasks.length, 1)}
-                className="w-28"
-              />
-              <span className="font-medium text-ink">
-                {percent(doneCount, tasks.length)}%
-              </span>{" "}
-              finalizat
-            </span>
-            {overdueCount > 0 && (
-              <Badge variant="danger" dot>
-                {overdueCount} depășite
-              </Badge>
-            )}
-            <Badge variant="neutral">{tasks.length} sarcini</Badge>
-          </>
-        }
+        title="Planul nunții"
+        description="Vezi ce urmează, ce necesită atenție și cine se ocupă — fără să cauți prin toate sarcinile."
         actions={
           tasks.length === 0 ? (
-            <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalOpen(true)}
+            >
               <Plus className="size-4" />
               Adaugă manual
             </Button>
           ) : (
             <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                void run(async () => {
-                  const job = await weddingOsApi.createPlanningExport(
-                    currentWorkspace.id,
-                  );
-                  toast({
-                    title: "Export în coadă",
-                    description: `Job ${job.id.slice(0, 8)} procesează lista de sarcini.`,
-                    variant: "info",
-                  });
-                  for (let attempt = 0; attempt < 60; attempt += 1) {
-                    await new Promise((resolve) =>
-                      window.setTimeout(resolve, 500),
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void run(async () => {
+                    const job = await weddingOsApi.createPlanningExport(
+                      currentWorkspace.id,
                     );
-                    const state = await weddingOsApi.job(job.id);
-                    if (
-                      state.status === "failed" ||
-                      state.status === "dead_letter"
-                    )
-                      throw new Error(
-                        state.error?.message ??
-                          "Exportul nu a putut fi generat.",
-                      );
-                    if (state.status !== "completed") continue;
-                    const blob = await weddingOsApi.downloadJobArtifact(job.id);
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = "weddingos-planning.csv";
-                    link.click();
-                    URL.revokeObjectURL(url);
                     toast({
-                      title: "Export CSV descărcat",
-                      variant: "success",
+                      title: "Export în coadă",
+                      description: `Job ${job.id.slice(0, 8)} procesează lista de sarcini.`,
+                      variant: "info",
                     });
-                    return;
-                  }
-                  throw new Error(
-                    "Exportul nu s-a finalizat în intervalul așteptat.",
-                  );
-                })
-              }
-            >
-              <Download className="size-3.5" />
-              Export CSV
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() =>
-                proposal ? setProposalOpen(true) : void generatePlan("auto")
-              }
-            >
-              <Sparkles className="size-3.5 text-accent" />
-              {proposal?.status === "ready_for_review"
-                ? "Verifică propunerea"
-                : "Generează plan"}
-            </Button>
-            <Button size="sm" onClick={() => setModalOpen(true)}>
-              <Plus className="size-4" />
-              Sarcină nouă
-            </Button>
+                    for (let attempt = 0; attempt < 60; attempt += 1) {
+                      await new Promise((resolve) =>
+                        window.setTimeout(resolve, 500),
+                      );
+                      const state = await weddingOsApi.job(job.id);
+                      if (
+                        state.status === "failed" ||
+                        state.status === "dead_letter"
+                      )
+                        throw new Error(
+                          state.error?.message ??
+                            "Exportul nu a putut fi generat.",
+                        );
+                      if (state.status !== "completed") continue;
+                      const blob = await weddingOsApi.downloadJobArtifact(
+                        job.id,
+                      );
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = "weddingos-planning.csv";
+                      link.click();
+                      URL.revokeObjectURL(url);
+                      toast({
+                        title: "Export CSV descărcat",
+                        variant: "success",
+                      });
+                      return;
+                    }
+                    throw new Error(
+                      "Exportul nu s-a finalizat în intervalul așteptat.",
+                    );
+                  })
+                }
+              >
+                <Download className="size-3.5" />
+                Export CSV
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  proposal ? setProposalOpen(true) : void generatePlan("auto")
+                }
+              >
+                <Sparkles className="size-3.5 text-accent" />
+                {proposal?.status === "ready_for_review"
+                  ? "Verifică propunerea"
+                  : "Generează plan"}
+              </Button>
+              <Button size="sm" onClick={() => setModalOpen(true)}>
+                <Plus className="size-4" />
+                Adaugă sarcină
+              </Button>
             </>
           )
         }
       />
 
       {tasks.length === 0 && !error ? (
-        <section className="overflow-hidden rounded-2xl border border-brand/20 bg-gradient-to-br from-brand-softer via-surface to-accent-soft/35 p-5 sm:p-7" aria-labelledby="plan-start-title">
+        <section
+          className="overflow-hidden rounded-2xl border border-brand/20 bg-gradient-to-br from-brand-softer via-surface to-accent-soft/35 p-5 sm:p-7"
+          aria-labelledby="plan-start-title"
+        >
           <Badge variant="brand">Primul pas recomandat</Badge>
           <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,.85fr)] lg:items-end">
             <div>
-              <h2 id="plan-start-title" className="max-w-2xl font-brand text-2xl font-semibold tracking-[-0.02em] text-ink sm:text-3xl">
+              <h2
+                id="plan-start-title"
+                className="max-w-2xl font-brand text-2xl font-semibold tracking-[-0.02em] text-ink sm:text-3xl"
+              >
                 Transformă detaliile nunții într-un plan pe care îl controlezi.
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">
-                Sarbato pregătește o propunere pe baza răspunsurilor tale. Nimic nu intră în plan până nu verifici și aprobi fiecare etapă.
+                Sarbato pregătește o propunere pe baza răspunsurilor tale. Nimic
+                nu intră în plan până nu verifici și aprobi fiecare etapă.
               </p>
             </div>
-            <ol className="grid gap-2 text-sm" aria-label="Cum se creează planul">
+            <ol
+              className="grid gap-2 text-sm"
+              aria-label="Cum se creează planul"
+            >
               {[
                 ["1", "Folosim detaliile salvate la configurare"],
                 ["2", "Îți arătăm propunerea înainte de aplicare"],
                 ["3", "Tu alegi ce sarcini intră în plan"],
               ].map(([number, copy]) => (
-                <li key={number} className="flex items-center gap-3 rounded-xl border border-line/80 bg-surface/85 px-3 py-2.5">
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-on-brand">{number}</span>
+                <li
+                  key={number}
+                  className="flex items-center gap-3 rounded-xl border border-line/80 bg-surface/85 px-3 py-2.5"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-on-brand">
+                    {number}
+                  </span>
                   <span className="font-medium text-ink">{copy}</span>
                 </li>
               ))}
@@ -669,125 +749,328 @@ export default function PlanPage() {
         />
       )}
 
-      {tasks.length > 0 ? <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl<View>
-          ariaLabel="Schimbă vizualizarea"
-          value={view}
-          onChange={setView}
-          options={[
-            {
-              value: "list",
-              label: "Listă",
-              icon: <LayoutList className="size-4" />,
-            },
-            {
-              value: "board",
-              label: "Panou",
-              icon: <Kanban className="size-4" />,
-            },
-            {
-              value: "timeline",
-              label: "Cronologie",
-              icon: <GanttChart className="size-4" />,
-            },
-            {
-              value: "calendar",
-              label: "Calendar",
-              icon: <CalendarDays className="size-4" />,
-            },
-          ]}
-        />
-        <Input
-          icon={<Search className="size-4" />}
-          placeholder="Caută sarcini…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="w-full sm:w-64"
-        />
-        <Dropdown>
-          <DropdownTrigger>
-            <Button variant="outline" size="sm">
-              <Filter className="size-3.5" />
-              Filtre{" "}
-              {activeFilterCount > 0 && (
-                <Badge variant="brand">{activeFilterCount}</Badge>
-              )}
-            </Button>
-          </DropdownTrigger>
-          <DropdownContent align="start" widthClass="w-56">
-            <DropdownLabel>Categorie</DropdownLabel>
-            <DropdownItem
-              selected={!categoryFilter}
-              onSelect={() => setCategoryFilter(null)}
-            >
-              Toate
-            </DropdownItem>
-            {taskCategories.slice(0, 8).map((category) => (
-              <DropdownItem
-                key={category}
-                selected={categoryFilter === category}
-                onSelect={() =>
-                  setCategoryFilter(
-                    categoryFilter === category ? null : category,
-                  )
-                }
-              >
-                {category}
-              </DropdownItem>
-            ))}
-            <DropdownSeparator />
-            <DropdownLabel>Stare</DropdownLabel>
-            <DropdownItem
-              selected={!statusFilter}
-              onSelect={() => setStatusFilter(null)}
-            >
-              Toate
-            </DropdownItem>
-            {boardColumns.map((column) => (
-              <DropdownItem
-                key={column.id}
-                selected={statusFilter === column.id}
-                onSelect={() =>
-                  setStatusFilter(statusFilter === column.id ? null : column.id)
-                }
-              >
-                {column.label}
-              </DropdownItem>
-            ))}
-          </DropdownContent>
-        </Dropdown>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setSortKey((current) =>
-              current === "deadline"
-                ? "priority"
-                : current === "priority"
-                  ? "title"
-                  : "deadline",
-            );
-            setSortDir((current) => (current === "asc" ? "desc" : "asc"));
-          }}
+      {tasks.length > 0 && !error ? (
+        <section
+          aria-labelledby="plan-status-title"
+          className="rounded-2xl border border-line bg-surface p-4 sm:p-6"
         >
-          <ArrowUpDown className="size-3.5" />
-          Sortare: {sortKey}
-        </Button>
-      </div> : null}
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,.65fr)] lg:items-stretch">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">
+                Situația planului
+              </p>
+              <h2
+                id="plan-status-title"
+                className="mt-2 font-brand text-2xl font-semibold tracking-[-0.02em] text-ink"
+              >
+                {overdueCount > 0
+                  ? `${overdueCount} ${overdueCount === 1 ? "sarcină are" : "sarcini au"} termenul depășit.`
+                  : doneCount === tasks.length
+                    ? "Planul este finalizat."
+                    : "Planul este la zi."}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                Ai finalizat {doneCount} din {tasks.length} sarcini. Elementele
+                de mai jos sunt lucruri de urmărit, nu erori ale aplicației.
+              </p>
+              <div className="mt-4 flex max-w-xl items-center gap-3">
+                <Progress
+                  value={doneCount}
+                  max={Math.max(tasks.length, 1)}
+                  className="flex-1"
+                />
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                  {percent(doneCount, tasks.length)}%
+                </span>
+              </div>
+              <div
+                className="mt-5 flex flex-wrap gap-2"
+                aria-label="De urmărit"
+              >
+                <button
+                  type="button"
+                  disabled={overdueCount === 0}
+                  onClick={() => {
+                    setFocusFilter((current) =>
+                      current === "overdue" ? null : "overdue",
+                    );
+                    setStatusFilter(null);
+                  }}
+                  aria-pressed={focusFilter === "overdue"}
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
+                    focusFilter === "overdue"
+                      ? "border-danger/40 bg-danger-soft text-danger"
+                      : "border-line bg-elevated text-muted hover:border-danger/30 hover:text-ink",
+                  )}
+                >
+                  <AlertTriangle className="size-4" aria-hidden />
+                  {overdueCount} depășite
+                </button>
+                <button
+                  type="button"
+                  disabled={blockedCount === 0}
+                  onClick={() => {
+                    setStatusFilter((current) =>
+                      current === "blocked" ? null : "blocked",
+                    );
+                    setFocusFilter(null);
+                  }}
+                  aria-pressed={statusFilter === "blocked"}
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
+                    statusFilter === "blocked"
+                      ? "border-warning/40 bg-warning-soft text-warning"
+                      : "border-line bg-elevated text-muted hover:border-warning/30 hover:text-ink",
+                  )}
+                >
+                  <CircleDashed className="size-4" aria-hidden />
+                  {blockedCount} blocate
+                </button>
+                <button
+                  type="button"
+                  disabled={unassignedCount === 0}
+                  onClick={() => {
+                    setFocusFilter((current) =>
+                      current === "unassigned" ? null : "unassigned",
+                    );
+                    setStatusFilter(null);
+                  }}
+                  aria-pressed={focusFilter === "unassigned"}
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55",
+                    focusFilter === "unassigned"
+                      ? "border-brand/35 bg-brand-softer text-brand"
+                      : "border-line bg-elevated text-muted hover:border-brand/30 hover:text-ink",
+                  )}
+                >
+                  <UserRoundX className="size-4" aria-hidden />
+                  {unassignedCount} fără responsabil
+                </button>
+              </div>
+            </div>
+
+            <aside className="flex flex-col justify-between rounded-xl bg-subtle/70 p-4 sm:p-5">
+              <div>
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-faint">
+                  <CircleCheckBig className="size-4 text-brand" aria-hidden />
+                  Următorul pas recomandat
+                </p>
+                {nextTask ? (
+                  <>
+                    <h3 className="mt-3 text-lg font-semibold leading-6 text-ink">
+                      {nextTask.title}
+                    </h3>
+                    <p
+                      className={cn(
+                        "mt-2 text-sm",
+                        daysUntil(nextTask.deadline) < 0
+                          ? "font-medium text-danger"
+                          : "text-muted",
+                      )}
+                    >
+                      {taskDueLabel(nextTask)} ·{" "}
+                      {formatDateShort(nextTask.deadline)}
+                    </p>
+                    <p className="mt-1 text-xs text-faint">
+                      {taskCategoryLabel(nextTask.category)} · {nextTask.owner}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-muted">
+                    Toate sarcinile sunt finalizate. Poți adăuga un pas nou dacă
+                    mai apare ceva de organizat.
+                  </p>
+                )}
+              </div>
+              <Button
+                className="mt-5 w-full justify-between"
+                onClick={() =>
+                  nextTask ? setSelected(nextTask) : setModalOpen(true)
+                }
+              >
+                {nextTask ? "Deschide sarcina" : "Adaugă o sarcină"}
+                <ArrowRight className="size-4" aria-hidden />
+              </Button>
+            </aside>
+          </div>
+        </section>
+      ) : null}
+
+      {tasks.length > 0 ? (
+        <section
+          aria-labelledby="plan-workspace-title"
+          className="space-y-3 pt-1"
+        >
+          <div>
+            <h2
+              id="plan-workspace-title"
+              className="text-base font-semibold text-ink"
+            >
+              Alege cum vrei să lucrezi
+            </h2>
+            <p className="mt-1 text-sm text-muted">{viewDescriptions[view]}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl<View>
+              ariaLabel="Alege modul de afișare al planului"
+              value={view}
+              onChange={setView}
+              className="w-full md:w-auto [&>button]:flex-1 md:[&>button]:flex-none"
+              options={[
+                {
+                  value: "list",
+                  label: (
+                    <>
+                      <span className="md:hidden">Sarcini</span>
+                      <span className="hidden md:inline">Toate sarcinile</span>
+                    </>
+                  ),
+                  icon: <LayoutList className="size-4" />,
+                },
+                {
+                  value: "board",
+                  label: (
+                    <>
+                      <span className="md:hidden">Stări</span>
+                      <span className="hidden md:inline">După stare</span>
+                    </>
+                  ),
+                  icon: <Kanban className="size-4" />,
+                },
+                {
+                  value: "timeline",
+                  label: (
+                    <>
+                      <span className="md:hidden">Termene</span>
+                      <span className="hidden md:inline">După termen</span>
+                    </>
+                  ),
+                  icon: <GanttChart className="size-4" />,
+                },
+                {
+                  value: "calendar",
+                  label: "Calendar",
+                  icon: <CalendarDays className="size-4" />,
+                },
+              ]}
+            />
+            <Input
+              icon={<Search className="size-4" />}
+              placeholder="Caută sarcini…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="w-full sm:w-64"
+            />
+            <Dropdown>
+              <DropdownTrigger>
+                <Button variant="outline" size="sm">
+                  <Filter className="size-3.5" />
+                  Filtre{" "}
+                  {activeFilterCount > 0 && (
+                    <Badge variant="brand">{activeFilterCount}</Badge>
+                  )}
+                </Button>
+              </DropdownTrigger>
+              <DropdownContent align="start" widthClass="w-56">
+                <DropdownLabel>Categorie</DropdownLabel>
+                <DropdownItem
+                  selected={!categoryFilter}
+                  onSelect={() => setCategoryFilter(null)}
+                >
+                  Toate
+                </DropdownItem>
+                {taskCategoryOptions.map((category) => (
+                  <DropdownItem
+                    key={category}
+                    selected={categoryFilter === category}
+                    onSelect={() =>
+                      setCategoryFilter(
+                        categoryFilter === category ? null : category,
+                      )
+                    }
+                  >
+                    {taskCategoryLabel(category)}
+                  </DropdownItem>
+                ))}
+                <DropdownSeparator />
+                <DropdownLabel>Stare</DropdownLabel>
+                <DropdownItem
+                  selected={!statusFilter}
+                  onSelect={() => setStatusFilter(null)}
+                >
+                  Toate
+                </DropdownItem>
+                {boardColumns.map((column) => (
+                  <DropdownItem
+                    key={column.id}
+                    selected={statusFilter === column.id}
+                    onSelect={() =>
+                      setStatusFilter(
+                        statusFilter === column.id ? null : column.id,
+                      )
+                    }
+                  >
+                    {column.label}
+                  </DropdownItem>
+                ))}
+              </DropdownContent>
+            </Dropdown>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSortKey((current) =>
+                  current === "deadline"
+                    ? "priority"
+                    : current === "priority"
+                      ? "title"
+                      : "deadline",
+                );
+                setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+              }}
+            >
+              <ArrowUpDown className="size-3.5" />
+              Sortare: {sortLabels[sortKey]}
+            </Button>
+            {activeFilterCount > 0 || query ? (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                Resetează
+              </Button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {tasks.length === 0 ? (
         <EmptyState
           icon={Sparkles}
-          title={proposal ? "Propunerea este pregătită pentru verificare" : "Creează prima propunere de plan"}
-          description={proposal ? "Deschide propunerea, ajustează ce ai nevoie și aplică doar sarcinile pe care le aprobi." : "Procesul durează de obicei sub un minut și nu modifică planul fără confirmarea ta."}
+          title={
+            proposal
+              ? "Propunerea este pregătită pentru verificare"
+              : "Creează prima propunere de plan"
+          }
+          description={
+            proposal
+              ? "Deschide propunerea, ajustează ce ai nevoie și aplică doar sarcinile pe care le aprobi."
+              : "Procesul durează de obicei sub un minut și nu modifică planul fără confirmarea ta."
+          }
           action={{
             label: proposal ? "Verifică propunerea" : "Creează propunerea",
-            onClick: () => proposal ? setProposalOpen(true) : void generatePlan("auto"),
+            onClick: () =>
+              proposal ? setProposalOpen(true) : void generatePlan("auto"),
           }}
           secondaryAction={{
             label: "Adaugă o sarcină manual",
             onClick: () => setModalOpen(true),
           }}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="Nicio sarcină nu corespunde selecției"
+          description="Schimbă termenul căutat sau resetează filtrele pentru a vedea din nou întregul plan."
+          action={{ label: "Resetează filtrele", onClick: resetFilters }}
         />
       ) : view === "board" ? (
         <BoardView
@@ -809,7 +1092,9 @@ export default function PlanPage() {
                   <span className="block text-sm font-semibold text-ink">
                     {task.title}
                   </span>
-                  <span className="text-xs text-muted">{task.category}</span>
+                  <span className="text-xs text-muted">
+                    {taskCategoryLabel(task.category)}
+                  </span>
                 </span>
                 <Badge
                   variant={daysUntil(task.deadline) < 0 ? "danger" : "neutral"}
@@ -852,8 +1137,7 @@ export default function PlanPage() {
                   <span
                     className={cn(
                       "min-w-0 text-sm font-semibold leading-5 text-ink",
-                      task.status === "completed" &&
-                        "text-faint line-through",
+                      task.status === "completed" && "text-faint line-through",
                     )}
                   >
                     {task.title}
@@ -863,7 +1147,9 @@ export default function PlanPage() {
                   </Badge>
                 </span>
                 <span className="mt-3 flex flex-wrap items-center gap-2">
-                  <Badge variant="neutral">{task.category}</Badge>
+                  <Badge variant="neutral">
+                    {taskCategoryLabel(task.category)}
+                  </Badge>
                   <Badge variant={priorityTones[task.priority]}>
                     {priorityLabels[task.priority]}
                   </Badge>
@@ -893,74 +1179,76 @@ export default function PlanPage() {
           </div>
           <div className="hidden overflow-hidden rounded-xl border border-line bg-elevated sm:block">
             <Table>
-            <THead>
-              <TR>
-                <TH>Sarcină</TH>
-                <TH>Categorie</TH>
-                <TH>Responsabil</TH>
-                <TH>Prioritate</TH>
-                <TH>Stare</TH>
-                <TH>Termen</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {filtered.map((task) => (
-                <TR
-                  key={task.id}
-                  onClick={() => setSelected(task)}
-                  className="cursor-pointer"
-                >
-                  <TD>
-                    <span
-                      className={cn(
-                        "font-medium text-ink",
-                        task.status === "completed" &&
-                          "text-faint line-through",
-                      )}
-                    >
-                      {task.title}
-                    </span>
-                    {task.subtasks?.length ? (
-                      <span className="ml-2 text-xs text-faint">
-                        {task.subtasks.filter((item) => item.done).length}/
-                        {task.subtasks.length}
-                      </span>
-                    ) : null}
-                  </TD>
-                  <TD>
-                    <Badge variant="neutral">{task.category}</Badge>
-                  </TD>
-                  <TD>
-                    <span className="flex items-center gap-2">
-                      <Avatar name={task.owner} size="xs" />
-                      {task.owner}
-                    </span>
-                  </TD>
-                  <TD>
-                    <Badge variant={priorityTones[task.priority]}>
-                      {priorityLabels[task.priority]}
-                    </Badge>
-                  </TD>
-                  <TD>
-                    <Badge variant={statusTones[task.status]}>
-                      {statusLabels[task.status]}
-                    </Badge>
-                  </TD>
-                  <TD>
-                    <span
-                      className={
-                        daysUntil(task.deadline) < 0 &&
-                        task.status !== "completed"
-                          ? "font-semibold text-danger"
-                          : "text-muted"
-                      }
-                    >
-                      {formatDateShort(task.deadline)}
-                    </span>
-                  </TD>
+              <THead>
+                <TR>
+                  <TH>Sarcină</TH>
+                  <TH>Categorie</TH>
+                  <TH>Responsabil</TH>
+                  <TH>Prioritate</TH>
+                  <TH>Stare</TH>
+                  <TH>Termen</TH>
                 </TR>
-              ))}
-            </TBody>
+              </THead>
+              <TBody>
+                {filtered.map((task) => (
+                  <TR
+                    key={task.id}
+                    onClick={() => setSelected(task)}
+                    className="cursor-pointer"
+                  >
+                    <TD>
+                      <span
+                        className={cn(
+                          "font-medium text-ink",
+                          task.status === "completed" &&
+                            "text-faint line-through",
+                        )}
+                      >
+                        {task.title}
+                      </span>
+                      {task.subtasks?.length ? (
+                        <span className="ml-2 text-xs text-faint">
+                          {task.subtasks.filter((item) => item.done).length}/
+                          {task.subtasks.length}
+                        </span>
+                      ) : null}
+                    </TD>
+                    <TD>
+                      <Badge variant="neutral">
+                        {taskCategoryLabel(task.category)}
+                      </Badge>
+                    </TD>
+                    <TD>
+                      <span className="flex items-center gap-2">
+                        <Avatar name={task.owner} size="xs" />
+                        {task.owner}
+                      </span>
+                    </TD>
+                    <TD>
+                      <Badge variant={priorityTones[task.priority]}>
+                        {priorityLabels[task.priority]}
+                      </Badge>
+                    </TD>
+                    <TD>
+                      <Badge variant={statusTones[task.status]}>
+                        {statusLabels[task.status]}
+                      </Badge>
+                    </TD>
+                    <TD>
+                      <span
+                        className={
+                          daysUntil(task.deadline) < 0 &&
+                          task.status !== "completed"
+                            ? "font-semibold text-danger"
+                            : "text-muted"
+                        }
+                      >
+                        {formatDateShort(task.deadline)}
+                      </span>
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
             </Table>
           </div>
         </div>
@@ -1084,7 +1372,7 @@ export default function PlanPage() {
             const counts = proposal.items.length;
             if (
               !window.confirm(
-                `Aplici această propunere? Vor fi create atomic fazele, milestone-urile și sarcinile incluse (${counts} grupuri principale).`,
+                `Aplici această propunere? Vor fi create fazele, reperele și sarcinile incluse (${counts} grupuri principale).`,
               )
             )
               return;
@@ -1096,7 +1384,7 @@ export default function PlanPage() {
             );
             toast({
               title: "Plan aplicat",
-              description: `${result.phaseCount} faze, ${result.milestoneCount} milestone-uri și ${result.taskCount} sarcini create.`,
+              description: `${result.phaseCount} faze, ${result.milestoneCount} repere și ${result.taskCount} sarcini create.`,
               variant: "success",
             });
             setProposalOpen(false);

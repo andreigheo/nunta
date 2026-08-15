@@ -11,11 +11,16 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarClock, MessageSquare, Paperclip } from "lucide-react";
 import { cn, daysUntil, formatDateShort } from "@/lib/utils";
 import type { Task, TaskStatus } from "@/lib/types";
+import { taskCategoryLabel } from "@/lib/planning-adapter";
 import { Avatar, Badge } from "@/components/ui";
 
 export const boardColumns: Array<{ id: TaskStatus; label: string }> = [
@@ -33,8 +38,23 @@ const priorityBorder: Record<Task["priority"], string> = {
   urgent: "border-l-danger",
 };
 
-function TaskCard({ task, onOpen, overlay }: { task: Task; onOpen?: () => void; overlay?: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+function TaskCard({
+  task,
+  onOpen,
+  overlay,
+}: {
+  task: Task;
+  onOpen?: () => void;
+  overlay?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: task.id,
     data: { status: task.status },
   });
@@ -55,11 +75,21 @@ function TaskCard({ task, onOpen, overlay }: { task: Task; onOpen?: () => void; 
         overlay && "rotate-2 shadow-overlay",
       )}
     >
-      <p className={cn("text-[13.5px] font-medium leading-snug text-ink", task.status === "completed" && "text-faint line-through")}>
+      <p
+        className={cn(
+          "text-sm font-medium leading-snug text-ink",
+          task.status === "completed" && "text-faint line-through",
+        )}
+      >
         {task.title}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-faint">
-        <span className={cn("inline-flex items-center gap-1", overdue && "font-semibold text-danger")}>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-faint">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1",
+            overdue && "font-semibold text-danger",
+          )}
+        >
           <CalendarClock className="size-3" aria-hidden />
           {formatDateShort(task.deadline)}
         </span>
@@ -77,8 +107,8 @@ function TaskCard({ task, onOpen, overlay }: { task: Task; onOpen?: () => void; 
         )}
       </div>
       <div className="mt-2 flex items-center justify-between">
-        <Badge variant="neutral">{task.category}</Badge>
-        <Avatar name={task.owner === "Ana" ? "Ana Dumitrescu" : task.owner === "Mihai" ? "Mihai Ionescu" : "Elena Pop"} size="xs" />
+        <Badge variant="neutral">{taskCategoryLabel(task.category)}</Badge>
+        <Avatar name={task.owner} size="xs" />
       </div>
     </div>
   );
@@ -99,8 +129,8 @@ function Column({
   return (
     <div className="flex w-[272px] shrink-0 flex-col">
       <div className="flex items-center justify-between px-1 pb-2">
-        <p className="text-[13px] font-semibold text-ink">{label}</p>
-        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-subtle px-1.5 text-[11px] font-semibold text-muted tabular-nums">
+        <p className="text-sm font-semibold text-ink">{label}</p>
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-subtle px-1.5 text-xs font-semibold text-muted tabular-nums">
           {tasks.length}
         </span>
       </div>
@@ -108,10 +138,15 @@ function Column({
         ref={setNodeRef}
         className={cn(
           "flex min-h-[120px] flex-1 flex-col gap-2 rounded-xl border border-dashed p-2 transition-colors",
-          isOver ? "border-brand bg-brand-softer/50" : "border-line bg-subtle/40",
+          isOver
+            ? "border-brand bg-brand-softer/50"
+            : "border-line bg-subtle/40",
         )}
       >
-        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={tasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
           {tasks.map((task) => (
             <TaskCard key={task.id} task={task} onOpen={() => onOpen(task)} />
           ))}
@@ -136,7 +171,9 @@ export function BoardView({
   onOpen: (t: Task) => void;
 }) {
   const [activeTask, setActiveTask] = React.useState<Task | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
 
   const onDragStart = (event: DragStartEvent) => {
     setActiveTask(tasks.find((t) => t.id === event.active.id) ?? null);
@@ -156,13 +193,26 @@ export function BoardView({
   };
 
   return (
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveTask(null)}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setActiveTask(null)}
+    >
       <div className="flex gap-3 overflow-x-auto pb-4">
         {boardColumns.map((col) => (
-          <Column key={col.id} id={col.id} label={col.label} tasks={tasks.filter((t) => t.status === col.id)} onOpen={onOpen} />
+          <Column
+            key={col.id}
+            id={col.id}
+            label={col.label}
+            tasks={tasks.filter((t) => t.status === col.id)}
+            onOpen={onOpen}
+          />
         ))}
       </div>
-      <DragOverlay>{activeTask ? <TaskCard task={activeTask} overlay /> : null}</DragOverlay>
+      <DragOverlay>
+        {activeTask ? <TaskCard task={activeTask} overlay /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }
