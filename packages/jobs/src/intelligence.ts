@@ -50,6 +50,19 @@ export type ExplicitCopilotMemory = {
   fingerprint: string;
 };
 
+export function copilotMemoryFingerprint(content: string) {
+  return createHash("sha256")
+    .update(
+      content
+        .normalize("NFKD")
+        .replace(/\p{M}+/gu, "")
+        .toLocaleLowerCase("ro-RO")
+        .replace(/\s+/gu, " ")
+        .trim(),
+    )
+    .digest("hex");
+}
+
 export function extractExplicitCopilotMemory(
   message: string,
 ): ExplicitCopilotMemory | null {
@@ -63,10 +76,6 @@ export function extractExplicitCopilotMemory(
     .replace(/[.!?]+$/u, "")
     .trim();
   if (!content || content.length > 4_000) return null;
-  const normalized = content
-    .normalize("NFKC")
-    .toLocaleLowerCase("ro-RO")
-    .replace(/\s+/gu, " ");
   const kind = /\b(?:prefer|îmi place|imi place|ne place|dorim|vrem)\b/iu.test(
     content,
   )
@@ -86,7 +95,7 @@ export function extractExplicitCopilotMemory(
     kind,
     title: `${kindLabel}: ${content}`.slice(0, 180),
     content,
-    fingerprint: createHash("sha256").update(normalized).digest("hex"),
+    fingerprint: copilotMemoryFingerprint(content),
   };
 }
 

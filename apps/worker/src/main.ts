@@ -47,6 +47,7 @@ import {
   ConfiguredAiPlanProvider,
   ConfiguredAiCopilotProvider,
   copilotEnumLabel,
+  copilotMemoryFingerprint,
   explicitWebResearchRequested,
   extractExplicitCopilotMemory,
   formatCopilotMoneyMinor,
@@ -6555,17 +6556,46 @@ async function processCopilotRun(
         await transaction.$executeRaw`
           SELECT pg_advisory_xact_lock(hashtextextended(${`copilot.explicit-memory:${snapshot.workspace_id!}:${latest.requestedById}:${explicitMemory.fingerprint}`}, 0))
         `;
-        const existingMemory = await transaction.copilotMemory.findFirst({
+        const memoryCandidates = await transaction.copilotMemory.findMany({
           where: {
             workspaceId: snapshot.workspace_id!,
             ownerUserId: latest.requestedById,
             scope: "USER",
             status: "ACTIVE",
             subjectType: "explicit-user-memory",
-            subjectId: explicitMemory.fingerprint,
           },
-          select: { id: true },
+          select: { id: true, content: true, createdAt: true },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         });
+        const matchingMemories = memoryCandidates.filter(
+          (memory) =>
+            copilotMemoryFingerprint(memory.content) ===
+            explicitMemory.fingerprint,
+        );
+        const existingMemory = matchingMemories[0] ?? null;
+        if (existingMemory) {
+          await transaction.copilotMemory.update({
+            where: { id: existingMemory.id },
+            data: {
+              subjectId: explicitMemory.fingerprint,
+              updatedById: latest.requestedById,
+              version: { increment: 1 },
+            },
+          });
+        }
+        const duplicateMemoryIds = matchingMemories
+          .slice(1)
+          .map((memory) => memory.id);
+        if (duplicateMemoryIds.length) {
+          await transaction.copilotMemory.updateMany({
+            where: { id: { in: duplicateMemoryIds } },
+            data: {
+              status: "SUPERSEDED",
+              updatedById: latest.requestedById,
+              version: { increment: 1 },
+            },
+          });
+        }
         if (existingMemory) {
           rememberedMemoryId = existingMemory.id;
         } else {

@@ -23,6 +23,7 @@ import {
   copilotDomainCatalog,
   copilotImplementedActionDefinitions,
   copilotMemoryContentCanPersist,
+  copilotMemoryFingerprint,
   copilotPageSurfaces,
   DeterministicCopilotProvider,
   detectDeterministicRisks,
@@ -720,6 +721,9 @@ describe("Slice 9 intelligence contracts", () => {
     ).toBe(
       extractExplicitCopilotMemory("ține minte: preferăm  flori albe")
         ?.fingerprint,
+    );
+    expect(copilotMemoryFingerprint("preferăm decor minimalist")).toBe(
+      copilotMemoryFingerprint("PREFERAM   decor minimalist"),
     );
   });
 
