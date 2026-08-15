@@ -300,24 +300,6 @@ export class IntelligenceService {
             HttpStatus.TOO_MANY_REQUESTS,
             "Bugetul zilnic configurat pentru Copilot nu mai permite o rulare nouă.",
           );
-        if (input.research) {
-          const settings = await tx.copilotWorkspaceSettings.findUnique({
-            where: { workspaceId },
-            select: { webResearchEnabled: true },
-          });
-          if (!settings?.webResearchEnabled)
-            problem(
-              "FORBIDDEN",
-              HttpStatus.FORBIDDEN,
-              "Cercetarea web trebuie activată explicit din setările Copilot.",
-            );
-          if (input.mode === "deterministic")
-            problem(
-              "VALIDATION_FAILED",
-              HttpStatus.UNPROCESSABLE_ENTITY,
-              "Cercetarea web necesită modul AI sau automat.",
-            );
-        }
         const conversation = await tx.copilotConversation.findFirst({
           where: {
             id: conversationId,
@@ -336,7 +318,8 @@ export class IntelligenceService {
             content: input.content,
             metadata: {
               ...(input.context ?? {}),
-              research: input.research ?? false,
+              surface: input.surface ?? conversation.surface,
+              research: true,
             } as Prisma.InputJsonValue,
           },
         });

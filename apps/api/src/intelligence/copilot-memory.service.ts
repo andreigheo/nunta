@@ -50,6 +50,7 @@ export class CopilotMemoryService {
   ) {
     return {
       ...(settings ? mapSettings(settings) : defaultSettings(workspaceId)),
+      webResearchEnabled: this.webResearchAvailable(),
       webResearchAvailable: this.webResearchAvailable(),
     };
   }
@@ -74,18 +75,6 @@ export class CopilotMemoryService {
       version: number;
     },
   ) {
-    if (
-      input.webResearchEnabled === true &&
-      (!this.environment.COPILOT_EXTERNAL_ENABLED ||
-        !this.environment.COPILOT_EXTERNAL_DATA_ALLOWED ||
-        this.environment.COPILOT_PROVIDER_PROTOCOL !== "openrouter-chat")
-    )
-      problem(
-        "FEATURE_DISABLED",
-        HttpStatus.CONFLICT,
-        "Cercetarea web nu este disponibilă în acest mediu.",
-        "Configurează providerul extern și permisiunea de transmitere a datelor înainte de activare.",
-      );
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtextextended(${"copilot.settings:" + workspaceId}, 0))
@@ -100,7 +89,7 @@ export class CopilotMemoryService {
             data: {
               workspaceId,
               memoryEnabled: input.memoryEnabled,
-              webResearchEnabled: input.webResearchEnabled,
+              webResearchEnabled: this.webResearchAvailable(),
               proactiveSuggestions: input.proactiveSuggestions,
               memoryRetentionDays: input.memoryRetentionDays,
               createdById: userId,
@@ -115,7 +104,7 @@ export class CopilotMemoryService {
         where: { id: current.id, version: input.version },
         data: {
           memoryEnabled: input.memoryEnabled,
-          webResearchEnabled: input.webResearchEnabled,
+          webResearchEnabled: this.webResearchAvailable(),
           proactiveSuggestions: input.proactiveSuggestions,
           memoryRetentionDays: input.memoryRetentionDays,
           updatedById: userId,

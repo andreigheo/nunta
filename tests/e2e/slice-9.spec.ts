@@ -77,33 +77,30 @@ test("E2E 3 — Automations page renders the controlled engine", async ({
   ).toBeVisible();
 });
 
-test("E2E 3B — Copilot explains the current surface and enables explicit research", async ({
+test("E2E 3B — Copilot persists across refresh and keeps web research automatic", async ({
   page,
 }) => {
   const settings = await apiData<{
-    version: number;
     webResearchAvailable: boolean;
   }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/copilot/settings`));
   expect(settings.webResearchAvailable).toBe(true);
-  await apiData(
-    await owner.api.patch(
-      `/api/v1/workspaces/${workspaceId}/copilot/settings`,
-      {
-        headers: mutationHeaders({ "If-Match": `"${settings.version}"` }),
-        data: { version: settings.version, webResearchEnabled: true },
-      },
-    ),
-  );
   await authorizePage(page, owner);
   await page.goto("/budget");
   await page.getByRole("button", { name: "Copilot AI", exact: true }).click();
   await expect(page.getByText("Context: Buget", { exact: true })).toBeVisible();
-  const research = page.getByRole("switch", {
-    name: "Folosește cercetarea web pentru următorul mesaj",
-  });
-  await expect(research).toBeEnabled();
-  await research.click();
-  await expect(research).toHaveAttribute("aria-checked", "true");
+  await expect(
+    page.getByText("Internetul este folosit automat când ajută.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("switch", {
+      name: "Folosește cercetarea web pentru următorul mesaj",
+    }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByLabel("Copilot Sarbato")).toBeVisible();
+  await expect(page.getByText("Context: Buget", { exact: true })).toBeVisible();
 });
 
 test("E2E 4 — Create a persistent Copilot conversation", async () => {
@@ -192,6 +189,38 @@ test("E2E 9 — Copilot answer is persisted in the conversation", async () => {
   );
   expect(assistant).toBeTruthy();
   assistantMessageId = assistant!.id;
+});
+
+test("E2E 9B — Copilot stores only an explicitly requested durable memory", async () => {
+  const before = await apiData<{ items: Array<{ content: string }> }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/memories`,
+    ),
+  );
+  expect(before.items).toHaveLength(0);
+  const request = await apiData<{ job: { id: string } }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations/${conversation.id}/messages`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `explicit-memory-${randomUUID()}`,
+        }),
+        data: {
+          content: "Ține minte că preferăm decor minimalist",
+          mode: "deterministic",
+          surface: "/overview",
+        },
+      },
+    ),
+  );
+  await waitForJob(request.job.id);
+  const after = await apiData<{ items: Array<{ content: string }> }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/memories`,
+    ),
+  );
+  expect(after.items).toHaveLength(1);
+  expect(after.items[0]?.content).toBe("preferăm decor minimalist");
 });
 
 test("E2E 10 — Proposal edit is versioned", async () => {

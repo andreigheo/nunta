@@ -46,6 +46,10 @@ import {
   DOMAIN_EVENT_QUEUE,
   ConfiguredAiPlanProvider,
   ConfiguredAiCopilotProvider,
+  copilotEnumLabel,
+  explicitWebResearchRequested,
+  extractExplicitCopilotMemory,
+  formatCopilotMoneyMinor,
   copilotMemoryContentCanPersist,
   DeterministicCopilotProvider,
   DeterministicPlanProvider,
@@ -5619,6 +5623,24 @@ async function processCopilotRun(
         "Copilot conversation does not belong to the persisted actor",
         "COPILOT_CONVERSATION_CONTEXT_MISMATCH",
       );
+    const recentMessages = (
+      await transaction.copilotMessage.findMany({
+        where: {
+          workspaceId: snapshot.workspace_id!,
+          conversationId: run.conversationId,
+          id: { not: message.id },
+          role: { in: ["USER", "ASSISTANT"] },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 10,
+        select: { role: true, content: true },
+      })
+    ).reverse();
+    const messageMetadata = jsonObjectValue(message.metadata);
+    const currentSurface =
+      typeof messageMetadata.surface === "string"
+        ? messageMetadata.surface
+        : conversation.surface;
     await transaction.copilotRun.update({
       where: { id: run.id },
       data: { status: "RUNNING", startedAt: run.startedAt ?? new Date() },
@@ -5974,8 +5996,11 @@ async function processCopilotRun(
           })
         : Promise.resolve([]),
     ]);
-    const totalMinor = (values: bigint[]) =>
-      values.reduce((sum, value) => sum + value, 0n).toString();
+    const totalMoney = (values: bigint[], currency: string) =>
+      formatCopilotMoneyMinor(
+        values.reduce((sum, value) => sum + value, 0n),
+        currency,
+      );
     const aggregateResources: CopilotContextResource[] = [
       ...(budgetPlan
         ? [
@@ -5983,7 +6008,16 @@ async function processCopilotRun(
               type: "BudgetSummary",
               id: budgetPlan.id,
               title: budgetPlan.name,
-              summary: `versiune ${budgetPlan.version}; țintă ${budgetPlan.targetTotalMinor.toString()} ${budgetPlan.currency}; rezervă ${budgetPlan.contingencyPercent}%; estimat ${totalMinor(budgetItems.map((item) => item.estimatedMinor))}; angajat ${totalMinor(budgetItems.map((item) => item.committedMinor ?? 0n))}; plătit ${totalMinor(budgetItems.map((item) => item.paidMinor))}`,
+              summary: `versiune ${budgetPlan.version}; țintă ${formatCopilotMoneyMinor(budgetPlan.targetTotalMinor, budgetPlan.currency)}; rezervă ${budgetPlan.contingencyPercent}%; estimat ${totalMoney(
+                budgetItems.map((item) => item.estimatedMinor),
+                budgetPlan.currency,
+              )}; angajat ${totalMoney(
+                budgetItems.map((item) => item.committedMinor ?? 0n),
+                budgetPlan.currency,
+              )}; plătit ${totalMoney(
+                budgetItems.map((item) => item.paidMinor),
+                budgetPlan.currency,
+              )}`,
               updatedAt: budgetPlan.updatedAt.toISOString(),
               sensitivity: "normal" as const,
             },
@@ -6037,7 +6071,7 @@ async function processCopilotRun(
         type: "WeddingDayPlan",
         id: plan.id,
         title: plan.name,
-        summary: `status operațional ${plan.status.toLowerCase()}`,
+        summary: `stare operațională: ${copilotEnumLabel(plan.status)}`,
         updatedAt: plan.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6047,7 +6081,7 @@ async function processCopilotRun(
               type: "InvitationSite",
               id: invitationSite.id,
               title: "Invitația evenimentului",
-              summary: `versiune ${invitationSite.version}; status ${invitationSite.status.toLowerCase()}; sincronizare disponibilă pentru hero.names, hero.date, hero.venue, schedule.items, locations.items, rsvp.deadline și accommodation.items`,
+              summary: `versiune ${invitationSite.version}; stare ${copilotEnumLabel(invitationSite.status)}; sincronizare disponibilă pentru nume, dată, locație, program, confirmare și cazare`,
               updatedAt: invitationSite.updatedAt.toISOString(),
               sensitivity: "normal" as const,
             },
@@ -6059,7 +6093,7 @@ async function processCopilotRun(
         type: "BudgetCategory",
         id: category.id,
         title: category.name,
-        summary: `versiune ${category.version}; plan ${category.budgetPlanId}; alocat ${category.allocatedMinor.toString()}; poziția ${category.position}`,
+        summary: `versiune ${category.version}; plan ${category.budgetPlanId}; alocat ${formatCopilotMoneyMinor(category.allocatedMinor, budgetPlan?.currency ?? "RON")}; poziția ${category.position}`,
         updatedAt: category.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6067,7 +6101,7 @@ async function processCopilotRun(
         type: "BudgetItem",
         id: item.id,
         title: item.name,
-        summary: `versiune ${item.version}; categorie ${item.categoryId}; status ${item.status.toLowerCase()}; estimat ${item.estimatedMinor.toString()}; plătit ${item.paidMinor.toString()}${item.dueAt ? `; termen ${item.dueAt.toISOString()}` : ""}`,
+        summary: `versiune ${item.version}; categorie ${item.categoryId}; stare ${copilotEnumLabel(item.status)}; estimat ${formatCopilotMoneyMinor(item.estimatedMinor, budgetPlan?.currency ?? "RON")}; plătit ${formatCopilotMoneyMinor(item.paidMinor, budgetPlan?.currency ?? "RON")}${item.dueAt ? `; termen ${item.dueAt.toISOString()}` : ""}`,
         updatedAt: item.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6075,7 +6109,7 @@ async function processCopilotRun(
         type: "ExpenseRecord",
         id: expense.id,
         title: "Cheltuială bugetară",
-        summary: `versiune ${expense.version}; element buget ${expense.budgetItemId}; status ${expense.status.toLowerCase()}; sumă ${expense.amountMinor.toString()}; data ${expense.expenseDate.toISOString().slice(0, 10)}`,
+        summary: `versiune ${expense.version}; element buget ${expense.budgetItemId}; stare ${copilotEnumLabel(expense.status)}; sumă ${formatCopilotMoneyMinor(expense.amountMinor, budgetPlan?.currency ?? "RON")}; data ${expense.expenseDate.toISOString().slice(0, 10)}`,
         updatedAt: expense.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6083,7 +6117,7 @@ async function processCopilotRun(
         type: "Household",
         id: household.id,
         title: `Gospodărie ${index + 1}`,
-        summary: `versiune ${household.version}; ${guests.filter((guest) => guest.householdId === household.id).length} membri în contextul curent; limbă ${household.preferredLanguage}; parte ${household.side.toLowerCase()}; numele și contactele sunt excluse`,
+        summary: `versiune ${household.version}; ${guests.filter((guest) => guest.householdId === household.id).length} membri în contextul curent; limbă ${household.preferredLanguage}; parte ${copilotEnumLabel(household.side)}; numele și contactele sunt excluse`,
         updatedAt: household.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6091,7 +6125,7 @@ async function processCopilotRun(
         type: "Guest",
         id: guest.id,
         title: `Invitat ${index + 1}`,
-        summary: `versiune ${guest.version}; gospodărie ${guest.householdId}; limbă ${guest.preferredLanguage}; parte ${guest.side.toLowerCase()}; copil ${guest.isChild}; plus-one ${guest.isPlusOne}; permite plus-one ${guest.plusOneAllowed}; numele și contactele sunt excluse`,
+        summary: `versiune ${guest.version}; gospodărie ${guest.householdId}; limbă ${guest.preferredLanguage}; parte ${copilotEnumLabel(guest.side)}; copil ${guest.isChild ? "da" : "nu"}; însoțitor ${guest.isPlusOne ? "da" : "nu"}; permite însoțitor ${guest.plusOneAllowed ? "da" : "nu"}; numele și contactele sunt excluse`,
         updatedAt: guest.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6099,7 +6133,7 @@ async function processCopilotRun(
         type: "Menu",
         id: menu.id,
         title: menu.name,
-        summary: `versiune ${menu.version}; audiență ${menu.audience.toLowerCase()}; status ${menu.status.toLowerCase()}${menu.priceMinor !== null ? `; preț ${menu.priceMinor} ${menu.currency ?? ""}` : ""}`,
+        summary: `versiune ${menu.version}; audiență ${copilotEnumLabel(menu.audience)}; stare ${copilotEnumLabel(menu.status)}${menu.priceMinor !== null ? `; preț ${formatCopilotMoneyMinor(BigInt(menu.priceMinor), menu.currency ?? "RON")}` : ""}`,
         updatedAt: menu.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6107,7 +6141,7 @@ async function processCopilotRun(
         type: "SeatingPlan",
         id: plan.id,
         title: plan.name,
-        summary: `versiune ${plan.version}; eveniment ${plan.weddingEventId}; spațiu ${plan.venueSpaceId}; status ${plan.status.toLowerCase()}`,
+        summary: `versiune ${plan.version}; eveniment ${plan.weddingEventId}; spațiu ${plan.venueSpaceId}; stare ${copilotEnumLabel(plan.status)}`,
         updatedAt: plan.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6115,7 +6149,7 @@ async function processCopilotRun(
         type: "SeatingTable",
         id: table.id,
         title: table.name,
-        summary: `versiune ${table.version}; plan ${table.seatingPlanId}; etichetă ${table.label}; formă ${table.shape.toLowerCase()}; capacitate ${table.capacity}; poziție ${table.position}`,
+        summary: `versiune ${table.version}; plan ${table.seatingPlanId}; etichetă ${table.label}; formă ${copilotEnumLabel(table.shape)}; capacitate ${table.capacity}; poziție ${table.position}`,
         updatedAt: table.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6131,7 +6165,7 @@ async function processCopilotRun(
         type: "VendorShortlist",
         id: shortlist.id,
         title: shortlist.name,
-        summary: `versiune ${shortlist.version}; categorie ${shortlist.category?.toLowerCase() ?? "toate"}`,
+        summary: `versiune ${shortlist.version}; categorie ${shortlist.category ? copilotEnumLabel(shortlist.category) : "toate"}`,
         updatedAt: shortlist.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6139,7 +6173,7 @@ async function processCopilotRun(
         type: "TransportPlan",
         id: plan.id,
         title: plan.name,
-        summary: `versiune ${plan.version}; eveniment ${plan.weddingEventId}; status ${plan.status.toLowerCase()}; ${transportRoutes.filter((route) => route.transportPlanId === plan.id).length} rute în context`,
+        summary: `versiune ${plan.version}; eveniment ${plan.weddingEventId}; stare ${copilotEnumLabel(plan.status)}; ${transportRoutes.filter((route) => route.transportPlanId === plan.id).length} rute în context`,
         updatedAt: plan.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6147,7 +6181,7 @@ async function processCopilotRun(
         type: "TransportRoute",
         id: route.id,
         title: route.name,
-        summary: `versiune ${route.version}; plan ${route.transportPlanId}; ${route.originName} → ${route.destinationName}; plecare ${route.departureAt.toISOString()}; status ${route.status.toLowerCase()}`,
+        summary: `versiune ${route.version}; plan ${route.transportPlanId}; ${route.originName} → ${route.destinationName}; plecare ${route.departureAt.toISOString()}; stare ${copilotEnumLabel(route.status)}`,
         updatedAt: route.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6155,7 +6189,7 @@ async function processCopilotRun(
         type: "AccommodationProperty",
         id: property.id,
         title: property.name,
-        summary: `versiune ${property.version}; ${property.type.toLowerCase()} în ${property.city}; status ${property.status.toLowerCase()}; contactele sunt excluse`,
+        summary: `versiune ${property.version}; ${copilotEnumLabel(property.type)} în ${property.city}; stare ${copilotEnumLabel(property.status)}; contactele sunt excluse`,
         updatedAt: property.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6163,7 +6197,7 @@ async function processCopilotRun(
         type: "AccommodationStay",
         id: stay.id,
         title: stay.name,
-        summary: `versiune ${stay.version}; proprietate ${stay.propertyId}; ${stay.checkInDate.toISOString().slice(0, 10)}–${stay.checkOutDate.toISOString().slice(0, 10)}; status ${stay.status.toLowerCase()}`,
+        summary: `versiune ${stay.version}; proprietate ${stay.propertyId}; ${stay.checkInDate.toISOString().slice(0, 10)}–${stay.checkOutDate.toISOString().slice(0, 10)}; stare ${copilotEnumLabel(stay.status)}`,
         updatedAt: stay.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6171,7 +6205,7 @@ async function processCopilotRun(
         type: "RequestForQuote",
         id: rfq.id,
         title: rfq.title,
-        summary: `versiune ${rfq.version}; categorie ${rfq.category.toLowerCase()}; status ${rfq.status.toLowerCase()}; termen ${rfq.responseDeadline.toISOString()}`,
+        summary: `versiune ${rfq.version}; categorie ${copilotEnumLabel(rfq.category)}; stare ${copilotEnumLabel(rfq.status)}; termen ${rfq.responseDeadline.toISOString()}`,
         updatedAt: rfq.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6179,7 +6213,7 @@ async function processCopilotRun(
         type: "CampaignSummary",
         id: campaign.id,
         title: campaign.name,
-        summary: `versiune ${campaign.version}; scop ${campaign.purpose.toLowerCase()}; status ${campaign.status.toLowerCase()}${campaign.scheduledAt ? `; programată ${campaign.scheduledAt.toISOString()}` : ""}; conținutul mesajului este exclus`,
+        summary: `versiune ${campaign.version}; scop ${copilotEnumLabel(campaign.purpose)}; stare ${copilotEnumLabel(campaign.status)}${campaign.scheduledAt ? `; programată ${campaign.scheduledAt.toISOString()}` : ""}; conținutul mesajului este exclus`,
         updatedAt: campaign.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6187,7 +6221,7 @@ async function processCopilotRun(
         type: "WeddingDayIncidentSummary",
         id: incident.id,
         title: incident.title,
-        summary: `versiune ${incident.version}; tip ${incident.type.toLowerCase()}; severitate ${incident.severity.toLowerCase()}; status ${incident.status.toLowerCase()}; descrierea privată este exclusă`,
+        summary: `versiune ${incident.version}; tip ${copilotEnumLabel(incident.type)}; severitate ${copilotEnumLabel(incident.severity)}; stare ${copilotEnumLabel(incident.status)}; descrierea privată este exclusă`,
         updatedAt: incident.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6195,33 +6229,33 @@ async function processCopilotRun(
         type: "WeddingDayAnnouncementSummary",
         id: announcement.id,
         title: announcement.title,
-        summary: `versiune ${announcement.version}; prioritate ${announcement.priority.toLowerCase()}; status ${announcement.status.toLowerCase()}; textul mesajului este exclus`,
+        summary: `versiune ${announcement.version}; prioritate ${copilotEnumLabel(announcement.priority)}; stare ${copilotEnumLabel(announcement.status)}; textul mesajului este exclus`,
         updatedAt: announcement.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
     ];
-    const surfaceTypes = conversation.surface.includes("budget")
+    const surfaceTypes = currentSurface.includes("budget")
       ? new Set(["BudgetCategory", "BudgetItem", "ExpenseRecord"])
-      : conversation.surface.includes("guest")
+      : currentSurface.includes("guest")
         ? new Set(["Household", "Guest", "Menu"])
-        : conversation.surface.includes("menu")
+        : currentSurface.includes("menu")
           ? new Set(["Menu", "Household", "Guest"])
-          : conversation.surface.includes("seating")
+          : currentSurface.includes("seating")
             ? new Set(["SeatingPlan", "SeatingTable", "VenueSpace"])
-            : conversation.surface.includes("transport")
+            : currentSurface.includes("transport")
               ? new Set(["TransportPlan", "TransportRoute"])
-              : conversation.surface.includes("accommodation")
+              : currentSurface.includes("accommodation")
                 ? new Set(["AccommodationProperty", "AccommodationStay"])
-                : conversation.surface.includes("invitation")
+                : currentSurface.includes("invitation")
                   ? new Set(["InvitationSite", "CampaignSummary"])
-                  : conversation.surface.includes("wedding-day")
+                  : currentSurface.includes("wedding-day")
                     ? new Set([
                         "WeddingDayPlan",
                         "WeddingDayIncidentSummary",
                         "WeddingDayAnnouncementSummary",
                       ])
-                    : conversation.surface.includes("marketplace") ||
-                        conversation.surface.includes("vendor")
+                    : currentSurface.includes("marketplace") ||
+                        currentSurface.includes("vendor")
                       ? new Set([
                           "VendorShortlist",
                           "RequestForQuote",
@@ -6255,7 +6289,7 @@ async function processCopilotRun(
         type: "Task",
         id: task.id,
         title: task.title,
-        summary: `versiune ${task.version}; ${task.status.toLowerCase()}, prioritate ${task.priority.toLowerCase()}${task.dueAt ? `, termen ${task.dueAt.toISOString()}` : ""}${task.blockedReason ? `, blocat: ${task.blockedReason}` : ""}`,
+        summary: `versiune ${task.version}; ${copilotEnumLabel(task.status)}, prioritate ${copilotEnumLabel(task.priority)}${task.dueAt ? `, termen ${task.dueAt.toISOString()}` : ""}${task.blockedReason ? `, blocat: ${task.blockedReason}` : ""}`,
         updatedAt: task.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6263,7 +6297,7 @@ async function processCopilotRun(
         type: "TimelineMilestone",
         id: milestone.id,
         title: milestone.title,
-        summary: `${milestone.status.toLowerCase()}${milestone.targetAt ? `, țintă ${milestone.targetAt.toISOString()}` : ""}`,
+        summary: `${copilotEnumLabel(milestone.status)}${milestone.targetAt ? `, țintă ${milestone.targetAt.toISOString()}` : ""}`,
         updatedAt: milestone.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6271,7 +6305,7 @@ async function processCopilotRun(
         type: "Risk",
         id: risk.id,
         title: risk.title,
-        summary: `versiune ${risk.version}; ${risk.level.toLowerCase()}, scor ${risk.score}, ${risk.status.toLowerCase()}`,
+        summary: `versiune ${risk.version}; nivel ${copilotEnumLabel(risk.level)}, scor ${risk.score}, stare ${copilotEnumLabel(risk.status)}`,
         updatedAt: risk.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6287,7 +6321,7 @@ async function processCopilotRun(
         type: "PlanningPhase",
         id: phase.id,
         title: phase.title,
-        summary: `${phase.status.toLowerCase()}, poziția ${phase.position}`,
+        summary: `${copilotEnumLabel(phase.status)}, poziția ${phase.position}`,
         updatedAt: phase.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -6322,11 +6356,17 @@ async function processCopilotRun(
       completed: false as const,
       run,
       message,
-      webResearchEnabled: copilotSettings?.webResearchEnabled === true,
+      memoryEnabled: copilotSettings?.memoryEnabled !== false,
+      memoryRetentionDays: copilotSettings?.memoryRetentionDays ?? 180,
       context: {
         workspaceId: snapshot.workspace_id!,
         locale: "ro-RO",
-        surface: conversation.surface,
+        surface: currentSurface,
+        history: recentMessages.map((item) => ({
+          role:
+            item.role === "USER" ? ("user" as const) : ("assistant" as const),
+          content: item.content.slice(0, 1_500),
+        })),
         allowedActions: copilotImplementedActionDefinitions
           .filter((definition) =>
             effectiveCapabilities.has(definition.requiredCapability),
@@ -6363,14 +6403,11 @@ async function processCopilotRun(
   });
   if (prepared.completed) return { runId, status: "completed", replayed: true };
 
-  const researchRequested =
-    jsonObjectValue(prepared.message.metadata).research === true;
-  if (researchRequested && !prepared.webResearchEnabled)
-    throw new PermanentJobError(
-      "Web research is disabled for this workspace",
-      "COPILOT_WEB_RESEARCH_DISABLED",
-    );
-  const researchQueryHash = researchRequested
+  const researchRequested = true;
+  const explicitResearch = explicitWebResearchRequested(
+    prepared.message.content,
+  );
+  const researchQueryHash = explicitResearch
     ? createHash("sha256")
         .update(prepared.message.content.trim().toLocaleLowerCase("ro"))
         .digest("hex")
@@ -6488,12 +6525,77 @@ async function processCopilotRun(
       );
     if (latest.status === "COMPLETED")
       return { runId, status: "completed", replayed: true };
+    const explicitMemory = extractExplicitCopilotMemory(
+      prepared.message.content,
+    );
+    let memoryNotice = "";
+    let rememberedMemoryId: string | null = null;
+    if (explicitMemory) {
+      if (!prepared.memoryEnabled) {
+        memoryNotice =
+          " Memoria pe termen lung este dezactivată, așa că nu am salvat această informație.";
+      } else if (!copilotMemoryContentCanPersist(explicitMemory.content)) {
+        memoryNotice =
+          " Nu am salvat această informație în memorie deoarece poate conține date sensibile.";
+      } else {
+        await transaction.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtextextended(${`copilot.explicit-memory:${snapshot.workspace_id!}:${latest.requestedById}:${explicitMemory.fingerprint}`}, 0))
+        `;
+        const existingMemory = await transaction.copilotMemory.findFirst({
+          where: {
+            workspaceId: snapshot.workspace_id!,
+            ownerUserId: latest.requestedById,
+            scope: "USER",
+            status: "ACTIVE",
+            subjectType: "explicit-user-memory",
+            subjectId: explicitMemory.fingerprint,
+          },
+          select: { id: true },
+        });
+        if (existingMemory) {
+          rememberedMemoryId = existingMemory.id;
+        } else {
+          const createdMemory = await transaction.copilotMemory.create({
+            data: {
+              workspaceId: snapshot.workspace_id!,
+              scope: "USER",
+              ownerUserId: latest.requestedById,
+              subjectType: "explicit-user-memory",
+              subjectId: explicitMemory.fingerprint,
+              kind: explicitMemory.kind,
+              title: explicitMemory.title,
+              content: explicitMemory.content,
+              sourceType: "CONVERSATION",
+              sourceId: prepared.message.id,
+              confidence: 1,
+              confirmedByUser: true,
+              sensitivity: "NORMAL",
+              metadata: {
+                conversationId: latest.conversationId,
+                explicit: true,
+              },
+              expiresAt: new Date(
+                Date.now() +
+                  prepared.memoryRetentionDays * 24 * 60 * 60 * 1_000,
+              ),
+              createdById: latest.requestedById,
+              updatedById: latest.requestedById,
+            },
+            select: { id: true },
+          });
+          rememberedMemoryId = createdMemory.id;
+        }
+        memoryNotice = existingMemory
+          ? " Informația era deja în memoria ta și nu am duplicat-o."
+          : " Am păstrat această informație în memoria ta.";
+      }
+    }
     const assistant = await transaction.copilotMessage.create({
       data: {
         workspaceId: snapshot.workspace_id!,
         conversationId: latest.conversationId,
         role: "ASSISTANT",
-        content: generated.answer,
+        content: `${generated.answer.trim()}${memoryNotice}`,
         metadata: {
           provider: generated.provider,
           model: generated.model,
@@ -6512,6 +6614,7 @@ async function processCopilotRun(
             : null,
           webCitations: generated.webCitations ?? [],
           redactions: prepared.context.redactions,
+          rememberedMemoryId,
         },
       },
     });
@@ -6548,7 +6651,7 @@ async function processCopilotRun(
                 environment.COPILOT_OUTPUT_COST_MINOR_PER_MILLION) /
               1_000_000,
           ) +
-          (researchRequested && !cachedResearch
+          ((generated.webCitations?.length ?? 0) > 0 && !cachedResearch
             ? environment.COPILOT_WEB_SEARCH_COST_MINOR
             : 0),
       },

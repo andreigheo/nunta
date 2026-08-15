@@ -89,7 +89,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
       <CommandPalette />
       <NotificationsDrawer />
       <AICopilot
-        key={`${currentWorkspace?.id ?? "no-workspace"}:${pathname}`}
+        key={currentWorkspace?.id ?? "no-workspace"}
       />
       <QuickCreateModal />
       <MobileBottomNav />

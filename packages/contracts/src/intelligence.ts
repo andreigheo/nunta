@@ -50,7 +50,8 @@ export const updateCopilotConversationSchema = z.object({
 export const createCopilotMessageSchema = z.object({
   content: boundedText(8_000),
   mode: z.enum(["deterministic", "ai_enriched", "auto"]).default("auto"),
-  research: z.boolean().default(false),
+  research: z.boolean().default(true),
+  surface: z.string().trim().min(1).max(80).optional(),
   context: z
     .object({
       resourceType: z.string().trim().max(80),

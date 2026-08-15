@@ -18,6 +18,7 @@ import {
 } from "@weddingos/contracts";
 import {
   ConfiguredAiCopilotProvider,
+  copilotEnumLabel,
   copilotApiOperations,
   copilotDomainCatalog,
   copilotImplementedActionDefinitions,
@@ -26,6 +27,9 @@ import {
   DeterministicCopilotProvider,
   detectDeterministicRisks,
   generatedCopilotContentIsAcceptable,
+  explicitWebResearchRequested,
+  extractExplicitCopilotMemory,
+  formatCopilotMoneyMinor,
   intelligenceDedupeKey,
   OpenRouterCopilotProvider,
   parseOpenRouterCitations,
@@ -333,7 +337,13 @@ describe("Slice 9 intelligence contracts", () => {
 
   it("bounds Copilot message content", () => {
     expect(
-      createCopilotMessageSchema.safeParse({ content: "Ajută-mă" }).success,
+      createCopilotMessageSchema.parse({ content: "Ajută-mă" }),
+    ).toMatchObject({ research: true, mode: "auto" });
+    expect(
+      createCopilotMessageSchema.safeParse({
+        content: "Ajută-mă",
+        surface: "/budget",
+      }).success,
     ).toBe(true);
     expect(
       createCopilotMessageSchema.safeParse({ content: "x".repeat(8_001) })
@@ -634,7 +644,7 @@ describe("Slice 9 intelligence contracts", () => {
         targetVersion: null,
       },
     });
-    expect(result.answer).toContain("aprobi și execuți");
+    expect(result.answer).toContain("actualizarea țintei de buget");
   });
 
   it("preserves the budget version and contingency in deterministic updates", async () => {
@@ -660,6 +670,66 @@ describe("Slice 9 intelligence contracts", () => {
       contingencyPercent: 12,
       targetVersion: 3,
     });
+  });
+
+  it("uses recent conversation context for a short budget correction", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message: "De fapt fă-l 183000 RON",
+      context: {
+        ...context,
+        surface: "/budget",
+        history: [
+          { role: "user", content: "Setează bugetul la 181000 RON" },
+          { role: "assistant", content: "Am pregătit actualizarea bugetului." },
+        ],
+        resources: [
+          {
+            type: "BudgetSummary",
+            id,
+            title: "Buget nuntă",
+            summary: "versiune 4; țintă 181.000 RON; rezervă 12%",
+            sensitivity: "normal",
+          },
+        ],
+      },
+    });
+    expect(result.proposal?.preview).toMatchObject({
+      targetTotalMinor: 18_300_000,
+      targetVersion: 4,
+      contingencyPercent: 12,
+    });
+  });
+
+  it("formats canonical context for people instead of leaking storage units or enums", () => {
+    expect(formatCopilotMoneyMinor(18_100_000n, "RON")).toBe("181.000 RON");
+    expect(formatCopilotMoneyMinor(12_345n, "RON")).toBe("123,45 RON");
+    expect(copilotEnumLabel("NOT_STARTED")).toBe("neînceput");
+  });
+
+  it("creates durable memory only for an explicit user request", () => {
+    expect(extractExplicitCopilotMemory("Preferăm flori albe")).toBeNull();
+    expect(
+      extractExplicitCopilotMemory("Ține minte că preferăm flori albe"),
+    ).toMatchObject({
+      kind: "PREFERENCE",
+      content: "preferăm flori albe",
+    });
+    expect(
+      extractExplicitCopilotMemory("Ține minte că preferăm flori albe")
+        ?.fingerprint,
+    ).toBe(
+      extractExplicitCopilotMemory("ține minte: preferăm  flori albe")
+        ?.fingerprint,
+    );
+  });
+
+  it("distinguishes explicit web research from automatic web availability", () => {
+    expect(explicitWebResearchRequested("Schimbă bugetul la 180000 RON")).toBe(
+      false,
+    );
+    expect(explicitWebResearchRequested("Caută online prețuri actuale")).toBe(
+      true,
+    );
   });
 
   it("creates a deterministic multi-step plan with separately reviewable actions", async () => {
@@ -804,7 +874,16 @@ describe("Slice 9 intelligence contracts", () => {
       "https://openrouter.ai/api/v1/chat/completions",
       "test-only-key",
       "openai/gpt-5.6-luna",
-    ).run({ message: "Creează taskul pentru fotograf", context });
+    ).run({
+      message: "Creează taskul pentru fotograf",
+      context: {
+        ...context,
+        history: [
+          { role: "user", content: "Fotograful este următoarea prioritate" },
+        ],
+      },
+      research: true,
+    });
 
     expect(result).toMatchObject({
       provider: "openrouter",
@@ -827,6 +906,7 @@ describe("Slice 9 intelligence contracts", () => {
       model: string;
       response_format: { type: string };
       messages: Array<{ role: string; content: string }>;
+      tools: Array<{ type: string }>;
       user: string;
     };
     expect(body.model).toBe("openai/gpt-5.6-luna");
@@ -838,6 +918,10 @@ describe("Slice 9 intelligence contracts", () => {
     expect(body.messages[0]?.content).toContain('"CREATE_TASK"');
     expect(body.messages[0]?.content).not.toContain('"UPSERT_BUDGET_PLAN"');
     expect(body.messages[0]?.content).toContain('"priority"');
+    expect(body.messages[1]?.content).toContain(
+      "Fotograful este următoarea prioritate",
+    );
+    expect(body.tools[0]?.type).toBe("openrouter:web_search");
     expect(body.user).toMatch(/^[a-f0-9]{64}$/);
     expect(body.user).not.toContain(id);
     vi.unstubAllGlobals();

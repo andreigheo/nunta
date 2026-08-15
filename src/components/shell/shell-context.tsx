@@ -54,6 +54,14 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [quickCreate, setQuickCreate] = React.useState<QuickCreateKind | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
+  React.useEffect(() => {
+    setAiOpen(window.sessionStorage.getItem("sarbato:copilot:open") === "true");
+  }, []);
+
+  React.useEffect(() => {
+    window.sessionStorage.setItem("sarbato:copilot:open", String(aiOpen));
+  }, [aiOpen]);
+
   // Global ⌘K / Ctrl+K shortcut for the command palette
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

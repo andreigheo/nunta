@@ -37,6 +37,12 @@ import {
   weddingOsApi,
 } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import {
+  formatCopilotAnswerForDisplay,
+  formatCopilotMachineValue,
+  isCopilotAutoExecutable,
+  copilotResourceLabel,
+} from "@/lib/copilot/presentation";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell-context";
 
@@ -174,7 +180,6 @@ export function AICopilot() {
   const [proposals, setProposals] = React.useState<CopilotProposalResource[]>(
     [],
   );
-  const [research, setResearch] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [requestError, setRequestError] = React.useState<string | null>(null);
@@ -187,25 +192,41 @@ export function AICopilot() {
   const [memories, setMemories] = React.useState<CopilotMemoryResource[]>([]);
   const [memoryLoading, setMemoryLoading] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
   const loadConversation = React.useCallback(async () => {
     if (!currentWorkspace || demoMode) return;
     setLoading(true);
     try {
-      const list = await weddingOsApi.copilotConversations(
-        currentWorkspace.id,
-        pathname,
-      );
-      const selected =
-        list.items[0] ??
-        (await weddingOsApi.createCopilotConversation(currentWorkspace.id, {
-          surface: pathname,
-        }));
-      const detail = await weddingOsApi.copilotConversation(
-        currentWorkspace.id,
-        selected.id,
-      );
-      setConversationId(selected.id);
+      const storageKey = `sarbato:copilot:conversation:${currentWorkspace.id}`;
+      const persistedId = window.localStorage.getItem(storageKey);
+      let detail = null;
+      if (persistedId) {
+        try {
+          detail = await weddingOsApi.copilotConversation(
+            currentWorkspace.id,
+            persistedId,
+          );
+        } catch {
+          window.localStorage.removeItem(storageKey);
+        }
+      }
+      if (!detail) {
+        const list = await weddingOsApi.copilotConversations(
+          currentWorkspace.id,
+        );
+        const selected =
+          list.items[0] ??
+          (await weddingOsApi.createCopilotConversation(currentWorkspace.id, {
+            surface: pathname,
+          }));
+        detail = await weddingOsApi.copilotConversation(
+          currentWorkspace.id,
+          selected.id,
+        );
+      }
+      window.localStorage.setItem(storageKey, detail.id);
+      setConversationId(detail.id);
       setMessages(detail.messages ?? []);
       setProposals(
         detail.proposals?.filter((item) =>
@@ -232,6 +253,13 @@ export function AICopilot() {
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, loading]);
+
+  React.useEffect(() => {
+    if (!aiOpen || view !== "conversation" || loading || !conversationId)
+      return;
+    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [aiOpen, conversationId, loading, view]);
 
   const loadMemoryCenter = React.useCallback(async () => {
     if (!currentWorkspace || demoMode) return;
@@ -347,29 +375,61 @@ export function AICopilot() {
         const next = await weddingOsApi.copilotRun(currentWorkspace.id, runId);
         setRun(next);
         if (next.status === "completed") {
-          if (next.proposals?.length)
-            setProposals(
-              await Promise.all(
-                next.proposals.map((item) =>
-                  weddingOsApi.copilotProposal(
-                    currentWorkspace.id,
-                    item.id,
-                  ),
-                ),
-              ),
-            );
-          else if (next.proposal)
-            setProposals([
-              await weddingOsApi.copilotProposal(
+          const proposalRefs = next.proposals?.length
+            ? next.proposals
+            : next.proposal
+              ? [next.proposal]
+              : [];
+          let detailedProposals = await Promise.all(
+            proposalRefs.map((item) =>
+              weddingOsApi.copilotProposal(currentWorkspace.id, item.id),
+            ),
+          );
+          if (isCopilotAutoExecutable(detailedProposals, Boolean(next.plan))) {
+            const proposal = detailedProposals[0]!;
+            try {
+              const approved = await weddingOsApi.reviewCopilotProposal(
                 currentWorkspace.id,
-                next.proposal.id,
-              ),
-            ]);
+                proposal.id,
+                proposal.version,
+                "APPROVE",
+                "Comandă directă a utilizatorului; aplicare rapidă pentru o modificare internă și reversibilă.",
+              );
+              const result = await weddingOsApi.executeCopilotProposal(
+                currentWorkspace.id,
+                approved.id,
+                approved.version,
+              );
+              detailedProposals = [
+                { ...approved, status: "executed" },
+              ];
+              window.dispatchEvent(
+                new CustomEvent("weddingos:planning-changed"),
+              );
+              toast({
+                title: "Modificarea a fost aplicată",
+                description: `${result.resources.length} resurse au fost actualizate.`,
+                variant: "success",
+              });
+            } catch (error) {
+              setRequestError(
+                `Răspunsul este gata, dar modificarea nu a putut fi aplicată automat: ${apiErrorMessage(error)}`,
+              );
+            }
+          }
+          setProposals(detailedProposals);
           const detail = await weddingOsApi.copilotConversation(
             currentWorkspace.id,
             next.conversationId,
           );
           setMessages(detail.messages ?? []);
+          if (
+            detail.messages?.some(
+              (message) =>
+                typeof message.metadata.rememberedMemoryId === "string",
+            )
+          )
+            await loadMemoryCenter();
           return;
         }
         if (["failed", "cancelled"].includes(next.status))
@@ -378,7 +438,7 @@ export function AICopilot() {
       }
       throw new Error("Răspunsul durează mai mult decât era estimat.");
     },
-    [currentWorkspace],
+    [currentWorkspace, loadMemoryCenter, toast],
   );
 
   const send = React.useCallback(
@@ -392,7 +452,7 @@ export function AICopilot() {
         const result = await weddingOsApi.sendCopilotMessage(
           currentWorkspace.id,
           conversationId,
-          { content, mode: "auto", research },
+          { content, mode: "auto", research: true, surface: pathname },
         );
         setMessages((current) => [...current, result.message]);
         setRun(result.run);
@@ -415,7 +475,7 @@ export function AICopilot() {
       currentWorkspace,
       input,
       loading,
-      research,
+      pathname,
       toast,
       waitForRun,
     ],
@@ -520,6 +580,46 @@ export function AICopilot() {
     } catch (error) {
       toast({
         title: "Execuția a eșuat",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmAndExecute = async (selected: CopilotProposalResource) => {
+    if (!currentWorkspace) return;
+    setLoading(true);
+    try {
+      const approved = await weddingOsApi.reviewCopilotProposal(
+        currentWorkspace.id,
+        selected.id,
+        selected.version,
+        "APPROVE",
+      );
+      const result = await weddingOsApi.executeCopilotProposal(
+        currentWorkspace.id,
+        approved.id,
+        approved.version,
+        true,
+      );
+      setProposals((current) =>
+        current.map((item) =>
+          item.id === selected.id
+            ? { ...approved, status: "executed" }
+            : item,
+        ),
+      );
+      window.dispatchEvent(new CustomEvent("weddingos:planning-changed"));
+      toast({
+        title: "Modificarea a fost confirmată și executată",
+        description: `${result.resources.length} resurse au fost actualizate.`,
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Modificarea nu a fost executată",
         description: apiErrorMessage(error),
         variant: "error",
       });
@@ -684,9 +784,11 @@ export function AICopilot() {
                 {run.sources.map((source) => (
                   <li key={source.id} className="text-xs text-muted">
                     <span className="font-semibold text-ink">
-                      {source.resourceType}
+                      {copilotResourceLabel(source.resourceType)}
                     </span>
-                    {source.excerpt ? ` — ${source.excerpt}` : ""}
+                    {source.excerpt
+                      ? ` — ${formatCopilotAnswerForDisplay(source.excerpt)}`
+                      : ""}
                   </li>
                 ))}
               </ul>
@@ -753,6 +855,7 @@ export function AICopilot() {
               proposal={item}
               loading={loading}
               onReview={(decision) => review(item, decision)}
+              onConfirmAndExecute={() => confirmAndExecute(item)}
               onExecute={() => execute(item)}
               onUpdate={(input) => updateProposal(item, input)}
             />
@@ -763,47 +866,14 @@ export function AICopilot() {
 
       {view === "conversation" ? (
       <div className="border-t border-line p-3">
-        <div className="mb-2 flex items-center justify-between gap-3 rounded-lg bg-subtle px-3 py-2">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-ink">Caută pe internet</p>
-            <p className="truncate text-xs text-muted">
-              Răspuns separat, cu surse; nu poate modifica evenimentul.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={research}
-            aria-label="Folosește cercetarea web pentru următorul mesaj"
-            disabled={
-              loading ||
-              demoMode ||
-              copilotSettings?.webResearchEnabled !== true
-            }
-            onClick={() => setResearch((current) => !current)}
-            className={cn(
-              "relative h-7 w-12 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-45",
-              research
-                ? "border-accent bg-accent"
-                : "border-line-strong bg-surface",
-            )}
-          >
-            <span
-              className={cn(
-                "absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform",
-                research ? "translate-x-5" : "translate-x-0.5",
-              )}
-            />
-          </button>
-        </div>
-        <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+        <div className="mb-2 flex flex-wrap gap-1.5">
           {context.suggestions.map((suggestion) => (
             <button
               key={suggestion}
               type="button"
               disabled={loading || demoMode}
               onClick={() => void send(suggestion)}
-              className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent/50 hover:text-ink disabled:opacity-50"
+              className="max-w-full rounded-xl border border-line px-3 py-2 text-left text-xs leading-snug text-muted transition-colors hover:border-accent/50 hover:text-ink disabled:opacity-50"
             >
               {suggestion}
             </button>
@@ -817,6 +887,7 @@ export function AICopilot() {
           }}
         >
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
@@ -825,7 +896,7 @@ export function AICopilot() {
                 void send();
               }
             }}
-            disabled={loading || demoMode || !conversationId}
+            disabled={demoMode || !conversationId}
             rows={2}
             maxLength={8000}
             placeholder="Întreabă despre taskuri, calendar sau riscuri…"
@@ -841,7 +912,7 @@ export function AICopilot() {
           </Button>
         </form>
         <p className="mt-1.5 text-center text-xs text-faint">
-          Verifică propunerile înainte de aprobare. Copilot poate greși.
+          Internetul este folosit automat când ajută. Acțiunile sensibile cer o singură confirmare.
         </p>
       </div>
       ) : null}
@@ -904,7 +975,9 @@ function MemoryCenter({
         </h2>
         <p className="mt-1 text-sm leading-relaxed text-muted">
           Memoria păstrează numai preferințe, constrângeri și decizii confirmate.
-          Datele operaționale rămân în modulele lor și au întotdeauna prioritate.
+          Spune „ține minte…” în conversație și Copilot salvează o singură
+          înregistrare, fără să arhiveze automat fiecare mesaj. Datele
+          operaționale rămân în modulele lor și au întotdeauna prioritate.
         </p>
         <div className="mt-3 divide-y divide-line border-y border-line">
           <Switch
@@ -918,24 +991,6 @@ function MemoryCenter({
               canConfigure
                 ? "Poți vedea și șterge oricând informațiile păstrate. Datele medicale, parolele și informațiile de plată sunt excluse."
                 : "Doar un membru cu drept de configurare a workspace-ului poate schimba această setare."
-            }
-          />
-          <Switch
-            checked={settings?.webResearchEnabled ?? false}
-            disabled={
-              !settings ||
-              loading ||
-              !canConfigure ||
-              !settings.webResearchAvailable
-            }
-            onCheckedChange={(value) =>
-              void onSettingChange("webResearchEnabled", value)
-            }
-            label="Cercetare pe internet"
-            description={
-              settings?.webResearchAvailable
-                ? "Este folosită numai când o activezi pentru un mesaj. Răspunsurile afișează sursele și nu pot autoriza modificări."
-                : "Providerul de cercetare nu este configurat în acest mediu. Copilot nu va pretinde că a consultat internetul."
             }
           />
         </div>
@@ -1151,22 +1206,9 @@ function MessageBubble({
             : "bg-brand text-on-brand",
         )}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
-        {assistant && Array.isArray(message.metadata.warnings) ? (
-          <ul className="mt-2 space-y-1 border-t border-line pt-2 text-xs text-warning">
-            {(message.metadata.warnings as unknown[])
-              .filter((warning): warning is string => typeof warning === "string")
-              .map((warning) => (
-                <li key={warning}>Atenție: {warning}</li>
-              ))}
-          </ul>
-        ) : null}
-        {assistant && Array.isArray(message.metadata.assumptions) &&
-        message.metadata.assumptions.length ? (
-          <p className="mt-2 text-xs text-faint">
-            Ipoteze: {(message.metadata.assumptions as string[]).join(" · ")}
-          </p>
-        ) : null}
+        <p className="whitespace-pre-wrap">
+          {formatCopilotAnswerForDisplay(message.content)}
+        </p>
         {assistant ? (
           <div className="mt-2 flex gap-1">
             <button
@@ -1196,12 +1238,14 @@ function ProposalCard({
   proposal,
   loading,
   onReview,
+  onConfirmAndExecute,
   onExecute,
   onUpdate,
 }: {
   proposal: CopilotProposalResource;
   loading: boolean;
   onReview: (decision: "APPROVE" | "REJECT") => Promise<void>;
+  onConfirmAndExecute: () => Promise<void>;
   onExecute: () => Promise<void>;
   onUpdate: (input: {
     title: string;
@@ -1312,9 +1356,12 @@ function ProposalCard({
             <Button
               size="sm"
               disabled={loading || editing}
-              onClick={() => void onReview("APPROVE")}
+              onClick={() => void onConfirmAndExecute()}
             >
-              <Check className="size-3.5" /> Aprobă
+              <Check className="size-3.5" />
+              {["low", "medium"].includes(proposal.riskLevel)
+                ? "Aplică acum"
+                : "Confirmă și execută"}
             </Button>
             <Button
               size="sm"
@@ -1466,7 +1513,7 @@ function formatCopilotPayloadValue(
         dateStyle: "medium",
         timeStyle: "short",
       }).format(date);
-    return value;
+    return formatCopilotMachineValue(value);
   }
   if (Array.isArray(value) && value.every((item) => typeof item === "string"))
     return value.join(" · ");

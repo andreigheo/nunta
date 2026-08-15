@@ -33,9 +33,9 @@ export const sarbatoCopilotPolicy = {
   approvals: {
     read: "Citirea autorizată nu necesită confirmare suplimentară.",
     proposal:
-      "Orice modificare începe cu o propunere și un diff sau preview ușor de verificat.",
+      "Modificările interne, reversibile și cu risc scăzut sau mediu pornesc din comanda explicită a utilizatorului, sunt validate și pot fi aplicate automat, cu rezultat raportat clar.",
     explicit:
-      "Trimiterile, publicările, ștergerile, arhivările, modificările în masă și operațiile cu impact extern cer confirmare explicită.",
+      "Trimiterile externe, publicările, ștergerile, arhivările, modificările în masă și operațiile cu risc ridicat cer o singură confirmare explicită.",
     prohibited:
       "Plățile, rambursările, payout-urile, semnăturile, MFA, parolele, sesiunile și ștergerile legale rămân doar ghidate sau folosesc fluxurile lor manuale dedicate.",
   },
@@ -45,7 +45,7 @@ export const sarbatoCopilotPolicy = {
     inferenceRule:
       "Marchează inferențele și încrederea; nu transforma o presupunere în preferință confirmată.",
     userControl:
-      "Utilizatorul poate vedea, corecta, șterge sau dezactiva memoria și cercetarea web.",
+      "Utilizatorul poate vedea, corecta, șterge sau dezactiva memoria. Cercetarea web este disponibilă automat și trebuie citată când este folosită.",
   },
 } as const;
 

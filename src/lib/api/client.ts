@@ -4268,6 +4268,7 @@ export const weddingOsApi = {
       content: string;
       mode?: "deterministic" | "ai_enriched" | "auto";
       research?: boolean;
+      surface?: string;
     },
   ) =>
     request<{
