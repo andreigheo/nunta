@@ -3107,10 +3107,44 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/budget/categories`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
+  updateBudgetCategory: (
+    workspaceId: string,
+    categoryId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/budget/categories/${encodeURIComponent(categoryId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteBudgetCategory: (
+    workspaceId: string,
+    categoryId: string,
+    version: number,
+  ) =>
+    request<{ id: string; deleted: boolean; version: number }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/budget/categories/${encodeURIComponent(categoryId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   createBudgetItem: (workspaceId: string, input: Record<string, unknown>) =>
     request<OperationResource>(
       `/workspaces/${encodeURIComponent(workspaceId)}/budget/items`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
+    ),
+  updateBudgetItem: (
+    workspaceId: string,
+    itemId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/budget/items/${encodeURIComponent(itemId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteBudgetItem: (workspaceId: string, itemId: string, version: number) =>
+    request<{ id: string; deleted: boolean; version: number }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/budget/items/${encodeURIComponent(itemId)}`,
+      { method: "DELETE", ifMatch: version },
     ),
   expenses: (workspaceId: string) =>
     request<{ items: OperationResource[] }>(
@@ -3120,6 +3154,21 @@ export const weddingOsApi = {
     request<OperationResource>(
       `/workspaces/${encodeURIComponent(workspaceId)}/expenses`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
+    ),
+  updateExpense: (
+    workspaceId: string,
+    expenseId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/expenses/${encodeURIComponent(expenseId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteExpense: (workspaceId: string, expenseId: string, version: number) =>
+    request<{ id: string; deleted: boolean; version: number }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/expenses/${encodeURIComponent(expenseId)}`,
+      { method: "DELETE", ifMatch: version },
     ),
   paymentSchedules: (workspaceId: string) =>
     request<{ items: OperationResource[] }>(
