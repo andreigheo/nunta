@@ -746,6 +746,42 @@ describe("Slice 9 intelligence contracts", () => {
     expect(result.answer).toContain("fără aprobarea ta");
   });
 
+  it("summarizes planning data without raw status codes", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message: "Rezumă starea planificării",
+      context: {
+        ...context,
+        resources: [
+          {
+            type: "PlanningPhase",
+            id,
+            title: "Decizii de bază",
+            summary: "neînceput, poziția 1",
+            sensitivity: "normal",
+          },
+          {
+            type: "Task",
+            id: "2e772f08-2412-4128-94ba-61f0ac92b65c",
+            title: "Confirmă bugetul",
+            summary: "versiune 1; în desfășurare, prioritate medie",
+            sensitivity: "normal",
+          },
+          {
+            type: "BudgetSummary",
+            id: "0786ea39-b120-4d99-ae43-68a65c8bcceb",
+            title: "Buget nuntă",
+            summary: "versiune 3; țintă 183.000 RON; rezervă 0%",
+            sensitivity: "normal",
+          },
+        ],
+      },
+    });
+    expect(result.answer).toContain("Fazele: 1 în total");
+    expect(result.answer).toContain("Sarcinile: 1 în total");
+    expect(result.answer).toContain("183.000 RON");
+    expect(result.answer).not.toContain("NOT_STARTED");
+  });
+
   it("prioritizes the requested calendar domain over the generic create verb", async () => {
     const result = await new DeterministicCopilotProvider().run({
       message: "Creează un eveniment în calendar pentru degustarea meniului",
@@ -904,13 +940,13 @@ describe("Slice 9 intelligence contracts", () => {
     });
     const body = JSON.parse(String(request.body)) as {
       model: string;
-      response_format: { type: string };
+      response_format?: { type: string };
       messages: Array<{ role: string; content: string }>;
       tools: Array<{ type: string }>;
       user: string;
     };
     expect(body.model).toBe("openai/gpt-5.6-luna");
-    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.response_format).toBeUndefined();
     expect(body.messages.map((message) => message.role)).toEqual([
       "system",
       "user",
@@ -924,6 +960,37 @@ describe("Slice 9 intelligence contracts", () => {
     expect(body.tools[0]?.type).toBe("openrouter:web_search");
     expect(body.user).toMatch(/^[a-f0-9]{64}$/);
     expect(body.user).not.toContain(id);
+    vi.unstubAllGlobals();
+  });
+
+  it("uses JSON response mode when web tools are not requested", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: "openai/gpt-5.6-luna",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({ answer: "Răspuns verificat." }),
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await new OpenRouterCopilotProvider(
+      "https://openrouter.ai/api/v1/chat/completions",
+      "test-only-key",
+    ).run({ message: "Ce urmează?", context, research: false });
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as {
+      response_format?: { type: string };
+      tools?: unknown;
+    };
+    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.tools).toBeUndefined();
     vi.unstubAllGlobals();
   });
 

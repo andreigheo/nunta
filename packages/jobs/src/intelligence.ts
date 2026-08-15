@@ -132,6 +132,44 @@ export function formatCopilotMoneyMinor(value: bigint, currency: string) {
   return `${amount} ${currency}`;
 }
 
+function deterministicPlanningSummary(context: CopilotContext) {
+  const phases = context.resources.filter(
+    (resource) => resource.type === "PlanningPhase",
+  );
+  const tasks = context.resources.filter((resource) => resource.type === "Task");
+  const countByLabel = (resources: CopilotContextResource[], label: string) =>
+    resources.filter((resource) => resource.summary.includes(label)).length;
+  const describeProgress = (
+    label: string,
+    resources: CopilotContextResource[],
+  ) => {
+    if (!resources.length) return null;
+    const completed = countByLabel(resources, "finalizat");
+    const inProgress = countByLabel(resources, "în desfășurare");
+    const notStarted = countByLabel(resources, "neînceput");
+    return `${label}: ${resources.length} în total, ${completed} finalizate, ${inProgress} în desfășurare și ${notStarted} neîncepute`;
+  };
+  const aggregateTypes = new Set([
+    "BudgetSummary",
+    "GuestSummary",
+    "BookingSummary",
+    "ContractSummary",
+    "PaymentScheduleSummary",
+    "InvitationSite",
+  ]);
+  const aggregates = context.resources
+    .filter((resource) => aggregateTypes.has(resource.type))
+    .map((resource) => `${resource.title}: ${resource.summary}`);
+  const parts = [
+    describeProgress("Fazele", phases),
+    describeProgress("Sarcinile", tasks),
+    ...aggregates,
+  ].filter((part): part is string => Boolean(part));
+  if (!parts.length)
+    return "Planificarea nu conține încă suficiente date pentru un rezumat util.";
+  return `Situația actuală este următoarea. ${parts.join(". ")}.`;
+}
+
 export type CopilotProposedAction = {
   actionType: CopilotProposalActionType;
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -205,7 +243,9 @@ export class DeterministicCopilotProvider implements CopilotProvider {
     let plan: CopilotActionPlan | undefined;
     const warnings: string[] = [];
 
-    if (
+    if (/rezum[aă].*(?:planific|organiz)|starea planific[aă]rii/iu.test(message)) {
+      answer = deterministicPlanningSummary(input.context);
+    } else if (
       /refund|ramburs|plăt|plata|semn(eaz|are)|accept.*ofert|payout|decont/i.test(
         message,
       )
@@ -622,7 +662,9 @@ export class OpenRouterCopilotProvider implements CopilotProvider {
               }),
             },
           ],
-          response_format: { type: "json_object" },
+          ...(input.research
+            ? {}
+            : { response_format: { type: "json_object" } }),
           ...(input.research
             ? {
                 tools: [
