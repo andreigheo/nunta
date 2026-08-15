@@ -10,6 +10,12 @@ import { cn } from "@/lib/utils";
 /* ------------------------------------------------------------------ */
 
 function useDialogA11y(open: boolean, onClose: () => void, ref: React.RefObject<HTMLDivElement | null>) {
+  const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   React.useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -17,7 +23,7 @@ function useDialogA11y(open: boolean, onClose: () => void, ref: React.RefObject<
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
       if (e.key === "Tab" && ref.current) {
         const focusables = ref.current.querySelectorAll<HTMLElement>(
@@ -49,7 +55,7 @@ function useDialogA11y(open: boolean, onClose: () => void, ref: React.RefObject<
       document.body.style.overflow = "";
       previouslyFocused?.focus();
     };
-  }, [open, onClose, ref]);
+  }, [open, ref]);
 }
 
 const subscribeToHydration = () => () => undefined;

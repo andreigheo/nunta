@@ -31,7 +31,7 @@ export class WorkspacesService {
           where: { userId, status: "ACTIVE", workspace: { deletedAt: null } },
           include: {
             workspace: {
-              include: { weddingProfile: true, subscription: true },
+              include: { subscription: true },
             },
             roleTemplate: true,
             overrides: true,
@@ -39,30 +39,54 @@ export class WorkspacesService {
           orderBy: { workspace: { updatedAt: "desc" } },
         }),
     );
-    return memberships.map((membership) => ({
-      id: membership.workspace.id,
-      title: membership.workspace.title,
-      weddingDate: dateOnly(membership.workspace.weddingProfile?.weddingDate),
-      location: membership.workspace.weddingProfile?.location ?? null,
-      status: membership.workspace.status.toLowerCase() as
-        "active" | "archived",
-      role: membership.roleTemplate.key,
-      capabilities: resolvePlanCapabilities(
-        resolveCapabilities(
-          membership.roleTemplate.capabilities,
-          membership.overrides.map((override) => ({
-            capability: override.capability,
-            effect: override.effect,
-          })),
-        ),
-        effectiveWorkspacePlanKey(
-          membership.workspace.subscription?.planKey,
-          membership.workspace.subscription?.status,
-        ),
+    // Listing workspaces intentionally runs without a selected workspace. The
+    // wedding_profiles RLS policy, however, is scoped to
+    // app.current_workspace_id, so an included relation is empty here even for
+    // a legitimate member. Resolve each lightweight profile inside its own
+    // workspace context so the switcher receives the real date and location.
+    const profiles = new Map(
+      await Promise.all(
+        memberships.map(async (membership) => [
+          membership.workspaceId,
+          await this.database.withContext(
+            { userId, workspaceId: membership.workspaceId },
+            (transaction) =>
+              transaction.weddingProfile.findUnique({
+                where: { workspaceId: membership.workspaceId },
+                select: { weddingDate: true, location: true },
+              }),
+          ),
+        ] as const),
       ),
-      imageUrl: membership.workspace.imageUrl,
-      progress: null,
-    }));
+    );
+    return memberships.map((membership) => {
+      const profile = profiles.get(membership.workspaceId);
+      return {
+        id: membership.workspace.id,
+        title: membership.workspace.title,
+        weddingDate: dateOnly(profile?.weddingDate),
+        location: profile?.location ?? null,
+        status: membership.workspace.status.toLowerCase() as
+          | "active"
+          | "archived",
+        role: membership.roleTemplate.key,
+        capabilities: resolvePlanCapabilities(
+          resolveCapabilities(
+            membership.roleTemplate.capabilities,
+            membership.overrides.map((override) => ({
+              capability: override.capability,
+              effect: override.effect,
+            })),
+          ),
+          effectiveWorkspacePlanKey(
+            membership.workspace.subscription?.planKey,
+            membership.workspace.subscription?.status,
+          ),
+        ),
+        imageUrl: membership.workspace.imageUrl,
+        progress: null,
+      };
+    });
   }
 
   async create(

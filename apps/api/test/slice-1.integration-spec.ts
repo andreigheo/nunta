@@ -915,6 +915,10 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .set("Idempotency-Key", completionKey)
       .expect(201);
     expect(replay.body.data.jobId).toBe(jobId);
+    expect(
+      await ownerDatabase.weddingEvent.count({ where: { workspaceId } }),
+    ).toBeGreaterThan(0);
+    await ownerDatabase.weddingEvent.deleteMany({ where: { workspaceId } });
     const replayWithDifferentKey = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/onboarding/complete`)
       .set("Origin", origin)
@@ -922,6 +926,9 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       .set("Idempotency-Key", `different-${randomUUID()}`)
       .expect(201);
     expect(replayWithDifferentKey.body.data.jobId).toBe(jobId);
+    expect(
+      await ownerDatabase.weddingEvent.count({ where: { workspaceId } }),
+    ).toBeGreaterThan(0);
     await outsider.agent.get(`/api/v1/jobs/${jobId}`).expect(404);
     await expect
       .poll(
@@ -989,6 +996,15 @@ describe.sequential("Slice 1 API integration and isolation", () => {
         weddingDate: new Date("2027-09-12T00:00:00.000Z"),
         location: "Brașov",
       },
+    });
+    const workspaceList = await owner.agent.get("/api/v1/workspaces").expect(200);
+    expect(
+      workspaceList.body.data.find(
+        (item: { id: string }) => item.id === workspaceId,
+      ),
+    ).toMatchObject({
+      weddingDate: "2027-09-12",
+      location: "Brașov",
     });
     const notifications = await owner.agent
       .get(`/api/v1/workspaces/${workspaceId}/notifications`)

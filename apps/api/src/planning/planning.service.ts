@@ -2005,8 +2005,32 @@ export class PlanningService {
               });
           }
         }
+        const applyRelativeDates = input.applyRelativeDates === true;
+        if (applyRelativeDates) {
+          for (const change of changes) {
+            const targetAt = new Date(change.proposedAt);
+            if (change.resourceType === "task") {
+              await transaction.task.update({
+                where: { id: change.resourceId },
+                data: {
+                  dueAt: targetAt,
+                  version: { increment: 1 },
+                },
+              });
+            } else if (change.resourceType === "milestone") {
+              await transaction.timelineMilestone.update({
+                where: { id: change.resourceId },
+                data: {
+                  targetAt,
+                  version: { increment: 1 },
+                },
+              });
+            }
+            change.applied = true;
+          }
+        }
         const response = {
-          preview: true,
+          preview: !applyRelativeDates,
           proposedChanges: changes,
           overdueTaskIds: tasks.filter(isOverdue).map((task) => task.id),
           blockedTaskIds: tasks
@@ -2027,7 +2051,9 @@ export class PlanningService {
             activity: {
               category: "timeline",
               action: "timeline_recalculated",
-              summary: `Timeline recalculat: ${changes.length} schimbări propuse.`,
+              summary: applyRelativeDates
+                ? `Timeline recalculat: ${changes.length} termene actualizate.`
+                : `Timeline recalculat: ${changes.length} schimbări propuse.`,
               entityType: "Workspace",
               entityId: workspaceId,
             },

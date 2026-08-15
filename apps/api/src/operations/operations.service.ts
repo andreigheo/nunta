@@ -1425,13 +1425,54 @@ export class OperationsService {
   async transportRequests(userId: string, workspaceId: string) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       await this.refreshOperationalRequests(tx, workspaceId);
+      const rows = await tx.transportRequest.findMany({
+        where: { workspaceId },
+        orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+      });
+      const [guests, households, events] = await Promise.all([
+        tx.guest.findMany({
+          where: { workspaceId, id: { in: rows.map((row) => row.guestId) } },
+          select: { id: true, firstName: true, lastName: true },
+        }),
+        tx.household.findMany({
+          where: {
+            workspaceId,
+            id: {
+              in: rows
+                .map((row) => row.householdId)
+                .filter((id): id is string => Boolean(id)),
+            },
+          },
+          select: { id: true, name: true },
+        }),
+        tx.weddingEvent.findMany({
+          where: {
+            workspaceId,
+            id: { in: rows.map((row) => row.weddingEventId) },
+          },
+          select: { id: true, title: true },
+        }),
+      ]);
+      const guestNames = new Map(
+        guests.map((guest) => [
+          guest.id,
+          [guest.firstName, guest.lastName].filter(Boolean).join(" "),
+        ]),
+      );
+      const householdNames = new Map(
+        households.map((household) => [household.id, household.name]),
+      );
+      const eventTitles = new Map(events.map((event) => [event.id, event.title]));
       return {
-        items: (
-          await tx.transportRequest.findMany({
-            where: { workspaceId },
-            orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
-          })
-        ).map(resource),
+        items: rows.map((row) => ({
+          ...resource(row),
+          guestName: guestNames.get(row.guestId) ?? "Invitat fără nume",
+          householdName: row.householdId
+            ? (householdNames.get(row.householdId) ?? null)
+            : null,
+          eventTitle:
+            eventTitles.get(row.weddingEventId) ?? "Eveniment fără titlu",
+        })),
       };
     });
   }
@@ -2127,6 +2168,13 @@ export class OperationsService {
             validation(
               "Invitatul nu are o cerere de transport; override-ul necesită motiv.",
             );
+          if (
+            requestRow &&
+            requestRow.weddingEventId !== plan.weddingEventId
+          )
+            validation(
+              "Cererea de transport aparține altui eveniment decât planul selectat.",
+            );
           const sameDirectionRouteIds = (
             await tx.transportRoute.findMany({
               where: {
@@ -2385,13 +2433,38 @@ export class OperationsService {
   async accommodationRequests(userId: string, workspaceId: string) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       await this.refreshOperationalRequests(tx, workspaceId);
+      const rows = await tx.accommodationRequest.findMany({
+        where: { workspaceId },
+        orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+      });
+      const [guests, households] = await Promise.all([
+        tx.guest.findMany({
+          where: { workspaceId, id: { in: rows.map((row) => row.guestId) } },
+          select: { id: true, firstName: true, lastName: true },
+        }),
+        tx.household.findMany({
+          where: {
+            workspaceId,
+            id: { in: rows.map((row) => row.householdId) },
+          },
+          select: { id: true, name: true },
+        }),
+      ]);
+      const guestNames = new Map(
+        guests.map((guest) => [
+          guest.id,
+          [guest.firstName, guest.lastName].filter(Boolean).join(" "),
+        ]),
+      );
+      const householdNames = new Map(
+        households.map((household) => [household.id, household.name]),
+      );
       return {
-        items: (
-          await tx.accommodationRequest.findMany({
-            where: { workspaceId },
-            orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
-          })
-        ).map(resource),
+        items: rows.map((row) => ({
+          ...resource(row),
+          guestName: guestNames.get(row.guestId) ?? "Invitat fără nume",
+          householdName: householdNames.get(row.householdId) ?? null,
+        })),
       };
     });
   }

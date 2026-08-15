@@ -866,16 +866,39 @@ export default function SeatingPage() {
       <>
         <EmptyState
           icon={Armchair}
-          title="Nu există încă un plan de mese"
-          description="Creează spațiul și primul draft. Vei așeza doar invitații care au confirmat participarea."
+          title={
+            !canWrite
+              ? "Planul de mese este disponibil în Plus"
+              : events.length === 0
+                ? "Adaugă mai întâi evenimentul nunții"
+                : "Nu există încă un plan de mese"
+          }
+          description={
+            !canWrite
+              ? "Poți consulta planurile existente după revenirea la Free, dar crearea și așezarea invitaților necesită funcțiile logistice din Plus."
+              : events.length === 0
+                ? "Planul de mese trebuie legat de un eveniment confirmat. Completează programul nunții, apoi revino aici pentru primul draft."
+                : "Creează spațiul și primul draft. Vei așeza doar invitații care au confirmat participarea."
+          }
           action={
-            canWrite && events.length
+            !canWrite
+              ? {
+                  label: "Vezi opțiunile Plus",
+                  onClick: () =>
+                    window.location.assign("/settings?tab=billing"),
+                  icon: <Lock className="size-4" />,
+                }
+              : events.length
               ? {
                   label: "Creează plan",
                   onClick: () => setPlanOpen(true),
                   icon: <Plus className="size-4" />,
                 }
-              : undefined
+              : {
+                  label: "Completează programul",
+                  onClick: () => window.location.assign("/onboarding"),
+                  icon: <ArrowRight className="size-4" />,
+                }
           }
         />
         <PlanModal

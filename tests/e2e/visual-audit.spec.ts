@@ -291,7 +291,21 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
   await expect(
     page.getByRole("dialog", { name: "Ținta bugetului" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Țintă totală (RON)")).toHaveValue("185000");
+  const budgetTarget = page.getByLabel("Țintă totală (RON)");
+  await expect(budgetTarget).toHaveValue("185000");
+  await captureGuidedSurface(
+    page,
+    "13a-guided-budget-dialog-before-desktop.png",
+  );
+  await budgetTarget.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("185000");
+  await expect(budgetTarget).toBeFocused();
+  await expect(budgetTarget).toHaveValue("185000");
+  await captureGuidedSurface(
+    page,
+    "13b-guided-budget-dialog-focused-desktop.png",
+  );
   await page.getByRole("button", { name: "Salvează", exact: true }).click();
   await expect(page.getByText("Buget actualizat")).toBeVisible();
   await captureGuidedSurface(page, "14-guided-budget-configured-desktop.png");

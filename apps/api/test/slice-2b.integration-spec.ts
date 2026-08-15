@@ -292,6 +292,26 @@ describe.sequential("Slice 2B planning integration", () => {
       .send({ applyRelativeDates: false })
       .expect(201);
     expect(recalculation.body.data.preview).toBe(true);
+    expect(recalculation.body.data.proposedChanges.length).toBeGreaterThan(0);
+    const appliedRecalculation = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/timeline-recalculations`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `recalc-apply-${randomUUID()}`)
+      .send({ applyRelativeDates: true })
+      .expect(201);
+    expect(appliedRecalculation.body.data.preview).toBe(false);
+    expect(
+      appliedRecalculation.body.data.proposedChanges.every(
+        (change: { applied: boolean }) => change.applied,
+      ),
+    ).toBe(true);
+    const recalculatedAgain = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/timeline-recalculations`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `recalc-after-apply-${randomUUID()}`)
+      .send({ applyRelativeDates: false })
+      .expect(201);
+    expect(recalculatedAgain.body.data.proposedChanges).toHaveLength(0);
     const dashboard = await owner.agent
       .get(`/api/v1/workspaces/${workspaceId}/dashboard`)
       .expect(200);

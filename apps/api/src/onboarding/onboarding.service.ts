@@ -153,8 +153,29 @@ export class OnboardingService {
           },
           select: { backgroundJobId: true },
         });
-        if (completedEvent?.backgroundJobId)
+        if (completedEvent?.backgroundJobId) {
+          // Completion is also the repair boundary for workspaces created by
+          // older releases. The outbox event proves the plan-generation side
+          // effect already happened, but derived profile/event rows may still
+          // be missing. Both materializers are idempotent upserts, so reconcile
+          // them before returning the original job.
+          await materializeWeddingProfile(
+            transaction,
+            userId,
+            workspaceId,
+            draft.couple,
+            draft.dateEvents,
+            draft.location,
+            draft.budget,
+          );
+          await materializeWeddingEvents(
+            transaction,
+            workspaceId,
+            draft.dateEvents,
+            draft.location,
+          );
           return completion(completedEvent.backgroundJobId);
+        }
         if (draft.version !== version)
           problem(
             "VERSION_CONFLICT",

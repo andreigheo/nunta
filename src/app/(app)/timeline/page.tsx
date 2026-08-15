@@ -23,6 +23,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   EmptyState,
   ErrorState,
   Field,
@@ -162,6 +163,7 @@ export default function TimelinePage() {
   const [preview, setPreview] = React.useState<Awaited<
     ReturnType<typeof weddingOsApi.recalculateTimeline>
   > | null>(null);
+  const [applyPreviewOpen, setApplyPreviewOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -349,19 +351,31 @@ export default function TimelinePage() {
         <Card className="border-info/30">
           <CardHeader>
             <div>
-              <CardTitle>Preview recalculare</CardTitle>
+              <CardTitle>
+                {preview.preview ? "Preview recalculare" : "Timeline actualizat"}
+              </CardTitle>
               <p className="text-[13px] text-muted">
-                Schimbările de deadline sunt propuse, nu aplicate în tăcere.
+                {preview.preview
+                  ? "Verifică numărul de termene înainte să aplici recalcularea. Nicio dată nu este modificată în tăcere."
+                  : "Termenele relative au fost recalculate pornind de la data nunții."}
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setPreview(null)}>
-              Închide
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {preview.preview && preview.proposedChanges.length > 0 ? (
+                <Button size="sm" onClick={() => setApplyPreviewOpen(true)}>
+                  Aplică {preview.proposedChanges.length} propuneri
+                </Button>
+              ) : null}
+              <Button variant="ghost" size="sm" onClick={() => setPreview(null)}>
+                Închide
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
               <Badge variant="info">
-                {preview.proposedChanges.length} propuneri
+                {preview.proposedChanges.length}{" "}
+                {preview.preview ? "propuneri" : "termene aplicate"}
               </Badge>
               <Badge
                 variant={preview.overdueTaskIds.length ? "danger" : "neutral"}
@@ -565,6 +579,31 @@ export default function TimelinePage() {
                   await load();
                 })
             : null
+        }
+      />
+      <ConfirmDialog
+        open={applyPreviewOpen}
+        onClose={() => setApplyPreviewOpen(false)}
+        title="Aplici termenele recalculate?"
+        description={`${preview?.proposedChanges.length ?? 0} termene relative vor fi actualizate după data nunții. Termenele manuale rămân neschimbate.`}
+        confirmLabel="Aplică termenele"
+        loading={busy}
+        onConfirm={() =>
+          void run(async () => {
+            if (demoMode) return;
+            const result = await weddingOsApi.recalculateTimeline(
+              currentWorkspace.id,
+              { applyRelativeDates: true },
+            );
+            setPreview(result);
+            setApplyPreviewOpen(false);
+            await load();
+            toast({
+              title: "Timeline actualizat",
+              description: `${result.proposedChanges.length} termene relative au fost aplicate.`,
+              variant: "success",
+            });
+          })
         }
       />
     </div>

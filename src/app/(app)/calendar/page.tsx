@@ -33,6 +33,8 @@ import {
 } from "@/components/ui";
 
 type View = "month" | "week" | "agenda";
+const initialCalendarDate = (weddingDate?: string | null) =>
+  weddingDate ? new Date(`${weddingDate}T12:00:00`) : new Date();
 const sourceLabels: Record<CalendarItem["sourceType"], string> = {
   native_event: "Eveniment",
   task_due: "Deadline",
@@ -199,7 +201,9 @@ export default function CalendarPage() {
   const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const [items, setItems] = React.useState<CalendarItem[]>([]);
   const [view, setView] = React.useState<View>("month");
-  const [cursorDate, setCursorDate] = React.useState(new Date());
+  const [cursorDate, setCursorDate] = React.useState(() =>
+    initialCalendarDate(currentWorkspace?.weddingDate),
+  );
   const [source, setSource] = React.useState<
     CalendarItem["sourceType"] | "all"
   >("all");
@@ -354,37 +358,43 @@ export default function CalendarPage() {
             { value: "agenda", label: "Agendă" },
           ]}
         />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setCursorDate(new Date())}
-        >
-          Astăzi
-        </Button>
-        <div className="flex">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Perioada anterioară"
-            onClick={() => changePeriod(-1)}
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Perioada următoare"
-            onClick={() => changePeriod(1)}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-        <span className="text-sm font-semibold capitalize text-ink">
-          {cursorDate.toLocaleDateString("ro-RO", {
-            month: "long",
-            year: "numeric",
-          })}
-        </span>
+        {view === "agenda" ? (
+          <span className="text-sm font-semibold text-ink">Toate evenimentele</span>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCursorDate(new Date())}
+            >
+              Astăzi
+            </Button>
+            <div className="flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Perioada anterioară"
+                onClick={() => changePeriod(-1)}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Perioada următoare"
+                onClick={() => changePeriod(1)}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+            <span className="text-sm font-semibold capitalize text-ink">
+              {cursorDate.toLocaleDateString("ro-RO", {
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+          </>
+        )}
         <span className="flex-1" />
         <Filter className="size-4 text-faint" />
         <Select

@@ -1573,7 +1573,10 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/milestones/${encodeURIComponent(milestoneId)}`,
       { method: "DELETE", ifMatch: version },
     ),
-  recalculateTimeline: (workspaceId: string) =>
+  recalculateTimeline: (
+    workspaceId: string,
+    input: { applyRelativeDates?: boolean } = {},
+  ) =>
     request<{
       preview: boolean;
       proposedChanges: Array<Record<string, unknown>>;
@@ -1583,7 +1586,7 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/timeline-recalculations`,
       {
         method: "POST",
-        body: { applyRelativeDates: false },
+        body: { applyRelativeDates: input.applyRelativeDates ?? false },
         idempotencyKey: crypto.randomUUID(),
       },
     ),

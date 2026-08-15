@@ -358,9 +358,18 @@ export function ManagedAccommodationTab() {
         sum + Number(room.capacityAdults ?? 0) + Number(room.capacityChildren ?? 0),
       0,
     ) ?? 0;
-  const unassigned = requests.filter(
-    (request) => request.requested === true && request.status !== "assigned",
+  const assignedRequestIds = new Set(
+    stay?.rooms.flatMap((room) =>
+      room.allocations
+        .map((allocation) => allocation.accommodationRequestId)
+        .filter((requestId): requestId is string => Boolean(requestId)),
+    ) ?? [],
   );
+  const unassigned = requests.filter(
+    (request) =>
+      request.requested === true && !assignedRequestIds.has(request.id),
+  );
+  const activeIssues = stay?.issues.filter((issue) => issue.status !== "resolved") ?? [];
 
   return (
     <div className="space-y-5" data-testid="managed-accommodation-tab">
@@ -547,10 +556,10 @@ export function ManagedAccommodationTab() {
         />
       ) : (
         <>
-          {stay.issues.length > 0 && (
+          {activeIssues.length > 0 && (
             <Card>
               <CardContent className="flex flex-wrap gap-2 p-3">
-                {stay.issues.map((issue) => (
+                {activeIssues.map((issue) => (
                   <Badge key={issue.id} variant="warning">
                     <TriangleAlert className="size-3" /> {String(issue.type).replaceAll("_", " ")}
                   </Badge>
@@ -634,14 +643,25 @@ export function ManagedAccommodationTab() {
                     >
                       <div>
                         <p className="text-sm font-medium text-ink">
-                          Cerere invitat {String(request.guestId).slice(0, 8)}
+                          {String(request.guestName ?? "Invitat")}
                         </p>
+                        {request.householdName ? (
+                          <p className="text-xs text-muted">
+                            {String(request.householdName)}
+                          </p>
+                        ) : null}
                         <p className="text-xs text-faint">
-                          {String(request.arrivalDate ?? "Sosire nespecificată").slice(0, 10)} →{" "}
-                          {String(request.departureDate ?? "Plecare nespecificată").slice(0, 10)}
+                          {request.arrivalDate
+                            ? String(request.arrivalDate).slice(0, 10)
+                            : "Sosire nespecificată"}{" "}
+                          →{" "}
+                          {request.departureDate
+                            ? String(request.departureDate).slice(0, 10)
+                            : "Plecare nespecificată"}
                         </p>
                       </div>
                       <Select
+                        aria-label={`Alocă ${String(request.guestName ?? "invitatul")} într-o cameră`}
                         className="max-w-56"
                         defaultValue=""
                         onChange={(event) => event.target.value && void allocate(request, event.target.value)}
