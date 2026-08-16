@@ -581,9 +581,15 @@ describe("Slice 3 guest, invitation, RSVP and menu rules", () => {
       campaignAudienceFilterSchema.parse({
         guestIds: [uuid],
         rsvpStatuses: ["NO_RESPONSE"],
+        countries: ["România"],
+        preferredLanguages: ["ro"],
         includeChildren: false,
       }),
-    ).toMatchObject({ includeChildren: false });
+    ).toMatchObject({
+      countries: ["România"],
+      preferredLanguages: ["ro"],
+      includeChildren: false,
+    });
     expect(() =>
       campaignAudienceFilterSchema.parse({ unsupportedFilter: true }),
     ).toThrow();

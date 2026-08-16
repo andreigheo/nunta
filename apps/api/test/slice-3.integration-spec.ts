@@ -2025,6 +2025,40 @@ describe.sequential("Slice 3 guest journey integration", () => {
     const site = await owner.agent
       .get(`/api/v1/workspaces/${workspaceId}/invitation-site`)
       .expect(200);
+    await database.household.update({
+      where: { id: householdId },
+      data: { country: "România", preferredLanguage: "ro" },
+    });
+    await database.invitationRecipient.updateMany({
+      where: { workspaceId, householdId, revokedAt: null },
+      data: { preferredLanguage: "ro" },
+    });
+    const segmentedCampaign = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/campaigns`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `campaign-segment-${randomUUID()}`)
+      .send({
+        name: "Segment internațional",
+        purpose: "INFORMATION_UPDATE",
+        channel: "EMAIL",
+        invitationVersionId: site.body.data.published.id,
+        template: { subject: "Detalii", body: "Mesaj segmentat." },
+        audienceFilter: {
+          householdIds: [householdId],
+          countries: ["România"],
+          preferredLanguages: ["ro"],
+        },
+      })
+      .expect(201);
+    const segmentedPreview = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${segmentedCampaign.body.data.id}/audience-preview`,
+      )
+      .expect(200);
+    expect(segmentedPreview.body.data).toMatchObject({ total: 1, valid: 1 });
+    await database.campaign.delete({
+      where: { id: segmentedCampaign.body.data.id },
+    });
     const campaign = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/campaigns`)
       .set("Origin", origin)

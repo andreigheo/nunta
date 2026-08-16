@@ -530,6 +530,11 @@ export const campaignAudienceFilterSchema = z
     tagIds: z.array(uuid).max(30).optional(),
     sides: z.array(guestSideSchema).max(5).optional(),
     categories: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+    countries: z.array(z.string().trim().min(1).max(120)).max(50).optional(),
+    preferredLanguages: z
+      .array(z.string().trim().min(2).max(16))
+      .max(30)
+      .optional(),
     invitationStatuses: z
       .array(z.string().trim().min(1).max(40))
       .max(20)

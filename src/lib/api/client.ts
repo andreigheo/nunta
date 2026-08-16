@@ -2707,6 +2707,20 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  updateCampaign: (
+    workspaceId: string,
+    campaignId: string,
+    version: number,
+    input: Partial<CreateCampaign>,
+  ) =>
+    request<CampaignResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}`,
+      {
+        method: "PATCH",
+        body: input,
+        ifMatch: version,
+      },
+    ),
   campaignAudiencePreview: (workspaceId: string, campaignId: string) =>
     request<{
       total: number;

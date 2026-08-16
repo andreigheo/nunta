@@ -2186,6 +2186,7 @@ export class InvitationCampaignService {
       guestId: string | null;
       householdId: string | null;
       status: string;
+      preferredLanguage: string;
     },
   >(
     tx: Transaction,
@@ -2203,12 +2204,14 @@ export class InvitationCampaignService {
         householdId: true,
         side: true,
         category: true,
+        preferredLanguage: true,
         isChild: true,
         isPlusOne: true,
       },
     });
     const guestIds = guests.map((guest) => guest.id);
-    const [tagAssignments, responses] = await Promise.all([
+    const householdIds = [...new Set(guests.map((guest) => guest.householdId))];
+    const [tagAssignments, responses, households] = await Promise.all([
       tx.guestTagAssignment.findMany({
         where: { workspaceId: campaign.workspaceId, guestId: { in: guestIds } },
         select: { guestId: true, tagId: true },
@@ -2216,6 +2219,10 @@ export class InvitationCampaignService {
       tx.guestEventResponse.findMany({
         where: { workspaceId: campaign.workspaceId, guestId: { in: guestIds } },
         select: { guestId: true, attendance: true },
+      }),
+      tx.household.findMany({
+        where: { workspaceId: campaign.workspaceId, id: { in: householdIds } },
+        select: { id: true, country: true, preferredLanguage: true },
       }),
     ]);
     const tagsByGuest = new Map<string, Set<string>>();
@@ -2236,12 +2243,25 @@ export class InvitationCampaignService {
     const selectedTagIds = new Set(stringArray(filter.tagIds));
     const sides = new Set(stringArray(filter.sides));
     const categories = new Set(stringArray(filter.categories));
+    const countries = new Set(
+      stringArray(filter.countries).map((country) =>
+        country.toLocaleLowerCase("ro-RO"),
+      ),
+    );
+    const preferredLanguages = new Set(
+      stringArray(filter.preferredLanguages).map((language) =>
+        language.toLocaleLowerCase(),
+      ),
+    );
     const invitationStatuses = new Set(
       stringArray(filter.invitationStatuses).map((status) =>
         status.toUpperCase(),
       ),
     );
     const rsvpStatuses = new Set(stringArray(filter.rsvpStatuses));
+    const householdById = new Map(
+      households.map((household) => [household.id, household]),
+    );
 
     return recipients.filter((recipient) => {
       const householdId =
@@ -2279,6 +2299,26 @@ export class InvitationCampaignService {
         categories.size &&
         !members.some(
           (guest) => guest.category && categories.has(guest.category),
+        )
+      )
+        return false;
+      const household = householdId
+        ? householdById.get(householdId)
+        : undefined;
+      if (
+        countries.size &&
+        (!household?.country ||
+          !countries.has(household.country.toLocaleLowerCase("ro-RO")))
+      )
+        return false;
+      if (
+        preferredLanguages.size &&
+        !preferredLanguages.has(
+          (
+            recipient.preferredLanguage ||
+            household?.preferredLanguage ||
+            "ro"
+          ).toLocaleLowerCase(),
         )
       )
         return false;

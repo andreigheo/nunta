@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import type {
   CampaignResource,
+  CreateCampaign,
+  GuestTagResource,
   HouseholdResource,
   InvitationRecipientResource,
   InvitationSiteResource,
@@ -29,6 +31,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   EmptyState,
   Field,
   Input,
@@ -65,6 +68,17 @@ const campaignStatus: Record<string, string> = {
   archived: "Arhivată",
 };
 
+const campaignPurpose: Record<string, string> = {
+  invitation: "Invitație",
+  rsvp_reminder: "Reminder RSVP",
+  information_update: "Actualizare importantă",
+  thank_you: "Mulțumire",
+  custom: "Mesaj personalizat",
+};
+
+type AudienceType = "all" | "tag" | "side" | "country" | "language" | "rsvp";
+type DeliveryMode = "now" | "schedule";
+
 type CampaignAudiencePreview = {
   total: number;
   valid: number;
@@ -89,11 +103,20 @@ export default function InvitationsPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [campaignOpen, setCampaignOpen] = React.useState(false);
+  const [editingCampaign, setEditingCampaign] = React.useState<CampaignResource | null>(null);
+  const [campaignToCancel, setCampaignToCancel] = React.useState<CampaignResource | null>(null);
+  const [campaignAudienceType, setCampaignAudienceType] = React.useState<AudienceType>("all");
+  const [campaignAudienceValue, setCampaignAudienceValue] = React.useState("");
+  const [audienceHouseholds, setAudienceHouseholds] = React.useState<HouseholdResource[]>([]);
+  const [audienceTags, setAudienceTags] = React.useState<GuestTagResource[]>([]);
+  const [audienceOptionsLoading, setAudienceOptionsLoading] = React.useState(false);
   const [campaignToSend, setCampaignToSend] =
     React.useState<CampaignResource | null>(null);
   const [campaignAudience, setCampaignAudience] =
     React.useState<CampaignAudiencePreview | null>(null);
   const [audienceLoading, setAudienceLoading] = React.useState(false);
+  const [deliveryMode, setDeliveryMode] = React.useState<DeliveryMode>("now");
+  const [scheduledAt, setScheduledAt] = React.useState("");
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewRecipient, setPreviewRecipient] =
     React.useState<InvitationRecipientResource | null>(null);
@@ -109,6 +132,7 @@ export default function InvitationsPage() {
   const canPublish = capabilities.includes("invitation.publish");
   const canCreateCampaign = capabilities.includes("campaign.write");
   const canSendCampaign = capabilities.includes("campaign.send");
+  const canReadGuests = capabilities.includes("guest.read");
   const canManageDistribution =
     canManageRecipients && Boolean(site?.published) && !demoMode;
 
@@ -148,6 +172,35 @@ export default function InvitationsPage() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  const openCampaignBuilder = async (campaign?: CampaignResource) => {
+    setEditingCampaign(campaign ?? null);
+    const existingAudience = campaign ? campaignAudienceSelection(campaign.audienceFilter) : { type: "all" as AudienceType, value: "" };
+    setCampaignAudienceType(existingAudience.type);
+    setCampaignAudienceValue(existingAudience.value);
+    setCampaignOpen(true);
+    if (!currentWorkspace || !canReadGuests || audienceHouseholds.length || audienceOptionsLoading)
+      return;
+    setAudienceOptionsLoading(true);
+    try {
+      const [householdData, tagData] = await Promise.all([
+        loadInvitationHouseholds(currentWorkspace.id),
+        weddingOsApi.guestTags(currentWorkspace.id),
+      ]);
+      if (householdData.truncated)
+        throw new Error("Lista de gospodării depășește limita sigură de 1.000. Folosește etichete și loturi controlate.");
+      setAudienceHouseholds(householdData.items);
+      setAudienceTags(tagData.items);
+    } catch (caught) {
+      toast({
+        title: "Segmentele nu au putut fi încărcate",
+        description: apiErrorMessage(caught),
+        variant: "error",
+      });
+    } finally {
+      setAudienceOptionsLoading(false);
+    }
+  };
 
   const publish = async () => {
     if (!currentWorkspace || !site || demoMode || !canPublish) return;
@@ -256,20 +309,32 @@ export default function InvitationsPage() {
     const form = new FormData(event.currentTarget);
     setSaving(true);
     try {
-      await weddingOsApi.createCampaign(currentWorkspace.id, {
+      const audienceFilter = campaignAudienceFilter(
+        campaignAudienceType,
+        campaignAudienceValue,
+        form.get("includeChildren") === "on",
+        form.get("includePlusOnes") === "on",
+      );
+      const input: CreateCampaign = {
         name: String(form.get("name")),
-        purpose: "INVITATION",
+        purpose: String(form.get("purpose")) as "INVITATION" | "RSVP_REMINDER" | "INFORMATION_UPDATE" | "THANK_YOU" | "CUSTOM",
         channel: "EMAIL",
         invitationVersionId: site?.published?.id ?? null,
         template: {
           subject: String(form.get("subject")),
           body: String(form.get("body")),
         },
-        audienceFilter: {},
-      });
+        audienceFilter,
+      };
+      if (editingCampaign)
+        await weddingOsApi.updateCampaign(currentWorkspace.id, editingCampaign.id, editingCampaign.version, input);
+      else await weddingOsApi.createCampaign(currentWorkspace.id, input);
       setCampaignOpen(false);
+      setEditingCampaign(null);
+      setCampaignAudienceType("all");
+      setCampaignAudienceValue("");
       toast({
-        title: "Campanie creată",
+        title: editingCampaign ? "Campanie actualizată" : "Campanie creată",
         description:
           "Este ciornă; destinatarii vor fi fixați numai la trimitere.",
         variant: "success",
@@ -286,10 +351,27 @@ export default function InvitationsPage() {
     }
   };
 
+  const cancelCampaign = async () => {
+    if (!currentWorkspace || !campaignToCancel || demoMode) return;
+    setSaving(true);
+    try {
+      await weddingOsApi.transitionCampaign(currentWorkspace.id, campaignToCancel.id, campaignToCancel.version, "CANCEL");
+      toast({ title: "Campanie anulată", description: "Destinatarii care nu au fost deja trimiși au fost opriți.", variant: "success" });
+      setCampaignToCancel(null);
+      await load();
+    } catch (caught) {
+      toast({ title: "Campania nu a fost anulată", description: apiErrorMessage(caught), variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const reviewCampaignAudience = async (campaign: CampaignResource) => {
     if (!currentWorkspace || demoMode) return;
     setCampaignToSend(campaign);
     setCampaignAudience(null);
+    setDeliveryMode("now");
+    setScheduledAt("");
     setAudienceLoading(true);
     try {
       const audience = await weddingOsApi.campaignAudiencePreview(
@@ -319,19 +401,22 @@ export default function InvitationsPage() {
       return;
     setSaving(true);
     try {
+      const scheduledIso = deliveryMode === "schedule" ? scheduledDateTime(scheduledAt) : undefined;
       const result = await weddingOsApi.transitionCampaign(
         currentWorkspace.id,
         campaignToSend.id,
         campaignToSend.version,
-        "SEND_NOW",
-        undefined,
+        deliveryMode === "schedule" ? "SCHEDULE" : "SEND_NOW",
+        scheduledIso,
         campaignAudience.audienceRevision,
       );
       setCampaignToSend(null);
       setCampaignAudience(null);
       toast({
-        title: "Livrare pusă în coadă",
-        description: result.job
+        title: deliveryMode === "schedule" ? "Campanie programată" : "Livrare pusă în coadă",
+        description: deliveryMode === "schedule"
+          ? `Trimiterea va începe la ${new Date(scheduledIso!).toLocaleString("ro-RO")}.`
+          : result.job
           ? `Job ${result.job.id.slice(0, 8)} procesează destinatarii; e-mailurile nu sunt declarate livrate înainte de confirmarea furnizorului.`
           : "Destinatarii sunt procesați asincron.",
         variant: "info",
@@ -724,7 +809,7 @@ export default function InvitationsPage() {
               <Button
                 size="sm"
                 disabled={!site?.published || !canCreateCampaign || demoMode}
-                onClick={() => setCampaignOpen(true)}
+                onClick={() => void openCampaignBuilder()}
               >
                 <Plus className="size-4" aria-hidden />
                 Campanie nouă
@@ -735,6 +820,7 @@ export default function InvitationsPage() {
                 <THead>
                   <TR>
                     <TH>Campanie</TH>
+                    <TH>Scop</TH>
                     <TH>Canal</TH>
                     <TH>Stare</TH>
                     <TH align="right">Destinatari</TH>
@@ -745,7 +831,8 @@ export default function InvitationsPage() {
                 <TBody>
                   {campaigns.map((campaign) => (
                     <TR key={campaign.id}>
-                      <TD className="font-medium">{campaign.name}</TD>
+                      <TD><p className="font-medium text-ink">{campaign.name}</p><p className="mt-0.5 max-w-64 truncate text-xs text-muted">{campaignAudienceSummary(campaign.audienceFilter)}</p></TD>
+                      <TD className="text-muted">{campaignPurpose[campaign.purpose] ?? "Mesaj"}</TD>
                       <TD>
                         <Badge variant="neutral">E-mail</Badge>
                       </TD>
@@ -760,26 +847,20 @@ export default function InvitationsPage() {
                           }
                           dot
                         >
-                          {campaignStatus[campaign.status]}
+                          {campaignStatus[campaign.status] ?? campaign.status}
                         </Badge>
+                        {campaign.scheduledAt ? <p className="mt-1 text-xs text-muted">{new Date(campaign.scheduledAt).toLocaleString("ro-RO")}</p> : null}
                       </TD>
                       <TD align="right">{campaign.statistics.total}</TD>
                       <TD align="right">
                         {campaign.statistics.byStatus.opened ?? 0}
                       </TD>
                       <TD align="right">
-                        {["draft", "failed", "partial"].includes(
-                          campaign.status,
-                        ) ? (
-                          <Button
-                            size="sm"
-                            disabled={!canSendCampaign || saving}
-                            onClick={() => void reviewCampaignAudience(campaign)}
-                          >
-                            <Send className="size-3" aria-hidden />
-                            Trimite
-                          </Button>
-                        ) : null}
+                        <span className="inline-flex flex-wrap justify-end gap-1.5">
+                          {campaign.status === "draft" && canCreateCampaign ? <Button size="sm" variant="ghost" disabled={saving} onClick={() => void openCampaignBuilder(campaign)}><Pencil className="size-3" aria-hidden />Editează</Button> : null}
+                          {["draft", "failed", "partial"].includes(campaign.status) ? <Button size="sm" disabled={!canSendCampaign || saving} onClick={() => void reviewCampaignAudience(campaign)}><Send className="size-3" aria-hidden />Trimite</Button> : null}
+                          {["scheduled", "queued", "sending"].includes(campaign.status) && canSendCampaign ? <Button size="sm" variant="outline" disabled={saving} onClick={() => setCampaignToCancel(campaign)}>Anulează</Button> : null}
+                        </span>
                       </TD>
                     </TR>
                   ))}
@@ -845,10 +926,37 @@ export default function InvitationsPage() {
 
       <Modal
         open={campaignOpen}
-        onClose={() => setCampaignOpen(false)}
-        title="Campanie e-mail"
+        onClose={() => { setCampaignOpen(false); setEditingCampaign(null); setCampaignAudienceType("all"); setCampaignAudienceValue(""); }}
+        title={editingCampaign ? "Editează campania" : "Campanie e-mail nouă"}
+        description="Alege scopul și exact cui îi trimiți. Campania rămâne ciornă până la confirmarea audienței."
       >
-        <form className="space-y-4" onSubmit={createCampaign}>
+        <form key={editingCampaign?.id ?? "new-campaign"} className="space-y-4" onSubmit={createCampaign}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Scopul mesajului" required>
+              <Select name="purpose" defaultValue={editingCampaign?.purpose.toUpperCase() ?? "INVITATION"}>
+                <option value="INVITATION">Trimite invitația</option>
+                <option value="RSVP_REMINDER">Reamintește RSVP-ul</option>
+                <option value="INFORMATION_UPDATE">Anunță o modificare</option>
+                <option value="THANK_YOU">Trimite mulțumiri</option>
+                <option value="CUSTOM">Mesaj personalizat</option>
+              </Select>
+            </Field>
+            <Field label="Audiență" required>
+              <Select value={campaignAudienceType} onChange={(event) => { setCampaignAudienceType(event.target.value as AudienceType); setCampaignAudienceValue(""); }}>
+                <option value="all">Toți destinatarii eligibili</option>
+                <option value="tag">O etichetă</option>
+                <option value="side">O parte a evenimentului</option>
+                <option value="country">O țară</option>
+                <option value="language">O limbă</option>
+                <option value="rsvp">Un status RSVP</option>
+              </Select>
+            </Field>
+          </div>
+          {campaignAudienceType !== "all" ? <AudienceValueField type={campaignAudienceType} value={campaignAudienceValue} onChange={setCampaignAudienceValue} tags={audienceTags} households={audienceHouseholds} loading={audienceOptionsLoading} /> : null}
+          <div className="grid gap-2 rounded-lg bg-subtle p-3 text-sm sm:grid-cols-2">
+            <label className="flex min-h-11 items-center gap-2"><input name="includeChildren" type="checkbox" defaultChecked={editingCampaign?.audienceFilter.includeChildren !== false} className="size-4 accent-brand" />Include gospodăriile cu copii</label>
+            <label className="flex min-h-11 items-center gap-2"><input name="includePlusOnes" type="checkbox" defaultChecked={editingCampaign?.audienceFilter.includePlusOnes !== false} className="size-4 accent-brand" />Include gospodăriile cu plus-unu</label>
+          </div>
           <Field
             label="Nume intern"
             hint="Îl vezi numai tu în lista campaniilor."
@@ -858,6 +966,7 @@ export default function InvitationsPage() {
               name="name"
               required
               maxLength={180}
+              defaultValue={editingCampaign?.name ?? ""}
               placeholder="Invitația principală"
             />
           </Field>
@@ -870,6 +979,7 @@ export default function InvitationsPage() {
               name="subject"
               required
               maxLength={240}
+              defaultValue={campaignTemplateValue(editingCampaign, "subject")}
               placeholder="Andrei & Andreea vă invită"
             />
           </Field>
@@ -882,6 +992,7 @@ export default function InvitationsPage() {
               name="body"
               required
               maxLength={10000}
+              defaultValue={campaignTemplateValue(editingCampaign, "body")}
               placeholder="Ne-ar bucura să fiți alături de noi. Deschideți invitația pentru toate detaliile și confirmare."
             />
           </Field>
@@ -890,26 +1001,36 @@ export default function InvitationsPage() {
               Ce primește invitatul
             </p>
             <p className="mt-1 text-xs leading-relaxed text-muted">
-              E-mailul include identitatea vizuală aleasă, un plic ilustrat și
-              butonul către linkul personal. Destinatarii sunt fixați numai
-              când confirmi trimiterea; o reîncercare nu retrimite mesajele
-              deja livrate.
+              E-mailul include identitatea vizuală aleasă și butonul către
+              linkul personal. Înainte de trimitere vezi numărul exact de
+              adrese valide; dacă audiența se schimbă, serverul oprește acțiunea.
             </p>
           </div>
           <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setCampaignOpen(false)}
+              onClick={() => { setCampaignOpen(false); setEditingCampaign(null); setCampaignAudienceType("all"); setCampaignAudienceValue(""); }}
             >
               Renunță
             </Button>
-            <Button type="submit" loading={saving} disabled={saving}>
-              Salvează ciorna
+            <Button type="submit" loading={saving} disabled={saving || audienceOptionsLoading || (campaignAudienceType !== "all" && !campaignAudienceValue)}>
+              {editingCampaign ? "Salvează modificările" : "Salvează ciorna"}
             </Button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(campaignToCancel)}
+        onClose={() => setCampaignToCancel(null)}
+        onConfirm={() => void cancelCampaign()}
+        title="Anulezi campania?"
+        description="Mesajele acceptate deja de furnizor nu pot fi retrase. Destinatarii rămași în așteptare vor fi opriți."
+        confirmLabel="Anulează campania"
+        destructive
+        loading={saving}
+      />
 
       <Modal
         open={Boolean(campaignToSend)}
@@ -918,7 +1039,7 @@ export default function InvitationsPage() {
           setCampaignToSend(null);
           setCampaignAudience(null);
         }}
-        title="Confirmă trimiterea"
+        title="Confirmă distribuirea"
         description={
           campaignToSend
             ? `Verifică audiența pentru „${campaignToSend.name}” înainte ca mesajele să intre în coadă.`
@@ -958,6 +1079,16 @@ export default function InvitationsPage() {
                 Sunt {campaignAudience.total} accesuri eligibile. Doar adresele
                 valide intră în coadă; mesajele trimise nu mai pot fi retrase.
               </p>
+              {campaignAudience.invalidRecipients.length ? <div className="rounded-lg bg-warning-soft p-3 text-xs text-warning"><p className="font-semibold">De ce sunt omise unele accesuri</p><ul className="mt-1 space-y-1">{campaignAudience.invalidRecipients.slice(0, 3).map((item) => <li key={item.recipientId}>{campaignAudienceReason(item.reason)}</li>)}</ul>{campaignAudience.invalidRecipients.length > 3 ? <p className="mt-1">Și încă {campaignAudience.invalidRecipients.length - 3} accesuri cu probleme.</p> : null}</div> : null}
+              <div className="rounded-xl border border-line p-3">
+                <Field label="Momentul trimiterii">
+                  <Select value={deliveryMode} onChange={(event) => setDeliveryMode(event.target.value as DeliveryMode)}>
+                    <option value="now">Trimite acum</option>
+                    <option value="schedule">Programează pentru mai târziu</option>
+                  </Select>
+                </Field>
+                {deliveryMode === "schedule" ? <Field className="mt-3" label="Data și ora" hint="Folosește ora locală afișată de dispozitiv."><Input type="datetime-local" value={scheduledAt} min={minimumScheduleDate()} onChange={(event) => setScheduledAt(event.target.value)} /></Field> : null}
+              </div>
             </>
           ) : null}
           <div className="flex justify-end gap-2">
@@ -976,13 +1107,13 @@ export default function InvitationsPage() {
               type="button"
               loading={saving}
               disabled={
-                saving || audienceLoading || !campaignAudience?.valid
+                saving || audienceLoading || !campaignAudience?.valid || (deliveryMode === "schedule" && !scheduledAt)
               }
               onClick={() => void sendCampaign()}
             >
               <Send className="size-4" aria-hidden />
               {campaignAudience
-                ? `Trimite către ${campaignAudience.valid} ${campaignAudience.valid === 1 ? "destinatar" : "destinatari"}`
+                ? `${deliveryMode === "schedule" ? "Programează" : "Trimite"} pentru ${campaignAudience.valid} ${campaignAudience.valid === 1 ? "destinatar" : "destinatari"}`
                 : "Verifică audiența"}
             </Button>
           </div>
@@ -1062,6 +1193,93 @@ function safeImageUrl(value: string) {
   } catch {
     return "";
   }
+}
+
+function campaignAudienceFilter(
+  type: AudienceType,
+  value: string,
+  includeChildren: boolean,
+  includePlusOnes: boolean,
+): CreateCampaign["audienceFilter"] {
+  const common = { includeChildren, includePlusOnes };
+  if (type === "all") return common;
+  if (!value) throw new Error("Alege valoarea audienței înainte de a salva campania.");
+  if (type === "tag") return { ...common, tagIds: [value] };
+  if (type === "side")
+    return {
+      ...common,
+      sides: [value as "PARTNER_ONE" | "PARTNER_TWO" | "COMMON" | "VENDOR" | "OTHER"],
+    };
+  if (type === "country") return { ...common, countries: [value] };
+  if (type === "language") return { ...common, preferredLanguages: [value] };
+  return {
+    ...common,
+    rsvpStatuses: [value as "CONFIRMED" | "DECLINED" | "UNSURE" | "NO_RESPONSE"],
+  };
+}
+
+function campaignAudienceSummary(value: Record<string, unknown>) {
+  if (Array.isArray(value.tagIds) && value.tagIds.length) return "Segment: etichetă";
+  if (Array.isArray(value.sides) && value.sides.length) return `Segment: ${String(value.sides[0]).toLowerCase().replaceAll("_", " ")}`;
+  if (Array.isArray(value.countries) && value.countries.length) return `Țară: ${String(value.countries[0])}`;
+  if (Array.isArray(value.preferredLanguages) && value.preferredLanguages.length) return `Limbă: ${languageName(String(value.preferredLanguages[0]))}`;
+  if (Array.isArray(value.rsvpStatuses) && value.rsvpStatuses.length) return `RSVP: ${String(value.rsvpStatuses[0]).toLowerCase().replaceAll("_", " ")}`;
+  return "Toți destinatarii eligibili";
+}
+
+function campaignAudienceSelection(value: Record<string, unknown>): { type: AudienceType; value: string } {
+  if (Array.isArray(value.tagIds) && value.tagIds[0]) return { type: "tag", value: String(value.tagIds[0]) };
+  if (Array.isArray(value.sides) && value.sides[0]) return { type: "side", value: String(value.sides[0]) };
+  if (Array.isArray(value.countries) && value.countries[0]) return { type: "country", value: String(value.countries[0]) };
+  if (Array.isArray(value.preferredLanguages) && value.preferredLanguages[0]) return { type: "language", value: String(value.preferredLanguages[0]) };
+  if (Array.isArray(value.rsvpStatuses) && value.rsvpStatuses[0]) return { type: "rsvp", value: String(value.rsvpStatuses[0]) };
+  return { type: "all", value: "" };
+}
+
+function campaignTemplateValue(campaign: CampaignResource | null, key: "subject" | "body") {
+  const value = campaign?.template[key];
+  return typeof value === "string" ? value : "";
+}
+
+function campaignAudienceReason(reason: string) {
+  if (reason === "missing_email") return "Lipsește o adresă de e-mail validă în gospodărie.";
+  if (reason === "variant_unpublished") return "Varianta alocată nu este publicată.";
+  return "Accesul nu mai este eligibil pentru această campanie.";
+}
+
+function AudienceValueField({ type, value, onChange, tags, households, loading }: { type: Exclude<AudienceType, "all">; value: string; onChange: (value: string) => void; tags: GuestTagResource[]; households: HouseholdResource[]; loading: boolean }) {
+  const countries = [...new Set(households.map((household) => household.country).filter((value): value is string => Boolean(value)))].sort((left, right) => left.localeCompare(right, "ro-RO"));
+  const languages = [...new Set(households.map((household) => household.preferredLanguage).filter(Boolean))].sort();
+  if (loading)
+    return <div className="rounded-lg bg-subtle p-3 text-sm text-muted" role="status">Se încarcă segmentele reale…</div>;
+  if (type === "tag")
+    return <Field label="Etichetă" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege eticheta</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name} · {tag.assignedGuests ?? 0} persoane</option>)}</Select></Field>;
+  if (type === "side")
+    return <Field label="Parte" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege partea</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="COMMON">Comună</option><option value="VENDOR">Furnizori</option><option value="OTHER">Altele</option></Select></Field>;
+  if (type === "country")
+    return <Field label="Țară" hint={countries.length ? "Sunt afișate țările salvate pe gospodării." : "Completează țara în gospodării pentru a folosi acest segment."} required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required disabled={!countries.length}><option value="">Alege țara</option>{countries.map((country) => <option key={country} value={country}>{country}</option>)}</Select></Field>;
+  if (type === "language")
+    return <Field label="Limba comunicării" hint={languages.length ? "Folosește preferința salvată pe destinatar." : "Completează limba pe gospodării sau invitați."} required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required disabled={!languages.length}><option value="">Alege limba</option>{languages.map((language) => <option key={language} value={language}>{languageName(language)}</option>)}</Select></Field>;
+  return <Field label="Status RSVP" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege statusul</option><option value="NO_RESPONSE">Fără răspuns</option><option value="UNSURE">Nehotărât</option><option value="CONFIRMED">Confirmat</option><option value="DECLINED">Refuzat</option></Select></Field>;
+}
+
+function languageName(language: string) {
+  return ({ ro: "Română", en: "Engleză", ru: "Rusă", fr: "Franceză", de: "Germană", it: "Italiană", es: "Spaniolă" } as Record<string, string>)[language.toLowerCase()] ?? language.toUpperCase();
+}
+
+function minimumScheduleDate() {
+  const date = new Date(Date.now() + 5 * 60_000);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function scheduledDateTime(value: string) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime()))
+    throw new Error("Alege o dată și o oră valide pentru programare.");
+  if (date.getTime() < Date.now() + 60_000)
+    throw new Error("Programarea trebuie să fie cu cel puțin un minut în viitor.");
+  return date.toISOString();
 }
 
 async function loadInvitationRecipients(workspaceId: string) {

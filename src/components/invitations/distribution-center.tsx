@@ -127,7 +127,7 @@ export function DistributionCenter({
                           {name}
                         </p>
                         <p className="mt-0.5 text-xs text-faint">
-                          {recipient.householdId ? "Gospodărie" : "Invitat individual"}
+                          {recipient.householdId ? "Gospodărie" : "Invitat individual"} · {languageName(recipient.preferredLanguage)}
                         </p>
                       </div>
                     </div>
@@ -191,7 +191,7 @@ export function DistributionCenter({
                       onClick={() => onCopyLink(recipient)}
                     >
                       <Copy className="size-3.5" aria-hidden />
-                      Copiază
+                      Copiază linkul
                     </Button>
                     <Button
                       variant="outline"
@@ -210,7 +210,7 @@ export function DistributionCenter({
                       onClick={() => onOpenWhatsApp(recipient)}
                     >
                       <MessageCircle className="size-3.5" aria-hidden />
-                      WhatsApp
+                      WhatsApp manual
                     </Button>
                     <Button
                       variant="outline"
@@ -220,7 +220,7 @@ export function DistributionCenter({
                       onClick={() => onDownloadQr(recipient)}
                     >
                       <QrCode className="size-3.5" aria-hidden />
-                      QR
+                      Descarcă QR
                     </Button>
                   </div>
                 </div>
@@ -298,4 +298,18 @@ function shortDate(value: string) {
     day: "2-digit",
     month: "short",
   });
+}
+
+function languageName(value: string) {
+  return (
+    {
+      ro: "RO",
+      en: "EN",
+      ru: "RU",
+      fr: "FR",
+      de: "DE",
+      it: "IT",
+      es: "ES",
+    } as Record<string, string>
+  )[value.toLowerCase()] ?? value.toUpperCase();
 }

@@ -209,12 +209,17 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   await guestDialog.locator('input[name="lastName"]').fill("Pop");
   await guestDialog.locator('input[name="email"]').fill(owner.email);
   await guestDialog.getByRole("button", { name: "Adaugă" }).click();
-  await expect(page.getByText("Ana Pop", { exact: true })).toBeVisible();
+  const desktopGuest = page
+    .locator("table")
+    .getByText("Ana Pop", { exact: true });
+  await expect(desktopGuest).toBeVisible();
 
   primaryGuest = (await guestList("Ana")).items[0]!;
-  await page.getByText("Ana Pop", { exact: true }).click();
+  await desktopGuest.click();
   await page.getByLabel("Permite plus-unu").check();
-  await page.getByRole("button", { name: "Salvează", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Salvează profilul", exact: true })
+    .click();
   await expect(page.getByText("Invitat actualizat")).toBeVisible();
   primaryGuest = (await guestList("Ana")).items[0]!;
 
@@ -247,7 +252,9 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   await secondAdultDialog.getByLabel("Permite adăugarea unui plus-unu").check();
   await secondAdultDialog.getByRole("button", { name: "Adaugă" }).click();
   await expect(secondAdultDialog).toBeHidden();
-  await expect(page.getByText("Elena Pop", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("table").getByText("Elena Pop", { exact: true }),
+  ).toBeVisible();
   const secondAdult = (await guestList("Elena")).items[0]!;
 
   await page.getByRole("button", { name: "Gestionează etichete" }).click();
@@ -291,7 +298,9 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   await childDialog.locator('input[name="dateOfBirth"]').fill("2017-03-04");
   await childDialog.getByRole("button", { name: "Adaugă" }).click();
   await expect(childDialog).toBeHidden();
-  await expect(page.getByText("Mara Pop", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("table").getByText("Mara Pop", { exact: true }),
+  ).toBeVisible();
   childGuest = (await guestList("Mara")).items[0]!;
 
   await expect(addGuestButton).toBeEnabled();
@@ -303,7 +312,9 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   await plusOneDialog.locator("select").nth(1).selectOption(secondAdult.id);
   await plusOneDialog.getByRole("button", { name: "Adaugă" }).click();
   await expect(plusOneDialog).toBeHidden();
-  await expect(page.getByText("Radu Ionescu", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("table").getByText("Radu Ionescu", { exact: true }),
+  ).toBeVisible();
   const listed = await guestList();
   expect(listed.summary.people.children).toBe(1);
   expect(listed.summary.people.plusOnes).toBe(1);
@@ -348,7 +359,9 @@ test("E2E 2 — Import", async ({ page }) => {
   await review.getByLabel("Decizie rând 3").selectOption("MERGE_WITH_EXISTING");
   await review.getByRole("button", { name: "Aplică importul" }).click();
   await expect(page.getByText("Import finalizat")).toBeVisible();
-  await expect(page.getByText("Ion Rusu", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("table").getByText("Ion Rusu", { exact: true }),
+  ).toBeVisible();
   const status = await waitForImport(importId, "completed");
   expect(status.committedRows).toBeGreaterThan(0);
 });
@@ -469,7 +482,7 @@ test("E2E 5 — Send campaign", async ({ page }) => {
   await authorizePage(page, owner);
   await page.goto("/invitations");
   await page.getByRole("button", { name: "Campanie nouă" }).click();
-  const dialog = page.getByRole("dialog", { name: "Campanie e-mail" });
+  const dialog = page.getByRole("dialog", { name: "Campanie e-mail nouă" });
   const name = `Invitația principală E2E ${Date.now()}`;
   const subject = `Invitație E2E ${Date.now()}`;
   await dialog.locator('input[name="name"]').fill(name);
@@ -490,13 +503,13 @@ test("E2E 5 — Send campaign", async ({ page }) => {
   );
   expect(audience.valid).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Trimite" }).click();
-  const sendDialog = page.getByRole("dialog", { name: "Confirmă trimiterea" });
+  const sendDialog = page.getByRole("dialog", { name: "Confirmă distribuirea" });
   await expect(
     sendDialog.getByText(String(audience.valid), { exact: true }).first(),
   ).toBeVisible();
   await sendDialog
     .getByRole("button", {
-      name: `Trimite către ${audience.valid} ${audience.valid === 1 ? "destinatar" : "destinatari"}`,
+      name: `Trimite pentru ${audience.valid} ${audience.valid === 1 ? "destinatar" : "destinatari"}`,
     })
     .click();
   await expect(page.getByText("Livrare pusă în coadă")).toBeVisible();
