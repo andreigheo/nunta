@@ -402,6 +402,12 @@ export class OperationsService {
         );
         if (replay) return replay;
         const plan = await this.requireSeatingPlan(tx, workspaceId, planId);
+        const capacity = number(input.capacity);
+        const minimumCapacity = nullableNumber(input.minimumCapacity);
+        if (minimumCapacity !== null && minimumCapacity > capacity)
+          validation(
+            "Capacitatea minimă recomandată nu poate depăși capacitatea mesei.",
+          );
         const table = await tx.seatingTable.create({
           data: {
             workspaceId,
@@ -410,8 +416,8 @@ export class OperationsService {
             label: string(input.label),
             shape: dbEnum(input.shape) as
               "ROUND" | "RECTANGLE" | "OVAL" | "SQUARE" | "CUSTOM",
-            capacity: number(input.capacity),
-            minimumCapacity: nullableNumber(input.minimumCapacity),
+            capacity,
+            minimumCapacity,
             x: number(input.x),
             y: number(input.y),
             width: number(input.width),
@@ -500,6 +506,14 @@ export class OperationsService {
         input.capacity === undefined
           ? current.capacity
           : number(input.capacity);
+      const minimumCapacity =
+        input.minimumCapacity === undefined
+          ? current.minimumCapacity
+          : nullableNumber(input.minimumCapacity);
+      if (minimumCapacity !== null && minimumCapacity > capacity)
+        validation(
+          "Capacitatea minimă recomandată nu poate depăși capacitatea mesei.",
+        );
       const assigned = await tx.guestSeatingAssignment.count({
         where: {
           seatingTableId: tableId,
@@ -522,9 +536,7 @@ export class OperationsService {
               }
             : {}),
           ...(input.capacity !== undefined ? { capacity } : {}),
-          ...(input.minimumCapacity !== undefined
-            ? { minimumCapacity: nullableNumber(input.minimumCapacity) }
-            : {}),
+          ...(input.minimumCapacity !== undefined ? { minimumCapacity } : {}),
           ...(input.x !== undefined ? { x: number(input.x) } : {}),
           ...(input.y !== undefined ? { y: number(input.y) } : {}),
           ...(input.width !== undefined ? { width: number(input.width) } : {}),
@@ -549,6 +561,68 @@ export class OperationsService {
           version: { increment: 1 },
         },
       });
+      if (input.capacity !== undefined) {
+        const seats = await tx.seatingSeat.findMany({
+          where: { workspaceId, tableId },
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+        });
+        if (capacity > seats.length) {
+          const usedLabels = new Set(seats.map((seat) => seat.label));
+          const nextSeats: Array<{
+            workspaceId: string;
+            tableId: string;
+            label: string;
+            position: number;
+          }> = [];
+          let nextLabel = 1;
+          let nextPosition =
+            seats.reduce(
+              (maximum, seat) => Math.max(maximum, seat.position),
+              -1,
+            ) + 1;
+          while (nextSeats.length < capacity - seats.length) {
+            const label = String(nextLabel);
+            nextLabel += 1;
+            if (usedLabels.has(label)) continue;
+            usedLabels.add(label);
+            nextSeats.push({
+              workspaceId,
+              tableId,
+              label,
+              position: nextPosition,
+            });
+            nextPosition += 1;
+          }
+          await tx.seatingSeat.createMany({ data: nextSeats });
+        } else if (capacity < seats.length) {
+          const assignedSeatIds = new Set(
+            (
+              await tx.guestSeatingAssignment.findMany({
+                where: {
+                  workspaceId,
+                  seatingTableId: tableId,
+                  seatingSeatId: { not: null },
+                  status: { in: ["ACTIVE", "CONFLICT"] },
+                },
+                select: { seatingSeatId: true },
+              })
+            )
+              .map((assignment) => assignment.seatingSeatId)
+              .filter((id): id is string => Boolean(id)),
+          );
+          const removable = [...seats]
+            .reverse()
+            .filter((seat) => !assignedSeatIds.has(seat.id))
+            .slice(0, seats.length - capacity);
+          if (removable.length < seats.length - capacity)
+            validation(
+              "Eliberează locurile exacte ocupate înainte de a micșora capacitatea mesei.",
+            );
+          await tx.seatingSeat.deleteMany({
+            where: { id: { in: removable.map((seat) => seat.id) } },
+          });
+        }
+      }
       await tx.seatingPlan.update({
         where: { id: planId },
         data: { activeSnapshotId: null, version: { increment: 1 } },
@@ -611,7 +685,7 @@ export class OperationsService {
       });
       if (!current) notFound("Locul nu există.");
       assertVersion(current.version, version);
-      if (dbEnum(input.status ?? current.status) === "BLOCKED") {
+      if (dbEnum(input.status ?? current.status) !== "AVAILABLE") {
         const assigned = await tx.guestSeatingAssignment.count({
           where: {
             seatingSeatId: seatId,
@@ -3594,7 +3668,7 @@ export class OperationsService {
         const seat = await tx.seatingSeat.findFirst({
           where: { id: string(value.seatId), workspaceId, tableId: table.id },
         });
-        if (!seat || seat.status === "BLOCKED")
+        if (!seat || seat.status !== "AVAILABLE")
           validation("Locul este indisponibil.");
       }
     }
@@ -3697,6 +3771,37 @@ export class OperationsService {
     const tables = await tx.seatingTable.findMany({
       where: { workspaceId, seatingPlanId: planId, deletedAt: null },
     });
+    const [seats, constraints, menuSelections, activeMenuCount, allergyIssues] =
+      await Promise.all([
+        tx.seatingSeat.findMany({
+          where: {
+            workspaceId,
+            tableId: { in: tables.map((table) => table.id) },
+          },
+        }),
+        tx.seatingConstraint.findMany({
+          where: { workspaceId, seatingPlanId: planId, deletedAt: null },
+        }),
+        tx.guestMenuSelection.findMany({
+          where: {
+            workspaceId,
+            guestId: { in: eligible.map((guest) => guest.id) },
+            active: true,
+          },
+          select: { guestId: true },
+        }),
+        tx.menu.count({
+          where: { workspaceId, status: "ACTIVE", deletedAt: null },
+        }),
+        tx.allergyIssue.findMany({
+          where: {
+            workspaceId,
+            guestId: { in: eligible.map((guest) => guest.id) },
+            status: { in: ["UNREVIEWED", "REVIEWING"] },
+          },
+          select: { guestId: true },
+        }),
+      ]);
     const guests = await tx.guest.findMany({
       where: {
         workspaceId,
@@ -3707,10 +3812,16 @@ export class OperationsService {
       type:
         | "UNASSIGNED_GUEST"
         | "OVER_CAPACITY"
+        | "UNDER_CAPACITY"
+        | "DUPLICATE_ASSIGNMENT"
         | "INELIGIBLE_GUEST"
         | "HOUSEHOLD_SPLIT"
         | "PLUS_ONE_SEPARATED"
         | "CHILD_SEPARATED"
+        | "CONSTRAINT_VIOLATION"
+        | "ACCESSIBILITY_MISMATCH"
+        | "MENU_INCOMPLETE"
+        | "ALLERGY_REVIEW_REQUIRED"
         | "PUBLISHED_PLAN_STALE";
       severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
       guestId?: string;
@@ -3742,7 +3853,30 @@ export class OperationsService {
           key: `capacity:${table.id}`,
           details: `Masa depășește capacitatea cu ${count - table.capacity} locuri.`,
         });
+      if (table.minimumCapacity !== null && count < table.minimumCapacity)
+        desired.push({
+          type: "UNDER_CAPACITY",
+          severity: "MEDIUM",
+          tableId: table.id,
+          key: `minimum-capacity:${table.id}`,
+          details: `Masa are ${count} invitați, sub minimul recomandat de ${table.minimumCapacity}.`,
+        });
     }
+    const assignmentsByGuest = new Map<string, typeof assignments>();
+    for (const assignment of assignments) {
+      const rows = assignmentsByGuest.get(assignment.guestId) ?? [];
+      rows.push(assignment);
+      assignmentsByGuest.set(assignment.guestId, rows);
+    }
+    for (const [guestId, rows] of assignmentsByGuest)
+      if (rows.length > 1)
+        desired.push({
+          type: "DUPLICATE_ASSIGNMENT",
+          severity: "CRITICAL",
+          guestId,
+          key: `duplicate:${guestId}`,
+          details: "Același invitat are mai multe alocări active.",
+        });
     const eligibleIds = new Set(eligible.map((guest) => guest.id));
     for (const assignment of assignments)
       if (!eligibleIds.has(assignment.guestId))
@@ -3813,6 +3947,84 @@ export class OperationsService {
           details: "Copilul este separat de adulții household-ului.",
         });
     }
+    const assignmentByGuest = new Map(
+      assignments.map((assignment) => [assignment.guestId, assignment]),
+    );
+    const seatById = new Map(seats.map((seat) => [seat.id, seat]));
+    for (const constraint of constraints) {
+      if (!constraint.guestId) continue;
+      const own = assignmentByGuest.get(constraint.guestId);
+      const related = constraint.relatedGuestId
+        ? assignmentByGuest.get(constraint.relatedGuestId)
+        : undefined;
+      let violated = false;
+      if (
+        ["KEEP_TOGETHER", "PREFER_TOGETHER"].includes(constraint.type) &&
+        own &&
+        related
+      )
+        violated = own.seatingTableId !== related.seatingTableId;
+      if (
+        ["KEEP_APART", "PREFER_APART"].includes(constraint.type) &&
+        own &&
+        related
+      )
+        violated = own.seatingTableId === related.seatingTableId;
+      if (constraint.type === "MUST_BE_AT_TABLE" && own)
+        violated = own.seatingTableId !== constraint.tableId;
+      if (constraint.type === "MUST_NOT_BE_AT_TABLE" && own)
+        violated = own.seatingTableId === constraint.tableId;
+      if (constraint.type === "ACCESSIBLE_SEAT_REQUIRED" && own) {
+        const seat = own.seatingSeatId
+          ? seatById.get(own.seatingSeatId)
+          : undefined;
+        if (!seat?.accessible)
+          desired.push({
+            type: "ACCESSIBILITY_MISMATCH",
+            severity: "CRITICAL",
+            guestId: constraint.guestId,
+            tableId: own.seatingTableId,
+            key: `accessibility:${constraint.id}`,
+            details:
+              "Invitatul are nevoie de un loc exact marcat ca accesibil.",
+          });
+        continue;
+      }
+      if (violated)
+        desired.push({
+          type: "CONSTRAINT_VIOLATION",
+          severity: constraint.required ? "CRITICAL" : "MEDIUM",
+          guestId: constraint.guestId,
+          tableId: own?.seatingTableId,
+          key: `constraint:${constraint.id}`,
+          details: constraint.required
+            ? "O regulă obligatorie de așezare nu este respectată."
+            : "O preferință de așezare nu este respectată.",
+        });
+    }
+    if (activeMenuCount > 0) {
+      const selectedGuestIds = new Set(
+        menuSelections.map((selection) => selection.guestId),
+      );
+      for (const guest of eligible)
+        if (!selectedGuestIds.has(guest.id))
+          desired.push({
+            type: "MENU_INCOMPLETE",
+            severity: "MEDIUM",
+            guestId: guest.id,
+            key: `menu:${guest.id}`,
+            details: "Invitatul confirmat nu are încă un meniu selectat.",
+          });
+    }
+    for (const guestId of new Set(allergyIssues.map((issue) => issue.guestId)))
+      desired.push({
+        type: "ALLERGY_REVIEW_REQUIRED",
+        severity: "HIGH",
+        guestId,
+        key: `allergy:${guestId}`,
+        details:
+          "Există o informație alimentară care trebuie confirmată cu furnizorul de catering.",
+      });
     if (stale && plan.status === "PUBLISHED")
       desired.push({
         type: "PUBLISHED_PLAN_STALE",
@@ -3852,36 +4064,58 @@ export class OperationsService {
         version: { increment: 1 },
       },
     });
-    for (const item of desired)
-      await tx.seatingIssue.upsert({
-        where: {
-          workspaceId_seatingPlanId_dedupeKey: {
+    const existing = await tx.seatingIssue.findMany({
+      where: { workspaceId, seatingPlanId: planId, dedupeKey: { in: keys } },
+    });
+    const existingByKey = new Map(
+      existing.map((issue) => [issue.dedupeKey, issue]),
+    );
+    for (const item of desired) {
+      const current = existingByKey.get(item.key);
+      if (!current) {
+        await tx.seatingIssue.create({
+          data: {
             workspaceId,
             seatingPlanId: planId,
+            type: item.type as never,
+            severity: item.severity as never,
+            guestId: item.guestId,
+            householdId: item.householdId,
+            tableId: item.tableId,
+            detailsRedacted: item.details,
             dedupeKey: item.key,
           },
-        },
-        create: {
-          workspaceId,
-          seatingPlanId: planId,
+        });
+        continue;
+      }
+      const nextStatus =
+        current.status === "RESOLVED" ? "OPEN" : current.status;
+      const changed =
+        current.type !== item.type ||
+        current.severity !== item.severity ||
+        current.guestId !== (item.guestId ?? null) ||
+        current.householdId !== (item.householdId ?? null) ||
+        current.tableId !== (item.tableId ?? null) ||
+        current.detailsRedacted !== item.details ||
+        current.status !== nextStatus;
+      if (!changed) continue;
+      await tx.seatingIssue.update({
+        where: { id: current.id },
+        data: {
           type: item.type as never,
           severity: item.severity as never,
           guestId: item.guestId,
           householdId: item.householdId,
           tableId: item.tableId,
           detailsRedacted: item.details,
-          dedupeKey: item.key,
-        },
-        update: {
-          type: item.type as never,
-          severity: item.severity as never,
-          detailsRedacted: item.details,
-          status: "OPEN",
-          resolutionNote: null,
-          resolvedAt: null,
+          status: nextStatus,
+          ...(nextStatus === "OPEN"
+            ? { resolutionNote: null, resolvedAt: null }
+            : {}),
           version: { increment: 1 },
         },
       });
+    }
   }
 
   private async recomputeTransportIssues(

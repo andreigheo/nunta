@@ -5,6 +5,7 @@ import {
   type APIRequestContext,
   type Page,
 } from "@playwright/test";
+import axe from "axe-core";
 import { PrismaClient } from "@weddingos/database";
 
 const apiUrl = "http://127.0.0.1:4117";
@@ -215,6 +216,226 @@ test("E2E 7 — RSVP change creates durable operations consumer", async () => {
     await owner.api.get(`/api/v1/workspaces/${workspaceId}/activity?limit=5`),
   ).catch(() => ({ items: [] }));
   expect(Array.isArray(consumers.items)).toBe(true);
+});
+
+test("E2E 7B — Complete visual seating workflow with guests and menus", async ({
+  page,
+}) => {
+  const household = await apiData<{ id: string }>(
+    await owner.api.post(`/api/v1/workspaces/${workspaceId}/households`, {
+      headers: mutationHeaders({
+        "Idempotency-Key": `seating-household-${crypto.randomUUID()}`,
+      }),
+      data: {
+        name: "Familia Seating E2E",
+        preferredLanguage: "ro",
+        side: "COMMON",
+      },
+    }),
+  );
+  const guestIds: string[] = [];
+  for (const [firstName, lastName, isChild] of [
+    ["Ioana", "Dumitru", false],
+    ["Matei", "Dumitru", true],
+  ] as const) {
+    const guest = await apiData<{ id: string }>(
+      await owner.api.post(`/api/v1/workspaces/${workspaceId}/guests`, {
+        headers: mutationHeaders({
+          "Idempotency-Key": `seating-guest-${crypto.randomUUID()}`,
+        }),
+        data: {
+          householdId: household.id,
+          firstName,
+          lastName,
+          email: null,
+          phone: null,
+          preferredLanguage: "ro",
+          side: "COMMON",
+          isChild,
+          isPlusOne: false,
+          plusOneAllowed: false,
+          needsTransport: false,
+          needsAccommodation: false,
+        },
+      }),
+    );
+    guestIds.push(guest.id);
+  }
+  const site = await ownerDatabase.invitationSite.create({
+    data: {
+      workspaceId,
+      slug: `seating-e2e-${crypto.randomUUID()}`,
+      status: "DRAFT",
+    },
+  });
+  const invitationVersion = await ownerDatabase.invitationVersion.create({
+    data: {
+      workspaceId,
+      invitationSiteId: site.id,
+      versionNumber: 1,
+      document: { sections: [] },
+      settings: {},
+      language: "ro",
+      createdById: owner.userId,
+      contentHash: "1".repeat(64),
+    },
+  });
+  await ownerDatabase.invitationSite.update({
+    where: { id: site.id },
+    data: { currentDraftVersionId: invitationVersion.id },
+  });
+  const form = await ownerDatabase.rsvpFormDefinition.create({
+    data: {
+      workspaceId,
+      status: "PUBLISHED",
+      createdById: owner.userId,
+    },
+  });
+  const formVersion = await ownerDatabase.rsvpFormVersion.create({
+    data: {
+      workspaceId,
+      formDefinitionId: form.id,
+      versionNumber: 1,
+      config: { attendanceEnabled: true },
+      contentHash: "0".repeat(64),
+      immutable: true,
+      createdById: owner.userId,
+      publishedAt: new Date(),
+    },
+  });
+  await ownerDatabase.rsvpFormDefinition.update({
+    where: { id: form.id },
+    data: {
+      currentDraftId: formVersion.id,
+      publishedVersionId: formVersion.id,
+    },
+  });
+  const recipient = await ownerDatabase.invitationRecipient.create({
+    data: {
+      workspaceId,
+      householdId: household.id,
+      invitationSiteId: site.id,
+      invitationVersionId: invitationVersion.id,
+      status: "RESPONDED",
+    },
+  });
+  const submission = await ownerDatabase.rsvpSubmission.create({
+    data: {
+      workspaceId,
+      householdId: household.id,
+      invitationRecipientId: recipient.id,
+      formVersionId: formVersion.id,
+      status: "SUBMITTED",
+      submittedAt: new Date(),
+      lastModifiedAt: new Date(),
+    },
+  });
+  await ownerDatabase.guestEventResponse.createMany({
+    data: guestIds.map((guestId) => ({
+      workspaceId,
+      submissionId: submission.id,
+      guestId,
+      weddingEventId: eventId,
+      attendance: "CONFIRMED",
+    })),
+  });
+  const menu = await apiData<{ id: string }>(
+    await owner.api.post(`/api/v1/workspaces/${workspaceId}/menus`, {
+      headers: mutationHeaders({
+        "Idempotency-Key": `seating-menu-${crypto.randomUUID()}`,
+      }),
+      data: {
+        name: "Meniu familie E2E",
+        audience: "ALL",
+        status: "ACTIVE",
+        position: 0,
+        courses: [{ courseType: "main", name: "Fel principal", position: 0 }],
+        dietaryTags: [],
+      },
+    }),
+  );
+
+  await authorizePage(page, owner);
+  await page.goto(`/seating?plan=${seatingPlanId}`);
+  await expect(page.getByText("2 din 2 confirmați")).toBeHidden();
+  await expect(page.getByText("0 din 2 confirmați")).toBeVisible();
+  await page.getByRole("button", { name: "Adaugă masă" }).click();
+  const tableDialog = page.getByRole("dialog", { name: "Masă nouă" });
+  await tableDialog.getByLabel("Numele mesei").fill("Masa familiei E2E");
+  await tableDialog.getByLabel("Etichetă scurtă").fill("M2");
+  await tableDialog.getByLabel("Capacitate").fill("4");
+  await tableDialog.getByLabel("Minim recomandat").fill("2");
+  await tableDialog.getByLabel("Zonă").fill("Aproape de scenă");
+  await tableDialog.getByRole("button", { name: "Adaugă masa" }).click();
+  await expect(page.getByText("Masa a fost adăugată")).toBeVisible();
+  await page
+    .getByRole("button", { name: /Masa familiei E2E, 0 din 4/ })
+    .click();
+
+  for (const fullName of ["Ioana Dumitru", "Matei Dumitru"]) {
+    await page
+      .getByRole("button", { name: `Acțiuni pentru ${fullName}` })
+      .click();
+    await page.getByRole("menuitem", { name: "Așază la M2" }).click();
+  }
+  await expect(page.getByText("2 din 2 confirmați")).toBeVisible();
+  await expect(
+    page.getByText("Ioana Dumitru", { exact: true }).last(),
+  ).toBeVisible();
+  const menuSelects = page.getByLabel("Meniu", { exact: true });
+  await expect(menuSelects).toHaveCount(2);
+  await menuSelects.nth(0).selectOption(menu.id);
+  await menuSelects.nth(1).selectOption(menu.id);
+  const seatSelects = page.getByLabel("Loc", { exact: true });
+  await seatSelects.nth(0).selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Gestionează", exact: true }).click();
+  const seatsDialog = page.getByRole("dialog", {
+    name: "Locurile mesei M2",
+  });
+  await seatsDialog
+    .getByRole("button", { name: "Marchează locul 1 ca accesibil" })
+    .click();
+  await seatsDialog
+    .getByRole("button", { name: "Închide", exact: true })
+    .last()
+    .click();
+  await page.getByRole("tab", { name: "Toți" }).click();
+  await page
+    .getByRole("button", { name: "Acțiuni pentru Ioana Dumitru" })
+    .click();
+  await page.getByRole("menuitem", { name: "Adaugă regulă" }).click();
+  const ruleDialog = page.getByRole("dialog", { name: "Regulă de așezare" });
+  await ruleDialog
+    .getByLabel("Tipul regulii")
+    .selectOption("accessible_seat_required");
+  await ruleDialog
+    .getByLabel("Motiv / context")
+    .fill("Acces facil verificat cu familia");
+  await ruleDialog.getByRole("button", { name: "Adaugă regula" }).click();
+  await expect(
+    page.getByText("Regula de așezare a fost adăugată"),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("2 din 2 confirmați")).toBeVisible();
+  await expect(page.getByText("0 fără meniu · 0 probleme")).toBeVisible();
+  await expectNoSeriousA11yViolations(page, "main");
+  await captureSeating(page, "complete");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("menuitem", { name: "Invitați pe mese CSV" }).click();
+  await expect(page.getByText("Pregătim fișierul")).toBeVisible();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("sarbato-invitati-pe-mese.csv");
+  await expect(page.getByText("Export descărcat")).toBeVisible();
+  await page.getByRole("button", { name: "Republică" }).click();
+  const publishDialog = page.getByRole("dialog", {
+    name: "Republici planul?",
+  });
+  await expect(
+    publishDialog.getByText("2", { exact: true }).first(),
+  ).toBeVisible();
+  await publishDialog.getByRole("button", { name: "Republică" }).click();
+  await expect(page.getByText("Planul a fost republicat")).toBeVisible();
 });
 
 test("E2E 8 — Transport request projection", async () => {
@@ -673,6 +894,68 @@ async function waitForJob(api: APIRequestContext, jobId: string) {
     )
     .toBe("completed");
   return value;
+}
+
+async function captureSeating(page: Page, name: string) {
+  const originalViewport = page.viewportSize();
+  for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 },
+    { width: 320, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(250);
+    const documentWidth = await page.evaluate(
+      () => document.documentElement.scrollWidth,
+    );
+    expect(documentWidth).toBeLessThanOrEqual(viewport.width + 1);
+    await page.screenshot({
+      path: `test-results/seating-${name}-${viewport.width}.png`,
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
+  if (originalViewport) await page.setViewportSize(originalViewport);
+}
+
+async function expectNoSeriousA11yViolations(page: Page, selector: string) {
+  await page.addScriptTag({ content: axe.source });
+  const violations = await page.evaluate(async (scope) => {
+    const axeRuntime = (
+      window as Window & {
+        axe: {
+          run: (
+            context: string,
+            options: Record<string, unknown>,
+          ) => Promise<{
+            violations: Array<{
+              id: string;
+              impact: string | null;
+              nodes: Array<{ target: string[] }>;
+            }>;
+          }>;
+        };
+      }
+    ).axe;
+    const result = await axeRuntime.run(scope, {
+      runOnly: {
+        type: "tag",
+        values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+      },
+    });
+    return result.violations
+      .filter(
+        (violation) =>
+          violation.impact === "critical" || violation.impact === "serious",
+      )
+      .map((violation) => ({
+        id: violation.id,
+        targets: violation.nodes.map((node) => node.target.join(" ")),
+      }));
+  }, selector);
+  expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
 }
 
 async function authorizePage(page: Page, account: Account) {

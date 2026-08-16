@@ -2686,7 +2686,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(201);
     const seatingId = seating.body.data.id as string;
-    await owner.agent
+    const createdTable = await owner.agent
       .post(
         `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables`,
       )
@@ -2706,13 +2706,30 @@ describe.sequential("Slice 3 guest journey integration", () => {
         locked: false,
       })
       .expect(201);
+    const tableId = createdTable.body.data.id as string;
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${createdTable.body.data.version}"`)
+      .send({ capacity: 14, minimumCapacity: 10 })
+      .expect(200);
     let seatingDetail = await owner.agent
       .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
       .expect(200);
+    expect(seatingDetail.body.data.tables[0].seats).toHaveLength(14);
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${seatingDetail.body.data.tables[0].version}"`)
+      .send({ capacity: 14, minimumCapacity: 15 })
+      .expect(422);
     const eligible = (
       seatingDetail.body.data.guests as Array<{ id: string; eligible: boolean }>
     ).filter((guest) => guest.eligible);
-    const tableId = seatingDetail.body.data.tables[0].id as string;
     seatingDetail = await owner.agent
       .put(
         `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/assignments`,
@@ -2740,6 +2757,140 @@ describe.sequential("Slice 3 guest journey integration", () => {
       seatingDetail.body.data.guests.some(
         (guest: { menu: { id: string; name: string } | null }) =>
           guest.menu?.id === menuId && guest.menu.name === "Meniu clasic",
+      ),
+    ).toBe(true);
+    const firstGuestId = eligible[0]!.id;
+    let firstSeat = seatingDetail.body.data.tables[0].seats[0];
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}/seats/${firstSeat.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${firstSeat.version}"`)
+      .send({ accessible: true })
+      .expect(200);
+    seatingDetail = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    firstSeat = seatingDetail.body.data.tables[0].seats[0];
+    await owner.agent
+      .put(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/assignments`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${seatingDetail.body.data.version}"`)
+      .set("Idempotency-Key", `seat-exact-${randomUUID()}`)
+      .send({
+        assignments: [
+          {
+            guestId: firstGuestId,
+            tableId,
+            seatId: firstSeat.id,
+            source: "manual",
+            locked: false,
+          },
+        ],
+        removeAssignmentIds: [],
+        confirmWarnings: true,
+      })
+      .expect(200);
+    await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/constraints`,
+      )
+      .set("Origin", origin)
+      .send({
+        type: "accessible_seat_required",
+        guestId: firstGuestId,
+        priority: "high",
+        required: true,
+        reason: "Acces cu mobilitate redusă",
+      })
+      .expect(201);
+    seatingDetail = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    expect(
+      seatingDetail.body.data.issues.some(
+        (issue: { type: string; status: string }) =>
+          issue.type === "accessibility_mismatch" && issue.status === "open",
+      ),
+    ).toBe(false);
+    firstSeat = seatingDetail.body.data.tables[0].seats[0];
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}/seats/${firstSeat.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${firstSeat.version}"`)
+      .send({ status: "reserved" })
+      .expect(409);
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}/seats/${firstSeat.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${firstSeat.version}"`)
+      .send({ accessible: false })
+      .expect(200);
+    seatingDetail = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    const accessibilityIssue = seatingDetail.body.data.issues.find(
+      (issue: { type: string }) => issue.type === "accessibility_mismatch",
+    );
+    expect(accessibilityIssue).toMatchObject({
+      severity: "critical",
+      status: "open",
+      guestId: firstGuestId,
+      tableId,
+    });
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/issues/${accessibilityIssue.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${accessibilityIssue.version}"`)
+      .send({
+        status: "acknowledged",
+        reason: "Organizatorul va confirma locul final cu sala.",
+      })
+      .expect(200);
+    const acknowledged = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    const acknowledgedAgain = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    const acknowledgedIssue = acknowledged.body.data.issues.find(
+      (issue: { id: string }) => issue.id === accessibilityIssue.id,
+    );
+    const acknowledgedIssueAgain = acknowledgedAgain.body.data.issues.find(
+      (issue: { id: string }) => issue.id === accessibilityIssue.id,
+    );
+    expect(acknowledgedIssue).toMatchObject({ status: "acknowledged" });
+    expect(acknowledgedIssueAgain.version).toBe(acknowledgedIssue.version);
+    firstSeat = acknowledgedAgain.body.data.tables[0].seats[0];
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}/seats/${firstSeat.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${firstSeat.version}"`)
+      .send({ accessible: true })
+      .expect(200);
+    seatingDetail = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
+      .expect(200);
+    expect(
+      seatingDetail.body.data.issues.find(
+        (issue: { id: string }) => issue.id === accessibilityIssue.id,
+      ).status,
+    ).toBe("resolved");
+    expect(
+      seatingDetail.body.data.issues.some(
+        (issue: { type: string; status: string }) =>
+          issue.type === "menu_incomplete" && issue.status === "open",
       ),
     ).toBe(true);
     await owner.agent

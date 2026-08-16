@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import type { MenuResource } from "@weddingos/contracts";
 import {
+  Accessibility,
   AlertCircle,
   Armchair,
   ArrowDown,
@@ -111,16 +112,19 @@ const constraintLabels: Record<string, string> = {
 };
 
 const issueLabels: Record<string, string> = {
-  capacity_exceeded: "Capacitate depășită",
-  minimum_capacity_not_met: "Masă sub capacitatea minimă",
+  over_capacity: "Capacitate depășită",
+  under_capacity: "Masă sub minimul recomandat",
   duplicate_assignment: "Invitat alocat de mai multe ori",
   ineligible_guest: "Invitat neeligibil",
   constraint_violation: "Regulă de așezare încălcată",
-  accessible_seat_missing: "Lipsește un loc accesibil",
-  seat_unavailable: "Loc indisponibil",
+  accessibility_mismatch: "Lipsește un loc accesibil",
+  menu_incomplete: "Meniu nespecificat",
+  allergy_review_required: "Alergie de verificat cu furnizorul",
   household_split: "Familie împărțită",
-  table_overlap: "Mese suprapuse",
-  unassigned_confirmed_guest: "Invitat confirmat fără masă",
+  plus_one_separated: "Însoțitor separat de invitatul principal",
+  child_separated: "Copil separat de adulții familiei",
+  unassigned_guest: "Invitat confirmat fără masă",
+  published_plan_stale: "Planul publicat trebuie revizuit",
 };
 
 export default function SeatingPage() {
@@ -189,7 +193,9 @@ export default function SeatingPage() {
         const requested = preferredTableId ?? current;
         return detail.tables.some((table) => table.id === requested)
           ? requested
-          : (detail.tables[0]?.id ?? null);
+          : (detail.tables.find((table) => table.assigned > 0)?.id ??
+              detail.tables[0]?.id ??
+              null);
       });
       setSelectedGuestId((current) =>
         detail.guests.some((guest) => guest.id === current) ? current : null,
@@ -371,7 +377,15 @@ export default function SeatingPage() {
   const saveTable = async () => {
     if (!currentWorkspace || !plan) return;
     const capacity = Number(tableDraft.capacity);
-    if (!tableDraft.name.trim() || !tableDraft.label.trim() || capacity < 1)
+    const minimumCapacity = tableDraft.minimumCapacity
+      ? Number(tableDraft.minimumCapacity)
+      : null;
+    if (
+      !tableDraft.name.trim() ||
+      !tableDraft.label.trim() ||
+      capacity < 1 ||
+      (minimumCapacity !== null && minimumCapacity > capacity)
+    )
       return;
     setAction("table-save");
     try {
@@ -387,9 +401,7 @@ export default function SeatingPage() {
             name: tableDraft.name.trim(),
             label: tableDraft.label.trim(),
             capacity,
-            minimumCapacity: tableDraft.minimumCapacity
-              ? Number(tableDraft.minimumCapacity)
-              : null,
+            minimumCapacity,
             shape: tableDraft.shape,
             zone: tableDraft.zone.trim() || null,
             notesPrivate: tableDraft.notesPrivate.trim() || null,
@@ -402,9 +414,7 @@ export default function SeatingPage() {
           label: tableDraft.label.trim(),
           shape: tableDraft.shape,
           capacity,
-          minimumCapacity: tableDraft.minimumCapacity
-            ? Number(tableDraft.minimumCapacity)
-            : null,
+          minimumCapacity,
           x: 48 + (index % 4) * 205,
           y: 64 + Math.floor(index / 4) * 155,
           width: tableDraft.shape === "rectangle" ? 176 : 144,
@@ -483,6 +493,35 @@ export default function SeatingPage() {
     } catch (cause) {
       toast({
         title: "Masa nu a putut fi actualizată",
+        description: apiErrorMessage(cause),
+        variant: "error",
+      });
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const updateSeat = async (
+    table: SeatingTable,
+    seat: SeatingTable["seats"][number],
+    input: Record<string, unknown>,
+  ) => {
+    if (!currentWorkspace || !plan) return;
+    setAction(`seat-${seat.id}`);
+    try {
+      await weddingOsApi.updateSeatingSeat(
+        currentWorkspace.id,
+        plan.id,
+        table.id,
+        seat.id,
+        seat.version,
+        input,
+      );
+      await refresh();
+      toast({ title: "Locul a fost actualizat", variant: "success" });
+    } catch (cause) {
+      toast({
+        title: "Locul nu a putut fi actualizat",
         description: apiErrorMessage(cause),
         variant: "error",
       });
@@ -658,12 +697,20 @@ export default function SeatingPage() {
         plan.id,
         issue.id,
         issue.version,
-        { status: "resolved", reason: "Verificat în Plan de mese." },
+        {
+          status: "acknowledged",
+          reason: "Luate la cunoștință în Plan de mese.",
+        },
       );
       await refresh();
+      toast({
+        title: "Problema a fost luată la cunoștință",
+        description: "Va dispărea automat după ce alocarea este corectată.",
+        variant: "info",
+      });
     } catch (cause) {
       toast({
-        title: "Problema nu a putut fi închisă",
+        title: "Problema nu a putut fi actualizată",
         description: apiErrorMessage(cause),
         variant: "error",
       });
@@ -827,9 +874,20 @@ export default function SeatingPage() {
         },
       );
       toast({
-        title: "Exportul este în curs",
-        description: `Job ${result.job.id.slice(0, 8)} va produce un fișier securizat.`,
+        title: "Pregătim fișierul",
+        description: "Descărcarea pornește automat când exportul este gata.",
         variant: "info",
+      });
+      const job = await waitForJob(result.job.id);
+      if (job.status !== "completed") {
+        throw new Error(job.error?.message ?? "Exportul nu a fost finalizat.");
+      }
+      const blob = await weddingOsApi.downloadJobArtifact(result.job.id);
+      downloadBlob(blob, seatingExportFileName(kind, format));
+      toast({
+        title: "Export descărcat",
+        description: "Fișierul este disponibil în descărcările browserului.",
+        variant: "success",
       });
     } catch (cause) {
       toast({
@@ -953,6 +1011,13 @@ export default function SeatingPage() {
           100,
       )
     : 0;
+  const guestsWithoutMenu = eligibleGuests.filter(
+    (guest) => !guest.menu,
+  ).length;
+  const totalCapacity = plan.tables.reduce(
+    (sum, table) => sum + table.capacity,
+    0,
+  );
 
   return (
     <div
@@ -1161,14 +1226,43 @@ export default function SeatingPage() {
           aria-label={`${occupancy}% dintre invitații confirmați sunt așezați`}
           className="rounded-none"
         />
+        <div className="grid border-t border-line sm:grid-cols-3">
+          <WorkflowStep
+            number={1}
+            title="Configurează mesele"
+            detail={
+              plan.tables.length
+                ? `${plan.tables.length} mese · ${totalCapacity} locuri`
+                : "Adaugă formele și capacitățile"
+            }
+            complete={plan.tables.length > 0}
+          />
+          <WorkflowStep
+            number={2}
+            title="Așază invitații"
+            detail={`${eligibleGuests.length - unseated.length} din ${eligibleGuests.length} confirmați`}
+            complete={eligibleGuests.length > 0 && unseated.length === 0}
+          />
+          <WorkflowStep
+            number={3}
+            title="Verifică meniuri și reguli"
+            detail={`${guestsWithoutMenu} fără meniu · ${openIssues.length} probleme`}
+            complete={
+              eligibleGuests.length > 0 &&
+              guestsWithoutMenu === 0 &&
+              openIssues.length === 0
+            }
+          />
+        </div>
       </Card>
 
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
-        <Card className="order-3 min-w-0 xl:order-1">
+        <Card className="order-2 min-w-0 xl:order-1">
           <Tabs defaultValue="unseated">
             <div className="border-b border-line p-3 pb-0">
-              <TabsList className="w-full">
+              <TabsList className="grid w-full grid-cols-2 overflow-visible sm:inline-flex sm:w-auto">
                 <TabsTrigger
+                  className="w-full justify-center sm:w-auto"
                   value="unseated"
                   badge={
                     <Badge variant={unseated.length ? "warning" : "success"}>
@@ -1178,8 +1272,14 @@ export default function SeatingPage() {
                 >
                   Neașezați
                 </TabsTrigger>
-                <TabsTrigger value="people">Toți</TabsTrigger>
                 <TabsTrigger
+                  className="w-full justify-center sm:w-auto"
+                  value="people"
+                >
+                  Toți
+                </TabsTrigger>
+                <TabsTrigger
+                  className="w-full justify-center sm:w-auto"
                   value="issues"
                   badge={
                     <Badge variant={openIssues.length ? "danger" : "success"}>
@@ -1190,6 +1290,7 @@ export default function SeatingPage() {
                   Probleme
                 </TabsTrigger>
                 <TabsTrigger
+                  className="w-full justify-center sm:w-auto"
                   value="rules"
                   badge={
                     <Badge variant="neutral">{plan.constraints.length}</Badge>
@@ -1302,7 +1403,7 @@ export default function SeatingPage() {
           />
         </Card>
 
-        <Card className="order-2 min-w-0 xl:order-3">
+        <Card className="order-3 min-w-0 xl:order-3">
           <CardContent className="p-4">
             {selectedTable ? (
               <TableDetail
@@ -1319,6 +1420,9 @@ export default function SeatingPage() {
                 onEdit={() => openEditTable(selectedTable)}
                 onDelete={() => setDeleteTable(selectedTable)}
                 onUpdate={(input) => void updateTable(selectedTable, input)}
+                onSeatUpdate={(seat, input) =>
+                  void updateSeat(selectedTable, seat, input)
+                }
                 onAssign={assign}
                 onUnassign={unassign}
                 onMenu={setMenu}
@@ -1495,6 +1599,36 @@ function SummaryCard({
         {value}
       </p>
       <p className="mt-0.5 truncate text-xs text-faint">{helper}</p>
+    </div>
+  );
+}
+
+function WorkflowStep({
+  number,
+  title,
+  detail,
+  complete,
+}: {
+  number: number;
+  title: string;
+  detail: string;
+  complete: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 border-line px-4 py-3 sm:border-r sm:last:border-r-0">
+      <span
+        className={cn(
+          "grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold",
+          complete ? "bg-success text-white" : "bg-subtle text-muted",
+        )}
+        aria-hidden
+      >
+        {complete ? <CheckCircle2 className="size-4" /> : number}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-ink">{title}</p>
+        <p className="truncate text-xs text-faint">{detail}</p>
+      </div>
     </div>
   );
 }
@@ -1733,6 +1867,10 @@ function TableDetail(props: {
   onEdit: () => void;
   onDelete: () => void;
   onUpdate: (input: Record<string, unknown>) => void;
+  onSeatUpdate: (
+    seat: SeatingTable["seats"][number],
+    input: Record<string, unknown>,
+  ) => void;
   onAssign: (
     guestId: string,
     tableId: string,
@@ -1741,6 +1879,7 @@ function TableDetail(props: {
   onUnassign: (assignment: SeatingAssignment) => Promise<void>;
   onMenu: (guest: SeatingGuest, menuId: string) => Promise<void>;
 }) {
+  const [seatsOpen, setSeatsOpen] = React.useState(false);
   const menuCounts = new Map<string, number>();
   for (const guest of props.guests)
     menuCounts.set(
@@ -1864,6 +2003,23 @@ function TableDetail(props: {
             <ArrowRight className="size-4" />
           </Button>
         </div>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink">Locuri exacte</p>
+          <p className="mt-0.5 text-xs text-faint">
+            {props.table.seats.length} locuri · marchează accesibilitatea sau
+            blochează un loc
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSeatsOpen(true)}
+          disabled={!props.canWrite || props.table.seats.length === 0}
+        >
+          <Armchair className="size-4" /> Gestionează
+        </Button>
       </div>
       <div className="mt-4">
         <div className="flex items-center justify-between">
@@ -2072,7 +2228,113 @@ function TableDetail(props: {
           </p>
         </div>
       )}
+      <SeatManagementModal
+        open={seatsOpen}
+        table={props.table}
+        assignments={props.assignmentByGuest}
+        action={props.action}
+        onClose={() => setSeatsOpen(false)}
+        onUpdate={props.onSeatUpdate}
+      />
     </div>
+  );
+}
+
+function SeatManagementModal({
+  open,
+  table,
+  assignments,
+  action,
+  onClose,
+  onUpdate,
+}: {
+  open: boolean;
+  table: SeatingTable;
+  assignments: Map<string, SeatingAssignment>;
+  action: string | null;
+  onClose: () => void;
+  onUpdate: (
+    seat: SeatingTable["seats"][number],
+    input: Record<string, unknown>,
+  ) => void;
+}) {
+  const occupiedSeatIds = new Set(
+    [...assignments.values()]
+      .filter((assignment) => assignment.seatingTableId === table.id)
+      .map((assignment) => assignment.seatingSeatId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Locurile mesei ${table.label}`}
+      size="lg"
+      footer={
+        <Button variant="outline" onClick={onClose}>
+          Închide
+        </Button>
+      }
+    >
+      <p className="text-sm leading-6 text-muted">
+        Un loc blocat sau rezervat nu poate primi alți invitați. Marchează
+        explicit locurile accesibile pentru regulile de mobilitate.
+      </p>
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+        {table.seats.map((seat) => {
+          const occupied = occupiedSeatIds.has(seat.id);
+          const loading = action === `seat-${seat.id}`;
+          return (
+            <li
+              key={seat.id}
+              className="rounded-xl border border-line bg-surface p-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">
+                    Loc {seat.label}
+                  </p>
+                  <p className="mt-0.5 text-xs text-faint">
+                    {occupied ? "Ocupat" : "Liber"}
+                    {seat.accessible ? " · accesibil" : ""}
+                  </p>
+                </div>
+                <Button
+                  variant={seat.accessible ? "secondary" : "ghost"}
+                  size="icon"
+                  aria-label={
+                    seat.accessible
+                      ? `Marchează locul ${seat.label} ca standard`
+                      : `Marchează locul ${seat.label} ca accesibil`
+                  }
+                  aria-pressed={seat.accessible}
+                  onClick={() =>
+                    onUpdate(seat, { accessible: !seat.accessible })
+                  }
+                  loading={loading}
+                >
+                  <Accessibility className="size-4" />
+                </Button>
+              </div>
+              <Field label="Disponibilitate" className="mt-3">
+                <Select
+                  aria-label={`Disponibilitatea locului ${seat.label}`}
+                  value={seat.status}
+                  onChange={(event) =>
+                    onUpdate(seat, { status: event.target.value })
+                  }
+                  disabled={loading || occupied}
+                >
+                  <option value="available">Disponibil</option>
+                  <option value="reserved">Rezervat</option>
+                  <option value="blocked">Blocat</option>
+                </Select>
+              </Field>
+            </li>
+          );
+        })}
+      </ul>
+    </Modal>
   );
 }
 
@@ -2107,9 +2369,14 @@ function IssueCard({
           )}
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">
-            {issueLabels[String(issue.type)] ?? humanize(String(issue.type))}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-ink">
+              {issueLabels[String(issue.type)] ?? humanize(String(issue.type))}
+            </p>
+            {String(issue.status) === "acknowledged" && (
+              <Badge variant="neutral">Luate la cunoștință</Badge>
+            )}
+          </div>
           <p className="mt-1 text-xs leading-5 text-muted">
             {String(issue.detailsRedacted ?? "Necesită verificare manuală.")}
           </p>
@@ -2129,10 +2396,12 @@ function IssueCard({
           variant="ghost"
           size="sm"
           onClick={onResolve}
-          disabled={!canWrite}
+          disabled={!canWrite || String(issue.status) === "acknowledged"}
           loading={loading}
         >
-          Marchează verificat
+          {String(issue.status) === "acknowledged"
+            ? "Luate la cunoștință"
+            : "Am luat act"}
         </Button>
       </div>
     </div>
@@ -2288,6 +2557,9 @@ function TableModal({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const invalidMinimum =
+    Boolean(draft.minimumCapacity) &&
+    Number(draft.minimumCapacity) > Number(draft.capacity);
   return (
     <Modal
       open={open}
@@ -2305,7 +2577,8 @@ function TableModal({
             disabled={
               !draft.name.trim() ||
               !draft.label.trim() ||
-              Number(draft.capacity) < 1
+              Number(draft.capacity) < 1 ||
+              invalidMinimum
             }
           >
             {draft.id ? "Salvează masa" : "Adaugă masa"}
@@ -2379,6 +2652,11 @@ function TableModal({
             }
             placeholder="Opțional"
           />
+          {invalidMinimum && (
+            <p className="mt-1.5 text-xs text-danger">
+              Minimul recomandat nu poate depăși capacitatea mesei.
+            </p>
+          )}
         </Field>
         <Field label="Zonă" className="sm:col-span-2">
           <Input
@@ -2788,6 +3066,48 @@ function tableShapeClass(shape: SeatingTable["shape"]) {
   if (shape === "square") return "rounded-xl";
   if (shape === "rectangle") return "rounded-lg";
   return "rounded-2xl border-dashed";
+}
+
+async function waitForJob(jobId: string) {
+  let job = await weddingOsApi.job(jobId);
+  for (
+    let attempt = 0;
+    attempt < 80 &&
+    !["completed", "failed", "dead_letter"].includes(job.status);
+    attempt += 1
+  ) {
+    await new Promise((resolve) => window.setTimeout(resolve, 750));
+    job = await weddingOsApi.job(jobId);
+  }
+  return job;
+}
+
+function seatingExportFileName(
+  kind:
+    | "table_list"
+    | "guest_by_table"
+    | "table_cards"
+    | "visual_plan"
+    | "catering_summary",
+  format: "csv" | "svg",
+) {
+  const names = {
+    table_list: "mese",
+    guest_by_table: "invitati-pe-mese",
+    table_cards: "carduri-mese",
+    visual_plan: "plan-vizual",
+    catering_summary: "sumar-catering",
+  } as const;
+  return `sarbato-${names[kind]}.${format}`;
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function humanize(value: string) {

@@ -1783,6 +1783,18 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/tables/${encodeURIComponent(tableId)}`,
       { method: "DELETE", ifMatch: version },
     ),
+  updateSeatingSeat: (
+    workspaceId: string,
+    planId: string,
+    tableId: string,
+    seatId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/tables/${encodeURIComponent(tableId)}/seats/${encodeURIComponent(seatId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
   replaceSeatingAssignments: (
     workspaceId: string,
     planId: string,
