@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  CheckCircle2,
   Eye,
   MailPlus,
   Pencil,
@@ -11,6 +12,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import type {
+  CampaignRecipientResource,
   CampaignResource,
   CreateCampaign,
   GuestTagResource,
@@ -23,6 +25,7 @@ import {
   DistributionCenter,
   recipientName,
 } from "@/components/invitations/distribution-center";
+import { CampaignList } from "@/components/invitations/campaign-list";
 import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
 import {
   Badge,
@@ -39,13 +42,7 @@ import {
   PageHeader,
   Select,
   StatCard,
-  Table,
-  TBody,
-  TD,
   Textarea,
-  TH,
-  THead,
-  TR,
   useToast,
 } from "@/components/ui";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
@@ -54,27 +51,6 @@ import {
   applyInvitationVariant,
   snapshotFromPersisted,
 } from "@/lib/invitations/editor-model";
-
-const campaignStatus: Record<string, string> = {
-  draft: "Ciornă",
-  scheduled: "Programată",
-  queued: "În coadă",
-  sending: "În trimitere",
-  completed: "Finalizată",
-  partial: "Parțială",
-  failed: "Eșuată",
-  paused: "Pauză",
-  cancelled: "Anulată",
-  archived: "Arhivată",
-};
-
-const campaignPurpose: Record<string, string> = {
-  invitation: "Invitație",
-  rsvp_reminder: "Reminder RSVP",
-  information_update: "Actualizare importantă",
-  thank_you: "Mulțumire",
-  custom: "Mesaj personalizat",
-};
 
 type AudienceType = "all" | "tag" | "side" | "country" | "language" | "rsvp";
 type DeliveryMode = "now" | "schedule";
@@ -93,6 +69,7 @@ export default function InvitationsPage() {
   const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const [site, setSite] = React.useState<InvitationSiteResource | null>(null);
   const [campaigns, setCampaigns] = React.useState<CampaignResource[]>([]);
+  const [campaignsTruncated, setCampaignsTruncated] = React.useState(false);
   const [recipients, setRecipients] = React.useState<
     InvitationRecipientResource[]
   >([]);
@@ -110,8 +87,23 @@ export default function InvitationsPage() {
   const [audienceHouseholds, setAudienceHouseholds] = React.useState<HouseholdResource[]>([]);
   const [audienceTags, setAudienceTags] = React.useState<GuestTagResource[]>([]);
   const [audienceOptionsLoading, setAudienceOptionsLoading] = React.useState(false);
+  const [audienceOptionsError, setAudienceOptionsError] = React.useState<
+    string | null
+  >(null);
   const [campaignToSend, setCampaignToSend] =
     React.useState<CampaignResource | null>(null);
+  const [campaignToInspect, setCampaignToInspect] =
+    React.useState<CampaignResource | null>(null);
+  const [campaignDeliveries, setCampaignDeliveries] = React.useState<
+    CampaignRecipientResource[]
+  >([]);
+  const [campaignDeliveriesLoading, setCampaignDeliveriesLoading] =
+    React.useState(false);
+  const [campaignDeliveriesError, setCampaignDeliveriesError] = React.useState<
+    string | null
+  >(null);
+  const [campaignDeliveriesTruncated, setCampaignDeliveriesTruncated] =
+    React.useState(false);
   const [campaignAudience, setCampaignAudience] =
     React.useState<CampaignAudiencePreview | null>(null);
   const [audienceLoading, setAudienceLoading] = React.useState(false);
@@ -132,6 +124,9 @@ export default function InvitationsPage() {
   const canPublish = capabilities.includes("invitation.publish");
   const canCreateCampaign = capabilities.includes("campaign.write");
   const canSendCampaign = capabilities.includes("campaign.send");
+  const canViewCampaignDelivery = capabilities.includes(
+    "campaign.view_delivery",
+  );
   const canReadGuests = capabilities.includes("guest.read");
   const canManageDistribution =
     canManageRecipients && Boolean(site?.published) && !demoMode;
@@ -147,8 +142,8 @@ export default function InvitationsPage() {
       const [siteData, campaignData, recipientData] = await Promise.all([
         weddingOsApi.invitationSite(currentWorkspace.id),
         canReadCampaigns
-          ? weddingOsApi.campaigns(currentWorkspace.id)
-          : Promise.resolve({ items: [], nextCursor: null }),
+          ? loadInvitationCampaigns(currentWorkspace.id)
+          : Promise.resolve({ items: [], truncated: false }),
         canManageRecipients
           ? loadInvitationRecipients(currentWorkspace.id)
           : Promise.resolve({ items: [], truncated: false }),
@@ -158,6 +153,7 @@ export default function InvitationsPage() {
         : { items: [] };
       setSite(siteData);
       setCampaigns(campaignData.items);
+      setCampaignsTruncated(campaignData.truncated);
       setRecipients(recipientData.items);
       setRecipientsTruncated(recipientData.truncated);
       setVariants(variantData.items);
@@ -178,6 +174,7 @@ export default function InvitationsPage() {
     const existingAudience = campaign ? campaignAudienceSelection(campaign.audienceFilter) : { type: "all" as AudienceType, value: "" };
     setCampaignAudienceType(existingAudience.type);
     setCampaignAudienceValue(existingAudience.value);
+    setAudienceOptionsError(null);
     setCampaignOpen(true);
     if (!currentWorkspace || !canReadGuests || audienceHouseholds.length || audienceOptionsLoading)
       return;
@@ -192,6 +189,7 @@ export default function InvitationsPage() {
       setAudienceHouseholds(householdData.items);
       setAudienceTags(tagData.items);
     } catch (caught) {
+      setAudienceOptionsError(apiErrorMessage(caught));
       toast({
         title: "Segmentele nu au putut fi încărcate",
         description: apiErrorMessage(caught),
@@ -391,6 +389,27 @@ export default function InvitationsPage() {
     }
   };
 
+  const inspectCampaign = async (campaign: CampaignResource) => {
+    if (!currentWorkspace || !canViewCampaignDelivery) return;
+    setCampaignToInspect(campaign);
+    setCampaignDeliveries([]);
+    setCampaignDeliveriesError(null);
+    setCampaignDeliveriesTruncated(false);
+    setCampaignDeliveriesLoading(true);
+    try {
+      const result = await loadCampaignDeliveries(
+        currentWorkspace.id,
+        campaign.id,
+      );
+      setCampaignDeliveries(result.items);
+      setCampaignDeliveriesTruncated(result.truncated);
+    } catch (caught) {
+      setCampaignDeliveriesError(apiErrorMessage(caught));
+    } finally {
+      setCampaignDeliveriesLoading(false);
+    }
+  };
+
   const sendCampaign = async () => {
     if (
       !currentWorkspace ||
@@ -504,14 +523,18 @@ export default function InvitationsPage() {
   };
 
   const openWhatsApp = async (recipient: InvitationRecipientResource) => {
+    const popup = window.open("about:blank", "_blank");
+    if (popup) popup.opener = null;
     setBusyAction(`${recipient.id}:whatsapp`);
     try {
       const link = await personalLink(recipient, "WHATSAPP");
       const message = `Bună! Ai o invitație Sarbato: ${link.url}`;
-      window.open(
+      if (!popup)
+        throw new Error(
+          "Browserul a blocat fereastra WhatsApp. Permite ferestrele noi și încearcă din nou.",
+        );
+      popup.location.replace(
         `https://wa.me/?text=${encodeURIComponent(message)}`,
-        "_blank",
-        "noopener,noreferrer",
       );
       toast({
         title: "WhatsApp deschis",
@@ -520,6 +543,7 @@ export default function InvitationsPage() {
         variant: "info",
       });
     } catch (caught) {
+      popup?.close();
       showDistributionError("WhatsApp nu a fost deschis", caught);
     } finally {
       setBusyAction("");
@@ -566,10 +590,14 @@ export default function InvitationsPage() {
   const accessedLinks = recipients.filter((item) => item.lastAccessedAt).length;
   const openedInvitations = recipients.filter((item) => item.openedAt).length;
   const completedRsvp = recipients.filter((item) => item.rsvpCompletedAt).length;
+  const startedCampaigns = campaigns.filter((campaign) =>
+    ["scheduled", "queued", "sending", "completed", "partial"].includes(
+      campaign.status,
+    ),
+  ).length;
   const previewSnapshot = React.useMemo(
     () => {
-      const persisted =
-        previewRecipient && site?.published ? site.published : site?.draft;
+      const persisted = previewRecipient ? site?.published : site?.draft;
       if (!persisted) return null;
       const base = snapshotFromPersisted(
         persisted.document.sections,
@@ -579,11 +607,14 @@ export default function InvitationsPage() {
       const variant = variants.find(
         (item) => item.id === previewRecipient.invitationVariantId,
       );
-      return variant
+      const publishedVariant =
+        variant?.published?.baseInvitationVersionId === persisted.id
+          ? variant.published
+          : null;
+      return publishedVariant
         ? applyInvitationVariant(
             base,
-            (variant.published?.overrides ??
-              variant.draft?.overrides) as Parameters<
+            publishedVariant.overrides as Parameters<
               typeof applyInvitationVariant
             >[1],
           )
@@ -606,16 +637,7 @@ export default function InvitationsPage() {
               onClick={() => router.push("/invitations/editor")}
             >
               <Pencil className="size-3.5" aria-hidden />
-              Studio invitație
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!site?.published || !canManageRecipients || demoMode}
-              onClick={() => setPrepareOpen(true)}
-            >
-              <UsersRound className="size-3.5" aria-hidden />
-              Pregătește destinatari
+              Editează invitația
             </Button>
             <Button
               variant="outline"
@@ -627,7 +649,7 @@ export default function InvitationsPage() {
               }}
             >
               <Eye className="size-3.5" aria-hidden />
-              Previzualizare
+              Previzualizează ciorna
             </Button>
             <Button
               size="sm"
@@ -639,9 +661,54 @@ export default function InvitationsPage() {
                 ? "Actualizează publicarea"
                 : "Publică invitația"}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!site?.published || !canManageRecipients || demoMode}
+              onClick={() => setPrepareOpen(true)}
+            >
+              <UsersRound className="size-3.5" aria-hidden />
+              Pregătește destinatari
+            </Button>
           </>
         }
       />
+
+      <nav
+        aria-label="Etapele distribuirii invitației"
+        className="rounded-xl border border-line bg-elevated p-3 sm:p-4"
+      >
+        <ol className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <WorkflowStep
+            number={1}
+            label="Creează"
+            detail={site?.draft ? "Ciorna este salvată" : "Începe în studio"}
+            complete={Boolean(site?.draft)}
+          />
+          <WorkflowStep
+            number={2}
+            label="Publică"
+            detail={site?.published ? `Versiunea ${site.published.versionNumber}` : "Verifică și publică"}
+            complete={Boolean(site?.published)}
+          />
+          <WorkflowStep
+            number={3}
+            label="Pregătește accesul"
+            detail={
+              recipients.length
+                ? `${recipients.length} accesuri pregătite`
+                : "După publicare"
+            }
+            complete={recipients.length > 0}
+          />
+          <WorkflowStep
+            number={4}
+            label="Trimite și urmărește"
+            detail={startedCampaigns ? `${startedCampaigns} campanii pornite` : "Confirmă audiența"}
+            complete={startedCampaigns > 0}
+          />
+        </ol>
+      </nav>
 
       {error ? (
         <Card>
@@ -678,15 +745,20 @@ export default function InvitationsPage() {
                     onClick={() => router.push("/invitations/editor")}
                     className="block min-h-44 w-full rounded-xl border border-line bg-brand-softer p-6 text-center transition-colors enabled:cursor-pointer enabled:hover:border-brand disabled:cursor-default"
                   >
-                    <p className="text-[10px] font-semibold uppercase tracking-[.25em] text-faint">
+                    <p className="text-xs font-semibold uppercase tracking-[.25em] text-faint">
                       Sarbato
                     </p>
                     <p className="mt-2 font-display text-2xl font-semibold text-brand-strong dark:text-brand">
                       {site.slug}
                     </p>
                     <p className="mt-2 text-xs text-muted">
-                      Ciornă {site.draft?.versionNumber ?? "—"} ·{" "}
-                      {site.defaultLanguage.toUpperCase()}
+                      {site.published
+                        ? `Publicată v${site.published.versionNumber}`
+                        : "Nepublicată"}
+                      {site.draft
+                        ? ` · Ciornă v${site.draft.versionNumber}`
+                        : ""}
+                      {` · ${site.defaultLanguage.toUpperCase()}`}
                     </p>
                     {canWriteInvitation ? (
                       <span className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-brand">
@@ -815,57 +887,24 @@ export default function InvitationsPage() {
                 Campanie nouă
               </Button>
             </CardHeader>
+            {campaignsTruncated ? (
+              <div className="mx-4 mb-3 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning sm:mx-5">
+                Sunt afișate cele mai recente 500 de campanii. Arhivează
+                campaniile vechi sau restrânge perioada urmărită.
+              </div>
+            ) : null}
             {campaigns.length ? (
-              <Table minWidth="760px">
-                <THead>
-                  <TR>
-                    <TH>Campanie</TH>
-                    <TH>Scop</TH>
-                    <TH>Canal</TH>
-                    <TH>Stare</TH>
-                    <TH align="right">Destinatari</TH>
-                    <TH align="right">E-mailuri deschise</TH>
-                    <TH />
-                  </TR>
-                </THead>
-                <TBody>
-                  {campaigns.map((campaign) => (
-                    <TR key={campaign.id}>
-                      <TD><p className="font-medium text-ink">{campaign.name}</p><p className="mt-0.5 max-w-64 truncate text-xs text-muted">{campaignAudienceSummary(campaign.audienceFilter)}</p></TD>
-                      <TD className="text-muted">{campaignPurpose[campaign.purpose] ?? "Mesaj"}</TD>
-                      <TD>
-                        <Badge variant="neutral">E-mail</Badge>
-                      </TD>
-                      <TD>
-                        <Badge
-                          variant={
-                            campaign.status === "completed"
-                              ? "success"
-                              : campaign.status === "failed"
-                                ? "danger"
-                                : "info"
-                          }
-                          dot
-                        >
-                          {campaignStatus[campaign.status] ?? campaign.status}
-                        </Badge>
-                        {campaign.scheduledAt ? <p className="mt-1 text-xs text-muted">{new Date(campaign.scheduledAt).toLocaleString("ro-RO")}</p> : null}
-                      </TD>
-                      <TD align="right">{campaign.statistics.total}</TD>
-                      <TD align="right">
-                        {campaign.statistics.byStatus.opened ?? 0}
-                      </TD>
-                      <TD align="right">
-                        <span className="inline-flex flex-wrap justify-end gap-1.5">
-                          {campaign.status === "draft" && canCreateCampaign ? <Button size="sm" variant="ghost" disabled={saving} onClick={() => void openCampaignBuilder(campaign)}><Pencil className="size-3" aria-hidden />Editează</Button> : null}
-                          {["draft", "failed", "partial"].includes(campaign.status) ? <Button size="sm" disabled={!canSendCampaign || saving} onClick={() => void reviewCampaignAudience(campaign)}><Send className="size-3" aria-hidden />Trimite</Button> : null}
-                          {["scheduled", "queued", "sending"].includes(campaign.status) && canSendCampaign ? <Button size="sm" variant="outline" disabled={saving} onClick={() => setCampaignToCancel(campaign)}>Anulează</Button> : null}
-                        </span>
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
+              <CampaignList
+                campaigns={campaigns}
+                saving={saving}
+                canCreate={canCreateCampaign}
+                canSend={canSendCampaign}
+                canViewDelivery={canViewCampaignDelivery}
+                onEdit={(campaign) => void openCampaignBuilder(campaign)}
+                onSend={(campaign) => void reviewCampaignAudience(campaign)}
+                onCancel={setCampaignToCancel}
+                onDetails={(campaign) => void inspectCampaign(campaign)}
+              />
             ) : (
               <CardContent>
                 <EmptyState
@@ -952,6 +991,18 @@ export default function InvitationsPage() {
               </Select>
             </Field>
           </div>
+          {audienceOptionsError ? (
+            <div
+              className="rounded-lg bg-danger-soft p-3 text-sm text-danger"
+              role="alert"
+            >
+              <p className="font-semibold">Segmentele nu sunt disponibile</p>
+              <p className="mt-1 text-xs leading-relaxed">
+                {audienceOptionsError} Poți folosi audiența completă sau poți
+                închide formularul și reîncerca.
+              </p>
+            </div>
+          ) : null}
           {campaignAudienceType !== "all" ? <AudienceValueField type={campaignAudienceType} value={campaignAudienceValue} onChange={setCampaignAudienceValue} tags={audienceTags} households={audienceHouseholds} loading={audienceOptionsLoading} /> : null}
           <div className="grid gap-2 rounded-lg bg-subtle p-3 text-sm sm:grid-cols-2">
             <label className="flex min-h-11 items-center gap-2"><input name="includeChildren" type="checkbox" defaultChecked={editingCampaign?.audienceFilter.includeChildren !== false} className="size-4 accent-brand" />Include gospodăriile cu copii</label>
@@ -1121,6 +1172,86 @@ export default function InvitationsPage() {
       </Modal>
 
       <Modal
+        open={Boolean(campaignToInspect)}
+        onClose={() => {
+          setCampaignToInspect(null);
+          setCampaignDeliveries([]);
+          setCampaignDeliveriesError(null);
+        }}
+        title={
+          campaignToInspect
+            ? `Livrarea campaniei „${campaignToInspect.name}”`
+            : "Detalii livrare"
+        }
+        description="Adresele sunt mascate. Stările provin din coada de livrare și din confirmările furnizorului de e-mail."
+      >
+        {campaignDeliveriesLoading ? (
+          <div className="rounded-xl bg-subtle p-4 text-sm text-muted" role="status">
+            Se încarcă parcursul livrărilor…
+          </div>
+        ) : campaignDeliveriesError ? (
+          <div className="rounded-xl bg-danger-soft p-4 text-sm text-danger" role="alert">
+            <p className="font-semibold">Detaliile nu au putut fi încărcate</p>
+            <p className="mt-1">{campaignDeliveriesError}</p>
+            {campaignToInspect ? (
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="outline"
+                onClick={() => void inspectCampaign(campaignToInspect)}
+              >
+                Reîncearcă
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <DeliverySummary deliveries={campaignDeliveries} />
+            {campaignDeliveriesTruncated ? (
+              <p className="rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
+                Sunt afișate primele 500 de livrări ale campaniei.
+              </p>
+            ) : null}
+            {campaignDeliveries.length ? (
+              <ul className="max-h-[55vh] divide-y divide-line overflow-y-auto rounded-xl border border-line">
+                {campaignDeliveries.map((delivery) => (
+                  <li
+                    key={delivery.id}
+                    className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-ink">
+                        {delivery.address}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {deliveryMoment(delivery)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant={deliveryBadge(delivery.status)} dot>
+                        {deliveryStatusLabel(delivery.status)}
+                      </Badge>
+                      {delivery.failureCode ? (
+                        <span className="max-w-52 truncate text-xs text-danger" title={delivery.failureCode}>
+                          {deliveryFailureLabel(delivery.failureCode)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                icon={Send}
+                title="Campania nu are încă livrări"
+                description="Destinatarii apar aici după confirmarea audienței și punerea campaniei în coadă."
+              />
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         open={previewOpen}
         onClose={() => {
           setPreviewOpen(false);
@@ -1129,7 +1260,7 @@ export default function InvitationsPage() {
         title={
           previewRecipient
             ? `Previzualizare pentru ${recipientName(previewRecipient)}`
-            : "Previzualizare ciornă"
+            : "Previzualizează ciorna"
         }
         description={
           previewRecipient
@@ -1163,13 +1294,123 @@ export default function InvitationsPage() {
   );
 }
 
+function WorkflowStep({
+  number,
+  label,
+  detail,
+  complete,
+}: {
+  number: number;
+  label: string;
+  detail: string;
+  complete: boolean;
+}) {
+  return (
+    <li
+      className={
+        complete
+          ? "flex min-w-0 items-center gap-3 rounded-lg bg-success-soft px-3 py-2.5"
+          : "flex min-w-0 items-center gap-3 rounded-lg bg-subtle px-3 py-2.5"
+      }
+    >
+      <span
+        className={
+          complete
+            ? "grid size-8 shrink-0 place-items-center rounded-full bg-success text-white"
+            : "grid size-8 shrink-0 place-items-center rounded-full border border-line bg-elevated text-sm font-semibold text-muted"
+        }
+        aria-hidden
+      >
+        {complete ? <CheckCircle2 className="size-4" /> : number}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-ink">{label}</span>
+        <span className="block truncate text-xs text-muted">{detail}</span>
+      </span>
+    </li>
+  );
+}
+
+function DeliverySummary({
+  deliveries,
+}: {
+  deliveries: CampaignRecipientResource[];
+}) {
+  const delivered = deliveries.filter((delivery) =>
+    ["delivered", "opened"].includes(delivery.status),
+  ).length;
+  const opened = deliveries.filter(
+    (delivery) => delivery.status === "opened",
+  ).length;
+  const failed = deliveries.filter(
+    (delivery) => delivery.status === "failed",
+  ).length;
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <StatCard label="Total" value={deliveries.length} />
+      <StatCard label="Livrate" value={delivered} />
+      <StatCard label="Deschise" value={opened} />
+      <StatCard label="Eșuate" value={failed} />
+    </div>
+  );
+}
+
+function deliveryStatusLabel(status: CampaignRecipientResource["status"]) {
+  return (
+    {
+      pending: "În așteptare",
+      queued: "În coadă",
+      sent: "Acceptat de furnizor",
+      delivered: "Livrat",
+      opened: "Deschis",
+      failed: "Eșuat",
+      cancelled: "Anulat",
+      unsubscribed: "Dezabonat",
+    } as Record<CampaignRecipientResource["status"], string>
+  )[status];
+}
+
+function deliveryBadge(
+  status: CampaignRecipientResource["status"],
+): "success" | "danger" | "warning" | "info" | "neutral" {
+  if (["delivered", "opened"].includes(status)) return "success";
+  if (status === "failed") return "danger";
+  if (status === "unsubscribed") return "warning";
+  if (["queued", "sent"].includes(status)) return "info";
+  return "neutral";
+}
+
+function deliveryMoment(delivery: CampaignRecipientResource) {
+  const value =
+    delivery.openedAt ??
+    delivery.deliveredAt ??
+    delivery.sentAt ??
+    delivery.queuedAt ??
+    delivery.failedAt;
+  return value
+    ? new Date(value).toLocaleString("ro-RO")
+    : "Nu a început încă procesarea";
+}
+
+function deliveryFailureLabel(code: string) {
+  if (code === "CAMPAIGN_ADDRESS_CHANGED")
+    return "Adresa destinatarului s-a schimbat";
+  if (code === "CAMPAIGN_TARGET_INACTIVE")
+    return "Accesul destinatarului nu mai este activ";
+  if (code === "CAMPAIGN_SITE_UNPUBLISHED")
+    return "Invitația nu mai este publicată";
+  return `Eroare: ${code.toLocaleLowerCase("ro-RO").replaceAll("_", " ")}`;
+}
+
 function downloadBlob(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 function fileSlug(value: string) {
@@ -1216,15 +1457,6 @@ function campaignAudienceFilter(
     ...common,
     rsvpStatuses: [value as "CONFIRMED" | "DECLINED" | "UNSURE" | "NO_RESPONSE"],
   };
-}
-
-function campaignAudienceSummary(value: Record<string, unknown>) {
-  if (Array.isArray(value.tagIds) && value.tagIds.length) return "Segment: etichetă";
-  if (Array.isArray(value.sides) && value.sides.length) return `Segment: ${String(value.sides[0]).toLowerCase().replaceAll("_", " ")}`;
-  if (Array.isArray(value.countries) && value.countries.length) return `Țară: ${String(value.countries[0])}`;
-  if (Array.isArray(value.preferredLanguages) && value.preferredLanguages.length) return `Limbă: ${languageName(String(value.preferredLanguages[0]))}`;
-  if (Array.isArray(value.rsvpStatuses) && value.rsvpStatuses.length) return `RSVP: ${String(value.rsvpStatuses[0]).toLowerCase().replaceAll("_", " ")}`;
-  return "Toți destinatarii eligibili";
 }
 
 function campaignAudienceSelection(value: Record<string, unknown>): { type: AudienceType; value: string } {
@@ -1277,9 +1509,52 @@ function scheduledDateTime(value: string) {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime()))
     throw new Error("Alege o dată și o oră valide pentru programare.");
-  if (date.getTime() < Date.now() + 60_000)
-    throw new Error("Programarea trebuie să fie cu cel puțin un minut în viitor.");
+  if (date.getTime() < Date.now() + 5 * 60_000)
+    throw new Error("Programarea trebuie să fie cu cel puțin 5 minute în viitor.");
   return date.toISOString();
+}
+
+async function loadInvitationCampaigns(workspaceId: string) {
+  const items: CampaignResource[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
+    const page = await weddingOsApi.campaigns(workspaceId, cursor);
+    for (const campaign of page.items) {
+      if (seen.has(campaign.id)) continue;
+      seen.add(campaign.id);
+      items.push(campaign);
+    }
+    if (!page.nextCursor) return { items, truncated: false };
+    if (page.nextCursor === cursor) return { items, truncated: true };
+    cursor = page.nextCursor;
+  }
+  return { items, truncated: true };
+}
+
+async function loadCampaignDeliveries(
+  workspaceId: string,
+  campaignId: string,
+) {
+  const items: CampaignRecipientResource[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  for (let pageIndex = 0; pageIndex < 5; pageIndex += 1) {
+    const page = await weddingOsApi.campaignRecipients(
+      workspaceId,
+      campaignId,
+      cursor,
+    );
+    for (const delivery of page.items) {
+      if (seen.has(delivery.id)) continue;
+      seen.add(delivery.id);
+      items.push(delivery);
+    }
+    if (!page.nextCursor) return { items, truncated: false };
+    if (page.nextCursor === cursor) return { items, truncated: true };
+    cursor = page.nextCursor;
+  }
+  return { items, truncated: true };
 }
 
 async function loadInvitationRecipients(workspaceId: string) {

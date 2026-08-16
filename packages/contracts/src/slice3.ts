@@ -550,8 +550,8 @@ export const createCampaignSchema = z.object({
   channel: z.literal("EMAIL"),
   invitationVersionId: uuid.nullable().optional(),
   template: z.object({
-    subject: z.string().min(1).max(240),
-    body: z.string().min(1).max(10000),
+    subject: z.string().trim().min(1).max(240),
+    body: z.string().trim().min(1).max(10000),
   }),
   audienceFilter: campaignAudienceFilterSchema.default({}),
   scheduledAt: z.string().datetime().nullable().optional(),
@@ -901,8 +901,32 @@ export const campaignListSchema = z.object({
   items: z.array(campaignSchema),
   nextCursor: z.string().nullable(),
 });
+export const campaignRecipientSchema = z.object({
+  id: uuid,
+  invitationRecipientId: uuid,
+  guestId: uuid.nullable(),
+  householdId: uuid.nullable(),
+  address: z.string(),
+  status: z.enum([
+    "pending",
+    "queued",
+    "sent",
+    "delivered",
+    "opened",
+    "failed",
+    "cancelled",
+    "unsubscribed",
+  ]),
+  queuedAt: z.string().datetime().nullable(),
+  sentAt: z.string().datetime().nullable(),
+  deliveredAt: z.string().datetime().nullable(),
+  openedAt: z.string().datetime().nullable(),
+  failedAt: z.string().datetime().nullable(),
+  failureCode: z.string().nullable(),
+  version,
+});
 export const campaignRecipientListSchema = z.object({
-  items: z.array(z.record(z.unknown())),
+  items: z.array(campaignRecipientSchema),
   nextCursor: z.string().nullable(),
 });
 export const campaignStatisticsSchema = z.object({
@@ -1085,6 +1109,7 @@ export type RecipientAccessLinkResource = z.infer<
   typeof recipientAccessLinkSchema
 >;
 export type CampaignResource = z.infer<typeof campaignSchema>;
+export type CampaignRecipientResource = z.infer<typeof campaignRecipientSchema>;
 export type RsvpFormResource = z.infer<typeof rsvpFormSchema>;
 export type RsvpSubmissionResource = z.infer<typeof rsvpSubmissionSchema>;
 export type GuestCompanionBootstrapResource = z.infer<

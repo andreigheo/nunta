@@ -48,6 +48,7 @@ import type {
   UpdatePlanProposal,
   UpdateTask,
   CampaignResource,
+  CampaignRecipientResource,
   CreateCampaign,
   CreateGuest,
   CreateHousehold,
@@ -2694,9 +2695,9 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
-  campaigns: (workspaceId: string) =>
+  campaigns: (workspaceId: string, cursor?: string) =>
     request<{ items: CampaignResource[]; nextCursor: string | null }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/campaigns`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/campaigns${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
     ),
   createCampaign: (workspaceId: string, input: CreateCampaign) =>
     request<CampaignResource>(
@@ -2730,6 +2731,17 @@ export const weddingOsApi = {
       audienceRevision: string;
     }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}/audience-preview`,
+    ),
+  campaignRecipients: (
+    workspaceId: string,
+    campaignId: string,
+    cursor?: string,
+  ) =>
+    request<{
+      items: CampaignRecipientResource[];
+      nextCursor: string | null;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}/recipients${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
     ),
   transitionCampaign: (
     workspaceId: string,

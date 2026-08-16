@@ -106,6 +106,14 @@ export function DistributionCenter({
             </option>
           ))}
         </Select>
+        <p className="text-xs text-muted lg:col-span-3" aria-live="polite">
+          {filtered.length === recipients.length
+            ? `${recipients.length} destinatari afișați`
+            : `${filtered.length} din ${recipients.length} destinatari`}
+          {!canManage
+            ? " · Distribuția este numai pentru vizualizare până când invitația este publicată și ai drept de administrare."
+            : ""}
+        </p>
       </div>
 
       {filtered.length ? (
@@ -135,7 +143,7 @@ export function DistributionCenter({
 
                   <div>
                     <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-faint">
-                      Variantă livrată
+                      Variantă alocată
                     </p>
                     <Select
                       value={recipient.invitationVariantId ?? "base"}

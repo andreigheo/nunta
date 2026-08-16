@@ -67,6 +67,11 @@ async function captureInvitationV2(
         page.locator('[data-invitation-renderer="true"]'),
       ).toBeVisible();
     }
+    if (name === "campaign-list") {
+      await page
+        .getByRole("heading", { name: "Campanii e-mail" })
+        .scrollIntoViewIfNeeded();
+    }
     const documentWidth = await page.evaluate(
       () => document.documentElement.scrollWidth,
     );
@@ -491,7 +496,7 @@ test("E2E 5 — Send campaign", async ({ page }) => {
     .locator('textarea[name="body"]')
     .fill("Te așteptăm alături de noi.");
   await dialog.getByRole("button", { name: "Salvează ciorna" }).click();
-  await expect(page.getByText(name)).toBeVisible();
+  await expect(page.locator("table").getByText(name)).toBeVisible();
   const campaigns = await apiData<{
     items: Array<{ id: string; name: string }>;
   }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/campaigns`));
@@ -503,7 +508,9 @@ test("E2E 5 — Send campaign", async ({ page }) => {
   );
   expect(audience.valid).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Trimite" }).click();
-  const sendDialog = page.getByRole("dialog", { name: "Confirmă distribuirea" });
+  const sendDialog = page.getByRole("dialog", {
+    name: "Confirmă distribuirea",
+  });
   await expect(
     sendDialog.getByText(String(audience.valid), { exact: true }).first(),
   ).toBeVisible();
@@ -521,6 +528,21 @@ test("E2E 5 — Send campaign", async ({ page }) => {
   expect(message.html).toContain("Un plic pentru tine");
   expect(message.html).toContain("Deschide plicul în browser");
   expect(message.html).not.toContain("<script>");
+
+  await page.reload();
+  await captureInvitationV2(page, "campaign-list");
+  const campaignRow = page.getByRole("row").filter({ hasText: name });
+  await campaignRow.getByRole("button", { name: "Detalii livrare" }).click();
+  const deliveryDialog = page.getByRole("dialog", {
+    name: `Livrarea campaniei „${name}”`,
+  });
+  await expect(
+    deliveryDialog.getByText("Acceptat de furnizor").first(),
+  ).toBeVisible();
+  const maskedAddresses = deliveryDialog.getByText(/\*\*\*@/);
+  await expect(maskedAddresses).toHaveCount(audience.valid);
+  await expect(maskedAddresses.first()).toBeVisible();
+  await captureInvitationV2(page, "campaign-delivery");
 });
 
 test("E2E 6 — Guest opens invitation", async ({ page }) => {
