@@ -349,7 +349,7 @@ test("E2E 7 — Timeline", async ({ page }) => {
   await transitionTask(main.api, workspaceId, completable, "COMPLETE");
   await authorizePage(page, main);
   await page.goto("/timeline");
-  await expect(page.getByText("Master Timeline")).toBeVisible();
+  await expect(page.getByText("Cronologia planificării")).toBeVisible();
   await expect(page.getByText(/întârziate/).first()).toBeVisible();
   await expect(page.getByText(/sarcini/).first()).toBeVisible();
 });

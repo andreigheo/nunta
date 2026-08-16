@@ -1379,6 +1379,8 @@ export class PlanningService {
           paymentSchedules,
           bookings,
           contracts,
+          signatureEnvelopes,
+          paymentCheckouts,
         ] = await Promise.all([
           transaction.calendarEvent.findMany({
             where: {
@@ -1447,6 +1449,24 @@ export class PlanningService {
               status: { notIn: ["CANCELLED", "ARCHIVED"] },
             },
             orderBy: { readyAt: "asc" },
+            take: 500,
+          }),
+          transaction.electronicSignatureEnvelope.findMany({
+            where: {
+              workspaceId,
+              status: { in: ["READY", "SENT", "VIEWED", "PARTIALLY_SIGNED"] },
+              expiresAt: { gte: range.from, lte: range.to },
+            },
+            orderBy: { expiresAt: "asc" },
+            take: 500,
+          }),
+          transaction.onlinePaymentCheckout.findMany({
+            where: {
+              workspaceId,
+              status: "OPEN",
+              expiresAt: { gte: range.from, lte: range.to },
+            },
+            orderBy: { expiresAt: "asc" },
             take: 500,
           }),
         ]);
@@ -1519,6 +1539,28 @@ export class PlanningService {
               workspace.timezone,
               `/contracts?contract=${contract.id}`,
               contract.version,
+            ),
+          ),
+          ...signatureEnvelopes.map((envelope) =>
+            mapCommercialCalendar(
+              "signature_envelope",
+              envelope.id,
+              "Expirare semnătură contract",
+              envelope.expiresAt!,
+              workspace.timezone,
+              `/contracts?signature=${envelope.id}`,
+              envelope.version,
+            ),
+          ),
+          ...paymentCheckouts.map((checkout) =>
+            mapCommercialCalendar(
+              "payment_checkout",
+              checkout.id,
+              "Expirare plată online",
+              checkout.expiresAt,
+              workspace.timezone,
+              `/payments?checkout=${checkout.id}`,
+              checkout.version,
             ),
           ),
         ].sort((a, b) => a.startAt.localeCompare(b.startAt));
@@ -1736,8 +1778,19 @@ export class PlanningService {
         "BEGIN:VEVENT",
         `UID:${ics(item.id)}@weddingos.local`,
         `DTSTAMP:${icsDate(new Date())}`,
-        `DTSTART:${icsDate(new Date(item.startAt))}`,
-        ...(item.endAt ? [`DTEND:${icsDate(new Date(item.endAt))}`] : []),
+        ...(item.allDay
+          ? [
+              `DTSTART;VALUE=DATE:${icsDay(new Date(item.startAt), item.timezone)}`,
+              ...(item.endAt
+                ? [
+                    `DTEND;VALUE=DATE:${icsDayAfter(new Date(item.endAt), item.timezone)}`,
+                  ]
+                : []),
+            ]
+          : [
+              `DTSTART:${icsDate(new Date(item.startAt))}`,
+              ...(item.endAt ? [`DTEND:${icsDate(new Date(item.endAt))}`] : []),
+            ]),
         `SUMMARY:${ics(item.title)}`,
         ...(item.description ? [`DESCRIPTION:${ics(item.description)}`] : []),
         ...(item.location ? [`LOCATION:${ics(item.location)}`] : []),
@@ -5375,6 +5428,29 @@ function icsDate(date: Date) {
     .replaceAll("-", "")
     .replaceAll(":", "")
     .replace(/\.\d{3}Z$/, "Z");
+}
+function icsDay(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  return `${values.year}${values.month}${values.day}`;
+}
+function icsDayAfter(date: Date, timeZone: string) {
+  const day = icsDay(date, timeZone);
+  const next = new Date(
+    Date.UTC(
+      Number(day.slice(0, 4)),
+      Number(day.slice(4, 6)) - 1,
+      Number(day.slice(6, 8)) + 1,
+    ),
+  );
+  return next.toISOString().slice(0, 10).replaceAll("-", "");
 }
 function transitionLabel(value: string) {
   return (

@@ -269,6 +269,25 @@ describe.sequential("Slice 2B planning integration", () => {
           item.sourceId === event.body.data.sourceId,
       ),
     ).toBe(true);
+    await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/calendar-events`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `all-day-event-${randomUUID()}`)
+      .send({
+        title: "Eveniment de o zi întreagă",
+        eventType: "meeting",
+        startAt: "2027-05-10T09:00:00.000Z",
+        endAt: "2027-05-11T09:00:00.000Z",
+        allDay: true,
+        timezone: "Europe/Bucharest",
+      })
+      .expect(201);
+    const calendarExport = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/calendar.ics`)
+      .expect(200)
+      .expect("Content-Type", /text\/calendar/);
+    expect(calendarExport.text).toContain("DTSTART;VALUE=DATE:20270510");
+    expect(calendarExport.text).toContain("DTEND;VALUE=DATE:20270512");
     const projected = calendar.body.data.items.find(
       (item: { sourceType: string }) => item.sourceType === "task_due",
     );

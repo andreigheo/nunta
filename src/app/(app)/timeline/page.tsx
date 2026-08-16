@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import type { TimelineMilestone } from "@weddingos/contracts";
 import {
   AlertTriangle,
+  ArrowRight,
   CalendarClock,
   Check,
   ChevronDown,
@@ -11,7 +13,6 @@ import {
   Flag,
   Plus,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
@@ -31,12 +32,105 @@ import {
   Modal,
   PageHeader,
   Progress,
+  SegmentedControl,
   Select,
   Textarea,
   useToast,
 } from "@/components/ui";
 
 type TimelineData = Awaited<ReturnType<typeof weddingOsApi.timeline>>;
+type TimelineView = "phases" | "milestones";
+
+const phaseStatusLabel = {
+  not_started: "Urmează",
+  in_progress: "În lucru",
+  completed: "Finalizată",
+} as const;
+
+const milestoneStatusLabel = {
+  upcoming: "Urmează",
+  in_progress: "În lucru",
+  completed: "Finalizat",
+  missed: "Întârziat",
+} as const;
+
+function demoTimeline(): TimelineData {
+  const phaseOne = "00000000-0000-4000-8000-000000000101";
+  const phaseTwo = "00000000-0000-4000-8000-000000000102";
+  const milestone = (
+    id: string,
+    phaseId: string,
+    title: string,
+    days: number,
+    status: TimelineMilestone["status"],
+  ): TimelineMilestone => ({
+    id,
+    phaseId,
+    title,
+    description: null,
+    targetAt: new Date(Date.now() + days * 86_400_000).toISOString(),
+    relativeOffsetDays: null,
+    status,
+    position: 0,
+    version: 1,
+  });
+  return {
+    phases: [
+      {
+        id: phaseOne,
+        title: "Deciziile de bază",
+        description: "Stabilește direcția, data și bugetul de lucru.",
+        position: 0,
+        startAt: null,
+        endAt: null,
+        relativeStartOffsetDays: null,
+        relativeEndOffsetDays: null,
+        status: "in_progress",
+        version: 1,
+        milestones: [
+          milestone(
+            "00000000-0000-4000-8000-000000000111",
+            phaseOne,
+            "Bugetul inițial este confirmat",
+            5,
+            "in_progress",
+          ),
+        ],
+        taskTotal: 6,
+        taskCompleted: 2,
+        progressPercent: 33,
+        delayedItems: 0,
+      },
+      {
+        id: phaseTwo,
+        title: "Furnizorii principali",
+        description: "Compară ofertele și confirmă serviciile esențiale.",
+        position: 1,
+        startAt: null,
+        endAt: null,
+        relativeStartOffsetDays: null,
+        relativeEndOffsetDays: null,
+        status: "not_started",
+        version: 1,
+        milestones: [
+          milestone(
+            "00000000-0000-4000-8000-000000000112",
+            phaseTwo,
+            "Locația este rezervată",
+            30,
+            "upcoming",
+          ),
+        ],
+        taskTotal: 8,
+        taskCompleted: 0,
+        progressPercent: 0,
+        delayedItems: 0,
+      },
+    ],
+    unphasedMilestones: [],
+    criticalTaskIds: [],
+  };
+}
 
 function MilestoneModal({
   open,
@@ -74,7 +168,8 @@ function MilestoneModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={milestone ? "Editează milestone-ul" : "Milestone nou"}
+      title={milestone ? "Editează reperul" : "Reper nou"}
+      description="Un reper este un rezultat important care te ajută să vezi dacă planificarea avansează la timp."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -100,9 +195,7 @@ function MilestoneModal({
                 title: title.trim(),
                 description: description.trim() || undefined,
                 phaseId: phaseId || null,
-                targetAt: date
-                  ? new Date(`${date}T12:00:00`).toISOString()
-                  : null,
+                targetAt: date ? `${date}T12:00:00.000Z` : null,
                 position: milestone?.position ?? 0,
               });
             }}
@@ -152,7 +245,8 @@ function MilestoneModal({
 }
 
 export default function TimelinePage() {
-  const { currentWorkspace, demoMode } = useWorkspace();
+  const router = useRouter();
+  const { currentWorkspace, demoMode, bootstrap } = useWorkspace();
   const { toast } = useToast();
   const [timeline, setTimeline] = React.useState<TimelineData | null>(null);
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
@@ -160,6 +254,8 @@ export default function TimelinePage() {
     null,
   );
   const [modalOpen, setModalOpen] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [view, setView] = React.useState<TimelineView>("phases");
   const [preview, setPreview] = React.useState<Awaited<
     ReturnType<typeof weddingOsApi.recalculateTimeline>
   > | null>(null);
@@ -167,17 +263,20 @@ export default function TimelinePage() {
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const capabilities = bootstrap?.membership.capabilities ?? [];
+  const canWrite = demoMode || capabilities.includes("timeline.write");
+  const canRecalculate =
+    demoMode || capabilities.includes("timeline.recalculate");
   const load = React.useCallback(async () => {
     if (!currentWorkspace) return;
     setLoading(true);
     setError("");
     try {
-      if (demoMode)
-        setTimeline({
-          phases: [],
-          unphasedMilestones: [],
-          criticalTaskIds: [],
-        });
+      if (demoMode) {
+        const data = demoTimeline();
+        setTimeline(data);
+        setExpanded(new Set(data.phases.map((phase) => phase.id)));
+      }
       else {
         const data = await weddingOsApi.timeline(currentWorkspace.id);
         setTimeline(data);
@@ -212,7 +311,7 @@ export default function TimelinePage() {
       const message = apiErrorMessage(caught);
       setError(message);
       toast({
-        title: "Timeline-ul nu a fost actualizat",
+        title: "Cronologia nu a fost actualizată",
         description: message,
         variant: "error",
       });
@@ -243,11 +342,55 @@ export default function TimelinePage() {
     (sum, phase) => sum + phase.taskCompleted,
     0,
   );
+  const delayedItems = timeline.phases.reduce(
+    (sum, phase) => sum + phase.delayedItems,
+    0,
+  );
+  const allMilestones = [
+    ...timeline.phases.flatMap((phase) =>
+      phase.milestones.map((milestone) => ({ milestone, phase: phase.title })),
+    ),
+    ...timeline.unphasedMilestones.map((milestone) => ({
+      milestone,
+      phase: "Fără fază",
+    })),
+  ].sort((a, b) =>
+    (a.milestone.targetAt ?? "9999").localeCompare(
+      b.milestone.targetAt ?? "9999",
+    ),
+  );
+  const nextMilestone = allMilestones.find(
+    ({ milestone }) => milestone.status !== "completed",
+  );
+  const updateDemoMilestone = (
+    milestoneId: string,
+    updater: (milestone: TimelineMilestone) => TimelineMilestone | null,
+  ) => {
+    setTimeline((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        phases: current.phases.map((phase) => ({
+          ...phase,
+          milestones: phase.milestones.flatMap((milestone) => {
+            if (milestone.id !== milestoneId) return [milestone];
+            const updated = updater(milestone);
+            return updated ? [updated] : [];
+          }),
+        })),
+        unphasedMilestones: current.unphasedMilestones.flatMap((milestone) => {
+          if (milestone.id !== milestoneId) return [milestone];
+          const updated = updater(milestone);
+          return updated ? [updated] : [];
+        }),
+      };
+    });
+  };
   return (
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-5">
       <PageHeader
-        title="Master Timeline"
-        description="Faze, milestone-uri, progres, întârzieri și elemente critice din datele canonice."
+        title="Cronologia planificării"
+        description="Urmărește cum avansează nunta de la primele decizii până la ziua evenimentului. Sarcinile se gestionează în Plan; aici vezi fazele și reperele importante."
         meta={
           <>
             <Badge variant="neutral">{timeline.phases.length} faze</Badge>
@@ -260,26 +403,15 @@ export default function TimelinePage() {
         }
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              title="PDF-ul rămâne planificat până la un renderer verificat"
-            >
-              PDF · planificat
+            <Button variant="outline" size="sm" onClick={() => router.push("/plan")}>
+              Deschide planul de sarcini
+              <ArrowRight className="size-4" />
             </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled
-              title="Review AI general nu intră în Slice 2B"
-            >
-              <Sparkles className="size-4" />
-              Review AI · planificat
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+              disabled={!canRecalculate}
+              title={canRecalculate ? undefined : "Nu ai permisiunea de a recalcula termenele"}
               onClick={() =>
                 void run(async () => {
                   if (demoMode) {
@@ -294,7 +426,7 @@ export default function TimelinePage() {
                   );
                   setPreview(result);
                   toast({
-                    title: "Preview recalculat",
+                    title: "Propunerile de termene sunt gata",
                     description: `${result.proposedChanges.length} schimbări propuse; niciun termen manual nu a fost suprascris.`,
                     variant: "success",
                   });
@@ -302,17 +434,18 @@ export default function TimelinePage() {
               }
             >
               <RefreshCw className="size-4" />
-              Recalculează
+              Recalculează termenele
             </Button>
             <Button
               size="sm"
+              disabled={!canWrite}
               onClick={() => {
                 setSelected(null);
                 setModalOpen(true);
               }}
             >
               <Plus className="size-4" />
-              Milestone
+              Reper
             </Button>
           </>
         }
@@ -324,35 +457,53 @@ export default function TimelinePage() {
           onRetry={() => void load()}
         />
       )}
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex items-end justify-between">
+      <div className="grid gap-3 lg:grid-cols-[1.35fr_0.65fr]">
+        <Card className="border-brand/20 bg-brand-softer/30">
+          <CardContent className="flex h-full flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
             <div>
-              <p className="text-sm font-medium text-muted">Progres total</p>
-              <p className="mt-1 text-3xl font-semibold text-ink">
-                {totalTasks
-                  ? Math.round((completedTasks / totalTasks) * 100)
-                  : 0}
-                %
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-strong">Următorul reper</p>
+              {nextMilestone ? (
+                <>
+                  <p className="mt-2 font-brand text-xl font-semibold text-ink">{nextMilestone.milestone.title}</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {nextMilestone.phase}
+                    {nextMilestone.milestone.targetAt ? ` · ${formatDateLong(nextMilestone.milestone.targetAt)}` : " · dată relativă"}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-muted">Toate reperele sunt finalizate. Poți adăuga următorul rezultat important.</p>
+              )}
             </div>
-            <p className="text-sm text-faint">
-              {completedTasks}/{totalTasks} sarcini
-            </p>
-          </div>
-          <Progress
-            value={completedTasks}
-            max={Math.max(totalTasks, 1)}
-            className="mt-3 h-2"
-          />
-        </CardContent>
-      </Card>
+            {nextMilestone && canWrite && (
+              <Button variant="outline" size="sm" onClick={() => { setSelected(nextMilestone.milestone); setModalOpen(true); }}>
+                Vezi reperul <ArrowRight className="size-4" />
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-muted">Progres total</p>
+                <p className="mt-1 text-3xl font-semibold text-ink">{totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0}%</p>
+              </div>
+              <p className="text-sm text-faint">{completedTasks}/{totalTasks} sarcini</p>
+            </div>
+            <Progress value={completedTasks} max={Math.max(totalTasks, 1)} className="mt-3 h-2" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge variant={delayedItems ? "danger" : "success"}>{delayedItems} întârziate</Badge>
+              <Badge variant={timeline.criticalTaskIds.length ? "warning" : "neutral"}>{timeline.criticalTaskIds.length} critice</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
       {preview && (
         <Card className="border-info/30">
           <CardHeader>
             <div>
               <CardTitle>
-                {preview.preview ? "Preview recalculare" : "Timeline actualizat"}
+                {preview.preview ? "Verifică termenele propuse" : "Cronologia a fost actualizată"}
               </CardTitle>
               <p className="text-[13px] text-muted">
                 {preview.preview
@@ -395,15 +546,22 @@ export default function TimelinePage() {
       timeline.unphasedMilestones.length === 0 ? (
         <EmptyState
           icon={Flag}
-          title="Timeline-ul nu are încă faze"
-          description="Aplică o propunere de plan pentru a crea faze și milestone-uri, sau adaugă primul milestone manual."
-          action={{
-            label: "Adaugă milestone",
-            onClick: () => setModalOpen(true),
-          }}
+          title="Cronologia nu are încă faze"
+          description="Creează planul de sarcini pentru a primi fazele de lucru sau adaugă primul reper manual."
+          action={{ label: "Deschide planul", onClick: () => router.push("/plan") }}
         />
       ) : (
-        <div className="space-y-3">
+        <>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SegmentedControl<TimelineView>
+            ariaLabel="Mod de afișare cronologie"
+            value={view}
+            onChange={setView}
+            options={[{ value: "phases", label: "Pe faze" }, { value: "milestones", label: "Toate reperele" }]}
+          />
+          <p className="text-sm text-muted">Fazele vin din Plan; reperele pot fi gestionate aici.</p>
+        </div>
+        {view === "phases" ? <div className="space-y-3">
           {timeline.phases.map((phase) => {
             const isOpen = expanded.has(phase.id);
             return (
@@ -438,7 +596,7 @@ export default function TimelinePage() {
                               : "neutral"
                         }
                       >
-                        {phase.status.replaceAll("_", " ")}
+                        {phaseStatusLabel[phase.status]}
                       </Badge>
                       {phase.delayedItems > 0 && (
                         <Badge variant="danger">
@@ -468,13 +626,17 @@ export default function TimelinePage() {
                         <MilestoneRow
                           key={milestone.id}
                           milestone={milestone}
+                          canWrite={canWrite}
                           onOpen={() => {
                             setSelected(milestone);
                             setModalOpen(true);
                           }}
                           onToggle={() =>
                             void run(async () => {
-                              if (demoMode) return;
+                              if (demoMode) {
+                                updateDemoMilestone(milestone.id, (current) => ({ ...current, status: current.status === "completed" ? "upcoming" : "completed", version: current.version + 1 }));
+                                return;
+                              }
                               await weddingOsApi.updateMilestone(
                                 currentWorkspace.id,
                                 milestone.id,
@@ -493,7 +655,7 @@ export default function TimelinePage() {
                       ))
                     ) : (
                       <p className="text-sm text-muted">
-                        Fără milestone-uri în această fază.
+                        Fără repere în această fază. Sarcinile fazei se găsesc în Plan.
                       </p>
                     )}
                   </div>
@@ -505,13 +667,16 @@ export default function TimelinePage() {
             <Card key={milestone.id} className="p-4">
               <MilestoneRow
                 milestone={milestone}
+                canWrite={canWrite}
                 onOpen={() => {
                   setSelected(milestone);
                   setModalOpen(true);
                 }}
                 onToggle={() =>
                   void run(async () => {
-                    if (!demoMode) {
+                    if (demoMode) {
+                      updateDemoMilestone(milestone.id, (current) => ({ ...current, status: current.status === "completed" ? "upcoming" : "completed", version: current.version + 1 }));
+                    } else {
                       await weddingOsApi.updateMilestone(
                         currentWorkspace.id,
                         milestone.id,
@@ -530,7 +695,20 @@ export default function TimelinePage() {
               />
             </Card>
           ))}
-        </div>
+        </div> : (
+          <Card className="divide-y divide-line overflow-hidden">
+            {allMilestones.map(({ milestone, phase }) => (
+              <div key={milestone.id} className="p-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-faint">{phase}</p>
+                <MilestoneRow milestone={milestone} canWrite={canWrite} onOpen={() => { setSelected(milestone); setModalOpen(true); }} onToggle={() => void run(async () => {
+                  if (demoMode) updateDemoMilestone(milestone.id, (current) => ({ ...current, status: current.status === "completed" ? "upcoming" : "completed", version: current.version + 1 }));
+                  else { await weddingOsApi.updateMilestone(currentWorkspace.id, milestone.id, milestone.version, { status: milestone.status === "completed" ? "upcoming" : "completed" }); await load(); }
+                })} />
+              </div>
+            ))}
+          </Card>
+        )}
+        </>
       )}
       <MilestoneModal
         key={`${selected?.id ?? "new"}-${modalOpen}`}
@@ -542,10 +720,20 @@ export default function TimelinePage() {
         onSave={async (input) =>
           run(async () => {
             if (demoMode) {
-              toast({
-                title: "Milestone demo creat local",
-                variant: "success",
-              });
+              const created: TimelineMilestone = {
+                id: selected?.id ?? crypto.randomUUID(),
+                phaseId: input.phaseId ?? null,
+                title: input.title,
+                description: input.description ?? null,
+                targetAt: input.targetAt ?? null,
+                relativeOffsetDays: null,
+                status: selected?.status ?? "upcoming",
+                position: input.position ?? 0,
+                version: (selected?.version ?? 0) + 1,
+              };
+              if (selected) updateDemoMilestone(selected.id, () => created);
+              else setTimeline((current) => current ? { ...current, unphasedMilestones: [...current.unphasedMilestones, created] } : current);
+              toast({ title: selected ? "Reper demo actualizat" : "Reper demo creat", variant: "success" });
               setModalOpen(false);
               return;
             }
@@ -560,24 +748,14 @@ export default function TimelinePage() {
             setModalOpen(false);
             await load();
             toast({
-              title: selected ? "Milestone actualizat" : "Milestone creat",
+              title: selected ? "Reper actualizat" : "Reper creat",
               variant: "success",
             });
           })
         }
         onDelete={
           selected
-            ? async () =>
-                run(async () => {
-                  if (!demoMode)
-                    await weddingOsApi.deleteMilestone(
-                      currentWorkspace.id,
-                      selected.id,
-                      selected.version,
-                    );
-                  setModalOpen(false);
-                  await load();
-                })
+            ? async () => setDeleteOpen(true)
             : null
         }
       />
@@ -599,12 +777,30 @@ export default function TimelinePage() {
             setApplyPreviewOpen(false);
             await load();
             toast({
-              title: "Timeline actualizat",
+              title: "Cronologia a fost actualizată",
               description: `${result.proposedChanges.length} termene relative au fost aplicate.`,
               variant: "success",
             });
           })
         }
+      />
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Ștergi reperul?"
+        description={`„${selected?.title ?? "Acest reper"}” va fi eliminat. Sarcinile legate rămân în Plan, fără acest reper.`}
+        confirmLabel="Șterge reperul"
+        destructive
+        loading={busy}
+        onConfirm={() => void run(async () => {
+          if (!selected) return;
+          if (demoMode) updateDemoMilestone(selected.id, () => null);
+          else await weddingOsApi.deleteMilestone(currentWorkspace.id, selected.id, selected.version);
+          setDeleteOpen(false);
+          setModalOpen(false);
+          if (!demoMode) await load();
+          toast({ title: "Reper șters", variant: "success" });
+        })}
       />
     </div>
   );
@@ -612,10 +808,12 @@ export default function TimelinePage() {
 
 function MilestoneRow({
   milestone,
+  canWrite,
   onOpen,
   onToggle,
 }: {
   milestone: TimelineMilestone;
+  canWrite: boolean;
   onOpen: () => void;
   onToggle: () => void;
 }) {
@@ -623,16 +821,17 @@ function MilestoneRow({
     <div className="flex items-center gap-3 rounded-lg border border-line bg-elevated p-3">
       <button
         onClick={onToggle}
+        disabled={!canWrite}
         aria-label={
           milestone.status === "completed"
-            ? "Redeschide milestone"
-            : "Finalizează milestone"
+            ? "Redeschide reperul"
+            : "Finalizează reperul"
         }
         className={`flex size-6 items-center justify-center rounded-full border-2 ${milestone.status === "completed" ? "border-success bg-success text-on-success" : "border-line-strong"}`}
       >
         {milestone.status === "completed" && <Check className="size-3.5" />}
       </button>
-      <button onClick={onOpen} className="min-w-0 flex-1 text-left">
+      <button disabled={!canWrite} onClick={onOpen} className="min-w-0 flex-1 text-left disabled:cursor-default">
         <span
           className={`block text-sm font-semibold ${milestone.status === "completed" ? "text-faint line-through" : "text-ink"}`}
         >
@@ -661,7 +860,7 @@ function MilestoneRow({
               : "neutral"
         }
       >
-        {milestone.status.replaceAll("_", " ")}
+        {milestoneStatusLabel[milestone.status]}
       </Badge>
     </div>
   );
