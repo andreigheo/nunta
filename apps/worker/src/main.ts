@@ -4521,7 +4521,7 @@ async function prepareSeatingExport(
         "Seating plan does not match persisted context",
         "SEATING_EXPORT_PLAN_INVALID",
       );
-    const [tables, assignments] = await Promise.all([
+    const [tables, floorObjects, assignments] = await Promise.all([
       transaction.seatingTable.findMany({
         where: {
           workspaceId: snapshot.workspace_id!,
@@ -4529,6 +4529,14 @@ async function prepareSeatingExport(
           deletedAt: null,
         },
         orderBy: [{ position: "asc" }, { label: "asc" }],
+      }),
+      transaction.seatingFloorObject.findMany({
+        where: {
+          workspaceId: snapshot.workspace_id!,
+          seatingPlanId: plan.id,
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       }),
       transaction.guestSeatingAssignment.findMany({
         where: {
@@ -4556,6 +4564,19 @@ async function prepareSeatingExport(
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
         `<rect width="100%" height="100%" fill="#f8fafc"/>`,
         `<text x="36" y="48" font-family="sans-serif" font-size="28" fill="#172554">${safe(plan.name)}</text>`,
+        ...floorObjects.map((floorObject) => {
+          const x = Math.max(36, Math.min(width - 80, Number(floorObject.x)));
+          const y = Math.max(72, Math.min(height - 64, Number(floorObject.y)));
+          const objectWidth = Math.max(
+            64,
+            Math.min(width - x - 24, Number(floorObject.width)),
+          );
+          const objectHeight = Math.max(
+            48,
+            Math.min(height - y - 24, Number(floorObject.height)),
+          );
+          return `<g transform="translate(${x} ${y}) rotate(${Number(floorObject.rotation)} ${objectWidth / 2} ${objectHeight / 2})"><rect width="${objectWidth}" height="${objectHeight}" rx="12" fill="#eef2ff" stroke="#94a3b8" stroke-width="2" stroke-dasharray="8 6"/><text x="${objectWidth / 2}" y="${objectHeight / 2 + 5}" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#334155">${safe(floorObject.label)}</text></g>`;
+        }),
         ...tables.map((table) => {
           const x = Math.max(60, Math.min(width - 160, Number(table.x)));
           const y = Math.max(80, Math.min(height - 120, Number(table.y)));

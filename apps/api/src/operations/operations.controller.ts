@@ -20,6 +20,7 @@ import {
   createAccommodationRoomSchema,
   createAccommodationStaySchema,
   createSeatingPlanSchema,
+  createSeatingFloorObjectSchema,
   createSeatingTableSchema,
   createTransportPlanSchema,
   createTransportRouteSchema,
@@ -40,6 +41,7 @@ import {
   updateAccommodationRoomSchema,
   updateAccommodationStaySchema,
   updateSeatingPlanSchema,
+  updateSeatingFloorObjectSchema,
   updateSeatingSeatSchema,
   updateSeatingTableSchema,
   updateTransportPlanSchema,
@@ -347,6 +349,70 @@ export class SeatingController {
         uuid(planId),
         uuid(tableId),
         version(match),
+      ),
+    );
+  }
+  @Post("seating-plans/:planId/floor-objects")
+  @RequireCapability("seating.write")
+  async addFloorObject(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("planId") planId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.operations.createFloorObject(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(planId),
+      idempotencyKey(key),
+      parseWithSchema(createSeatingFloorObjectSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+  @Patch("seating-plans/:planId/floor-objects/:objectId")
+  @RequireCapability("seating.write")
+  async updateFloorObject(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("planId") planId: string,
+    @Param("objectId") objectId: string,
+    @Headers("if-match") match: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.operations.updateFloorObject(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(planId),
+      uuid(objectId),
+      version(match),
+      parseWithSchema(updateSeatingFloorObjectSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+  @Delete("seating-plans/:planId/floor-objects/:objectId")
+  @RequireCapability("seating.write")
+  async deleteFloorObject(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("planId") planId: string,
+    @Param("objectId") objectId: string,
+    @Headers("if-match") match: string | undefined,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.operations.deleteFloorObject(
+        auth.userId,
+        uuid(workspaceId),
+        uuid(planId),
+        uuid(objectId),
+        version(match),
+        request.correlationId,
       ),
     );
   }

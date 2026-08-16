@@ -2707,6 +2707,56 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(201);
     const tableId = createdTable.body.data.id as string;
+    const createdStage = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/floor-objects`,
+      )
+      .set("Origin", origin)
+      .set("Idempotency-Key", `floor-stage-${randomUUID()}`)
+      .send({
+        type: "stage",
+        label: "Scena principală",
+        x: 360,
+        y: 40,
+        width: 300,
+        height: 96,
+        rotation: 0,
+        locked: false,
+      })
+      .expect(201);
+    const stageId = createdStage.body.data.id as string;
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/floor-objects/${stageId}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${createdStage.body.data.version}"`)
+      .send({ x: 420, y: 56, locked: true })
+      .expect(200);
+    const removableObject = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/floor-objects`,
+      )
+      .set("Origin", origin)
+      .set("Idempotency-Key", `floor-custom-${randomUUID()}`)
+      .send({
+        type: "custom",
+        label: "Obiect temporar",
+        x: 40,
+        y: 500,
+        width: 120,
+        height: 80,
+        rotation: 0,
+        locked: false,
+      })
+      .expect(201);
+    await owner.agent
+      .delete(
+        `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/floor-objects/${removableObject.body.data.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${removableObject.body.data.version}"`)
+      .expect(200);
     await owner.agent
       .patch(
         `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}`,
@@ -2719,6 +2769,16 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .get(`/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}`)
       .expect(200);
     expect(seatingDetail.body.data.tables[0].seats).toHaveLength(14);
+    expect(seatingDetail.body.data.floorObjects).toEqual([
+      expect.objectContaining({
+        id: stageId,
+        type: "stage",
+        label: "Scena principală",
+        x: 420,
+        y: 56,
+        locked: true,
+      }),
+    ]);
     await owner.agent
       .patch(
         `/api/v1/workspaces/${workspaceId}/seating-plans/${seatingId}/tables/${tableId}`,

@@ -13,14 +13,23 @@ import {
   ArrowUp,
   CheckCircle2,
   ChevronDown,
+  Camera,
+  Disc3,
+  DoorOpen,
   Download,
   Ellipsis,
   EyeOff,
   FileSpreadsheet,
   GripVertical,
+  GlassWater,
   LayoutGrid,
   Link2,
   Lock,
+  Maximize2,
+  Minimize2,
+  Move,
+  Music2,
+  PanelTop,
   Pencil,
   Plus,
   RefreshCw,
@@ -47,7 +56,6 @@ import {
   Badge,
   Button,
   Card,
-  CardContent,
   ConfirmDialog,
   Dropdown,
   DropdownContent,
@@ -74,6 +82,7 @@ import {
 
 type WeddingEventOption = { id: string; title: string };
 type SeatingTable = SeatingPlanResource["tables"][number];
+type SeatingFloorObject = SeatingPlanResource["floorObjects"][number];
 type SeatingGuest = SeatingPlanResource["guests"][number];
 type SeatingAssignment = SeatingPlanResource["assignments"][number];
 type TableDraft = {
@@ -86,6 +95,13 @@ type TableDraft = {
   zone: string;
   notesPrivate: string;
 };
+type FloorObjectDraft = {
+  label: string;
+  width: string;
+  height: string;
+  rotation: string;
+  locked: boolean;
+};
 
 const blankTableDraft: TableDraft = {
   id: null,
@@ -97,6 +113,52 @@ const blankTableDraft: TableDraft = {
   zone: "",
   notesPrivate: "",
 };
+
+const floorObjectCatalog: Array<{
+  type: SeatingFloorObject["type"];
+  label: string;
+  width: number;
+  height: number;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { type: "stage", label: "Scenă", width: 300, height: 96, icon: PanelTop },
+  {
+    type: "dance_floor",
+    label: "Ring de dans",
+    width: 240,
+    height: 180,
+    icon: Disc3,
+  },
+  {
+    type: "entrance",
+    label: "Intrare",
+    width: 150,
+    height: 70,
+    icon: DoorOpen,
+  },
+  { type: "bar", label: "Bar", width: 200, height: 80, icon: GlassWater },
+  {
+    type: "dj_booth",
+    label: "Pupitru DJ",
+    width: 170,
+    height: 80,
+    icon: Music2,
+  },
+  {
+    type: "photo_booth",
+    label: "Colț foto",
+    width: 150,
+    height: 110,
+    icon: Camera,
+  },
+  {
+    type: "custom",
+    label: "Obiect personalizat",
+    width: 160,
+    height: 100,
+    icon: LayoutGrid,
+  },
+];
 
 const constraintLabels: Record<string, string> = {
   keep_together: "Așază împreună",
@@ -151,6 +213,21 @@ export default function SeatingPage() {
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(
     null,
   );
+  const [tableInspectorOpen, setTableInspectorOpen] = React.useState(false);
+  const [selectedFloorObjectId, setSelectedFloorObjectId] = React.useState<
+    string | null
+  >(null);
+  const [floorObjectOpen, setFloorObjectOpen] = React.useState(false);
+  const [floorObjectDraft, setFloorObjectDraft] =
+    React.useState<FloorObjectDraft>({
+      label: "",
+      width: "160",
+      height: "100",
+      rotation: "0",
+      locked: false,
+    });
+  const [deleteFloorObject, setDeleteFloorObject] =
+    React.useState<SeatingFloorObject | null>(null);
   const [selectedGuestId, setSelectedGuestId] = React.useState<string | null>(
     null,
   );
@@ -170,6 +247,9 @@ export default function SeatingPage() {
   const [suggestion, setSuggestion] =
     React.useState<SeatingSuggestionResource | null>(null);
   const [suggestionOpen, setSuggestionOpen] = React.useState(false);
+  const planRef = React.useRef<SeatingPlanResource | null>(null);
+  const assignmentQueueRef = React.useRef<Promise<void>>(Promise.resolve());
+  const layoutQueueRef = React.useRef<Promise<void>>(Promise.resolve());
   const capabilities = bootstrap?.membership.capabilities ?? [];
   const canWrite = capabilities.includes("seating.write");
   const canAssign = capabilities.includes("seating.assign");
@@ -188,15 +268,19 @@ export default function SeatingPage() {
         currentWorkspace.id,
         planId,
       );
+      planRef.current = detail;
       setPlan(detail);
       setSelectedTableId((current) => {
         const requested = preferredTableId ?? current;
         return detail.tables.some((table) => table.id === requested)
           ? requested
-          : (detail.tables.find((table) => table.assigned > 0)?.id ??
-              detail.tables[0]?.id ??
-              null);
+          : null;
       });
+      setSelectedFloorObjectId((current) =>
+        detail.floorObjects.some((floorObject) => floorObject.id === current)
+          ? current
+          : null,
+      );
       setSelectedGuestId((current) =>
         detail.guests.some((guest) => guest.id === current) ? current : null,
       );
@@ -231,7 +315,10 @@ export default function SeatingPage() {
         planList.items.find((item) => item.id === requestedPlan) ??
         planList.items[0];
       if (firstPlan) await loadPlan(firstPlan.id, requestedTable);
-      else setPlan(null);
+      else {
+        planRef.current = null;
+        setPlan(null);
+      }
     } catch (cause) {
       setError(apiErrorMessage(cause));
     } finally {
@@ -334,6 +421,7 @@ export default function SeatingPage() {
         plan.version,
       );
       setDeletePlanOpen(false);
+      planRef.current = null;
       setPlan(null);
       await load();
       toast({ title: "Planul de mese a fost arhivat", variant: "success" });
@@ -372,6 +460,23 @@ export default function SeatingPage() {
       notesPrivate: table.notesPrivate ?? "",
     });
     setTableOpen(true);
+  };
+
+  const openTableInspector = (tableId: string) => {
+    setSelectedTableId(tableId);
+    setTableInspectorOpen(true);
+  };
+
+  const openFloorObjectInspector = (floorObject: SeatingFloorObject) => {
+    setSelectedFloorObjectId(floorObject.id);
+    setFloorObjectDraft({
+      label: floorObject.label,
+      width: String(Math.round(Number(floorObject.width))),
+      height: String(Math.round(Number(floorObject.height))),
+      rotation: String(Math.round(Number(floorObject.rotation))),
+      locked: floorObject.locked,
+    });
+    setFloorObjectOpen(true);
   };
 
   const saveTable = async () => {
@@ -475,24 +580,169 @@ export default function SeatingPage() {
     }
   };
 
-  const updateTable = async (
+  const updateTable = (
     table: SeatingTable,
     input: Record<string, unknown>,
   ) => {
-    if (!currentWorkspace || !plan) return;
-    setAction(`table-${table.id}`);
+    if (!currentWorkspace || !planRef.current) return Promise.resolve();
+    const run = async () => {
+      const currentPlan = planRef.current;
+      const currentTable = currentPlan?.tables.find(
+        (item) => item.id === table.id,
+      );
+      if (!currentPlan || !currentTable) return;
+      setAction(`table-${table.id}`);
+      try {
+        await weddingOsApi.updateSeatingTable(
+          currentWorkspace.id,
+          currentPlan.id,
+          currentTable.id,
+          currentTable.version,
+          input,
+        );
+        await loadPlan(currentPlan.id);
+      } catch (cause) {
+        toast({
+          title: "Masa nu a putut fi actualizată",
+          description: apiErrorMessage(cause),
+          variant: "error",
+        });
+      } finally {
+        setAction(null);
+      }
+    };
+    const queued = layoutQueueRef.current.then(run, run);
+    layoutQueueRef.current = queued.catch(() => undefined);
+    return queued;
+  };
+
+  const createFloorObject = async (
+    catalogItem: (typeof floorObjectCatalog)[number],
+  ) => {
+    if (!currentWorkspace || !plan || !canWrite) return;
+    setAction("floor-object-create");
     try {
-      await weddingOsApi.updateSeatingTable(
+      const index = plan.floorObjects.length;
+      const created = await weddingOsApi.createSeatingFloorObject(
         currentWorkspace.id,
         plan.id,
-        table.id,
-        table.version,
-        input,
+        {
+          type: catalogItem.type,
+          label: catalogItem.label,
+          x: 72 + (index % 4) * 210,
+          y: 72 + Math.floor(index / 4) * 150,
+          width: catalogItem.width,
+          height: catalogItem.height,
+          rotation: 0,
+          locked: false,
+        },
       );
       await refresh();
+      openFloorObjectInspector(created);
+      toast({
+        title: `${catalogItem.label} a fost adăugat(ă)`,
+        description: "Poți muta obiectul liber pe plan.",
+        variant: "success",
+      });
     } catch (cause) {
       toast({
-        title: "Masa nu a putut fi actualizată",
+        title: "Obiectul nu a putut fi adăugat",
+        description: apiErrorMessage(cause),
+        variant: "error",
+      });
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const updateFloorObject = (
+    floorObject: SeatingFloorObject,
+    input: Record<string, unknown>,
+    options?: { close?: boolean; announce?: boolean },
+  ) => {
+    if (!currentWorkspace || !planRef.current) return Promise.resolve();
+    const run = async () => {
+      const currentPlan = planRef.current;
+      const currentObject = currentPlan?.floorObjects.find(
+        (item) => item.id === floorObject.id,
+      );
+      if (!currentPlan || !currentObject) return;
+      setAction(`floor-object-${floorObject.id}`);
+      try {
+        await weddingOsApi.updateSeatingFloorObject(
+          currentWorkspace.id,
+          currentPlan.id,
+          currentObject.id,
+          currentObject.version,
+          input,
+        );
+        if (options?.close) setFloorObjectOpen(false);
+        await loadPlan(currentPlan.id);
+        if (options?.announce)
+          toast({ title: "Obiectul a fost actualizat", variant: "success" });
+      } catch (cause) {
+        toast({
+          title: "Obiectul nu a putut fi actualizat",
+          description: apiErrorMessage(cause),
+          variant: "error",
+        });
+      } finally {
+        setAction(null);
+      }
+    };
+    const queued = layoutQueueRef.current.then(run, run);
+    layoutQueueRef.current = queued.catch(() => undefined);
+    return queued;
+  };
+
+  const saveFloorObject = async () => {
+    const floorObject = plan?.floorObjects.find(
+      (item) => item.id === selectedFloorObjectId,
+    );
+    if (!floorObject) return;
+    const width = Number(floorObjectDraft.width);
+    const height = Number(floorObjectDraft.height);
+    const rotation = Number(floorObjectDraft.rotation);
+    if (
+      !floorObjectDraft.label.trim() ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width <= 0 ||
+      height <= 0 ||
+      !Number.isFinite(rotation)
+    )
+      return;
+    await updateFloorObject(
+      floorObject,
+      {
+        label: floorObjectDraft.label.trim(),
+        width,
+        height,
+        rotation,
+        locked: floorObjectDraft.locked,
+      },
+      { close: true, announce: true },
+    );
+  };
+
+  const removeFloorObject = async () => {
+    if (!currentWorkspace || !plan || !deleteFloorObject) return;
+    setAction("floor-object-delete");
+    try {
+      await weddingOsApi.deleteSeatingFloorObject(
+        currentWorkspace.id,
+        plan.id,
+        deleteFloorObject.id,
+        deleteFloorObject.version,
+      );
+      setDeleteFloorObject(null);
+      setFloorObjectOpen(false);
+      setSelectedFloorObjectId(null);
+      await refresh();
+      toast({ title: "Obiectul a fost eliminat", variant: "success" });
+    } catch (cause) {
+      toast({
+        title: "Obiectul nu a putut fi eliminat",
         description: apiErrorMessage(cause),
         variant: "error",
       });
@@ -530,42 +780,50 @@ export default function SeatingPage() {
     }
   };
 
-  const assign = async (
+  const assign = (
     guestId: string,
     tableId: string,
     seatId?: string | null,
   ) => {
-    if (!currentWorkspace || !plan || !canAssign) return;
-    setAction(`guest-${guestId}`);
-    try {
-      await weddingOsApi.replaceSeatingAssignments(
-        currentWorkspace.id,
-        plan.id,
-        plan.version,
-        {
-          assignments: [
-            {
-              guestId,
-              tableId,
-              seatId: seatId || null,
-              source: "manual",
-              locked: false,
-            },
-          ],
-          removeAssignmentIds: [],
-          confirmWarnings: true,
-        },
-      );
-      await refresh();
-    } catch (cause) {
-      toast({
-        title: "Locul nu a putut fi salvat",
-        description: apiErrorMessage(cause),
-        variant: "error",
-      });
-    } finally {
-      setAction(null);
-    }
+    if (!currentWorkspace || !planRef.current || !canAssign)
+      return Promise.resolve();
+    const run = async () => {
+      const currentPlan = planRef.current;
+      if (!currentPlan) return;
+      setAction(`guest-${guestId}`);
+      try {
+        await weddingOsApi.replaceSeatingAssignments(
+          currentWorkspace.id,
+          currentPlan.id,
+          currentPlan.version,
+          {
+            assignments: [
+              {
+                guestId,
+                tableId,
+                seatId: seatId || null,
+                source: "manual",
+                locked: false,
+              },
+            ],
+            removeAssignmentIds: [],
+            confirmWarnings: true,
+          },
+        );
+        await loadPlan(currentPlan.id);
+      } catch (cause) {
+        toast({
+          title: "Locul nu a putut fi salvat",
+          description: apiErrorMessage(cause),
+          variant: "error",
+        });
+      } finally {
+        setAction(null);
+      }
+    };
+    const queued = assignmentQueueRef.current.then(run, run);
+    assignmentQueueRef.current = queued.catch(() => undefined);
+    return queued;
   };
 
   const unassign = async (assignment: SeatingAssignment) => {
@@ -985,6 +1243,10 @@ export default function SeatingPage() {
   );
   const selectedTable =
     plan.tables.find((table) => table.id === selectedTableId) ?? null;
+  const selectedFloorObject =
+    plan.floorObjects.find(
+      (floorObject) => floorObject.id === selectedFloorObjectId,
+    ) ?? null;
   const selectedTableGuests = selectedTable
     ? eligibleGuests.filter(
         (guest) =>
@@ -1256,7 +1518,7 @@ export default function SeatingPage() {
         </div>
       </Card>
 
-      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card className="order-2 min-w-0 xl:order-1">
           <Tabs defaultValue="unseated">
             <div className="border-b border-line p-3 pb-0">
@@ -1346,7 +1608,7 @@ export default function SeatingPage() {
                       issue={issue}
                       loading={action === `issue-${issue.id}`}
                       canWrite={canWrite}
-                      onSelectTable={(tableId) => setSelectedTableId(tableId)}
+                      onSelectTable={openTableInspector}
                       onResolve={() => void resolveIssue(issue)}
                     />
                   ))}
@@ -1390,53 +1652,83 @@ export default function SeatingPage() {
         <Card className="order-1 min-w-0 overflow-hidden xl:order-2">
           <SeatingCanvas
             tables={plan.tables}
+            floorObjects={plan.floorObjects}
             guests={plan.guests}
             assignmentByGuest={assignmentByGuest}
             selectedTableId={selectedTableId}
+            selectedFloorObjectId={selectedFloorObjectId}
             canAssign={canAssign}
             draggedGuestId={draggedGuestId}
-            onSelectTable={setSelectedTableId}
+            onSelectTable={openTableInspector}
+            onSelectFloorObject={openFloorObjectInspector}
+            onMoveTable={(table, position) => updateTable(table, position)}
+            onMoveFloorObject={(floorObject, position) =>
+              updateFloorObject(floorObject, position)
+            }
             onAssign={assign}
             onClearDrag={() => setDraggedGuestId(null)}
             onAddTable={openNewTable}
+            onAddFloorObject={createFloorObject}
             canWrite={canWrite}
           />
         </Card>
-
-        <Card className="order-3 min-w-0 xl:order-3">
-          <CardContent className="p-4">
-            {selectedTable ? (
-              <TableDetail
-                table={selectedTable}
-                tables={plan.tables}
-                guests={selectedTableGuests}
-                assignmentByGuest={assignmentByGuest}
-                menus={menus}
-                action={action}
-                canWrite={canWrite}
-                canAssign={canAssign}
-                canManageMenus={canManageMenus}
-                canReadSensitive={canReadSensitive}
-                onEdit={() => openEditTable(selectedTable)}
-                onDelete={() => setDeleteTable(selectedTable)}
-                onUpdate={(input) => void updateTable(selectedTable, input)}
-                onSeatUpdate={(seat, input) =>
-                  void updateSeat(selectedTable, seat, input)
-                }
-                onAssign={assign}
-                onUnassign={unassign}
-                onMenu={setMenu}
-              />
-            ) : (
-              <PanelEmpty
-                icon={Armchair}
-                title="Selectează o masă"
-                description="Aici vei vedea invitații, meniurile și acțiunile mesei."
-              />
-            )}
-          </CardContent>
-        </Card>
       </div>
+
+      <Modal
+        open={tableInspectorOpen && Boolean(selectedTable)}
+        onClose={() => setTableInspectorOpen(false)}
+        title={selectedTable ? `Gestionează ${selectedTable.label}` : "Masă"}
+        description="Invitați, meniuri, locuri și setările mesei — fără să micșorăm planul sălii."
+        size="xl"
+      >
+        {selectedTable && (
+          <TableDetail
+            table={selectedTable}
+            tables={plan.tables}
+            guests={selectedTableGuests}
+            assignmentByGuest={assignmentByGuest}
+            menus={menus}
+            action={action}
+            canWrite={canWrite}
+            canAssign={canAssign}
+            canManageMenus={canManageMenus}
+            canReadSensitive={canReadSensitive}
+            onEdit={() => {
+              setTableInspectorOpen(false);
+              openEditTable(selectedTable);
+            }}
+            onDelete={() => {
+              setTableInspectorOpen(false);
+              setDeleteTable(selectedTable);
+            }}
+            onUpdate={(input) => void updateTable(selectedTable, input)}
+            onSeatUpdate={(seat, input) =>
+              void updateSeat(selectedTable, seat, input)
+            }
+            onAssign={assign}
+            onUnassign={unassign}
+            onMenu={setMenu}
+          />
+        )}
+      </Modal>
+
+      <FloorObjectModal
+        open={floorObjectOpen && Boolean(selectedFloorObject)}
+        floorObject={selectedFloorObject}
+        draft={floorObjectDraft}
+        setDraft={setFloorObjectDraft}
+        saving={
+          selectedFloorObject
+            ? action === `floor-object-${selectedFloorObject.id}`
+            : false
+        }
+        canWrite={canWrite}
+        onClose={() => setFloorObjectOpen(false)}
+        onSave={saveFloorObject}
+        onDelete={() => {
+          if (selectedFloorObject) setDeleteFloorObject(selectedFloorObject);
+        }}
+      />
 
       <PlanModal
         open={planOpen}
@@ -1546,6 +1838,16 @@ export default function SeatingPage() {
         destructive
         loading={action === "table-delete"}
       />
+      <ConfirmDialog
+        open={Boolean(deleteFloorObject)}
+        onClose={() => setDeleteFloorObject(null)}
+        onConfirm={() => void removeFloorObject()}
+        title="Elimini obiectul din sală?"
+        description="Obiectul dispare din planul sălii și din următoarea versiune publicată."
+        confirmLabel="Elimină obiectul"
+        destructive
+        loading={action === "floor-object-delete"}
+      />
     </div>
   );
 }
@@ -1566,8 +1868,7 @@ function SeatingLoading() {
           <Skeleton key={index} className="h-24" />
         ))}
       </div>
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
-        <Skeleton className="h-[680px]" />
+      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Skeleton className="h-[680px]" />
         <Skeleton className="h-[680px]" />
       </div>
@@ -1752,23 +2053,302 @@ function GuestListPanel(props: {
 
 function SeatingCanvas(props: {
   tables: SeatingTable[];
+  floorObjects: SeatingFloorObject[];
   guests: SeatingGuest[];
   assignmentByGuest: Map<string, SeatingAssignment>;
   selectedTableId: string | null;
+  selectedFloorObjectId: string | null;
   canAssign: boolean;
   canWrite: boolean;
   draggedGuestId: string | null;
   onSelectTable: (tableId: string) => void;
+  onSelectFloorObject: (floorObject: SeatingFloorObject) => void;
+  onMoveTable: (
+    table: SeatingTable,
+    position: { x: number; y: number },
+  ) => void;
+  onMoveFloorObject: (
+    floorObject: SeatingFloorObject,
+    position: { x: number; y: number },
+  ) => void;
   onAssign: (guestId: string, tableId: string) => Promise<void>;
   onClearDrag: () => void;
   onAddTable: () => void;
+  onAddFloorObject: (
+    catalogItem: (typeof floorObjectCatalog)[number],
+  ) => void;
 }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const [previewPositions, setPreviewPositions] = React.useState<
+    Record<string, { x: number; y: number }>
+  >({});
+  const dragRef = React.useRef<{
+    kind: "table" | "floor-object";
+    id: string;
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    originX: number;
+    originY: number;
+    currentX: number;
+    currentY: number;
+    width: number;
+    height: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!expanded) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [expanded]);
+
+  const positionKey = (kind: "table" | "floor-object", id: string) =>
+    `${kind}:${id}`;
+  const positioned = (
+    kind: "table" | "floor-object",
+    item: { id: string; x: number; y: number },
+  ) => previewPositions[positionKey(kind, item.id)] ?? item;
+  const beginMove = (
+    kind: "table" | "floor-object",
+    item: { id: string; x: number; y: number; width: number; height: number },
+    locked: boolean,
+    event: React.PointerEvent<HTMLElement>,
+  ) => {
+    if (!props.canWrite || locked || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      kind,
+      id: item.id,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      originX: Number(item.x),
+      originY: Number(item.y),
+      currentX: Number(item.x),
+      currentY: Number(item.y),
+      width: Number(item.width),
+      height: Number(item.height),
+      moved: false,
+    };
+  };
+  const continueMove = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startClientX;
+    const deltaY = event.clientY - drag.startClientY;
+    if (Math.abs(deltaX) + Math.abs(deltaY) > 4) drag.moved = true;
+    if (!drag.moved) return;
+    event.preventDefault();
+    const x = Math.round(
+      Math.max(24, Math.min(1120 - drag.width - 24, drag.originX + deltaX)),
+    );
+    const y = Math.round(
+      Math.max(24, Math.min(760 - drag.height - 24, drag.originY + deltaY)),
+    );
+    drag.currentX = x;
+    drag.currentY = y;
+    setPreviewPositions((current) => ({
+      ...current,
+      [positionKey(drag.kind, drag.id)]: { x, y },
+    }));
+  };
+  const finishMove = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    const key = positionKey(drag.kind, drag.id);
+    const position = { x: drag.currentX, y: drag.currentY };
+    if (drag.moved) {
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+      if (drag.kind === "table") {
+        const table = props.tables.find((item) => item.id === drag.id);
+        if (table) props.onMoveTable(table, position);
+      } else {
+        const floorObject = props.floorObjects.find(
+          (item) => item.id === drag.id,
+        );
+        if (floorObject) props.onMoveFloorObject(floorObject, position);
+      }
+    }
+    setPreviewPositions((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+  const moveWithKeyboard = (
+    kind: "table" | "floor-object",
+    item: SeatingTable | SeatingFloorObject,
+    event: React.KeyboardEvent<HTMLElement>,
+  ) => {
+    const delta = event.shiftKey ? 24 : 8;
+    const changes = {
+      ArrowLeft: { x: Math.max(24, Number(item.x) - delta), y: Number(item.y) },
+      ArrowRight: {
+        x: Math.min(1120 - Number(item.width) - 24, Number(item.x) + delta),
+        y: Number(item.y),
+      },
+      ArrowUp: { x: Number(item.x), y: Math.max(24, Number(item.y) - delta) },
+      ArrowDown: {
+        x: Number(item.x),
+        y: Math.min(760 - Number(item.height) - 24, Number(item.y) + delta),
+      },
+    }[event.key];
+    if (!changes || !props.canWrite || item.locked) return;
+    event.preventDefault();
+    if (kind === "table")
+      props.onMoveTable(item as SeatingTable, changes);
+    else props.onMoveFloorObject(item as SeatingFloorObject, changes);
+  };
+
   return (
     <div
-      className="relative min-h-[620px] overflow-auto bg-[radial-gradient(circle_at_1px_1px,var(--color-line)_1px,transparent_0)] bg-[size:24px_24px]"
-      data-testid="seating-canvas"
+      className={cn(
+        "relative flex min-h-0 flex-col bg-surface",
+        expanded &&
+          "fixed inset-3 z-40 overflow-hidden rounded-2xl border border-line shadow-overlay",
+      )}
     >
-      <div className="relative h-[620px] min-w-[920px] p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Move className="size-4 text-brand" aria-hidden />
+            <p className="text-sm font-semibold text-ink">Planul sălii</p>
+          </div>
+          <p className="mt-0.5 text-xs text-faint">
+            Trage mesele și obiectele oriunde. Apasă pe o masă pentru invitați și meniuri.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Dropdown>
+            <DropdownTrigger>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!props.canWrite || Boolean(props.draggedGuestId)}
+              >
+                <LayoutGrid className="size-4" /> Obiect în sală
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownTrigger>
+            <DropdownContent align="end">
+              <DropdownLabel>Adaugă pe plan</DropdownLabel>
+              {floorObjectCatalog.map((catalogItem) => {
+                const Icon = catalogItem.icon;
+                return (
+                  <DropdownItem
+                    key={catalogItem.type}
+                    icon={<Icon />}
+                    onSelect={() => props.onAddFloorObject(catalogItem)}
+                  >
+                    {catalogItem.label}
+                  </DropdownItem>
+                );
+              })}
+            </DropdownContent>
+          </Dropdown>
+          <Button size="sm" onClick={props.onAddTable} disabled={!props.canWrite}>
+            <Plus className="size-4" /> Masă
+          </Button>
+          <Tooltip
+            content={expanded ? "Revino la pagină" : "Deschide planul mare"}
+          >
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={
+                expanded ? "Închide planul mărit" : "Mărește planul sălii"
+              }
+              onClick={() => setExpanded((current) => !current)}
+            >
+              {expanded ? (
+                <Minimize2 className="size-4" />
+              ) : (
+                <Maximize2 className="size-4" />
+              )}
+            </Button>
+          </Tooltip>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "relative h-[min(72vh,820px)] min-h-[680px] overflow-auto bg-[radial-gradient(circle_at_1px_1px,var(--color-line)_1px,transparent_0)] bg-[size:24px_24px]",
+          expanded && "h-full min-h-0 flex-1",
+        )}
+        data-testid="seating-canvas"
+        aria-label="Suprafață de aranjare a planului sălii"
+      >
+        <div className="relative h-[760px] min-w-[1120px] p-6">
+          {props.floorObjects.map((floorObject) => {
+            const selected = props.selectedFloorObjectId === floorObject.id;
+            const position = positioned("floor-object", floorObject);
+            const CatalogIcon =
+              floorObjectCatalog.find((item) => item.type === floorObject.type)
+                ?.icon ?? LayoutGrid;
+            return (
+              <button
+                type="button"
+                key={floorObject.id}
+                onPointerDown={(event) =>
+                  beginMove(
+                    "floor-object",
+                    floorObject,
+                    floorObject.locked,
+                    event,
+                  )
+                }
+                onPointerMove={continueMove}
+                onPointerUp={finishMove}
+                onPointerCancel={() => {
+                  dragRef.current = null;
+                  setPreviewPositions({});
+                }}
+                onClick={() => {
+                  if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return;
+                  }
+                  props.onSelectFloorObject(floorObject);
+                }}
+                onKeyDown={(event) =>
+                  moveWithKeyboard("floor-object", floorObject, event)
+                }
+                aria-pressed={selected}
+                aria-label={`${floorObject.label}. Trage pentru mutare sau apasă pentru setări.`}
+                className={cn(
+                  "absolute touch-none select-none rounded-xl border-2 border-dashed bg-brand-soft/70 px-3 py-2 text-center text-brand-dark shadow-sm transition-[border-color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  selected
+                    ? "border-brand ring-4 ring-brand/10"
+                    : "border-brand/35 hover:border-brand/70",
+                  floorObject.locked && "border-warning/60 bg-warning-soft",
+                )}
+                style={{
+                  left: `${position.x}px`,
+                  top: `${position.y}px`,
+                  width: `${Math.max(64, Number(floorObject.width))}px`,
+                  height: `${Math.max(48, Number(floorObject.height))}px`,
+                  transform: `rotate(${Number(floorObject.rotation)}deg)`,
+                }}
+                data-testid={`seating-floor-object-${floorObject.id}`}
+              >
+                <CatalogIcon className="mx-auto size-5" aria-hidden />
+                <span className="mt-1 block truncate text-xs font-semibold">
+                  {floorObject.label}
+                </span>
+                {floorObject.locked && (
+                  <Lock className="absolute right-2 top-2 size-3.5 text-warning" />
+                )}
+              </button>
+            );
+          })}
         {props.tables.length ? (
           props.tables.map((table) => {
             const guests = props.guests.filter(
@@ -1777,11 +2357,30 @@ function SeatingCanvas(props: {
                 table.id,
             );
             const selected = props.selectedTableId === table.id;
+            const position = positioned("table", table);
             return (
               <button
                 type="button"
                 key={table.id}
-                onClick={() => props.onSelectTable(table.id)}
+                onPointerDown={(event) =>
+                  beginMove("table", table, table.locked, event)
+                }
+                onPointerMove={continueMove}
+                onPointerUp={finishMove}
+                onPointerCancel={() => {
+                  dragRef.current = null;
+                  setPreviewPositions({});
+                }}
+                onClick={() => {
+                  if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return;
+                  }
+                  props.onSelectTable(table.id);
+                }}
+                onKeyDown={(event) =>
+                  moveWithKeyboard("table", table, event)
+                }
                 onDragOver={(event) => {
                   if (props.canAssign) event.preventDefault();
                 }}
@@ -1793,7 +2392,7 @@ function SeatingCanvas(props: {
                 aria-pressed={selected}
                 aria-label={`${table.name}, ${guests.length} din ${table.capacity} locuri`}
                 className={cn(
-                  "absolute min-w-[128px] border-2 bg-surface px-4 py-3 text-center shadow-sm transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-brand/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  "absolute min-w-[128px] touch-none select-none border-2 bg-surface px-4 py-3 text-center shadow-sm transition-[border-color,box-shadow] duration-150 hover:border-brand/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                   tableShapeClass(table.shape),
                   selected
                     ? "border-brand shadow-card ring-4 ring-brand/10"
@@ -1801,8 +2400,8 @@ function SeatingCanvas(props: {
                   table.locked && "border-warning/60",
                 )}
                 style={{
-                  left: `${Math.max(24, Math.min(760, Number(table.x)))}px`,
-                  top: `${Math.max(24, Math.min(500, Number(table.y)))}px`,
+                  left: `${position.x}px`,
+                  top: `${position.y}px`,
                   width: `${Math.max(128, Math.min(210, Number(table.width)))}px`,
                   minHeight: `${Math.max(92, Math.min(150, Number(table.height)))}px`,
                   transform: `rotate(${Number(table.rotation)}deg)`,
@@ -1850,6 +2449,142 @@ function SeatingCanvas(props: {
         )}
       </div>
     </div>
+    </div>
+  );
+}
+
+function FloorObjectModal(props: {
+  open: boolean;
+  floorObject: SeatingFloorObject | null;
+  draft: FloorObjectDraft;
+  setDraft: React.Dispatch<React.SetStateAction<FloorObjectDraft>>;
+  saving: boolean;
+  canWrite: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      title={props.floorObject?.label ?? "Obiect în sală"}
+      description="Mută obiectul direct pe plan; aici ajustezi dimensiunea, rotația și blocarea."
+      size="lg"
+    >
+      {props.floorObject && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-xl bg-brand-soft p-3 text-sm text-brand-dark">
+            <Move className="size-5 shrink-0" aria-hidden />
+            <p>
+              Închide fereastra și trage obiectul pe plan. Pentru ajustări fine,
+              folosește săgețile când obiectul este focalizat.
+            </p>
+          </div>
+          <Field label="Denumire">
+            <Input
+              value={props.draft.label}
+              onChange={(event) =>
+                props.setDraft((current) => ({
+                  ...current,
+                  label: event.target.value,
+                }))
+              }
+              disabled={!props.canWrite}
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="Lățime">
+              <Input
+                type="number"
+                min="48"
+                max="900"
+                value={props.draft.width}
+                onChange={(event) =>
+                  props.setDraft((current) => ({
+                    ...current,
+                    width: event.target.value,
+                  }))
+                }
+                disabled={!props.canWrite}
+              />
+            </Field>
+            <Field label="Înălțime">
+              <Input
+                type="number"
+                min="40"
+                max="640"
+                value={props.draft.height}
+                onChange={(event) =>
+                  props.setDraft((current) => ({
+                    ...current,
+                    height: event.target.value,
+                  }))
+                }
+                disabled={!props.canWrite}
+              />
+            </Field>
+            <Field label="Rotație">
+              <Input
+                type="number"
+                min="-360"
+                max="360"
+                value={props.draft.rotation}
+                onChange={(event) =>
+                  props.setDraft((current) => ({
+                    ...current,
+                    rotation: event.target.value,
+                  }))
+                }
+                disabled={!props.canWrite}
+              />
+            </Field>
+          </div>
+          <label className="flex min-h-11 items-center gap-3 rounded-xl border border-line px-3 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={props.draft.locked}
+              onChange={(event) =>
+                props.setDraft((current) => ({
+                  ...current,
+                  locked: event.target.checked,
+                }))
+              }
+              className="size-4 accent-brand"
+              disabled={!props.canWrite}
+            />
+            Blochează poziția obiectului
+          </label>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+            <Button
+              variant="destructive-outline"
+              onClick={props.onDelete}
+              disabled={!props.canWrite || props.saving}
+            >
+              <Trash2 className="size-4" /> Elimină
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={props.onClose}>
+                Renunță
+              </Button>
+              <Button
+                onClick={props.onSave}
+                loading={props.saving}
+                disabled={
+                  !props.canWrite ||
+                  props.saving ||
+                  !props.draft.label.trim() ||
+                  Number(props.draft.width) <= 0 ||
+                  Number(props.draft.height) <= 0
+                }
+              >
+                Salvează obiectul
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -2093,7 +2828,7 @@ function TableDetail(props: {
                       </Button>
                     </Tooltip>
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     <Field label="Masă">
                       <Select
                         value={props.table.id}
@@ -2156,10 +2891,7 @@ function TableDetail(props: {
                         </Select>
                       </Field>
                     )}
-                    <Field
-                      label="Meniu"
-                      className="sm:col-span-2 xl:col-span-1"
-                    >
+                    <Field label="Meniu">
                       <Select
                         value={guest.menu?.id ?? ""}
                         onChange={(event) =>

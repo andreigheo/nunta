@@ -66,6 +66,27 @@ export const createSeatingTableSchema = z.object({
 export const updateSeatingTableSchema = createSeatingTableSchema
   .omit({ seats: true })
   .partial();
+export const seatingFloorObjectTypeSchema = z.enum([
+  "stage",
+  "dance_floor",
+  "entrance",
+  "bar",
+  "dj_booth",
+  "photo_booth",
+  "custom",
+]);
+export const createSeatingFloorObjectSchema = z.object({
+  type: seatingFloorObjectTypeSchema,
+  label: z.string().trim().min(1).max(120),
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  rotation: z.number().min(-360).max(360).default(0),
+  locked: z.boolean().default(false),
+});
+export const updateSeatingFloorObjectSchema =
+  createSeatingFloorObjectSchema.partial();
 export const updateSeatingSeatSchema = z.object({
   label: z.string().trim().min(1).max(80).optional(),
   position: z.number().int().min(0).optional(),

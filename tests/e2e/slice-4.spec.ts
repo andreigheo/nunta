@@ -368,9 +368,48 @@ test("E2E 7B — Complete visual seating workflow with guests and menus", async 
   await tableDialog.getByLabel("Zonă").fill("Aproape de scenă");
   await tableDialog.getByRole("button", { name: "Adaugă masa" }).click();
   await expect(page.getByText("Masa a fost adăugată")).toBeVisible();
-  await page
-    .getByRole("button", { name: /Masa familiei E2E, 0 din 4/ })
+  await page.getByRole("button", { name: "Obiect în sală" }).click();
+  await page.getByRole("menuitem", { name: "Scenă" }).click();
+  const floorObjectDialog = page.getByRole("dialog", { name: "Scenă" });
+  await floorObjectDialog.getByLabel("Denumire").fill("Scena principală E2E");
+  await floorObjectDialog
+    .getByRole("button", { name: "Salvează obiectul" })
     .click();
+  await expect(page.getByText("Obiectul a fost actualizat")).toBeVisible();
+  const stage = page.getByRole("button", {
+    name: /Scena principală E2E\. Trage pentru mutare/,
+  });
+  await expect(stage).toBeVisible();
+  const stageBox = await stage.boundingBox();
+  expect(stageBox).not.toBeNull();
+  if (stageBox) {
+    await page.mouse.move(stageBox.x + 20, stageBox.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(stageBox.x + 120, stageBox.y + 350, { steps: 8 });
+    await page.mouse.up();
+  }
+  await expect
+    .poll(async () => (await seatingDetail()).floorObjects[0]?.y)
+    .toBeGreaterThan(72);
+
+  const tableOnCanvas = page.getByRole("button", {
+    name: /Masa familiei E2E, 0 din 4/,
+  });
+  const tableBox = await tableOnCanvas.boundingBox();
+  expect(tableBox).not.toBeNull();
+  if (tableBox) {
+    await page.mouse.move(tableBox.x + 30, tableBox.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(tableBox.x + 100, tableBox.y + 75, { steps: 6 });
+    await page.mouse.up();
+  }
+  await expect
+    .poll(async () => (await seatingDetail()).tables[1]?.x)
+    .toBeGreaterThan(253);
+  await tableOnCanvas.click();
+  const tableInspector = page.getByRole("dialog", { name: "Gestionează M2" });
+  await expect(tableInspector).toBeVisible();
+  await tableInspector.getByRole("button", { name: "Închide" }).click();
 
   for (const fullName of ["Ioana Dumitru", "Matei Dumitru"]) {
     await page
@@ -379,16 +418,23 @@ test("E2E 7B — Complete visual seating workflow with guests and menus", async 
     await page.getByRole("menuitem", { name: "Așază la M2" }).click();
   }
   await expect(page.getByText("2 din 2 confirmați")).toBeVisible();
+  await page
+    .getByRole("button", { name: /Masa familiei E2E, 2 din 4/ })
+    .click();
+  await expect(tableInspector).toBeVisible();
+  await captureSeating(page, "inspector");
   await expect(
-    page.getByText("Ioana Dumitru", { exact: true }).last(),
+    tableInspector.getByText("Ioana Dumitru", { exact: true }),
   ).toBeVisible();
-  const menuSelects = page.getByLabel("Meniu", { exact: true });
+  const menuSelects = tableInspector.getByLabel("Meniu", { exact: true });
   await expect(menuSelects).toHaveCount(2);
   await menuSelects.nth(0).selectOption(menu.id);
   await menuSelects.nth(1).selectOption(menu.id);
-  const seatSelects = page.getByLabel("Loc", { exact: true });
+  const seatSelects = tableInspector.getByLabel("Loc", { exact: true });
   await seatSelects.nth(0).selectOption({ index: 1 });
-  await page.getByRole("button", { name: "Gestionează", exact: true }).click();
+  await tableInspector
+    .getByRole("button", { name: "Gestionează", exact: true })
+    .click();
   const seatsDialog = page.getByRole("dialog", {
     name: "Locurile mesei M2",
   });
@@ -399,6 +445,7 @@ test("E2E 7B — Complete visual seating workflow with guests and menus", async 
     .getByRole("button", { name: "Închide", exact: true })
     .last()
     .click();
+  await tableInspector.getByRole("button", { name: "Închide" }).click();
   await page.getByRole("tab", { name: "Toți" }).click();
   await page
     .getByRole("button", { name: "Acțiuni pentru Ioana Dumitru" })
@@ -419,6 +466,9 @@ test("E2E 7B — Complete visual seating workflow with guests and menus", async 
   await expect(page.getByText("2 din 2 confirmați")).toBeVisible();
   await expect(page.getByText("0 fără meniu · 0 probleme")).toBeVisible();
   await expectNoSeriousA11yViolations(page, "main");
+  await page.getByRole("button", { name: "Mărește planul sălii" }).click();
+  await captureSeating(page, "expanded");
+  await page.getByRole("button", { name: "Închide planul mărit" }).click();
   await captureSeating(page, "complete");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export" }).click();
@@ -859,7 +909,8 @@ test("E2E 22 — Demo isolation", async ({ page }) => {
 async function seatingDetail() {
   return apiData<{
     version: number;
-    tables: Array<{ seats: unknown[] }>;
+    tables: Array<{ seats: unknown[]; x: number; y: number }>;
+    floorObjects: Array<{ id: string; x: number; y: number }>;
     assignments: unknown[];
   }>(
     await owner.api.get(

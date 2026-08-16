@@ -599,6 +599,25 @@ export type SeatingPlanResource = OperationResource & {
       >;
     }
   >;
+  floorObjects: Array<
+    OperationResource & {
+      type:
+        | "stage"
+        | "dance_floor"
+        | "entrance"
+        | "bar"
+        | "dj_booth"
+        | "photo_booth"
+        | "custom";
+      label: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      rotation: number;
+      locked: boolean;
+    }
+  >;
   assignments: Array<
     OperationResource & {
       guestId: string;
@@ -1781,6 +1800,40 @@ export const weddingOsApi = {
   ) =>
     request<{ deleted: true; id: string }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/tables/${encodeURIComponent(tableId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
+  createSeatingFloorObject: (
+    workspaceId: string,
+    planId: string,
+    input: Record<string, unknown>,
+  ) =>
+    request<SeatingPlanResource["floorObjects"][number]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/floor-objects`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  updateSeatingFloorObject: (
+    workspaceId: string,
+    planId: string,
+    objectId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<SeatingPlanResource["floorObjects"][number]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/floor-objects/${encodeURIComponent(objectId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteSeatingFloorObject: (
+    workspaceId: string,
+    planId: string,
+    objectId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}/floor-objects/${encodeURIComponent(objectId)}`,
       { method: "DELETE", ifMatch: version },
     ),
   updateSeatingSeat: (

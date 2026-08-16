@@ -669,6 +669,206 @@ export class OperationsService {
     });
   }
 
+  async createFloorObject(
+    userId: string,
+    workspaceId: string,
+    planId: string,
+    key: string,
+    input: Input,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const replay = await this.replay(
+          tx,
+          userId,
+          workspaceId,
+          `seating.floor-object.create:${planId}`,
+          key,
+          input,
+        );
+        if (replay) return replay;
+        const plan = await this.requireSeatingPlan(tx, workspaceId, planId);
+        const floorObject = await tx.seatingFloorObject.create({
+          data: {
+            workspaceId,
+            seatingPlanId: planId,
+            type: dbEnum(input.type) as
+              | "STAGE"
+              | "DANCE_FLOOR"
+              | "ENTRANCE"
+              | "BAR"
+              | "DJ_BOOTH"
+              | "PHOTO_BOOTH"
+              | "CUSTOM",
+            label: string(input.label),
+            x: number(input.x),
+            y: number(input.y),
+            width: number(input.width),
+            height: number(input.height),
+            rotation: number(input.rotation ?? 0),
+            locked: boolean(input.locked),
+          },
+        });
+        const updatedPlan = await tx.seatingPlan.update({
+          where: { id: plan.id },
+          data: { activeSnapshotId: null, version: { increment: 1 } },
+        });
+        await this.recordSimple(tx, {
+          eventName: "seating.plan_updated.v1",
+          aggregateType: "SeatingFloorObject",
+          aggregateId: floorObject.id,
+          aggregateVersion: floorObject.version,
+          workspaceId,
+          userId,
+          correlationId,
+          summary: `${floorObject.label} a fost adăugat în planul sălii.`,
+          category: "seating",
+          action: "floor_object_created",
+          subject: { planId, planVersion: updatedPlan.version },
+        });
+        const response = resource(floorObject);
+        await this.saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          `seating.floor-object.create:${planId}`,
+          key,
+          input,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async updateFloorObject(
+    userId: string,
+    workspaceId: string,
+    planId: string,
+    objectId: string,
+    version: number,
+    input: Input,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        await this.requireSeatingPlan(tx, workspaceId, planId);
+        const current = await tx.seatingFloorObject.findFirst({
+          where: {
+            id: objectId,
+            workspaceId,
+            seatingPlanId: planId,
+            deletedAt: null,
+          },
+        });
+        if (!current) notFound("Obiectul nu există în planul sălii.");
+        assertVersion(current.version, version);
+        const floorObject = await tx.seatingFloorObject.update({
+          where: { id: objectId },
+          data: {
+            ...(input.type
+              ? {
+                  type: dbEnum(input.type) as
+                    | "STAGE"
+                    | "DANCE_FLOOR"
+                    | "ENTRANCE"
+                    | "BAR"
+                    | "DJ_BOOTH"
+                    | "PHOTO_BOOTH"
+                    | "CUSTOM",
+                }
+              : {}),
+            ...(input.label ? { label: string(input.label) } : {}),
+            ...(input.x !== undefined ? { x: number(input.x) } : {}),
+            ...(input.y !== undefined ? { y: number(input.y) } : {}),
+            ...(input.width !== undefined
+              ? { width: number(input.width) }
+              : {}),
+            ...(input.height !== undefined
+              ? { height: number(input.height) }
+              : {}),
+            ...(input.rotation !== undefined
+              ? { rotation: number(input.rotation) }
+              : {}),
+            ...(input.locked !== undefined
+              ? { locked: boolean(input.locked) }
+              : {}),
+            version: { increment: 1 },
+          },
+        });
+        const updatedPlan = await tx.seatingPlan.update({
+          where: { id: planId },
+          data: { activeSnapshotId: null, version: { increment: 1 } },
+        });
+        await this.recordSimple(tx, {
+          eventName: "seating.plan_updated.v1",
+          aggregateType: "SeatingFloorObject",
+          aggregateId: floorObject.id,
+          aggregateVersion: floorObject.version,
+          workspaceId,
+          userId,
+          correlationId,
+          summary: `${floorObject.label} a fost actualizat în planul sălii.`,
+          category: "seating",
+          action: "floor_object_updated",
+          subject: { planId, planVersion: updatedPlan.version },
+        });
+        return resource(floorObject);
+      },
+    );
+  }
+
+  async deleteFloorObject(
+    userId: string,
+    workspaceId: string,
+    planId: string,
+    objectId: string,
+    version: number,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        await this.requireSeatingPlan(tx, workspaceId, planId);
+        const current = await tx.seatingFloorObject.findFirst({
+          where: {
+            id: objectId,
+            workspaceId,
+            seatingPlanId: planId,
+            deletedAt: null,
+          },
+        });
+        if (!current) notFound("Obiectul nu există în planul sălii.");
+        assertVersion(current.version, version);
+        const floorObject = await tx.seatingFloorObject.update({
+          where: { id: objectId },
+          data: { deletedAt: new Date(), version: { increment: 1 } },
+        });
+        const updatedPlan = await tx.seatingPlan.update({
+          where: { id: planId },
+          data: { activeSnapshotId: null, version: { increment: 1 } },
+        });
+        await this.recordSimple(tx, {
+          eventName: "seating.plan_updated.v1",
+          aggregateType: "SeatingFloorObject",
+          aggregateId: floorObject.id,
+          aggregateVersion: floorObject.version,
+          workspaceId,
+          userId,
+          correlationId,
+          summary: `${floorObject.label} a fost eliminat din planul sălii.`,
+          category: "seating",
+          action: "floor_object_deleted",
+          subject: { planId, planVersion: updatedPlan.version },
+        });
+        return { deleted: true, id: objectId };
+      },
+    );
+  }
+
   async updateSeat(
     userId: string,
     workspaceId: string,
@@ -1287,6 +1487,10 @@ export class OperationsService {
           },
           orderBy: { position: "asc" },
         });
+        const floorObjects = await tx.seatingFloorObject.findMany({
+          where: { workspaceId, seatingPlanId: planId, deletedAt: null },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        });
         const assignments = await tx.guestSeatingAssignment.findMany({
           where: {
             workspaceId,
@@ -1305,6 +1509,7 @@ export class OperationsService {
         const layout = {
           tables: tables.map(resource),
           seats: seats.map(resource),
+          floorObjects: floorObjects.map(resource),
           assignments: assignments.map(resource),
           overrideReason: reason,
         };
@@ -3402,6 +3607,10 @@ export class OperationsService {
       where: { workspaceId, tableId: { in: tables.map((table) => table.id) } },
       orderBy: { position: "asc" },
     });
+    const floorObjects = await tx.seatingFloorObject.findMany({
+      where: { workspaceId, seatingPlanId: planId, deletedAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
     const assignments = await tx.guestSeatingAssignment.findMany({
       where: {
         workspaceId,
@@ -3473,6 +3682,7 @@ export class OperationsService {
           (assignment) => assignment.seatingTableId === table.id,
         ).length,
       })),
+      floorObjects: floorObjects.map(resource),
       assignments: assignments.map(resource),
       guests: guests.map((guest) => ({
         ...resource(guest),
@@ -4568,26 +4778,31 @@ export class OperationsService {
     planId: string,
   ) {
     const plan = await this.requireSeatingPlan(tx, workspaceId, planId);
-    const [guests, tables, assignments, constraints] = await Promise.all([
-      this.eligibleGuests(tx, workspaceId, plan.weddingEventId),
-      tx.seatingTable.findMany({
-        where: { workspaceId, seatingPlanId: planId, deletedAt: null },
-      }),
-      tx.guestSeatingAssignment.findMany({
-        where: {
-          workspaceId,
-          seatingPlanId: planId,
-          status: { in: ["ACTIVE", "CONFLICT"] },
-        },
-      }),
-      tx.seatingConstraint.findMany({
-        where: { workspaceId, seatingPlanId: planId, deletedAt: null },
-      }),
-    ]);
+    const [guests, tables, floorObjects, assignments, constraints] =
+      await Promise.all([
+        this.eligibleGuests(tx, workspaceId, plan.weddingEventId),
+        tx.seatingTable.findMany({
+          where: { workspaceId, seatingPlanId: planId, deletedAt: null },
+        }),
+        tx.seatingFloorObject.findMany({
+          where: { workspaceId, seatingPlanId: planId, deletedAt: null },
+        }),
+        tx.guestSeatingAssignment.findMany({
+          where: {
+            workspaceId,
+            seatingPlanId: planId,
+            status: { in: ["ACTIVE", "CONFLICT"] },
+          },
+        }),
+        tx.seatingConstraint.findMany({
+          where: { workspaceId, seatingPlanId: planId, deletedAt: null },
+        }),
+      ]);
     return stableHash({
       planVersion: plan.version,
       guests,
       tables,
+      floorObjects,
       assignments,
       constraints,
     });
