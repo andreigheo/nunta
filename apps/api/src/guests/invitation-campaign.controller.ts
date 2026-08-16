@@ -468,6 +468,26 @@ export class InvitationCampaignController {
     return apiResponse(request, data, { version: data.version });
   }
 
+  @Delete("campaigns/:campaignId")
+  @RequireCapability("campaign.write")
+  async discardCampaignDraft(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("campaignId") campaignId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.discardCampaignDraft(
+        auth.userId,
+        uuid(workspaceId),
+        uuid(campaignId),
+        requiredVersion(ifMatch),
+      ),
+    );
+  }
+
   @Get("campaigns/:campaignId/audience-preview")
   @RequireCapability("campaign.read")
   async audience(

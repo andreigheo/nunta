@@ -22,6 +22,7 @@ import {
   guestRsvpRequestSchema,
   organizerMenuSelectionSchema,
   resolveAllergyIssueSchema,
+  rsvpDashboardQuerySchema,
   saveRsvpFormSchema,
   updateMenuSchema,
 } from "@weddingos/contracts";
@@ -97,6 +98,24 @@ export class RsvpMenuController {
   ) {
     const data = await this.service.form(auth.userId, uuid(workspaceId));
     return apiResponse(request, data, { version: resourceVersion(data) });
+  }
+
+  @Get("rsvp-dashboard")
+  @RequireCapability("rsvp.read")
+  async dashboard(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Query() query: Record<string, string | undefined>,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.dashboard(
+        auth.userId,
+        uuid(workspaceId),
+        parseWithSchema(rsvpDashboardQuerySchema, query),
+      ),
+    );
   }
 
   @Put("rsvp-form")

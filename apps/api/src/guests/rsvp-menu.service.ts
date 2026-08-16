@@ -5,8 +5,13 @@ import type {
   GuestInvitationOpen,
   GuestLinkAccess,
   GuestRsvpRequest,
+  RsvpDashboardQuery,
+  RsvpDashboardStatus,
 } from "@weddingos/contracts";
-import { guestAccommodationRecommendationSchema } from "@weddingos/contracts";
+import {
+  guestAccommodationRecommendationSchema,
+  rsvpFormConfigSchema,
+} from "@weddingos/contracts";
 import type { ApiEnvironment } from "@weddingos/config";
 import type { Prisma } from "@weddingos/database";
 import { AsyncService } from "../async/async.service";
@@ -49,6 +54,259 @@ export class RsvpMenuService {
   async form(userId: string, workspaceId: string) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       return this.formInTransaction(tx, workspaceId);
+    });
+  }
+
+  async dashboard(
+    userId: string,
+    workspaceId: string,
+    query: RsvpDashboardQuery,
+  ) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const definition = await tx.rsvpFormDefinition.findUnique({
+        where: { workspaceId },
+        select: { publishedVersionId: true },
+      });
+      const publishedVersion = definition?.publishedVersionId
+        ? await tx.rsvpFormVersion.findFirst({
+            where: {
+              id: definition.publishedVersionId,
+              workspaceId,
+              immutable: true,
+            },
+          })
+        : null;
+      const config = publishedVersion
+        ? rsvpFormConfigSchema.parse(publishedVersion.config)
+        : null;
+      const [events, households, guests] = await Promise.all([
+        tx.weddingEvent.findMany({
+          where: {
+            workspaceId,
+            deletedAt: null,
+            guestVisible: true,
+            rsvpEnabled: true,
+            status: { not: "CANCELLED" },
+          },
+          orderBy: [{ position: "asc" }, { startAt: "asc" }, { id: "asc" }],
+          select: { id: true, title: true, startAt: true },
+        }),
+        tx.household.findMany({
+          where: { workspaceId, deletedAt: null },
+          orderBy: [{ name: "asc" }, { id: "asc" }],
+          select: { id: true, name: true },
+        }),
+        tx.guest.findMany({
+          where: { workspaceId, status: "ACTIVE", deletedAt: null },
+          orderBy: [
+            { isChild: "asc" },
+            { isPlusOne: "asc" },
+            { createdAt: "asc" },
+            { id: "asc" },
+          ],
+          select: {
+            id: true,
+            householdId: true,
+            firstName: true,
+            lastName: true,
+            displayName: true,
+            isChild: true,
+            isPlusOne: true,
+            needsTransport: true,
+            needsAccommodation: true,
+          },
+        }),
+      ]);
+      const guestIds = guests.map((guest) => guest.id);
+      const submissions = publishedVersion
+        ? await tx.rsvpSubmission.findMany({
+            where: { workspaceId, formVersionId: publishedVersion.id },
+            orderBy: [
+              { lastModifiedAt: "desc" },
+              { submittedAt: "desc" },
+              { createdAt: "desc" },
+              { id: "desc" },
+            ],
+          })
+        : [];
+      const submissionIds = submissions.map((submission) => submission.id);
+      const [responses, selections] = await Promise.all([
+        submissionIds.length
+          ? tx.guestEventResponse.findMany({
+              where: {
+                workspaceId,
+                submissionId: { in: submissionIds },
+                guestId: { in: guestIds },
+                weddingEventId: { in: events.map((event) => event.id) },
+              },
+            })
+          : [],
+        guestIds.length
+          ? tx.guestMenuSelection.findMany({
+              where: { workspaceId, guestId: { in: guestIds }, active: true },
+              orderBy: [{ selectedAt: "desc" }, { id: "desc" }],
+              select: { guestId: true, menuId: true },
+            })
+          : [],
+      ]);
+      const menuIds = [...new Set(selections.map((item) => item.menuId))];
+      const menuNames = new Map(
+        (
+          await tx.menu.findMany({
+            where: { workspaceId, id: { in: menuIds }, deletedAt: null },
+            select: { id: true, name: true },
+          })
+        ).map((menu) => [menu.id, menu.name]),
+      );
+      const submissionByHousehold = new Map<
+        string,
+        (typeof submissions)[number]
+      >();
+      for (const submission of submissions)
+        if (!submissionByHousehold.has(submission.householdId))
+          submissionByHousehold.set(submission.householdId, submission);
+      const selectionByGuest = new Map<string, (typeof selections)[number]>();
+      for (const selection of selections)
+        if (!selectionByGuest.has(selection.guestId))
+          selectionByGuest.set(selection.guestId, selection);
+      const responseByPair = new Map(
+        responses.map((response) => [
+          `${response.submissionId}:${response.guestId}:${response.weddingEventId}`,
+          response,
+        ]),
+      );
+      const guestsByHousehold = new Map<
+        string,
+        Array<(typeof guests)[number]>
+      >();
+      for (const guest of guests) {
+        const householdGuests = guestsByHousehold.get(guest.householdId) ?? [];
+        householdGuests.push(guest);
+        guestsByHousehold.set(guest.householdId, householdGuests);
+      }
+      const rows = households.flatMap((household) => {
+        const householdGuests = guestsByHousehold.get(household.id) ?? [];
+        if (!householdGuests.length) return [];
+        const submission = submissionByHousehold.get(household.id) ?? null;
+        const members = householdGuests.map((guest) => {
+          const memberResponses = events.map((event) => {
+            const response = submission
+              ? responseByPair.get(`${submission.id}:${guest.id}:${event.id}`)
+              : undefined;
+            return {
+              eventId: event.id,
+              attendance: response
+                ? (response.attendance.toLowerCase() as
+                    "confirmed" | "declined" | "unsure")
+                : submission && guest.isPlusOne
+                  ? ("confirmed" as const)
+                  : null,
+            };
+          });
+          const selection = selectionByGuest.get(guest.id);
+          return {
+            guestId: guest.id,
+            name:
+              guest.displayName?.trim() ||
+              `${guest.firstName} ${guest.lastName}`.trim(),
+            isChild: guest.isChild,
+            isPlusOne: guest.isPlusOne,
+            status: dashboardStatus(
+              memberResponses.map((response) => response.attendance),
+            ),
+            responses: memberResponses,
+            menuId: selection?.menuId ?? null,
+            menuName: selection
+              ? (menuNames.get(selection.menuId) ?? null)
+              : null,
+            needsTransport: guest.needsTransport,
+            needsAccommodation: guest.needsAccommodation,
+          };
+        });
+        return [
+          {
+            householdId: household.id,
+            householdName: household.name,
+            status: householdDashboardStatus(
+              members.map((member) => member.status),
+            ),
+            members,
+            submission: submission
+              ? {
+                  id: submission.id,
+                  version: submission.version,
+                  source:
+                    submission.source === "ADMIN_OVERRIDE"
+                      ? ("admin_override" as const)
+                      : ("guest" as const),
+                  message: submission.guestMessage,
+                  submittedAt: submission.submittedAt?.toISOString() ?? null,
+                  lastModifiedAt:
+                    submission.lastModifiedAt?.toISOString() ?? null,
+                }
+              : null,
+          },
+        ];
+      });
+      const memberStatuses = rows.flatMap((row) =>
+        row.members.map((member) => member.status),
+      );
+      const summary = {
+        totalGuests: memberStatuses.length,
+        totalHouseholds: rows.length,
+        respondedHouseholds: rows.filter((row) => row.submission).length,
+        confirmed: countStatus(memberStatuses, "confirmed"),
+        declined: countStatus(memberStatuses, "declined"),
+        unsure: countStatus(memberStatuses, "unsure"),
+        mixed: countStatus(memberStatuses, "mixed"),
+        incomplete: countStatus(memberStatuses, "incomplete"),
+        noResponse: countStatus(memberStatuses, "no_response"),
+        menuIncomplete:
+          config?.menuSelection === false
+            ? 0
+            : rows
+                .flatMap((row) => row.members)
+                .filter(
+                  (member) =>
+                    member.responses.some(
+                      (response) => response.attendance === "confirmed",
+                    ) && !member.menuId,
+                ).length,
+        transportRequested: guests.filter((guest) => guest.needsTransport)
+          .length,
+        accommodationRequested: guests.filter(
+          (guest) => guest.needsAccommodation,
+        ).length,
+      };
+      const search = query.search?.toLocaleLowerCase("ro");
+      const filtered = rows.filter(
+        (row) =>
+          (!query.status || row.status === query.status) &&
+          (!search ||
+            row.householdName.toLocaleLowerCase("ro").includes(search) ||
+            row.members.some((member) =>
+              member.name.toLocaleLowerCase("ro").includes(search),
+            )),
+      );
+      const cursorIndex = query.cursor
+        ? filtered.findIndex((row) => row.householdId === query.cursor)
+        : -1;
+      const start = cursorIndex >= 0 ? cursorIndex + 1 : 0;
+      const page = filtered.slice(start, start + query.limit);
+      return {
+        events: events.map((event) => ({
+          id: event.id,
+          title: event.title,
+          startAt: event.startAt?.toISOString() ?? null,
+        })),
+        items: page,
+        nextCursor:
+          start + query.limit < filtered.length
+            ? (page.at(-1)?.householdId ?? null)
+            : null,
+        matchedHouseholds: filtered.length,
+        summary,
+      };
     });
   }
 
@@ -1105,18 +1363,71 @@ export class RsvpMenuService {
           replayInput,
         );
         if (prior) return prior;
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(
+            hashtextextended(
+              ${`invitation-site-workspace:${workspaceId}`},
+              0
+            )
+          )
+        `;
         const submission = await tx.rsvpSubmission.findFirst({
           where: { id: submissionId, workspaceId },
         });
         if (!submission) notFound("RSVP submission not found");
         if (submission.version !== expectedVersion)
           conflict(submission.version);
-        const members = await tx.guest.findMany({
-          where: { householdId: submission.householdId },
+        const definition = await tx.rsvpFormDefinition.findUnique({
+          where: { workspaceId },
+          select: { publishedVersionId: true },
         });
+        if (definition?.publishedVersionId !== submission.formVersionId)
+          validation(
+            "Only responses to the currently published RSVP form can be corrected",
+          );
+        const members = await tx.guest.findMany({
+          where: {
+            workspaceId,
+            householdId: submission.householdId,
+            status: "ACTIVE",
+            deletedAt: null,
+          },
+        });
+        const events = await tx.weddingEvent.findMany({
+          where: {
+            workspaceId,
+            deletedAt: null,
+            guestVisible: true,
+            rsvpEnabled: true,
+            status: { not: "CANCELLED" },
+          },
+          select: { id: true },
+        });
+        const memberIds = new Set(members.map((member) => member.id));
+        const inputMemberIds = new Set(
+          input.members.map((member) => member.guestId),
+        );
+        const eventIds = new Set(events.map((event) => event.id));
+        if (
+          inputMemberIds.size !== memberIds.size ||
+          [...memberIds].some((memberId) => !inputMemberIds.has(memberId))
+        )
+          validation(
+            "The correction must include every active household member",
+          );
         for (const memberInput of input.members) {
-          if (!members.some((member) => member.id === memberInput.guestId))
+          if (!memberIds.has(memberInput.guestId))
             validation("Guest does not belong to this RSVP household");
+          const inputEventIds = new Set(
+            memberInput.events.map((event) => event.eventId),
+          );
+          if (
+            inputEventIds.size !== eventIds.size ||
+            [...eventIds].some((eventId) => !inputEventIds.has(eventId))
+          )
+            validation(
+              "The correction must answer every active RSVP event for every member",
+            );
           for (const event of memberInput.events) {
             await tx.guestEventResponse.upsert({
               where: {
@@ -1152,6 +1463,23 @@ export class RsvpMenuService {
             version: { increment: 1 },
           },
         });
+        const recipient = await tx.invitationRecipient.findFirst({
+          where: {
+            id: submission.invitationRecipientId,
+            workspaceId,
+            revokedAt: null,
+          },
+        });
+        if (recipient) {
+          const identityRecipients = await this.identityRecipients(
+            tx,
+            recipient,
+          );
+          await tx.invitationRecipient.updateMany({
+            where: { id: { in: identityRecipients.map((item) => item.id) } },
+            data: { status: "RESPONDED", rsvpCompletedAt: new Date() },
+          });
+        }
         const response = await this.submissionResponse(tx, updated);
         await saveReplay(
           tx,
@@ -2042,11 +2370,41 @@ function mapFormVersion(row: {
   return {
     id: row.id,
     versionNumber: row.versionNumber,
-    config: row.config,
+    config: rsvpFormConfigSchema.parse(row.config),
     contentHash: row.contentHash,
     immutable: row.immutable,
     publishedAt: row.publishedAt?.toISOString() ?? null,
   };
+}
+
+function dashboardStatus(
+  responses: Array<"confirmed" | "declined" | "unsure" | null>,
+): RsvpDashboardStatus {
+  if (!responses.length || responses.every((response) => response === null))
+    return "no_response";
+  if (responses.some((response) => response === null)) return "incomplete";
+  const distinct = new Set(responses);
+  if (distinct.size > 1) return "mixed";
+  return responses[0] ?? "no_response";
+}
+
+function householdDashboardStatus(
+  statuses: RsvpDashboardStatus[],
+): RsvpDashboardStatus {
+  if (!statuses.length || statuses.every((status) => status === "no_response"))
+    return "no_response";
+  if (statuses.some((status) => ["no_response", "incomplete"].includes(status)))
+    return "incomplete";
+  const distinct = new Set(statuses);
+  if (distinct.size > 1 || distinct.has("mixed")) return "mixed";
+  return statuses[0] ?? "no_response";
+}
+
+function countStatus(
+  statuses: RsvpDashboardStatus[],
+  status: RsvpDashboardStatus,
+) {
+  return statuses.filter((item) => item === status).length;
 }
 
 function mapEvent(row: {

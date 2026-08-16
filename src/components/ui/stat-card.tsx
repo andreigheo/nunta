@@ -24,7 +24,7 @@ export function StatCard({
   trend?: { value: string; direction: "up" | "down"; good?: boolean };
   href?: string;
   onClick?: () => void;
-  tone?: "default" | "warning" | "danger";
+  tone?: "default" | "success" | "warning" | "danger";
   footer?: React.ReactNode;
   className?: string;
 }) {
@@ -44,6 +44,7 @@ export function StatCard({
             className={cn(
               "inline-flex size-8 items-center justify-center rounded-lg",
               tone === "danger" && "bg-danger-soft text-danger",
+              tone === "success" && "bg-success-soft text-success",
               tone === "warning" && "bg-warning-soft text-warning",
               tone === "default" && "bg-brand-soft text-brand-strong dark:text-brand",
             )}

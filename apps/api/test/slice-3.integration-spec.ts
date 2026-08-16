@@ -1711,6 +1711,45 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(200);
     submissionVersion = overridden.body.data.version;
+    const dashboard = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/rsvp-dashboard?search=${encodeURIComponent("Familia Pop")}&status=confirmed&limit=1`,
+      )
+      .expect(200);
+    expect(dashboard.body.data.matchedHouseholds).toBe(1);
+    expect(dashboard.body.data.items).toHaveLength(1);
+    expect(dashboard.body.data.items[0]).toMatchObject({
+      householdId,
+      status: "confirmed",
+      submission: {
+        id: submissionId,
+        source: "admin_override",
+        message: "Actualizat de organizator",
+      },
+    });
+    expect(
+      dashboard.body.data.items[0].members.every(
+        (member: {
+          status: string;
+          responses: Array<{ attendance: string }>;
+        }) =>
+          member.status === "confirmed" &&
+          member.responses.every(
+            (response) => response.attendance === "confirmed",
+          ),
+      ),
+    ).toBe(true);
+    expect(
+      dashboard.body.data.summary.confirmed +
+        dashboard.body.data.summary.declined +
+        dashboard.body.data.summary.unsure +
+        dashboard.body.data.summary.mixed +
+        dashboard.body.data.summary.incomplete +
+        dashboard.body.data.summary.noResponse,
+    ).toBe(dashboard.body.data.summary.totalGuests);
+    await outsider.agent
+      .get(`/api/v1/workspaces/${workspaceId}/rsvp-dashboard`)
+      .expect(403);
     const organizerSelection = await owner.agent
       .put(
         `/api/v1/workspaces/${workspaceId}/guest-menu-selections/${primaryGuestId}`,
@@ -1865,6 +1904,17 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("If-Match", `"${lockedDraft.body.data.version}"`)
       .set("Idempotency-Key", `rsvp-lock-${randomUUID()}`)
       .expect(201);
+    const currentVersionDashboard = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/rsvp-dashboard?search=${encodeURIComponent("Familia Pop")}&status=no_response`,
+      )
+      .expect(200);
+    expect(currentVersionDashboard.body.data.items).toHaveLength(1);
+    expect(currentVersionDashboard.body.data.items[0]).toMatchObject({
+      householdId,
+      status: "no_response",
+      submission: null,
+    });
     const lockedBootstrap = await request(application.getHttpServer())
       .get(`/api/v1/guest/bootstrap?token=${encodeURIComponent(lockedToken)}`)
       .expect(200);
@@ -2056,9 +2106,18 @@ describe.sequential("Slice 3 guest journey integration", () => {
       )
       .expect(200);
     expect(segmentedPreview.body.data).toMatchObject({ total: 1, valid: 1 });
-    await database.campaign.delete({
-      where: { id: segmentedCampaign.body.data.id },
-    });
+    await owner.agent
+      .delete(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${segmentedCampaign.body.data.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${segmentedCampaign.body.data.version}"`)
+      .expect(200);
+    await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/campaigns/${segmentedCampaign.body.data.id}`,
+      )
+      .expect(404);
     const campaign = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/campaigns`)
       .set("Origin", origin)

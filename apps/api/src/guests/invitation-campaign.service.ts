@@ -1583,6 +1583,31 @@ export class InvitationCampaignService {
     });
   }
 
+  async discardCampaignDraft(
+    userId: string,
+    workspaceId: string,
+    campaignId: string,
+    expectedVersion: number,
+  ) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      await this.lockInvitationSiteLifecycle(tx, workspaceId);
+      const campaign = await tx.campaign.findFirst({
+        where: { id: campaignId, workspaceId },
+      });
+      if (!campaign) notFound("Campaign not found");
+      if (campaign.version !== expectedVersion) conflict(campaign.version);
+      if (campaign.status !== "DRAFT")
+        validation("Only an unsent draft campaign can be discarded");
+      const recipients = await tx.campaignRecipient.count({
+        where: { workspaceId, campaignId },
+      });
+      if (recipients || campaign.backgroundJobId)
+        validation("Campaign delivery has already started");
+      await tx.campaign.delete({ where: { id: campaignId } });
+      return { deleted: true as const };
+    });
+  }
+
   async audiencePreview(
     userId: string,
     workspaceId: string,

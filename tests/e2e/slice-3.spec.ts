@@ -377,32 +377,40 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
 
   await authorizePage(page, owner);
   await page.goto("/rsvp");
-  await page.getByRole("button", { name: "Editează formularul" }).click();
+  await page.getByRole("button", { name: "Întrebările formularului" }).click();
   const rsvpDialog = page.getByRole("dialog", {
-    name: "Configurare formular RSVP",
+    name: "Întrebările formularului pentru invitați",
   });
   await rsvpDialog
     .getByRole("switch", { name: "Alergii și restricții alimentare" })
     .click();
   await rsvpDialog.getByRole("button", { name: "Salvează ciorna" }).click();
-  await expect(page.getByText("Formular RSVP salvat")).toBeVisible();
+  await expect(
+    page.getByText("Ciorna formularului a fost salvată"),
+  ).toBeVisible();
   let persistedForm = await apiData<{
     draft: { config: { allergyCollection: boolean } } | null;
     published: { config: { allergyCollection: boolean } } | null;
   }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/rsvp-form`));
   expect(persistedForm.draft?.config.allergyCollection).toBe(false);
 
-  await page.getByRole("button", { name: "Editează formularul" }).click();
+  await page.getByRole("button", { name: "Întrebările formularului" }).click();
   await page
-    .getByRole("dialog", { name: "Configurare formular RSVP" })
+    .getByRole("dialog", {
+      name: "Întrebările formularului pentru invitați",
+    })
     .getByRole("switch", { name: "Alergii și restricții alimentare" })
     .click();
   await page
-    .getByRole("dialog", { name: "Configurare formular RSVP" })
+    .getByRole("dialog", {
+      name: "Întrebările formularului pentru invitați",
+    })
     .getByRole("button", { name: "Salvează ciorna" })
     .click();
-  await page.getByRole("button", { name: "Publică formularul" }).click();
-  await expect(page.getByText("Formular RSVP publicat")).toBeVisible();
+  await page.getByRole("button", { name: "Publică acum" }).click();
+  await expect(
+    page.getByText("Formularul pentru invitați este actualizat"),
+  ).toBeVisible();
   persistedForm = await apiData<{
     draft: { config: { allergyCollection: boolean } } | null;
     published: { config: { allergyCollection: boolean } } | null;
@@ -666,6 +674,51 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
   expect(
     rsvp.responses.every((response) => response.attendance === "confirmed"),
   ).toBe(true);
+
+  await authorizePage(page, owner);
+  await page.goto("/rsvp");
+  await expect(
+    page.getByRole("heading", { name: "Răspunsuri invitați" }),
+  ).toBeVisible();
+  await expect(page.getByText("Răspunsuri pe gospodării")).toBeVisible();
+  await page.getByLabel("Caută invitat sau gospodărie").fill("Familia Pop");
+  await expect(page.getByText("1 rezultate")).toBeVisible();
+  await expectNoSeriousA11yViolations(page, "main");
+  await captureInvitationV2(page, "rsvp-dashboard");
+
+  await page.getByLabel("Deschide răspunsurile pentru Familia Pop E2E").click();
+  await expect(
+    page.getByRole("dialog", { name: "Familia Pop E2E" }),
+  ).toBeVisible();
+  await expect(page.getByText("Meniu clasic E2E").first()).toBeVisible();
+  await captureInvitationV2(page, "rsvp-detail");
+  await page.getByRole("button", { name: "Corectează răspunsul" }).click();
+  await page
+    .getByLabel("Motivul corectării")
+    .fill("Confirmare verificată telefonic în testul complet");
+  await page.getByRole("button", { name: "Salvează corectarea" }).click();
+  await expect(page.getByText("Răspunsul a fost corectat")).toBeVisible();
+
+  await page.getByRole("button", { name: "Întrebările formularului" }).click();
+  const formDialog = page.getByRole("dialog", {
+    name: "Întrebările formularului pentru invitați",
+  });
+  await expect(formDialog).toBeVisible();
+  await captureInvitationV2(page, "rsvp-form");
+  await formDialog
+    .getByRole("button", { name: "Închide", exact: true })
+    .click();
+
+  await page.getByRole("button", { name: "Trimite reamintire" }).click();
+  const reminderDialog = page.getByRole("dialog", {
+    name: "Confirmă reamintirea",
+  });
+  await expect(reminderDialog).toBeVisible();
+  await captureInvitationV2(page, "rsvp-reminder");
+  await reminderDialog
+    .getByRole("button", { name: "Închide", exact: true })
+    .click();
+  await expect(reminderDialog).toBeHidden();
 });
 
 test("E2E 8 — Plus-one", async ({ page }) => {

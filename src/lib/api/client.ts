@@ -56,6 +56,7 @@ import type {
   GuestCompanionBootstrapResource,
   GuestInvitationOpen,
   GuestLinkAccess,
+  GuestRsvpRequest,
   GuestImportResource,
   GuestImportRowResource,
   GuestListResource,
@@ -75,6 +76,8 @@ import type {
   SaveInvitationVariantDraft,
   MenuResource,
   RsvpFormResource,
+  RsvpDashboardResource,
+  RsvpDashboardStatus,
   RsvpSubmissionResource,
   SaveInvitationDraft,
   UpdateHousehold,
@@ -2722,6 +2725,15 @@ export const weddingOsApi = {
         ifMatch: version,
       },
     ),
+  discardCampaignDraft: (
+    workspaceId: string,
+    campaignId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/campaigns/${encodeURIComponent(campaignId)}`,
+      { method: "DELETE", ifMatch: version },
+    ),
   campaignAudiencePreview: (workspaceId: string, campaignId: string) =>
     request<{
       total: number;
@@ -2763,6 +2775,37 @@ export const weddingOsApi = {
   rsvpForm: (workspaceId: string) =>
     request<RsvpFormResource | null>(
       `/workspaces/${encodeURIComponent(workspaceId)}/rsvp-form`,
+    ),
+  rsvpDashboard: (
+    workspaceId: string,
+    query: {
+      search?: string;
+      status?: RsvpDashboardStatus;
+      cursor?: string;
+      limit?: number;
+    } = {},
+  ) =>
+    request<RsvpDashboardResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/rsvp-dashboard${queryString(query)}`,
+    ),
+  overrideRsvpSubmission: (
+    workspaceId: string,
+    submissionId: string,
+    version: number,
+    input: {
+      reason: string;
+      members: GuestRsvpRequest["members"];
+      message?: string;
+    },
+  ) =>
+    request<RsvpSubmissionResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/rsvp-submissions/${encodeURIComponent(submissionId)}`,
+      {
+        method: "PATCH",
+        body: input,
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
     ),
   saveRsvpForm: (
     workspaceId: string,

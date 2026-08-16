@@ -935,13 +935,93 @@ export const campaignStatisticsSchema = z.object({
   byStatus: z.record(z.number().int().nonnegative()),
 });
 
+export const rsvpFormVersionSchema = z.object({
+  id: uuid,
+  versionNumber: z.number().int().positive(),
+  config: rsvpFormConfigSchema,
+  contentHash: z.string().length(64),
+  immutable: z.boolean(),
+  publishedAt: z.string().datetime().nullable(),
+});
 export const rsvpFormSchema = z.object({
   id: uuid,
   workspaceId: uuid,
   status: z.enum(["draft", "published", "unpublished"]),
-  draft: z.record(z.unknown()).nullable(),
-  published: z.record(z.unknown()).nullable(),
+  draft: rsvpFormVersionSchema.nullable(),
+  published: rsvpFormVersionSchema.nullable(),
   version,
+});
+export const rsvpDashboardStatusSchema = z.enum([
+  "confirmed",
+  "declined",
+  "unsure",
+  "mixed",
+  "incomplete",
+  "no_response",
+]);
+export const rsvpDashboardQuerySchema = z.object({
+  search: z.string().trim().max(180).optional(),
+  status: rsvpDashboardStatusSchema.optional(),
+  cursor: uuid.optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export const rsvpDashboardEventSchema = z.object({
+  id: uuid,
+  title: z.string(),
+  startAt: z.string().datetime().nullable(),
+});
+export const rsvpDashboardMemberSchema = z.object({
+  guestId: uuid,
+  name: z.string(),
+  isChild: z.boolean(),
+  isPlusOne: z.boolean(),
+  status: rsvpDashboardStatusSchema,
+  responses: z.array(
+    z.object({
+      eventId: uuid,
+      attendance: z.enum(["confirmed", "declined", "unsure"]).nullable(),
+    }),
+  ),
+  menuId: uuid.nullable(),
+  menuName: z.string().nullable(),
+  needsTransport: z.boolean(),
+  needsAccommodation: z.boolean(),
+});
+export const rsvpDashboardHouseholdSchema = z.object({
+  householdId: uuid,
+  householdName: z.string(),
+  status: rsvpDashboardStatusSchema,
+  members: z.array(rsvpDashboardMemberSchema),
+  submission: z
+    .object({
+      id: uuid,
+      version,
+      source: z.enum(["guest", "admin_override"]),
+      message: z.string().nullable(),
+      submittedAt: z.string().datetime().nullable(),
+      lastModifiedAt: z.string().datetime().nullable(),
+    })
+    .nullable(),
+});
+export const rsvpDashboardSchema = z.object({
+  events: z.array(rsvpDashboardEventSchema),
+  items: z.array(rsvpDashboardHouseholdSchema),
+  nextCursor: uuid.nullable(),
+  matchedHouseholds: z.number().int().nonnegative(),
+  summary: z.object({
+    totalGuests: z.number().int().nonnegative(),
+    totalHouseholds: z.number().int().nonnegative(),
+    respondedHouseholds: z.number().int().nonnegative(),
+    confirmed: z.number().int().nonnegative(),
+    declined: z.number().int().nonnegative(),
+    unsure: z.number().int().nonnegative(),
+    mixed: z.number().int().nonnegative(),
+    incomplete: z.number().int().nonnegative(),
+    noResponse: z.number().int().nonnegative(),
+    menuIncomplete: z.number().int().nonnegative(),
+    transportRequested: z.number().int().nonnegative(),
+    accommodationRequested: z.number().int().nonnegative(),
+  }),
 });
 export const rsvpSubmissionSchema = z.object({
   id: uuid,
@@ -1111,6 +1191,12 @@ export type RecipientAccessLinkResource = z.infer<
 export type CampaignResource = z.infer<typeof campaignSchema>;
 export type CampaignRecipientResource = z.infer<typeof campaignRecipientSchema>;
 export type RsvpFormResource = z.infer<typeof rsvpFormSchema>;
+export type RsvpDashboardStatus = z.infer<typeof rsvpDashboardStatusSchema>;
+export type RsvpDashboardQuery = z.infer<typeof rsvpDashboardQuerySchema>;
+export type RsvpDashboardResource = z.infer<typeof rsvpDashboardSchema>;
+export type RsvpDashboardHouseholdResource = z.infer<
+  typeof rsvpDashboardHouseholdSchema
+>;
 export type RsvpSubmissionResource = z.infer<typeof rsvpSubmissionSchema>;
 export type GuestCompanionBootstrapResource = z.infer<
   typeof guestCompanionBootstrapSchema
