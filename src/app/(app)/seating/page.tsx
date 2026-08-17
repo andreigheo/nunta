@@ -225,6 +225,7 @@ export default function SeatingPage() {
     });
   const [deleteFloorObject, setDeleteFloorObject] =
     React.useState<SeatingFloorObject | null>(null);
+  const moveResetRef = React.useRef<(() => void) | null>(null);
   const [selectedGuestId, setSelectedGuestId] = React.useState<string | null>(
     null,
   );
@@ -519,8 +520,8 @@ export default function SeatingPage() {
           minimumCapacity,
           x: 48 + (index % 4) * 205,
           y: 64 + Math.floor(index / 4) * 155,
-          width: tableDraft.shape === "rectangle" ? 176 : 144,
-          height: tableDraft.shape === "rectangle" ? 96 : 112,
+          width: tableDraft.shape === "rectangle" ? 132 : 108,
+          height: tableDraft.shape === "rectangle" ? 80 : 80,
           rotation: 0,
           position: index,
           zone: tableDraft.zone.trim() || null,
@@ -599,6 +600,7 @@ export default function SeatingPage() {
         );
         await loadPlan(currentPlan.id);
       } catch (cause) {
+        moveResetRef.current?.();
         toast({
           title: "Masa nu a putut fi actualizată",
           description: apiErrorMessage(cause),
@@ -678,6 +680,7 @@ export default function SeatingPage() {
         if (options?.announce)
           toast({ title: "Obiectul a fost actualizat", variant: "success" });
       } catch (cause) {
+        moveResetRef.current?.();
         toast({
           title: "Obiectul nu a putut fi actualizat",
           description: apiErrorMessage(cause),
@@ -1667,6 +1670,7 @@ export default function SeatingPage() {
             onAddTable={openNewTable}
             onAddFloorObject={createFloorObject}
             canWrite={canWrite}
+            moveResetRef={moveResetRef}
           />
         </Card>
       </div>
@@ -2074,6 +2078,7 @@ function SeatingCanvas(props: {
   onAddFloorObject: (
     catalogItem: (typeof floorObjectCatalog)[number],
   ) => void;
+  moveResetRef: React.MutableRefObject<(() => void) | null>;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const [previewPositions, setPreviewPositions] = React.useState<
@@ -2104,12 +2109,30 @@ function SeatingCanvas(props: {
     };
   }, [expanded]);
 
+  const { moveResetRef } = props;
+  React.useEffect(() => {
+    moveResetRef.current = () => setPreviewPositions({});
+    return () => {
+      moveResetRef.current = null;
+    };
+  }, [moveResetRef]);
+
   const positionKey = (kind: "table" | "floor-object", id: string) =>
     `${kind}:${id}`;
   const positioned = (
     kind: "table" | "floor-object",
     item: { id: string; x: number; y: number },
-  ) => previewPositions[positionKey(kind, item.id)] ?? item;
+  ) => {
+    const preview = previewPositions[positionKey(kind, item.id)];
+    if (!preview) return item;
+    if (
+      Math.round(Number(item.x)) === preview.x &&
+      Math.round(Number(item.y)) === preview.y
+    ) {
+      return item;
+    }
+    return preview;
+  };
   const beginMove = (
     kind: "table" | "floor-object",
     item: { id: string; x: number; y: number; width: number; height: number },
@@ -2118,16 +2141,17 @@ function SeatingCanvas(props: {
   ) => {
     if (!props.canWrite || locked || event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    const visual = positioned(kind, item);
     dragRef.current = {
       kind,
       id: item.id,
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      originX: Number(item.x),
-      originY: Number(item.y),
-      currentX: Number(item.x),
-      currentY: Number(item.y),
+      originX: Number(visual.x),
+      originY: Number(visual.y),
+      currentX: Number(visual.x),
+      currentY: Number(visual.y),
       width: Number(item.width),
       height: Number(item.height),
       moved: false,
@@ -2158,7 +2182,6 @@ function SeatingCanvas(props: {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null;
-    const key = positionKey(drag.kind, drag.id);
     const position = { x: drag.currentX, y: drag.currentY };
     if (drag.moved) {
       suppressClickRef.current = true;
@@ -2175,11 +2198,6 @@ function SeatingCanvas(props: {
         if (floorObject) props.onMoveFloorObject(floorObject, position);
       }
     }
-    setPreviewPositions((current) => {
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
   };
   const moveWithKeyboard = (
     kind: "table" | "floor-object",
@@ -2389,7 +2407,7 @@ function SeatingCanvas(props: {
                 aria-pressed={selected}
                 aria-label={`${table.name}, ${guests.length} din ${table.capacity} locuri`}
                 className={cn(
-                  "absolute min-w-[128px] touch-none select-none border-2 bg-surface px-4 py-3 text-center shadow-sm transition-[border-color,box-shadow] duration-150 hover:border-brand/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  "absolute min-w-[96px] touch-none select-none border-2 bg-surface px-2.5 py-1.5 text-center shadow-sm transition-[border-color,box-shadow] duration-150 hover:border-brand/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                   tableShapeClass(table.shape),
                   selected
                     ? "border-brand shadow-card ring-4 ring-brand/10"
@@ -2399,29 +2417,20 @@ function SeatingCanvas(props: {
                 style={{
                   left: `${position.x}px`,
                   top: `${position.y}px`,
-                  width: `${Math.max(128, Math.min(210, Number(table.width)))}px`,
-                  minHeight: `${Math.max(92, Math.min(150, Number(table.height)))}px`,
+                  width: `${Math.max(96, Math.min(168, Number(table.width)))}px`,
+                  minHeight: `${Math.max(64, Math.min(116, Number(table.height)))}px`,
                   transform: `rotate(${Number(table.rotation)}deg)`,
                 }}
                 data-testid={`seating-table-${table.id}`}
               >
-                <span className="block truncate text-sm font-semibold text-ink">
+                <span className="block truncate text-[13px] font-semibold leading-5 text-ink">
                   {table.label}
                 </span>
-                <span className="mt-0.5 block text-xs tabular-nums text-faint">
+                <span className="block text-[11px] tabular-nums leading-4 text-faint">
                   {guests.length}/{table.capacity} locuri
                 </span>
-                <span className="mt-2 block line-clamp-2 text-xs leading-4 text-muted">
-                  {guests.map((guest) => guest.firstName).join(", ") ||
-                    "Masă liberă"}
-                </span>
-                {table.zone && (
-                  <span className="mt-2 inline-flex rounded-full bg-subtle px-2 py-0.5 text-xs text-faint">
-                    {table.zone}
-                  </span>
-                )}
                 {table.locked && (
-                  <Lock className="absolute right-2 top-2 size-3.5 text-warning" />
+                  <Lock className="absolute right-1.5 top-1.5 size-3 text-warning" />
                 )}
               </button>
             );
