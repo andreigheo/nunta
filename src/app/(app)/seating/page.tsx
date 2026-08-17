@@ -38,6 +38,8 @@ import {
   UserMinus,
   Users,
   UtensilsCrossed,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import {
   apiErrorMessage,
@@ -110,6 +112,12 @@ const blankTableDraft: TableDraft = {
   zone: "",
   notesPrivate: "",
 };
+
+const CANVAS_WIDTH = 1120;
+const CANVAS_HEIGHT = 760;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 1.5;
+const ZOOM_STEP = 0.25;
 
 const floorObjectCatalog: Array<{
   type: SeatingFloorObject["type"];
@@ -520,8 +528,8 @@ export default function SeatingPage() {
           minimumCapacity,
           x: 48 + (index % 4) * 205,
           y: 64 + Math.floor(index / 4) * 155,
-          width: tableDraft.shape === "rectangle" ? 132 : 108,
-          height: tableDraft.shape === "rectangle" ? 80 : 80,
+          width: tableDraft.shape === "rectangle" ? 104 : 84,
+          height: tableDraft.shape === "rectangle" ? 60 : 60,
           rotation: 0,
           position: index,
           zone: tableDraft.zone.trim() || null,
@@ -2099,6 +2107,8 @@ function SeatingCanvas(props: {
     moved: boolean;
   } | null>(null);
   const suppressClickRef = React.useRef(false);
+  const [zoom, setZoom] = React.useState(1);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!expanded) return;
@@ -2116,6 +2126,23 @@ function SeatingCanvas(props: {
       moveResetRef.current = null;
     };
   }, [moveResetRef]);
+
+  const zoomBy = (next: number) => {
+    const target = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
+    const element = scrollRef.current;
+    if (!element) {
+      setZoom(target);
+      return;
+    }
+    const ratio = target / zoom;
+    const centerX = element.scrollLeft + element.clientWidth / 2;
+    const centerY = element.scrollTop + element.clientHeight / 2;
+    setZoom(target);
+    window.requestAnimationFrame(() => {
+      element.scrollLeft = centerX * ratio - element.clientWidth / 2;
+      element.scrollTop = centerY * ratio - element.clientHeight / 2;
+    });
+  };
 
   const positionKey = (kind: "table" | "floor-object", id: string) =>
     `${kind}:${id}`;
@@ -2160,16 +2187,22 @@ function SeatingCanvas(props: {
   const continueMove = (event: React.PointerEvent<HTMLElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const deltaX = event.clientX - drag.startClientX;
-    const deltaY = event.clientY - drag.startClientY;
+    const deltaX = (event.clientX - drag.startClientX) / zoom;
+    const deltaY = (event.clientY - drag.startClientY) / zoom;
     if (Math.abs(deltaX) + Math.abs(deltaY) > 4) drag.moved = true;
     if (!drag.moved) return;
     event.preventDefault();
     const x = Math.round(
-      Math.max(24, Math.min(1120 - drag.width - 24, drag.originX + deltaX)),
+      Math.max(
+        24,
+        Math.min(CANVAS_WIDTH - drag.width - 24, drag.originX + deltaX),
+      ),
     );
     const y = Math.round(
-      Math.max(24, Math.min(760 - drag.height - 24, drag.originY + deltaY)),
+      Math.max(
+        24,
+        Math.min(CANVAS_HEIGHT - drag.height - 24, drag.originY + deltaY),
+      ),
     );
     drag.currentX = x;
     drag.currentY = y;
@@ -2208,13 +2241,19 @@ function SeatingCanvas(props: {
     const changes = {
       ArrowLeft: { x: Math.max(24, Number(item.x) - delta), y: Number(item.y) },
       ArrowRight: {
-        x: Math.min(1120 - Number(item.width) - 24, Number(item.x) + delta),
+        x: Math.min(
+          CANVAS_WIDTH - Number(item.width) - 24,
+          Number(item.x) + delta,
+        ),
         y: Number(item.y),
       },
       ArrowUp: { x: Number(item.x), y: Math.max(24, Number(item.y) - delta) },
       ArrowDown: {
         x: Number(item.x),
-        y: Math.min(760 - Number(item.height) - 24, Number(item.y) + delta),
+        y: Math.min(
+          CANVAS_HEIGHT - Number(item.height) - 24,
+          Number(item.y) + delta,
+        ),
       },
     }[event.key];
     if (!changes || !props.canWrite || item.locked) return;
@@ -2294,6 +2333,7 @@ function SeatingCanvas(props: {
         </div>
       </div>
       <div
+        ref={scrollRef}
         className={cn(
           "relative h-[min(72vh,820px)] min-h-[680px] overflow-auto bg-[radial-gradient(circle_at_1px_1px,var(--color-line)_1px,transparent_0)] bg-[size:24px_24px]",
           expanded && "h-full min-h-0 flex-1",
@@ -2301,8 +2341,25 @@ function SeatingCanvas(props: {
         data-testid="seating-canvas"
         aria-label="Suprafață de aranjare a planului sălii"
       >
-        <div className="relative h-[760px] min-w-[1120px] p-6">
-          {props.floorObjects.map((floorObject) => {
+        <div className="flex min-h-full min-w-full">
+          <div
+            className="m-auto shrink-0"
+            style={{
+              width: CANVAS_WIDTH * zoom,
+              height: CANVAS_HEIGHT * zoom,
+            }}
+          >
+            <div
+              className="relative p-6"
+              style={{
+                width: CANVAS_WIDTH,
+                height: CANVAS_HEIGHT,
+                transform: `scale(${zoom})`,
+                transformOrigin: "top left",
+              }}
+            >
+              <div className="relative h-full w-full">
+                {props.floorObjects.map((floorObject) => {
             const selected = props.selectedFloorObjectId === floorObject.id;
             const position = positioned("floor-object", floorObject);
             const CatalogIcon =
@@ -2407,7 +2464,7 @@ function SeatingCanvas(props: {
                 aria-pressed={selected}
                 aria-label={`${table.name}, ${guests.length} din ${table.capacity} locuri`}
                 className={cn(
-                  "absolute min-w-[96px] touch-none select-none border-2 bg-surface px-2.5 py-1.5 text-center shadow-sm transition-[border-color,box-shadow] duration-150 hover:border-brand/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  "absolute min-w-[72px] touch-none select-none border-2 bg-surface px-2 py-1 text-center shadow-sm transition-[border-color,box-shadow] duration-150 hover:border-brand/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                   tableShapeClass(table.shape),
                   selected
                     ? "border-brand shadow-card ring-4 ring-brand/10"
@@ -2417,20 +2474,20 @@ function SeatingCanvas(props: {
                 style={{
                   left: `${position.x}px`,
                   top: `${position.y}px`,
-                  width: `${Math.max(96, Math.min(168, Number(table.width)))}px`,
-                  minHeight: `${Math.max(64, Math.min(116, Number(table.height)))}px`,
+                  width: `${Math.max(72, Math.min(128, Number(table.width)))}px`,
+                  minHeight: `${Math.max(44, Math.min(84, Number(table.height)))}px`,
                   transform: `rotate(${Number(table.rotation)}deg)`,
                 }}
                 data-testid={`seating-table-${table.id}`}
               >
-                <span className="block truncate text-[13px] font-semibold leading-5 text-ink">
+                <span className="block truncate text-xs font-semibold leading-4 text-ink">
                   {table.label}
                 </span>
-                <span className="block text-[11px] tabular-nums leading-4 text-faint">
+                <span className="block text-[10px] tabular-nums leading-3.5 text-faint">
                   {guests.length}/{table.capacity} locuri
                 </span>
                 {table.locked && (
-                  <Lock className="absolute right-1.5 top-1.5 size-3 text-warning" />
+                  <Lock className="absolute right-1 top-1 size-2.5 text-warning" />
                 )}
               </button>
             );
@@ -2453,9 +2510,49 @@ function SeatingCanvas(props: {
             />
           </div>
         )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="pointer-events-none absolute bottom-3 right-3 z-10">
+          <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-elevated/95 p-0.5 shadow-pop backdrop-blur-sm">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Micșorează planul"
+              onClick={() => zoomBy(zoom - ZOOM_STEP)}
+              disabled={zoom <= MIN_ZOOM}
+            >
+              <ZoomOut className="size-4" aria-hidden />
+            </Button>
+            <span
+              className="min-w-12 text-center text-xs font-semibold tabular-nums text-muted"
+              data-testid="seating-zoom-level"
+            >
+              {Math.round(zoom * 100)}%
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Mărește planul"
+              onClick={() => zoomBy(zoom + ZOOM_STEP)}
+              disabled={zoom >= MAX_ZOOM}
+            >
+              <ZoomIn className="size-4" aria-hidden />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Resetează zoomul"
+              onClick={() => zoomBy(1)}
+              disabled={zoom === 1}
+            >
+              <RefreshCw className="size-3.5" aria-hidden />
+            </Button>
+          </div>
+        </div>
       </div>
-    </div>
-    </div>
   );
 }
 

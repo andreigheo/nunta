@@ -506,6 +506,17 @@ test("E2E 7C — Floor object menu stays fully visible on small screens", async 
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(845);
   }
+  await page.keyboard.press("Escape");
+  const zoomLevel = page.getByTestId("seating-zoom-level");
+  await expect(zoomLevel).toHaveText("100%");
+  await page.getByRole("button", { name: "Micșorează planul" }).click();
+  await expect(zoomLevel).toHaveText("75%");
+  await page.getByRole("button", { name: "Micșorează planul" }).click();
+  await expect(zoomLevel).toHaveText("50%");
+  await page.getByRole("button", { name: "Mărește planul" }).click();
+  await expect(zoomLevel).toHaveText("75%");
+  await page.getByRole("button", { name: "Resetează zoomul" }).click();
+  await expect(zoomLevel).toHaveText("100%");
   await page.setViewportSize({ width: 1280, height: 720 });
 });
 
