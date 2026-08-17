@@ -158,18 +158,52 @@ export function DropdownContent({
   align?: "start" | "end" | "center";
   widthClass?: string;
 }) {
-  const { open, close, focusIntent, contentId, triggerId } = React.useContext(DropdownContext);
+  const { open, close, focusIntent, contentId, triggerId, rootRef } = React.useContext(DropdownContext);
   const ref = React.useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = React.useState<{
+    top: number;
+    left: number;
+  } | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() => {
       const items = getMenuItems(ref.current);
       const item = focusIntent === "last" ? items.at(-1) : items[0];
-      (item ?? ref.current)?.focus();
+      (item ?? ref.current)?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [focusIntent, open]);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const trigger = rootRef.current?.querySelector<HTMLElement>(
+        "[data-dropdown-trigger]",
+      );
+      const menu = ref.current;
+      if (!trigger || !menu) return;
+      const triggerRect = trigger.getBoundingClientRect();
+      setPlacement(
+        resolveMenuPlacement({
+          align,
+          triggerRect,
+          menuWidth: menu.offsetWidth,
+          menuHeight: menu.offsetHeight,
+          viewportWidth: document.documentElement.clientWidth,
+          viewportHeight: document.documentElement.clientHeight,
+        }),
+      );
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      setPlacement(null);
+    };
+  }, [open, align, rootRef]);
 
   if (!open) return null;
 
@@ -227,12 +261,14 @@ export function DropdownContent({
       aria-labelledby={triggerId}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
+      style={
+        placement
+          ? { position: "fixed", top: placement.top, left: placement.left }
+          : { position: "fixed", top: 0, left: 0, visibility: "hidden" }
+      }
       className={cn(
-        "absolute z-40 mt-1.5 max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-elevated p-1.5 shadow-pop animate-scale-in",
+        "z-40 max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-elevated p-1.5 shadow-pop animate-scale-in",
         widthClass,
-        align === "end" && "right-0",
-        align === "start" && "left-0",
-        align === "center" && "left-1/2 -translate-x-1/2",
         className,
       )}
     >
@@ -305,6 +341,51 @@ function getMenuItems(container: HTMLElement | null): HTMLButtonElement[] {
   return Array.from(
     container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'),
   );
+}
+
+export type MenuPlacementRect = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+};
+
+export function resolveMenuPlacement({
+  align,
+  triggerRect,
+  menuWidth,
+  menuHeight,
+  viewportWidth,
+  viewportHeight,
+  gap = 6,
+  margin = 8,
+}: {
+  align: "start" | "end" | "center";
+  triggerRect: MenuPlacementRect;
+  menuWidth: number;
+  menuHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  gap?: number;
+  margin?: number;
+}): { top: number; left: number } {
+  let left =
+    align === "start"
+      ? triggerRect.left
+      : align === "center"
+        ? triggerRect.left + triggerRect.width / 2 - menuWidth / 2
+        : triggerRect.right - menuWidth;
+  left = Math.max(margin, Math.min(left, viewportWidth - menuWidth - margin));
+
+  let top = triggerRect.bottom + gap;
+  if (
+    top + menuHeight > viewportHeight - margin &&
+    triggerRect.top - gap - menuHeight >= margin
+  ) {
+    top = triggerRect.top - gap - menuHeight;
+  }
+  return { top, left };
 }
 
 /* ------------------------------------------------------------------ */

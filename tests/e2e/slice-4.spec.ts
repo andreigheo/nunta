@@ -488,6 +488,27 @@ test("E2E 7B — Complete visual seating workflow with guests and menus", async 
   await expect(page.getByText("Planul a fost republicat")).toBeVisible();
 });
 
+test("E2E 7C — Floor object menu stays fully visible on small screens", async ({
+  page,
+}) => {
+  await authorizePage(page, owner);
+  await page.goto(`/seating?plan=${seatingPlanId}`);
+  await expect(page.getByText("2 din 2 confirmați")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Obiect în sală" }).click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const box = await menu.boundingBox();
+  expect(box).not.toBeNull();
+  if (box) {
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(391);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(845);
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+});
+
 test("E2E 8 — Transport request projection", async () => {
   const requests = await apiData<{ items: unknown[] }>(
     await owner.api.get(`/api/v1/workspaces/${workspaceId}/transport-requests`),
