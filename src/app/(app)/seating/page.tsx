@@ -7,10 +7,7 @@ import {
   Accessibility,
   AlertCircle,
   Armchair,
-  ArrowDown,
-  ArrowLeft,
   ArrowRight,
-  ArrowUp,
   CheckCircle2,
   ChevronDown,
   Camera,
@@ -2687,56 +2684,6 @@ function TableDetail(props: {
             {Math.round(Number(props.table.x))},{" "}
             {Math.round(Number(props.table.y))}
           </span>
-        </div>
-        <div className="mt-2 grid grid-cols-4 gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Mută masa la stânga"
-            onClick={() =>
-              props.onUpdate({ x: Math.max(0, Number(props.table.x) - 24) })
-            }
-            disabled={
-              !props.canWrite || props.action === `table-${props.table.id}`
-            }
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Mută masa în sus"
-            onClick={() =>
-              props.onUpdate({ y: Math.max(0, Number(props.table.y) - 24) })
-            }
-            disabled={
-              !props.canWrite || props.action === `table-${props.table.id}`
-            }
-          >
-            <ArrowUp className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Mută masa în jos"
-            onClick={() => props.onUpdate({ y: Number(props.table.y) + 24 })}
-            disabled={
-              !props.canWrite || props.action === `table-${props.table.id}`
-            }
-          >
-            <ArrowDown className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Mută masa la dreapta"
-            onClick={() => props.onUpdate({ x: Number(props.table.x) + 24 })}
-            disabled={
-              !props.canWrite || props.action === `table-${props.table.id}`
-            }
-          >
-            <ArrowRight className="size-4" />
-          </Button>
         </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-line p-3">
