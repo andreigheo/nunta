@@ -2144,6 +2144,59 @@ function SeatingCanvas(props: {
     });
   };
 
+  const canvasMetrics = React.useMemo(() => {
+    let maxX = CANVAS_WIDTH;
+    let maxY = CANVAS_HEIGHT;
+    for (const table of props.tables) {
+      maxX = Math.max(
+        maxX,
+        Number(table.x) + Math.max(72, Number(table.width)),
+      );
+      maxY = Math.max(
+        maxY,
+        Number(table.y) + Math.max(44, Number(table.height)),
+      );
+    }
+    for (const object of props.floorObjects) {
+      maxX = Math.max(
+        maxX,
+        Number(object.x) + Math.max(64, Number(object.width)),
+      );
+      maxY = Math.max(
+        maxY,
+        Number(object.y) + Math.max(48, Number(object.height)),
+      );
+    }
+    for (const key of Object.keys(previewPositions)) {
+      const preview = previewPositions[key];
+      const kind = key.startsWith("table:") ? "table" : "floor-object";
+      const id = key.slice(kind.length + 1);
+      const items = kind === "table" ? props.tables : props.floorObjects;
+      const item = items.find((candidate) => candidate.id === id);
+      if (!item) continue;
+      if (
+        Math.round(Number(item.x)) === preview.x &&
+        Math.round(Number(item.y)) === preview.y
+      ) {
+        continue;
+      }
+      const width =
+        kind === "table"
+          ? Math.max(72, Number(item.width))
+          : Math.max(64, Number(item.width));
+      const height =
+        kind === "table"
+          ? Math.max(44, Number(item.height))
+          : Math.max(48, Number(item.height));
+      maxX = Math.max(maxX, preview.x + width);
+      maxY = Math.max(maxY, preview.y + height);
+    }
+    return {
+      width: Math.ceil((maxX + 48) / 24) * 24,
+      height: Math.ceil((maxY + 48) / 24) * 24,
+    };
+  }, [props.tables, props.floorObjects, previewPositions]);
+
   const positionKey = (kind: "table" | "floor-object", id: string) =>
     `${kind}:${id}`;
   const positioned = (
@@ -2192,18 +2245,8 @@ function SeatingCanvas(props: {
     if (Math.abs(deltaX) + Math.abs(deltaY) > 4) drag.moved = true;
     if (!drag.moved) return;
     event.preventDefault();
-    const x = Math.round(
-      Math.max(
-        24,
-        Math.min(CANVAS_WIDTH - drag.width - 24, drag.originX + deltaX),
-      ),
-    );
-    const y = Math.round(
-      Math.max(
-        24,
-        Math.min(CANVAS_HEIGHT - drag.height - 24, drag.originY + deltaY),
-      ),
-    );
+    const x = Math.round(Math.max(0, drag.originX + deltaX));
+    const y = Math.round(Math.max(0, drag.originY + deltaY));
     drag.currentX = x;
     drag.currentY = y;
     setPreviewPositions((current) => ({
@@ -2239,21 +2282,15 @@ function SeatingCanvas(props: {
   ) => {
     const delta = event.shiftKey ? 24 : 8;
     const changes = {
-      ArrowLeft: { x: Math.max(24, Number(item.x) - delta), y: Number(item.y) },
+      ArrowLeft: { x: Math.max(0, Number(item.x) - delta), y: Number(item.y) },
       ArrowRight: {
-        x: Math.min(
-          CANVAS_WIDTH - Number(item.width) - 24,
-          Number(item.x) + delta,
-        ),
+        x: Number(item.x) + delta,
         y: Number(item.y),
       },
-      ArrowUp: { x: Number(item.x), y: Math.max(24, Number(item.y) - delta) },
+      ArrowUp: { x: Number(item.x), y: Math.max(0, Number(item.y) - delta) },
       ArrowDown: {
         x: Number(item.x),
-        y: Math.min(
-          CANVAS_HEIGHT - Number(item.height) - 24,
-          Number(item.y) + delta,
-        ),
+        y: Number(item.y) + delta,
       },
     }[event.key];
     if (!changes || !props.canWrite || item.locked) return;
@@ -2345,15 +2382,15 @@ function SeatingCanvas(props: {
           <div
             className="m-auto shrink-0"
             style={{
-              width: CANVAS_WIDTH * zoom,
-              height: CANVAS_HEIGHT * zoom,
+              width: canvasMetrics.width * zoom,
+              height: canvasMetrics.height * zoom,
             }}
           >
             <div
               className="relative p-6"
               style={{
-                width: CANVAS_WIDTH,
-                height: CANVAS_HEIGHT,
+                width: canvasMetrics.width,
+                height: canvasMetrics.height,
                 transform: `scale(${zoom})`,
                 transformOrigin: "top left",
               }}
