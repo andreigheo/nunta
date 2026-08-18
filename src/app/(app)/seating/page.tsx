@@ -2253,6 +2253,34 @@ function SeatingCanvas(props: {
       ...current,
       [positionKey(drag.kind, drag.id)]: { x, y },
     }));
+    const container = scrollRef.current;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const edge = 64;
+      const step = 12;
+      if (event.clientX > rect.right - edge) {
+        container.scrollLeft += Math.min(
+          step,
+          event.clientX - (rect.right - edge),
+        );
+      } else if (event.clientX < rect.left + edge) {
+        container.scrollLeft -= Math.min(
+          step,
+          rect.left + edge - event.clientX,
+        );
+      }
+      if (event.clientY > rect.bottom - edge) {
+        container.scrollTop += Math.min(
+          step,
+          event.clientY - (rect.bottom - edge),
+        );
+      } else if (event.clientY < rect.top + edge) {
+        container.scrollTop -= Math.min(
+          step,
+          rect.top + edge - event.clientY,
+        );
+      }
+    }
   };
   const finishMove = (event: React.PointerEvent<HTMLElement>) => {
     const drag = dragRef.current;
@@ -2380,7 +2408,7 @@ function SeatingCanvas(props: {
       >
         <div className="flex min-h-full min-w-full">
           <div
-            className="m-auto shrink-0"
+            className="shrink-0"
             style={{
               width: canvasMetrics.width * zoom,
               height: canvasMetrics.height * zoom,
