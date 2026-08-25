@@ -237,6 +237,35 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await expect(flux).toContainText("Cerere primită");
   await expect(flux).toContainText("Urmează să așezi oamenii la mese");
 
+  // Planificarea arată ciclul real: propunerea revizuibilă, apoi planul aplicat.
+  const planning = page.locator("#planificare");
+  const proposalView = planning.getByRole("button", {
+    name: "Propunere de plan",
+  });
+  const appliedView = planning.getByRole("button", { name: "Planul aplicat" });
+  await expect(proposalView).toHaveAttribute("aria-pressed", "true");
+  await expect(appliedView).toHaveAttribute("aria-pressed", "false");
+  await expect(planning).toContainText("Obligatoriu");
+  await expect(planning).toContainText("Motivul excluderii");
+  await expect(planning).toContainText("Ce am presupus");
+  await expect(planning).toContainText("De verificat");
+  await expect(planning).toContainText("Lipsește: Foto-video");
+  await expect(planning).toContainText(
+    "Nimic nu devine plan definitiv până la aplicare",
+  );
+
+  await appliedView.click();
+  await expect(appliedView).toHaveAttribute("aria-pressed", "true");
+  await expect(proposalView).toHaveAttribute("aria-pressed", "false");
+  await expect(planning).toContainText("Nealocat");
+  await expect(planning).toContainText("Motivul blocării");
+  await expect(planning).toContainText("Finalizarea așteaptă");
+  await expect(planning).toContainText(
+    "Toate sarcinile și După stare",
+  );
+  // Planul B nu mai este prezentat ca atașat etapei din plan.
+  await expect(planning).not.toContainText("Plan B");
+
   // Editorul de invitații este prezentat la nivelul capabilității reale.
   const invitations = page.locator("#invitatii");
   await expect(invitations).toContainText("14 tipuri");
@@ -401,6 +430,24 @@ for (const viewport of [
       invitationWidths.scrollWidth,
       `Editorul invitației este tăiat la ${viewport.width}px`,
     ).toBeLessThanOrEqual(invitationWidths.clientWidth + 1);
+
+    // Ambele stări ale panoului de planificare încap în coloana lor.
+    await dismissCookieBanner(page);
+    const planningPanel = page.locator("#planificare-panou");
+    for (const view of ["Propunere de plan", "Planul aplicat"] as const) {
+      await page
+        .locator("#planificare")
+        .getByRole("button", { name: view })
+        .click();
+      const panelWidths = await planningPanel.evaluate((panel) => ({
+        clientWidth: panel.clientWidth,
+        scrollWidth: panel.scrollWidth,
+      }));
+      expect(
+        panelWidths.scrollWidth,
+        `Panoul „${view}” este tăiat la ${viewport.width}px`,
+      ).toBeLessThanOrEqual(panelWidths.clientWidth + 1);
+    }
 
     const pricingWidths = await page
       .locator("#abonamente [aria-label='Comparație abonamente Sarbato']")

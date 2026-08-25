@@ -4,6 +4,7 @@ import { FaqSection } from "@/components/marketing/faq-section";
 import { FinalCta } from "@/components/marketing/final-cta";
 import { Hero } from "@/components/marketing/hero";
 import { LiveFlow } from "@/components/marketing/live-flow";
+import { PlanningStory } from "@/components/marketing/planning-story";
 import { PricingSection } from "@/components/marketing/pricing-section";
 import { PublicProofSection } from "@/components/marketing/public-proof-section";
 import { TrustSection } from "@/components/marketing/trust-section";
@@ -55,8 +56,11 @@ export default async function LandingPage() {
       <Hero />
       <LiveFlow />
       <div role="region" aria-label="Povestea produsului Sarbato">
+        <PlanningStory />
+        {/* Capitolul de planificare ocupă poziția 0, deci restul păstrează
+            alternanța stânga/dreapta pornind de la 1. */}
         {productStories.map((story, index) => (
-          <DomainStory key={story.id} story={story} index={index} />
+          <DomainStory key={story.id} story={story} index={index + 1} />
         ))}
       </div>
       <TrustSection />

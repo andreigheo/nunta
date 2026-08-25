@@ -231,6 +231,34 @@ export const flow = {
   ],
 } as const;
 
+/**
+ * Capitolul de planificare are propria compoziție, pentru că povestea lui reală
+ * este ciclul propunere → revizuire → plan aplicat, nu o listă de sarcini.
+ * Etichetele reproduse aici există în produs: vizualizările din `/plan`,
+ * suprafețele `/timeline` și `/calendar`, starea `Nealocat` din adaptor.
+ */
+export const planningChapter = {
+  id: "planificare",
+  navLabel: "Planificare",
+  arc: ["Propunere", "Revizuire", "Plan aplicat"],
+  title: "Nu pornești de la zero. Tu aprobi ce intră în plan.",
+  lead: "Răspunsurile din onboarding devin o propunere de plan, cu faze, repere și sarcini. O revizuiești element cu element și abia apoi devine planul tău de lucru.",
+  facts: [
+    {
+      term: "Vizualizări complete",
+      value: "Toate sarcinile și După stare",
+    },
+    {
+      term: "Suprafețe conectate",
+      value: "Cronologie și Calendar, fiecare cu pagina ei",
+    },
+    {
+      term: "Responsabil",
+      value: "Un membru al echipei, altfel Nealocat",
+    },
+  ],
+} as const;
+
 export type ProductStory = {
   id: string;
   navLabel: string;
@@ -242,29 +270,11 @@ export type ProductStory = {
     input: string;
     output: string;
   };
-  surface: "planning" | "guests" | "vendors" | "event-day";
+  surface: "guests" | "vendors" | "event-day";
   tone: "plain" | "coral" | "sun" | "plum";
 };
 
 export const productStories: readonly ProductStory[] = [
-  {
-    id: "planificare",
-    navLabel: "Planificare",
-    title: "Un plan pe care îl poți controla.",
-    lead: "Sarcinile, termenele și cine le face stau într-un singur plan. Schimbările importante le revizuiești înainte să intre în lucru.",
-    capabilities: [
-      "Vezi ce urmează și de ce depinde",
-      "Știi cine răspunde de fiecare acțiune",
-      "Păstrezi riscurile și Planul B lângă decizie",
-    ],
-    stages: ["Plan", "Calendar", "Responsabili"],
-    handoff: {
-      input: "Priorități, termene și dependențe",
-      output: "O etapă aprobată, gata de folosit",
-    },
-    surface: "planning",
-    tone: "plain",
-  },
   {
     id: "invitatii",
     navLabel: "Invitații și logistică",

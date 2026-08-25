@@ -7,7 +7,6 @@ import {
   CalendarCheck2,
   Check,
   CheckCircle2,
-  ClipboardCheck,
   Eye,
   EyeOff,
   FileCheck2,
@@ -224,7 +223,6 @@ export function DomainStory({
 }
 
 function ProductSurface({ type }: { type: ProductStory["surface"] }) {
-  if (type === "planning") return <PlanningSurface />;
   if (type === "guests") return <GuestSurface />;
   if (type === "vendors") return <VendorSurface />;
   return <EventDaySurface />;
@@ -286,122 +284,6 @@ function SurfaceShell({
       </div>
       {children}
     </div>
-  );
-}
-
-function PlanningSurface() {
-  const views = ["Listă", "Panou", "Cronologie", "Calendar"] as const;
-  const tasks = [
-    {
-      title: "Stabilește prioritățile",
-      status: "Pregătit",
-      owner: "Organizator",
-      deadline: "Termen săptămâna aceasta",
-    },
-    {
-      title: "Verifică ce blochează etapa",
-      status: "De verificat",
-      owner: "Organizator",
-      deadline: "Blocată de o decizie",
-    },
-    {
-      title: "Aprobă etapa următoare",
-      status: "Acțiune",
-      owner: "Coordonator",
-      deadline: "Termen apropiat",
-    },
-  ] as const;
-
-  return (
-    <SurfaceShell
-      title="Planul evenimentului"
-      description="Sarcini, responsabili și riscuri, înainte de aplicare"
-    >
-      <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(14rem,0.85fr)]">
-        <div className="border-b border-line p-3.5 sm:p-6 lg:border-r lg:border-b-0">
-          <div className="flex flex-col items-start gap-3 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
-            <div className="flex min-w-0 items-center gap-2">
-              <ClipboardCheck className="size-5 text-brand" aria-hidden />
-              <p className="text-base font-semibold text-ink">
-                Etapa în revizuire
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning">
-              Necesită aprobare
-            </span>
-          </div>
-
-          <div className="mt-4 hidden flex-wrap items-center gap-2 sm:flex">
-            <span className="text-xs font-semibold text-faint">
-              Vizualizări:
-            </span>
-            <ul className="flex flex-wrap gap-1.5" aria-label="Vizualizări disponibile">
-              {views.map((view) => (
-                <li
-                  key={view}
-                  className="rounded-full bg-subtle px-2.5 py-1 text-xs font-semibold text-muted"
-                >
-                  {view}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <ul className="mt-4 divide-y divide-line">
-            {tasks.map((task, index) => (
-              <li
-                key={task.title}
-                className="flex min-h-16 items-center gap-3 py-3"
-              >
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                    index === 2
-                      ? "bg-accent text-white"
-                      : index === 1
-                        ? "bg-warning-soft text-warning"
-                        : "bg-success-soft text-success",
-                  )}
-                >
-                  {index === 2 ? (
-                    <ArrowRight className="size-4" aria-hidden />
-                  ) : (
-                    <CheckCircle2 className="size-4" aria-hidden />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-ink">
-                    {task.title}
-                  </span>
-                  <span className="mt-1 block text-xs text-muted">
-                    {task.status} · {task.owner} · {task.deadline}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="p-3.5 sm:p-6">
-          <p className="text-sm font-semibold text-muted">Următoarea acțiune</p>
-          <p className="mt-2 text-xl font-semibold leading-tight text-brand">
-            Aprobă etapa și publică termenele
-          </p>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Calendarul și responsabilii vor folosi versiunea pe care o aprobi.
-          </p>
-          <div className="mt-6 bg-brand-softer p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-brand">
-              <ShieldCheck className="size-4" aria-hidden />
-              Plan B atașat
-            </div>
-            <p className="mt-2 text-xs leading-5 text-muted">
-              Riscul și decizia stau lângă etapa care le folosește.
-            </p>
-          </div>
-        </div>
-      </div>
-    </SurfaceShell>
   );
 }
 

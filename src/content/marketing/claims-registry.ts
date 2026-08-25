@@ -69,33 +69,50 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "plan-views",
     statement:
-      "Planul poate fi lucrat în vizualizări Listă, Panou, Cronologie și Calendar.",
-    support: "/plan (SegmentedControl cu cele patru vizualizări)",
+      "Toate sarcinile și După stare sunt vizualizările complete ale planului; Cronologie și Calendar au fiecare pagina lor.",
+    support:
+      "/plan (SegmentedControl: list, board, timeline, calendar) + /timeline (faze și repere) + /calendar (grilă lunară agregată, export ICS)",
     status: "implemented",
+    limitation:
+      "Cele patru comutatoare din /plan există, dar «După termen» și «Calendar» randează liste simplificate; adâncimea reală stă în /timeline și /calendar. Landing-ul nu prezintă cele patru vizualizări ca echivalente.",
   },
   {
     id: "plan-responsibility",
     statement:
-      "Fiecare acțiune are responsabil, termen și dependențe vizibile.",
-    support: "/plan (coloanele Responsabil și Termen, dependențe în TaskDrawer)",
+      "Fiecare sarcină are responsabil, prioritate, stare și termen, iar finalizarea așteaptă sarcinile de care depinde.",
+    support:
+      "/plan (coloanele Responsabil, Prioritate, Stare, Termen) + planning.service.ts (finalizarea respinsă până când dependențele sunt COMPLETED) + PUT /tasks/:taskId/dependencies",
     status: "implemented",
+    limitation:
+      "Responsabilul este un membru al workspace-ului (`assigneeMembershipId`), nu un rol generic; fără alocare, starea afișată este «Nealocat». TaskDrawer permite setarea unui predecesor, dar nu listează încă dependențele existente, deci nu se afirmă «dependențe vizibile».",
+  },
+  {
+    id: "plan-proposal",
+    statement:
+      "Răspunsurile din onboarding devin o propunere de plan cu faze, repere și sarcini, pe care o revizuiești element cu element înainte să devină planul tău.",
+    support:
+      "POST /plan-generations, PATCH /plan-proposals/:id, POST /plan-proposals/:id/apply (capacitatea planning.apply) + components/plan/proposal-review.tsx (include/exclude, motiv obligatoriu la excluderea unui element required, «Ce am presupus», «De verificat», «Ce include propunerea»)",
+    status: "implemented",
+    limitation:
+      "Revizuirea acoperă structura generată, nu fiecare editare manuală ulterioară: o sarcină creată de mână intră direct în plan. Aplicarea creează faze, repere și dependențe, dar nu atribuie responsabili.",
   },
   {
     id: "plan-review",
     statement:
-      "Schimbările importante sunt revizuite înainte să intre în plan.",
+      "Nimic nu devine plan definitiv până la aplicare; propunerea poate fi regenerată sau respinsă.",
     support:
-      "/plan + components/plan/proposal-review.tsx (revizuire, include/exclude, applyPlanProposal)",
+      "/plan + components/plan/proposal-review.tsx (Regenerează, Respinge, Aplică planul, cu confirmare explicită)",
     status: "implemented",
     limitation:
-      "Unele generări de plan folosesc generatorul determinist de rezervă; produsul o spune explicit. Nu se promite comportament AI universal.",
+      "Unele generări de plan folosesc generatorul determinist de rezervă; produsul o spune explicit prin badge-ul de generator. Nu se promite comportament AI universal.",
   },
   {
     id: "plan-b",
-    statement: "Riscurile și Planul B rămân lângă decizie.",
+    statement: "Riscurile și Planul B se administrează în modulele lor.",
     support: "/risks + /contingency-plans (trigger și acțiuni)",
     status: "implemented",
-    limitation: "Planul B se administrează în modulul său dedicat.",
+    limitation:
+      "Planul B se leagă opțional de un risc, nu de o sarcină sau o fază din plan; contractele nu au `taskId`/`phaseId`. Afirmația nu mai apare în capitolul #planificare, ca să nu sugereze atașarea la etapa din plan.",
   },
   {
     id: "invitation-editor",
