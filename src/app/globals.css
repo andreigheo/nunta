@@ -595,6 +595,60 @@
   animation: mkt-phone-swap 0.22s cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
+/* Hardware chassis for the hero phone. 18px + a flat ink fill aliased at
+   the corners; a real device needs a larger concentric radius, a metal
+   lip, and the clip on the screen well — not on the housing. */
+.mkt-phone-device {
+  --phone-radius: 1.375rem;
+  --phone-bezel: 0.3125rem;
+  --phone-screen-radius: calc(var(--phone-radius) - var(--phone-bezel) - 1px);
+  width: 100%;
+  max-width: 13rem;
+  margin-inline: auto;
+  filter: drop-shadow(0 10px 16px color-mix(in srgb, var(--brand) 18%, transparent));
+}
+
+.mkt-phone-chassis {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ink) 58%, white);
+  border-radius: var(--phone-radius);
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--ink) 78%, white) 0%,
+      var(--ink) 42%,
+      color-mix(in srgb, var(--ink) 82%, black) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 28%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, black 42%, transparent);
+}
+
+@supports (corner-shape: squircle) {
+  .mkt-phone-chassis,
+  .mkt-phone-screen {
+    corner-shape: squircle;
+  }
+}
+
+.mkt-phone-screen {
+  overflow: hidden;
+  isolation: isolate;
+  margin: var(--phone-bezel);
+  border-radius: var(--phone-screen-radius);
+  transform: translateZ(0);
+}
+
+.mkt-phone-chrome {
+  border-top-left-radius: var(--phone-screen-radius);
+  border-top-right-radius: var(--phone-screen-radius);
+}
+
+.mkt-phone-paper {
+  border-bottom-left-radius: var(--phone-screen-radius);
+  border-bottom-right-radius: var(--phone-screen-radius);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mkt-rise,
   .mkt-product-enter,

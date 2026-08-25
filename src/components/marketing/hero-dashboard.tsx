@@ -293,43 +293,40 @@ function PhoneShell({
       role="group"
       aria-label={`Previzualizare mobilă: ${navLabel}`}
       data-hero-phone-stage={stageId}
-      className="mx-auto w-full max-w-[13rem] rounded-[18px] bg-ink p-1.5 shadow-pop"
+      className="mkt-phone-device"
     >
-      {/* 18px bezel minus 6px padding keeps the screen corners concentric. */}
-      <div
-        className={cn(
-          "overflow-hidden rounded-[12px]",
-          dark ? "bg-brand" : "bg-elevated",
-        )}
-      >
-        {/* Padding, not margin: a collapsing margin would expose the screen
-            behind the app bar and break the flush top edge. */}
-        <div
-          className={cn(
-            "px-3 pb-2 pt-1.5",
-            dark ? "bg-brand-strong" : "bg-brand",
-          )}
-        >
-          <span
-            className="mx-auto block h-1 w-7 rounded-full bg-on-brand/30"
-            aria-hidden
-          />
-          <div className="mt-1.5 flex items-center gap-1.5 text-on-brand">
-            <Icon className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden />
-            <span className="min-w-0 truncate text-xs font-semibold leading-4">
-              {phoneAppBarLabels[stageId]}
-            </span>
+      <div className="mkt-phone-chassis">
+        <div className={cn("mkt-phone-screen", dark && "bg-brand")}>
+          {/* Padding, not margin: a collapsing margin would expose the screen
+              behind the app bar and break the flush top edge. */}
+          <div
+            className={cn(
+              "mkt-phone-chrome px-3 pb-2 pt-1.5",
+              dark ? "bg-brand-strong" : "bg-brand",
+            )}
+          >
+            <span
+              className="mx-auto block h-1 w-7 rounded-full bg-on-brand/30"
+              aria-hidden
+            />
+            <div className="mt-1.5 flex items-center gap-1.5 text-on-brand">
+              <Icon className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden />
+              <span className="min-w-0 truncate text-xs font-semibold leading-4">
+                {phoneAppBarLabels[stageId]}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div
-          key={stageId}
-          className={cn(
-            "mkt-phone-swap flex min-h-[17.5rem] flex-col",
-            bleed ? undefined : "gap-2.5 p-3",
-          )}
-        >
-          {children}
+          <div
+            key={stageId}
+            className={cn(
+              "mkt-phone-swap flex min-h-[17.5rem] flex-col",
+              bleed ? undefined : "gap-2.5 p-3",
+              !bleed && (dark ? "bg-brand" : "bg-elevated"),
+            )}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>
@@ -440,7 +437,7 @@ function InvitationScreen() {
     <article
       data-invitation-renderer
       tabIndex={-1}
-      className="relative flex min-h-[17.5rem] flex-col overflow-hidden px-3 py-3.5 outline-none"
+      className="mkt-phone-paper relative flex min-h-[17.5rem] flex-col overflow-hidden px-3 py-3.5 outline-none"
       style={{ backgroundColor: "#FFF8EE" }}
     >
       <span
