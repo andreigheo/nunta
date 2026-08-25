@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LockKeyhole } from "lucide-react";
-import { EmptyState, OfflineBanner } from "@/components/ui";
+import { EmptyState, ErrorState, OfflineBanner } from "@/components/ui";
 import { ShellProvider } from "./shell-context";
 import { AppSidebar } from "./app-sidebar";
 import { Topbar } from "./topbar";
@@ -28,9 +28,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function AppShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { loading, demoMode, bootstrap, currentWorkspace } = useWorkspace();
+  const { loading, loadError, demoMode, bootstrap, currentWorkspace, refresh } =
+    useWorkspace();
   if (loading) {
     return <div className="min-h-dvh animate-pulse bg-canvas" role="status" aria-label="Se încarcă spațiul de lucru" />;
+  }
+  if (loadError) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
+        <ErrorState
+          className="w-full max-w-lg"
+          title="Spațiul de lucru nu este disponibil"
+          description={loadError}
+          onRetry={() => void refresh()}
+        />
+      </div>
+    );
   }
   if (pathname === "/settings" && !bootstrap && !demoMode) {
     return (

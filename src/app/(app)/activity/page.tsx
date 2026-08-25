@@ -29,6 +29,7 @@ import {
   Select,
   useToast,
 } from "@/components/ui";
+import { activityHref } from "@/lib/activity-links";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 
@@ -87,7 +88,7 @@ export default function ActivityPage() {
               module: activityModule(item.category),
               action: item.summary,
               time: item.occurredAt,
-              href: "/overview",
+              href: activityHref(item),
             })),
           );
         })

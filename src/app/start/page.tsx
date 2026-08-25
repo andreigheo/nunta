@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { WorkspaceProvider, useWorkspace } from "@/lib/api/workspace-context";
 import { PortalShell } from "@/components/portals/portal-shell";
-import { Button, Card, CardContent, Field, Input } from "@/components/ui";
+import { Button, Card, CardContent, ErrorState, Field, Input } from "@/components/ui";
 
 export default function AccountStartPage() {
   return (
@@ -23,7 +23,8 @@ export default function AccountStartPage() {
 }
 
 function AccountStartContent() {
-  const { user, workspaces, loading, logout } = useWorkspace();
+  const { user, workspaces, loading, loadError, logout, refresh } =
+    useWorkspace();
   const [invitationLink, setInvitationLink] = React.useState("");
   const [error, setError] = React.useState("");
 
@@ -47,6 +48,18 @@ function AccountStartContent() {
 
   if (loading) {
     return <div className="min-h-dvh animate-pulse bg-canvas" />;
+  }
+  if (loadError) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
+        <ErrorState
+          className="w-full max-w-lg"
+          title="Contul nu a putut fi încărcat"
+          description={loadError}
+          onRetry={() => void refresh()}
+        />
+      </div>
+    );
   }
 
   return (

@@ -303,7 +303,7 @@ export default function CalendarPage() {
   const [error, setError] = React.useState("");
   const capabilities = bootstrap?.membership.capabilities ?? [];
   const canWrite = demoMode || capabilities.includes("calendar.write");
-  const timezone = bootstrap?.workspace.timezone ?? "Europe/Chisinau";
+  const timezone = bootstrap?.workspace.timezone ?? "Europe/Bucharest";
 
   const load = React.useCallback(async () => {
     if (!currentWorkspace) return;

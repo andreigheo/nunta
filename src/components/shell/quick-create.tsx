@@ -382,7 +382,7 @@ export function QuickCreateModal() {
           ).toISOString(),
           endAt: null,
           allDay: false,
-          timezone: bootstrap?.workspace.timezone ?? "Europe/Chisinau",
+          timezone: bootstrap?.workspace.timezone ?? "Europe/Bucharest",
           location: values.location?.trim() || undefined,
         });
       } else if (quickCreate === "risk") {

@@ -620,10 +620,10 @@ export const planningDashboardSchema = z.object({
     currency: z.string().length(3),
   }),
   unavailableModules: z.object({
-    budget: z.literal(false),
-    vendors: z.literal(false),
-    payments: z.literal(false),
-    risks: z.literal(true),
+    budget: z.boolean(),
+    vendors: z.boolean(),
+    payments: z.boolean(),
+    risks: z.boolean(),
   }),
 });
 export type PlanningDashboard = z.infer<typeof planningDashboardSchema>;

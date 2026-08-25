@@ -94,6 +94,24 @@ function categoryCode(label: string) {
   );
 }
 
+function ratingFromSummary(item: OperationResource) {
+  const summary =
+    item.ratingSummary &&
+    typeof item.ratingSummary === "object" &&
+    !Array.isArray(item.ratingSummary)
+      ? (item.ratingSummary as {
+          publishedReviewCount?: unknown;
+          overallAverageScaled?: unknown;
+        })
+      : null;
+  const reviews = Number(summary?.publishedReviewCount ?? 0);
+  const scaled = Number(summary?.overallAverageScaled ?? 0);
+  return {
+    reviews: Number.isFinite(reviews) ? reviews : 0,
+    rating: Number.isFinite(scaled) && scaled > 0 ? scaled / 100 : 0,
+  };
+}
+
 function toMarketplaceVendor(item: OperationResource): MarketplaceVendor {
   const regions = Array.isArray(item.serviceRegions)
     ? (item.serviceRegions as OperationResource[])
@@ -111,6 +129,7 @@ function toMarketplaceVendor(item: OperationResource): MarketplaceVendor {
         Vendor["availabilityStatus"]
       >)
     : "UNKNOWN";
+  const { rating, reviews } = ratingFromSummary(item);
   return {
     id: String(item.vendorOrganizationId),
     slug: String(item.slug),
@@ -123,8 +142,8 @@ function toMarketplaceVendor(item: OperationResource): MarketplaceVendor {
         "România",
     ),
     verified: item.verificationStatus === "VERIFIED",
-    rating: 0,
-    reviews: 0,
+    rating,
+    reviews,
     startingPrice: Number(item.startingPriceMinor ?? 0) / 100,
     availableOnDate: availabilityStatus === "AVAILABLE",
     availabilityStatus,
@@ -144,7 +163,7 @@ export default function MarketplacePage() {
   const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState("Toate categoriile");
-  const [filters, setFilters] = React.useState<FilterId[]>(["available"]);
+  const [filters, setFilters] = React.useState<FilterId[]>([]);
   const [vendors, setVendors] = React.useState<MarketplaceVendor[]>([]);
   const [favorites, setFavorites] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -166,6 +185,9 @@ export default function MarketplacePage() {
                   ...vendor,
                   id: `demo-vendor-${index + 1}`,
                   slug: `demo-${vendor.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+                  availabilityStatus:
+                    vendor.availabilityStatus ??
+                    (vendor.availableOnDate ? "AVAILABLE" : "UNAVAILABLE"),
                 }))
               : [],
           );
@@ -234,7 +256,11 @@ export default function MarketplacePage() {
       )
         return false;
     }
-    if (filters.includes("available") && !v.availableOnDate) return false;
+    if (
+      filters.includes("available") &&
+      v.availabilityStatus === "UNAVAILABLE"
+    )
+      return false;
     if (filters.includes("verified") && !v.verified) return false;
     if (filters.includes("top") && v.reviews === 0) return false;
     if (

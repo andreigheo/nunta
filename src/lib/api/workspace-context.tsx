@@ -9,7 +9,12 @@ import type {
   WorkspaceSummary,
 } from "@weddingos/contracts";
 import { wedding, workspaces as demoWorkspaces } from "@/lib/data/wedding";
-import { ApiClientError, hasDemoCookie, weddingOsApi } from "./client";
+import {
+  ApiClientError,
+  apiErrorMessage,
+  hasDemoCookie,
+  weddingOsApi,
+} from "./client";
 import { navGroups } from "@/lib/navigation";
 import { destinationForRegistration } from "@/lib/account-routing";
 
@@ -28,6 +33,7 @@ type WorkspaceContextValue = {
   currentWorkspace: WorkspaceSummary | null;
   bootstrap: WorkspaceBootstrap | null;
   loading: boolean;
+  loadError: string | null;
   demoMode: boolean;
   selectWorkspace: (workspaceId: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -54,6 +60,7 @@ export function WorkspaceProvider({
     null,
   );
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   const [demoMode, setDemoMode] = React.useState(false);
   const demoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true";
 
@@ -70,6 +77,7 @@ export function WorkspaceProvider({
       progress: null,
     }));
     setDemoMode(true);
+    setLoadError(null);
     setUser({
       user: {
         id: "00000000-0000-4000-8000-000000000001",
@@ -136,6 +144,7 @@ export function WorkspaceProvider({
       return;
     }
     setLoading(true);
+    setLoadError(null);
     try {
       const [nextUser, nextWorkspaces, preference] = await Promise.all([
         weddingOsApi.me(),
@@ -166,7 +175,11 @@ export function WorkspaceProvider({
         );
         return;
       }
-      throw error;
+      setUser(null);
+      setWorkspaces([]);
+      setCurrentWorkspace(null);
+      setBootstrap(null);
+      setLoadError(apiErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -225,6 +238,7 @@ export function WorkspaceProvider({
         currentWorkspace,
         bootstrap,
         loading,
+        loadError,
         demoMode,
         selectWorkspace,
         refresh,

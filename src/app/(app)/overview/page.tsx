@@ -258,7 +258,7 @@ function demoDashboard(
       budget: false,
       vendors: false,
       payments: false,
-      risks: true,
+      risks: false,
     },
   };
 }
@@ -1171,25 +1171,31 @@ export default function OverviewPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <div>
-            <CardTitle>Module încă indisponibile</CardTitle>
-            <p className="mt-0.5 text-[13px] text-muted">
-              Nu afișăm date simulate pentru modulele indisponibile.
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {Object.keys(dashboard.unavailableModules).map((module) => (
-              <Badge key={module} variant="outline">
-                {module} · planificat
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {Object.entries(dashboard.unavailableModules).some(
+        ([, unavailable]) => unavailable,
+      ) ? (
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Module încă indisponibile</CardTitle>
+              <p className="mt-0.5 text-[13px] text-muted">
+                Nu afișăm date simulate pentru modulele indisponibile.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(dashboard.unavailableModules)
+                .filter(([, unavailable]) => unavailable)
+                .map(([module]) => (
+                  <Badge key={module} variant="outline">
+                    {module} · planificat
+                  </Badge>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
