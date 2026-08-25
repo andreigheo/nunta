@@ -100,6 +100,43 @@ describe("cinematic reveal open reporting", () => {
     expect(markup).not.toContain("Deschide plicul");
   });
 
+  it("embeds the envelope without locking the page as a guest dialog", () => {
+    const settings: CinematicRevealSettings = {
+      enabled: true,
+      style: "envelope",
+      persistenceKey: "invitation:marketing-hero",
+      recipientLabel: "Invitația ta",
+      message: "Toate informațiile importante, într-un singur loc.",
+      monogram: "S",
+      panelColor: "#3B183F",
+      backgroundColor: "#F7F7F3",
+      accentColor: "#F06449",
+      textColor: "#FFF9FF",
+      accentTextColor: "#19151D",
+      coverMediaId: "",
+      coverImageUrl: "",
+      texture: "paper",
+      durationMs: 2300,
+    };
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        TestableCinematicReveal,
+        { settings, shouldAutoReveal: true, variant: "embedded" },
+        React.createElement("p", null, "Confirmă participarea"),
+      ),
+    );
+
+    expect(markup).toContain('data-reveal-variant="embedded"');
+    expect(markup).toContain('data-reveal-style="envelope"');
+    expect(markup).toContain("Deschide plicul");
+    expect(markup).toContain("Invitația ta");
+    expect(markup).not.toContain("aria-modal");
+    expect(markup).not.toContain("Sari peste introducere");
+    expect(markup).not.toContain("Revede introducerea");
+    expect(markup).not.toContain("Familia");
+    expect(markup).not.toContain('role="dialog"');
+  });
+
   it("cycles focus only when Tab reaches a dialog boundary", () => {
     expect(dialogFocusBoundaryTarget(1, 2, false)).toBe(0);
     expect(dialogFocusBoundaryTarget(0, 2, true)).toBe(1);

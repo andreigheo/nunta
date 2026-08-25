@@ -7,6 +7,8 @@ import type { CinematicRevealSettings } from "./invitation-experience";
 import styles from "./cinematic-reveal.module.css";
 
 type RevealState = "closed" | "opening" | "open";
+const embeddedAutoRevealDelayMs = 520;
+
 const dialogFocusableSelector = [
   "button:not([disabled])",
   "a[href]",
@@ -48,12 +50,15 @@ export function CinematicReveal({
   children,
   onOpened,
   shouldAutoReveal,
+  variant = "guest",
 }: {
   settings: CinematicRevealSettings;
   children: React.ReactNode;
   onOpened?: (source: InvitationOpenSource) => void | Promise<void>;
   shouldAutoReveal?: boolean;
+  variant?: "guest" | "embedded";
 }) {
+  const embedded = variant === "embedded";
   const monogram = settings.monogram?.trim() ?? "";
   const monogramClassName = cn(
     styles.monogram,
@@ -94,7 +99,7 @@ export function CinematicReveal({
     if (!settings.enabled || shouldAutoReveal === false) {
       if (shouldAutoReveal === false) openReportRef.current.reported = true;
       nextState = "open";
-    } else {
+    } else if (!embedded) {
       try {
         if (
           shouldAutoReveal === undefined &&
@@ -111,7 +116,7 @@ export function CinematicReveal({
     let focusFrame = 0;
     const stateTimer = window.setTimeout(() => {
       setState(nextState);
-      if (nextState === "closed") {
+      if (nextState === "closed" && !embedded) {
         focusFrame = window.requestAnimationFrame(() =>
           openButtonRef.current?.focus(),
         );
@@ -121,16 +126,16 @@ export function CinematicReveal({
       window.clearTimeout(stateTimer);
       window.cancelAnimationFrame(focusFrame);
     };
-  }, [settings.enabled, settings.persistenceKey, shouldAutoReveal]);
+  }, [embedded, settings.enabled, settings.persistenceKey, shouldAutoReveal]);
 
   React.useEffect(() => {
-    if (!settings.enabled || state === "open") return;
+    if (embedded || !settings.enabled || state === "open") return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [settings.enabled, state]);
+  }, [embedded, settings.enabled, state]);
 
   React.useEffect(
     () => () => {
@@ -163,10 +168,12 @@ export function CinematicReveal({
       );
       if (openReportRef.current.reported) return;
       openReportRef.current.reported = true;
-      try {
-        window.sessionStorage.setItem(settings.persistenceKey, "opened");
-      } catch {
-        // Private browsing/storage failures must never block the reveal.
+      if (!embedded) {
+        try {
+          window.sessionStorage.setItem(settings.persistenceKey, "opened");
+        } catch {
+          // Private browsing/storage failures must never block the reveal.
+        }
       }
       try {
         void Promise.resolve(onOpened?.(source)).catch(() => undefined);
@@ -174,7 +181,7 @@ export function CinematicReveal({
         // Telemetry is fail-open: invitation access does not depend on it.
       }
     },
-    [onOpened, settings.persistenceKey],
+    [embedded, onOpened, settings.persistenceKey],
   );
 
   const finishImmediately = React.useCallback(
@@ -206,6 +213,15 @@ export function CinematicReveal({
     }, settings.durationMs + 600);
   }, [completeOpening, focusInvitation, reportOpen, settings.durationMs, state]);
 
+  React.useEffect(() => {
+    if (!embedded || !settings.enabled || state !== "closed") return;
+    const delay = reducedMotionRef.current ? 0 : embeddedAutoRevealDelayMs;
+    const timer = window.setTimeout(() => {
+      open();
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [embedded, open, settings.enabled, state]);
+
   const handleOverlayAnimationEnd = React.useCallback(
     (event: React.AnimationEvent<HTMLDivElement>) => {
       if (event.target !== event.currentTarget || state !== "opening") return;
@@ -220,7 +236,11 @@ export function CinematicReveal({
   }, []);
 
   const contentHidden = settings.enabled && state !== "open";
+  const titleId = embedded
+    ? "hero-invitation-reveal-title"
+    : "invitation-reveal-title";
   const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (embedded) return;
     if (event.key === "Escape") {
       event.preventDefault();
       finishImmediately("skip");
@@ -251,7 +271,8 @@ export function CinematicReveal({
   return (
     <div
       ref={rootRef}
-      className={styles.root}
+      className={cn(styles.root, embedded && styles.embedded)}
+      data-reveal-variant={variant}
       style={
         {
           "--reveal-panel": settings.panelColor,
@@ -263,7 +284,7 @@ export function CinematicReveal({
         } as React.CSSProperties
       }
     >
-      {settings.enabled && state === "open" ? (
+      {settings.enabled && state === "open" && !embedded ? (
         <div className={styles.replayRow}>
           <button type="button" className={styles.replayButton} onClick={replay}>
             <Eye className="size-4" aria-hidden />
@@ -289,12 +310,12 @@ export function CinematicReveal({
         <div
           ref={overlayRef}
           className={cn(styles.overlay, state === "opening" && styles.opening)}
-          role="dialog"
-          tabIndex={-1}
+          role={embedded ? "region" : "dialog"}
+          tabIndex={embedded ? undefined : -1}
           data-texture={settings.texture}
           data-reveal-style={settings.style}
-          aria-modal="true"
-          aria-labelledby="invitation-reveal-title"
+          aria-modal={embedded ? undefined : "true"}
+          aria-labelledby={titleId}
           onKeyDown={handleDialogKeyDown}
           onAnimationEnd={handleOverlayAnimationEnd}
         >
@@ -309,9 +330,15 @@ export function CinematicReveal({
           ) : null}
           <div className={styles.content}>
             <p className={styles.recipient}>{settings.recipientLabel}</p>
-            <h1 id="invitation-reveal-title" className={styles.message}>
-              {settings.message}
-            </h1>
+            {embedded ? (
+              <p id={titleId} className={styles.message}>
+                {settings.message}
+              </p>
+            ) : (
+              <h1 id={titleId} className={styles.message}>
+                {settings.message}
+              </h1>
+            )}
             {settings.style === "envelope" ? (
               <div className={styles.envelopeStage} data-reveal-envelope>
                 <div className={styles.letter} data-reveal-letter aria-hidden>
@@ -375,14 +402,16 @@ export function CinematicReveal({
                   : "Deschide invitația"}
               </span>
             </button>
-            <button
-              type="button"
-              className={styles.skipButton}
-              onClick={() => finishImmediately("skip")}
-              disabled={state === "opening"}
-            >
-              Sari peste introducere
-            </button>
+            {embedded ? null : (
+              <button
+                type="button"
+                className={styles.skipButton}
+                onClick={() => finishImmediately("skip")}
+                disabled={state === "opening"}
+              >
+                Sari peste introducere
+              </button>
+            )}
           </div>
         </div>
       ) : null}
