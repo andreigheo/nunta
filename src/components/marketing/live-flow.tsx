@@ -1,58 +1,183 @@
 "use client";
 
 import * as React from "react";
-import {
-  Armchair,
-  ArrowRight,
-  CalendarCheck2,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardCheck,
-  FileCheck2,
-  MailCheck,
-  UsersRound,
-  WalletCards,
-} from "lucide-react";
+import { ArrowDown, ArrowRight, Check } from "lucide-react";
 import { flow } from "@/content/marketing/sarbato";
 import { cn } from "@/lib/utils";
 
 type FlowId = (typeof flow.steps)[number]["id"];
+type FlowChapter = (typeof flow.chapters)[number];
 
-const icons = {
-  plan: ClipboardCheck,
-  invitation: MailCheck,
-  rsvp: UsersRound,
-  logistics: Armchair,
-  vendors: FileCheck2,
-  budget: WalletCards,
-  "event-day": CalendarCheck2,
-} satisfies Record<FlowId, typeof ClipboardCheck>;
+const chapterByStepId = Object.fromEntries(
+  flow.chapters.flatMap((chapter) =>
+    chapter.stepIds.map((stepId) => [stepId, chapter]),
+  ),
+) as Record<FlowId, FlowChapter>;
 
-const stageTones = [
-  "bg-brand-softer text-brand",
+const chapterTone = {
+  planning: {
+    ink: "text-brand",
+    fill: "bg-brand",
+    span: "col-span-1",
+  },
+  guests: {
+    ink: "text-accent-strong",
+    fill: "bg-accent",
+    span: "col-span-3",
+  },
+  vendors: {
+    ink: "text-sun-strong",
+    fill: "bg-sun",
+    span: "col-span-2",
+  },
+  "event-day": {
+    ink: "text-success",
+    fill: "bg-success",
+    span: "col-span-1",
+  },
+} as const;
+
+const resultTone = [
   "bg-accent-soft text-accent-strong",
-  "bg-accent-soft text-accent-strong",
-  "bg-sun-soft text-sun-strong",
-  "bg-sun-soft text-sun-strong",
-  "bg-success-soft text-success",
+  "bg-warning-soft text-warning",
   "bg-success-soft text-success",
 ] as const;
 
+function isChapterStart(stepId: FlowId, chapter: FlowChapter) {
+  return chapter.stepIds[0] === stepId;
+}
+
+function showMobileChapter(stepId: FlowId, chapter: FlowChapter) {
+  if (!isChapterStart(stepId, chapter)) return false;
+  const step = flow.steps.find((item) => item.id === stepId);
+  return !(chapter.stepIds.length === 1 && chapter.label === step?.label);
+}
+
+const DWELL_MS = 3800;
+
 export function LiveFlow() {
+  const sectionRef = React.useRef<HTMLElement>(null);
+  const buttonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const userLockedRef = React.useRef(false);
   const [activeId, setActiveId] = React.useState<FlowId>(flow.steps[0].id);
+  const [autoplay, setAutoplay] = React.useState(false);
+  const [hoverPaused, setHoverPaused] = React.useState(false);
   const activeIndex = flow.steps.findIndex((step) => step.id === activeId);
   const active = flow.steps[activeIndex] ?? flow.steps[0];
-  const previousIndex = Math.max(0, activeIndex - 1);
-  const nextIndex = Math.min(flow.steps.length - 1, activeIndex + 1);
-  const ActiveIcon = icons[active.id];
+  const previous = activeIndex > 0 ? flow.steps[activeIndex - 1] : null;
+  const takes = previous?.next ?? active.trigger;
+  const touring = autoplay;
+
+  const stopAutoplay = React.useCallback(() => {
+    userLockedRef.current = true;
+    setAutoplay(false);
+    setHoverPaused(false);
+  }, []);
+
+  const selectIndex = React.useCallback(
+    (index: number) => {
+      const nextIndex = Math.min(flow.steps.length - 1, Math.max(0, index));
+      stopAutoplay();
+      setActiveId(flow.steps[nextIndex].id);
+      buttonRefs.current[nextIndex]?.focus();
+    },
+    [stopAutoplay],
+  );
+
+  React.useEffect(() => {
+    const node = sectionRef.current;
+    if (!node) return;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const sync = (visible: boolean) => {
+      if (userLockedRef.current || reduced.matches || document.hidden) {
+        setAutoplay(false);
+        return;
+      }
+      setAutoplay(visible);
+    };
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        sync(Boolean(entry?.isIntersecting && entry.intersectionRatio >= 0.32));
+      },
+      { threshold: [0, 0.32, 0.6] },
+    );
+    io.observe(node);
+    const firstRect = node.getBoundingClientRect();
+    const firstViewport = window.innerHeight || 1;
+    sync(
+      firstRect.top < firstViewport * 0.72 && firstRect.bottom > firstViewport * 0.28,
+    );
+
+    const onVisibility = () => {
+      const rect = node.getBoundingClientRect();
+      const viewport = window.innerHeight || 1;
+      const visible = rect.top < viewport * 0.72 && rect.bottom > viewport * 0.28;
+      sync(visible);
+    };
+
+    const onMotion = () => {
+      if (reduced.matches) {
+        userLockedRef.current = true;
+        setAutoplay(false);
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    reduced.addEventListener("change", onMotion);
+
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+      reduced.removeEventListener("change", onMotion);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!autoplay || hoverPaused) return;
+
+    const timer = window.setTimeout(() => {
+      if (userLockedRef.current) return;
+      setActiveId((current) => {
+        const index = flow.steps.findIndex((step) => step.id === current);
+        return flow.steps[(index + 1) % flow.steps.length].id;
+      });
+    }, DWELL_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [autoplay, hoverPaused, activeId]);
+
+  const onListKeyDown = (event: React.KeyboardEvent<HTMLOListElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      selectIndex(activeIndex - 1);
+      return;
+    }
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      selectIndex(activeIndex + 1);
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      selectIndex(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      selectIndex(flow.steps.length - 1);
+    }
+  };
 
   return (
     <section
+      ref={sectionRef}
       id="flux"
       className="scroll-mt-24 border-y border-line bg-elevated py-11 sm:scroll-mt-[5.5rem] sm:py-16 lg:py-20"
       aria-labelledby="flow-title"
+      data-flow-autoplay={touring ? "true" : "false"}
     >
       <div className="marketing-safe-container mx-auto w-full max-w-[90rem] px-4 sm:px-8 lg:px-10 xl:px-12">
         <div className="grid gap-5 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(31rem,1.28fr)] lg:items-end lg:gap-12">
@@ -62,184 +187,212 @@ export function LiveFlow() {
             </p>
             <h2
               id="flow-title"
-              className="marketing-heading mt-2.5 max-w-[18ch] text-[clamp(2.125rem,9.5vw,2.5rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-ink text-balance sm:mt-3 sm:text-[clamp(2.5rem,4vw,3.5rem)] sm:leading-[1.02] sm:tracking-[-0.035em]"
+              className="marketing-heading mt-2.5 max-w-[18ch] text-[clamp(2.125rem,9.5vw,2.5rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-ink text-balance sm:mt-3 sm:text-[clamp(2.5rem,4vw,3.5rem)] sm:leading-[1.02]"
             >
               {flow.title}
             </h2>
           </div>
-          <p className="max-w-[62ch] text-[1.0625rem] leading-7 text-muted sm:text-lg sm:leading-8">
+          <p className="max-w-[62ch] text-lg leading-7 text-muted sm:leading-8">
             {flow.lead}
           </p>
         </div>
 
-        <div className="mt-6 border border-line bg-surface sm:mt-10">
-          <div className="border-b border-line px-4 py-3 sm:px-6 sm:py-4">
+        <div
+          className="mt-6 border border-line bg-surface sm:mt-10"
+          onMouseEnter={() => {
+            if (autoplay) setHoverPaused(true);
+          }}
+          onMouseLeave={() => setHoverPaused(false)}
+        >
+          <div className="relative border-b border-line px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-semibold text-ink">
                 Firul complet al evenimentului
               </p>
               <p className="text-xs leading-5 text-muted">
-                Alege o etapă pentru a vedea ce preia și ce predă mai departe.
+                {touring ? flow.tourHint : flow.pickHint}
               </p>
             </div>
-          </div>
-
-          <div className="border-b border-line bg-subtle p-3 sm:p-4 lg:hidden">
-            <label
-              htmlFor="marketing-flow-stage"
-              className="text-xs font-semibold text-faint"
-            >
-              Alege direct etapa
-            </label>
-
-            <div className="mt-2 flex min-w-0 items-center gap-2.5">
+            {touring ? (
               <span
+                key={active.id}
+                aria-hidden
                 className={cn(
-                  "flex size-11 shrink-0 items-center justify-center rounded-xl",
-                  stageTones[activeIndex],
+                  "mkt-flow-dwell pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-brand",
+                  hoverPaused && "mkt-flow-dwell-paused",
                 )}
-              >
-                <ActiveIcon className="size-5" strokeWidth={1.9} aria-hidden />
-              </span>
-              <div className="relative min-w-0 flex-1">
-                <select
-                  id="marketing-flow-stage"
-                  data-testid="flow-stage-select"
-                  value={active.id}
-                  onChange={(event) => setActiveId(event.target.value as FlowId)}
-                  className="min-h-12 w-full appearance-none rounded-lg border border-line-strong bg-surface py-2.5 pl-3 pr-10 text-base font-semibold leading-6 text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                >
-                  {flow.steps.map((step, index) => (
-                    <option key={step.id} value={step.id}>
-                      {index + 1}. {step.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-brand"
-                  aria-hidden
-                />
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveId(flow.steps[previousIndex].id)}
-                disabled={activeIndex === 0}
-                aria-label="Etapa anterioară"
-                className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-                Înapoi
-              </button>
-
-              <p className="px-1 text-xs font-semibold text-faint tabular-nums">
-                {activeIndex + 1} / {flow.steps.length}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => setActiveId(flow.steps[nextIndex].id)}
-                disabled={activeIndex === flow.steps.length - 1}
-                aria-label="Etapa următoare"
-                className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-brand transition-colors enabled:active:bg-sunken disabled:cursor-not-allowed disabled:opacity-35"
-              >
-                Următoarea
-                <ChevronRight className="size-4" aria-hidden />
-              </button>
-            </div>
-
-            <div className="mt-3 grid grid-cols-7 gap-1" aria-hidden>
-              {flow.steps.map((step, index) => (
-                <span
-                  key={step.id}
-                  className={cn(
-                    "h-1 rounded-full",
-                    index <= activeIndex ? "bg-brand" : "bg-line-strong",
-                  )}
-                />
-              ))}
-            </div>
+              />
+            ) : null}
           </div>
 
-          <ol
-            className="relative hidden grid-cols-7 bg-subtle lg:grid"
-            aria-label="Etapele informației în Sarbato"
-          >
-            {flow.steps.map((step, index) => {
-              const selected = step.id === active.id;
-              const Icon = icons[step.id];
+          <div className="border-b border-line bg-subtle px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+            <div className="mb-3 hidden grid-cols-7 lg:grid">
+              {flow.chapters.map((chapter) => {
+                const activeChapter = (chapter.stepIds as readonly string[]).includes(
+                  active.id,
+                );
 
-              return (
-                <li
-                  key={step.id}
-                  className="relative min-w-[9rem] snap-start border-r border-line last:border-r-0 lg:col-span-1 lg:min-w-0 lg:border-r lg:border-b-0 lg:last:border-r-0"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActiveId(step.id)}
-                    aria-pressed={selected}
+                return (
+                  <p
+                    key={chapter.id}
                     className={cn(
-                      "group flex min-h-18 w-full touch-manipulation items-center gap-3 bg-surface px-3 py-2.5 text-left transition-colors duration-200 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-brand lg:min-h-28 lg:flex-col lg:items-start lg:justify-between lg:px-3 lg:py-4",
-                      selected ? "bg-brand text-on-brand" : "hover:bg-subtle",
+                      "px-1 text-xs font-semibold leading-4",
+                      chapterTone[chapter.id].ink,
+                      chapterTone[chapter.id].span,
                     )}
                   >
+                    {chapter.label}
                     <span
+                      aria-hidden
                       className={cn(
-                        "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                        selected ? "bg-on-brand text-brand" : stageTones[index],
+                        "mt-2 block h-0.5 rounded-full motion-reduce:transition-none motion-safe:transition-opacity motion-safe:duration-200",
+                        chapterTone[chapter.id].fill,
+                        activeChapter ? "opacity-100" : "opacity-35",
                       )}
-                    >
-                      <Icon className="size-4" strokeWidth={1.9} aria-hidden />
-                    </span>
-                    <span className="min-w-0 flex-1 lg:flex lg:flex-col lg:justify-end">
-                      <span
+                    />
+                  </p>
+                );
+              })}
+            </div>
+
+            <ol
+              className="flex flex-col lg:grid lg:grid-cols-7"
+              aria-label="Etapele informației în Sarbato"
+              onKeyDown={onListKeyDown}
+            >
+              {flow.steps.map((step, index) => {
+                const chapter = chapterByStepId[step.id];
+                const selected = step.id === active.id;
+                const showChapter = showMobileChapter(step.id, chapter);
+                const isFirst = index === 0;
+                const isLast = index === flow.steps.length - 1;
+                const nextStep = flow.steps[index + 1];
+                const nextShowsChapter = nextStep
+                  ? showMobileChapter(nextStep.id, chapterByStepId[nextStep.id])
+                  : false;
+                const previousChapter =
+                  index > 0 ? chapterByStepId[flow.steps[index - 1].id] : chapter;
+                const incomingFilled = !isFirst && activeIndex >= index;
+                const outgoingFilled = !isLast && activeIndex > index;
+
+                return (
+                  <li key={step.id} className="relative min-w-0">
+                    {showChapter ? (
+                      <p
                         className={cn(
-                          "block text-xs font-semibold uppercase tracking-[0.08em]",
-                          selected ? "text-white/65" : "text-faint",
+                          "pb-1 pl-7 text-xs font-semibold leading-4 lg:hidden",
+                          chapterTone[chapter.id].ink,
                         )}
                       >
-                        Etapa {index + 1}
-                      </span>
-                      <span className="mt-1 block text-sm font-semibold leading-5">
+                        {chapter.label}
+                      </p>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      ref={(node) => {
+                        buttonRefs.current[index] = node;
+                      }}
+                      onClick={() => {
+                        stopAutoplay();
+                        setActiveId(step.id);
+                      }}
+                      aria-pressed={selected}
+                      aria-current={selected ? "step" : undefined}
+                      tabIndex={selected ? 0 : -1}
+                      className="relative flex min-h-11 w-full touch-manipulation items-center gap-3 py-1 text-left focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:min-h-16 lg:flex-col lg:items-center lg:justify-start lg:gap-2 lg:px-1 lg:pt-0 lg:text-center"
+                    >
+                      {isFirst ? null : (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute top-[0.375rem] right-[calc(50%+0.5rem)] left-0 hidden h-0.5 lg:block motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
+                            incomingFilled
+                              ? chapterTone[previousChapter.id].fill
+                              : "bg-line-strong",
+                          )}
+                        />
+                      )}
+                      {isLast ? null : (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute top-[0.375rem] left-[calc(50%+0.5rem)] right-0 hidden h-0.5 lg:block motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
+                            outgoingFilled
+                              ? chapterTone[chapter.id].fill
+                              : "bg-line-strong",
+                          )}
+                        />
+                      )}
+                      {isLast ? null : (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute left-[5px] w-0.5 lg:hidden motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
+                            outgoingFilled
+                              ? chapterTone[chapter.id].fill
+                              : "bg-line-strong",
+                          )}
+                          style={{
+                            top: "1.375rem",
+                            bottom: nextShowsChapter ? "-2.625rem" : "-1.375rem",
+                          }}
+                        />
+                      )}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "relative z-[1] rounded-full border-2 motion-reduce:transition-none motion-safe:transition-[width,height,background-color,border-color] motion-safe:duration-200",
+                          selected
+                            ? "size-3.5 border-brand bg-brand"
+                            : "size-3 border-line-strong bg-surface",
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "min-w-0 text-sm font-semibold leading-5",
+                          selected ? "text-brand" : "text-muted",
+                        )}
+                      >
                         {step.label}
                       </span>
-                      <span
-                        className={cn(
-                          "mt-1 hidden text-xs leading-4 lg:block",
-                          selected ? "text-white/75" : "text-muted",
-                        )}
-                      >
-                        {step.trigger}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
 
           <div className="grid min-w-0 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <div className="border-b border-line p-4 sm:p-8 lg:border-r lg:border-b-0 lg:p-10">
-              <div className="flex items-center gap-3">
-                <span className={cn("h-1 w-12 rounded-full", stageTones[activeIndex].split(" ")[0])} />
-                <p className="text-sm font-semibold text-accent-strong">
-                  {active.trigger}
+              <div>
+                <p className="text-sm font-semibold text-accent-strong">Preia</p>
+                <p className="mt-1 max-w-[50ch] text-base leading-6 text-ink">
+                  {takes}
                 </p>
               </div>
               <h3
-                className="marketing-heading mt-2.5 max-w-[20ch] text-[clamp(1.75rem,8vw,2.125rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-brand text-balance sm:mt-4 sm:text-[clamp(2rem,3vw,3rem)] sm:leading-[1.04] sm:tracking-[-0.03em]"
-                aria-live="polite"
+                className="marketing-heading mt-5 max-w-[20ch] text-[clamp(1.75rem,8vw,2.125rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-brand text-balance sm:mt-6 sm:text-[clamp(2rem,3vw,3rem)] sm:leading-[1.04] sm:tracking-[-0.03em]"
+                aria-live={touring ? "off" : "polite"}
               >
                 {active.title}
               </h3>
-              <p className="mt-3 max-w-[50ch] text-base leading-6 text-muted sm:mt-5 sm:leading-7">
+              <p className="mt-3 max-w-[50ch] text-base leading-6 text-muted sm:mt-4 sm:leading-7">
                 {active.description}
               </p>
-              <div className="mt-4 flex items-start gap-3 border-t border-line pt-3.5 text-sm font-semibold leading-6 text-success sm:mt-7 sm:pt-5">
-                <ArrowRight className="mt-1 size-4 shrink-0" aria-hidden />
-                <span>{active.next}</span>
+              <div className="mt-5 border-t border-line pt-4 sm:mt-7 sm:pt-5">
+                <p className="flex items-center gap-2 text-sm font-semibold text-success">
+                  <span className="lg:hidden">
+                    <ArrowDown className="size-4" aria-hidden />
+                  </span>
+                  <span className="hidden lg:inline">
+                    <ArrowRight className="size-4" aria-hidden />
+                  </span>
+                  Predă
+                </p>
+                <p className="mt-1 max-w-[50ch] text-base font-semibold leading-6 text-ink">
+                  {active.next}
+                </p>
               </div>
             </div>
 
@@ -264,11 +417,7 @@ export function LiveFlow() {
                     <span
                       className={cn(
                         "flex size-8 shrink-0 items-center justify-center rounded-full",
-                        index === 0
-                          ? "bg-accent-soft text-accent-strong"
-                          : index === 1
-                            ? "bg-warning-soft text-warning"
-                            : "bg-success-soft text-success",
+                        resultTone[Math.min(index, resultTone.length - 1)],
                       )}
                     >
                       <Check className="size-4" strokeWidth={2.2} aria-hidden />

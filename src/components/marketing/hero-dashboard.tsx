@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { CinematicReveal } from "@/components/invitations/cinematic-reveal";
 import type { CinematicRevealSettings } from "@/components/invitations/invitation-experience";
-import { showcaseStages } from "@/content/marketing/sarbato";
+import { hero, showcaseStages } from "@/content/marketing/sarbato";
 import { cn } from "@/lib/utils";
 
 const heroEnvelopeReveal: CinematicRevealSettings = {
@@ -55,22 +55,104 @@ const phoneAppBarLabels = {
   "event-day": "Desfășurător",
 } satisfies Record<StageId, string>;
 
+const HERO_DWELL_MS = 3800;
+const HERO_RSVP_DWELL_MS = HERO_DWELL_MS + heroEnvelopeReveal.durationMs;
+
 export function HeroDashboard() {
+  const surfaceRef = React.useRef<HTMLElement>(null);
+  const userLockedRef = React.useRef(false);
   const [activeId, setActiveId] = React.useState<StageId>(showcaseStages[0].id);
+  const [autoplay, setAutoplay] = React.useState(false);
   const active =
     showcaseStages.find((stage) => stage.id === activeId) ?? showcaseStages[0];
+  const touring = autoplay;
+  const dwellMs = activeId === "rsvp" ? HERO_RSVP_DWELL_MS : HERO_DWELL_MS;
+
+  const stopAutoplay = React.useCallback(() => {
+    userLockedRef.current = true;
+    setAutoplay(false);
+  }, []);
 
   function selectStage(stageId: StageId) {
+    stopAutoplay();
     setActiveId(stageId);
   }
 
+  React.useEffect(() => {
+    const node = surfaceRef.current;
+    if (!node) return;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const sync = (visible: boolean) => {
+      if (userLockedRef.current || reduced.matches || document.hidden) {
+        setAutoplay(false);
+        return;
+      }
+      setAutoplay(visible);
+    };
+
+    const isOnScreen = (rect: DOMRect, viewport: number) =>
+      rect.top < viewport - 72 && rect.bottom > 72;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        sync(Boolean(entry?.isIntersecting));
+      },
+      { threshold: [0, 0.08, 0.25, 0.5] },
+    );
+    io.observe(node);
+
+    const firstRect = node.getBoundingClientRect();
+    const firstViewport = window.innerHeight || 1;
+    sync(isOnScreen(firstRect, firstViewport));
+
+    const onVisibility = () => {
+      const rect = node.getBoundingClientRect();
+      const viewport = window.innerHeight || 1;
+      sync(isOnScreen(rect, viewport));
+    };
+
+    const onMotion = () => {
+      if (reduced.matches) {
+        userLockedRef.current = true;
+        setAutoplay(false);
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    reduced.addEventListener("change", onMotion);
+
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+      reduced.removeEventListener("change", onMotion);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!autoplay) return;
+
+    const timer = window.setTimeout(() => {
+      if (userLockedRef.current) return;
+      setActiveId((current) => {
+        const index = showcaseStages.findIndex((stage) => stage.id === current);
+        return showcaseStages[(index + 1) % showcaseStages.length].id;
+      });
+    }, dwellMs);
+
+    return () => window.clearTimeout(timer);
+  }, [autoplay, activeId, dwellMs]);
+
   return (
     <section
+      ref={surfaceRef}
       className="marketing-product-surface mkt-product-enter relative min-w-0"
       aria-label="Exemplu de produs Sarbato"
       data-testid="product-showcase"
+      data-hero-autoplay={touring ? "true" : "false"}
     >
-      <div className="flex items-center gap-2.5 border-b border-line px-3 py-2.5 sm:px-5 sm:py-3">
+      <div className="relative flex items-center gap-2.5 border-b border-line px-3 py-2.5 sm:px-5 sm:py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-sm font-bold text-on-brand">
             S
@@ -79,9 +161,19 @@ export function HeroDashboard() {
             <p className="text-sm font-semibold text-ink">
               Spațiul evenimentului
             </p>
-            <p className="text-xs text-muted">Următorul pas, în context</p>
+            <p className="text-xs text-muted">
+              {touring ? hero.tourHint : hero.nextStepHint}
+            </p>
           </div>
         </div>
+        {touring ? (
+          <span
+            key={activeId}
+            aria-hidden
+            className="mkt-flow-dwell pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-brand"
+            style={{ animationDuration: `${dwellMs}ms` }}
+          />
+        ) : null}
       </div>
 
       <div className="grid min-w-0 lg:grid-cols-[11rem_minmax(0,1fr)]">
@@ -125,8 +217,12 @@ export function HeroDashboard() {
         </nav>
 
         <div className="min-w-0 p-3.5 sm:p-5">
-          <div className="grid min-w-0 gap-3 min-[1380px]:grid-cols-[minmax(0,1fr)_13rem] min-[1380px]:gap-4">
-            <div className="min-w-0">
+          <div className="grid min-w-0 gap-3 min-[1380px]:grid-cols-[minmax(0,1fr)_13rem] min-[1380px]:items-start min-[1380px]:gap-4">
+            <div className="order-1 flex justify-center py-2 min-[1380px]:order-2 min-[1380px]:py-0">
+              <StagePhone stageId={activeId} navLabel={active.navLabel} />
+            </div>
+
+            <div className="order-2 min-w-0 min-[1380px]:order-1">
               <p className="text-sm font-semibold text-muted">
                 Următoarea acțiune
               </p>
@@ -138,7 +234,7 @@ export function HeroDashboard() {
                   <div className="min-w-0">
                     <p
                       className="text-base font-semibold leading-tight text-ink sm:text-lg"
-                      aria-live="polite"
+                      aria-live={touring ? "off" : "polite"}
                     >
                       {active.action}
                     </p>
@@ -194,10 +290,6 @@ export function HeroDashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="hidden min-[1380px]:block">
-              <StagePhone stageId={activeId} navLabel={active.navLabel} />
             </div>
           </div>
 

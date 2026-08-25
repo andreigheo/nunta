@@ -595,6 +595,30 @@
   animation: mkt-phone-swap 0.22s cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
+@keyframes mkt-flow-dwell {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.marketing-light .mkt-flow-dwell {
+  transform-origin: left center;
+  animation: mkt-flow-dwell 3.8s linear forwards;
+}
+
+.marketing-light .mkt-flow-dwell-paused {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-light .mkt-flow-dwell {
+    animation: none;
+  }
+}
+
 /* Hardware chassis for the hero phone. 18px + a flat ink fill aliased at
    the corners; a real device needs a larger concentric radius, a metal
    lip, and the clip on the screen well — not on the housing. */

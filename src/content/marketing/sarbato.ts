@@ -46,6 +46,8 @@ export const hero = {
   availability: "Disponibil acum pentru organizarea nunților",
   support:
     "Aceeași informație este folosită în modulele conectate, astfel încât fiecare decizie să aibă context.",
+  tourHint: "Etapele se derulează singure. Atinge una ca să o păstrezi.",
+  nextStepHint: "Următorul pas, în context",
 } as const;
 
 export const showcaseStages = [
@@ -105,6 +107,30 @@ export const showcaseStages = [
 export const flow = {
   title: "Șapte etape. Un singur fir al deciziilor.",
   lead: "De la primul plan până la ultimul check-in, fiecare etapă preia contextul celei dinainte. Nu reconstruiești evenimentul în foi, liste și mesaje separate.",
+  tourHint: "Etapele se derulează singure. Atinge una ca să o păstrezi.",
+  pickHint: "Alege o etapă pentru a vedea ce preia și ce predă mai departe.",
+  chapters: [
+    {
+      id: "planning",
+      label: "Planificare",
+      stepIds: ["plan"],
+    },
+    {
+      id: "guests",
+      label: "Invitați",
+      stepIds: ["invitation", "rsvp", "logistics"],
+    },
+    {
+      id: "vendors",
+      label: "Furnizori",
+      stepIds: ["vendors", "budget"],
+    },
+    {
+      id: "event-day",
+      label: "Ziua evenimentului",
+      stepIds: ["event-day"],
+    },
+  ],
   steps: [
     {
       id: "plan",

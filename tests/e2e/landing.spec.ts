@@ -179,7 +179,9 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
     page.getByTestId("product-showcase").getByText(/Responsabil:/),
   ).toBeVisible();
   await expect(
-    page.getByTestId("product-showcase").getByText(/Termen:/),
+    page
+      .getByTestId("product-showcase")
+      .getByText(/Termen:|Valabilitate:|Stare:/),
   ).toBeVisible();
   await expect(
     page.getByText("Disponibil acum pentru organizarea nunților").first(),
@@ -327,12 +329,11 @@ test("landing mobil — meniu, ordine semantică și reduced motion", async ({
   await expect(flowSteps.first()).toContainText("Plan");
   await expect(flowSteps.last()).toContainText("Ziua evenimentului");
 
-  // Selectorul mobil oferă acces direct la toate etapele, fără șase tap-uri
-  // succesive și fără un rail orizontal ascuns.
-  const stageSelect = page.getByTestId("flow-stage-select");
-  await expect(stageSelect.locator("option")).toHaveCount(7);
-  await stageSelect.selectOption("event-day");
-  await expect(stageSelect).toHaveValue("event-day");
+  const eventDayStep = page
+    .locator("#flux")
+    .getByRole("button", { name: "Ziua evenimentului" });
+  await eventDayStep.click();
+  await expect(eventDayStep).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#flux")).toContainText(
     "Planul devine vedere operațională",
   );
