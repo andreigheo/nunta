@@ -7,43 +7,27 @@ import {
   AlignLeft,
   AlignRight,
   ArrowLeft,
-  BedDouble,
-  CalendarHeart,
   Check,
-  ChevronDown,
-  ChevronUp,
   CircleHelp,
-  Clock3,
-  Contact,
-  Copy,
-  Eye,
-  EyeOff,
-  Gift,
-  GripVertical,
-  Heart,
   Image as ImageIcon,
   ImagePlus,
-  Images,
   LayoutPanelLeft,
   LayoutTemplate,
-  MapPin,
   Maximize2,
   Minus,
   Monitor,
   Palette,
   PanelRight,
   PencilLine,
+  PlayCircle,
   Plus,
   Redo2,
   Save,
   SlidersHorizontal,
-  Shirt,
   Smartphone,
   Tablet,
   Trash2,
   Undo2,
-  Users,
-  Video,
 } from "lucide-react";
 import type {
   InvitationPreflightResource,
@@ -63,6 +47,7 @@ import {
   createDefaultSection,
   createInitialSnapshot,
   invitationReadiness,
+  invitationStarterSectionId,
   invitationVariantOverrides,
   invitationTemplates,
   isInvitationHexColor,
@@ -81,8 +66,28 @@ import {
   type InvitationSection,
   type InvitationSectionType,
 } from "@/lib/invitations/editor-model";
+import {
+  commitInvitationHistory,
+  createInvitationHistory,
+  invitationContentCoalesceKey,
+  invitationRecordCoalesceKey,
+  redoInvitationHistory,
+  undoInvitationHistory,
+  type InvitationHistoryState,
+} from "@/lib/invitations/editor-history";
+import {
+  invitationPreflightGuide,
+  type InvitationPreflightAction,
+} from "@/lib/invitations/preflight-actions";
 import { cn } from "@/lib/utils";
 import { InvitationExperiencePanel } from "@/components/invitations/editor-experience-panel";
+import { EditorRevealPreview } from "@/components/invitations/editor-reveal-preview";
+import {
+  invitationBlockIcons,
+  invitationSectionIcon,
+  invitationSectionIcons,
+} from "@/components/invitations/editor-section-icons";
+import { EditorSectionsPanel } from "@/components/invitations/editor-sections-panel";
 import { EditorLayerStudio } from "@/components/invitations/editor-layer-studio";
 import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
 import { EditorWorkflowPanel } from "@/components/invitations/editor-workflow-panel";
@@ -105,32 +110,21 @@ import {
 } from "@/components/ui";
 
 type Device = InvitationDevice;
+
+const deviceWidths: Record<Device, number> = {
+  desktop: 1440,
+  tablet: 768,
+  mobile: 390,
+};
+
+/**
+ * Below this scale the invitation text stops being readable, so "fit" stops
+ * shrinking and the canvas scrolls sideways instead of showing an unusable
+ * thumbnail of the desktop layout.
+ */
+const canvasFitFloor = 0.5;
 type InspectorTab = "content" | "design" | "experience" | "publish";
 type LeftPanelTab = "blocks" | "layers";
-
-const icons: Record<InvitationSectionType, React.ElementType> = {
-  hero: LayoutTemplate,
-  story: Heart,
-  countdown: Clock3,
-  schedule: CalendarHeart,
-  locations: MapPin,
-  rsvp: PencilLine,
-  dress_code: Shirt,
-  gallery: Images,
-  transport: Users,
-  accommodation: BedDouble,
-  faq: CircleHelp,
-  contact: Contact,
-  registry: Gift,
-  custom: Plus,
-};
-
-const advancedIcons: Record<InvitationBlockKind, React.ElementType> = {
-  artwork: Images,
-  video: Video,
-  media_text: ImageIcon,
-  divider: Minus,
-};
 
 export default function InvitationEditorPage() {
   const router = useRouter();
@@ -141,8 +135,9 @@ export default function InvitationEditorPage() {
   );
   const [baseSnapshot, setBaseSnapshot] =
     React.useState<InvitationEditorSnapshot>(() => createInitialSnapshot());
-  const [history, setHistory] = React.useState<InvitationEditorSnapshot[]>([]);
-  const [future, setFuture] = React.useState<InvitationEditorSnapshot[]>([]);
+  const [historyState, setHistoryState] = React.useState<InvitationHistoryState>(
+    createInvitationHistory,
+  );
   const [selectedId, setSelectedId] = React.useState("hero");
   const [device, setDevice] = React.useState<Device>("desktop");
   const [leftPanelTab, setLeftPanelTab] =
@@ -158,6 +153,7 @@ export default function InvitationEditorPage() {
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   const [publishOpen, setPublishOpen] = React.useState(false);
   const [canvasPreviewOpen, setCanvasPreviewOpen] = React.useState(false);
+  const [revealPreviewOpen, setRevealPreviewOpen] = React.useState(false);
   const [templateOpen, setTemplateOpen] = React.useState(false);
   const [workflowOpen, setWorkflowOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
@@ -180,6 +176,9 @@ export default function InvitationEditorPage() {
     React.useState<InvitationSyncPreviewResource | null>(null);
   const [preflight, setPreflight] =
     React.useState<InvitationPreflightResource | null>(null);
+  const [preflightBusy, setPreflightBusy] = React.useState(false);
+  const [preflightError, setPreflightError] = React.useState("");
+  const preflightSignatureRef = React.useRef<string | null>(null);
   const [workflowBusy, setWorkflowBusy] = React.useState(false);
   const [variantCreateOpen, setVariantCreateOpen] = React.useState(false);
   const [variantToArchive, setVariantToArchive] =
@@ -187,6 +186,10 @@ export default function InvitationEditorPage() {
   const [versionToRestore, setVersionToRestore] =
     React.useState<InvitationVersionHistoryItemResource | null>(null);
   const editRevisionRef = React.useRef(0);
+  const canvasScrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollRequestRef = React.useRef<string | null>(null);
+  const [zoom, setZoom] = React.useState<"fit" | number>("fit");
+  const [canvasViewportWidth, setCanvasViewportWidth] = React.useState(0);
   const canWrite =
     bootstrap?.membership.capabilities.includes("invitation.write") ?? false;
   const canPublish =
@@ -253,11 +256,13 @@ export default function InvitationEditorPage() {
   }, [dirty]);
 
   const commit = React.useCallback(
-    (next: InvitationEditorSnapshot) => {
+    (next: InvitationEditorSnapshot, coalesceKey: string | null = null) => {
       editRevisionRef.current += 1;
       setPreflight(null);
-      setHistory((current) => [...current.slice(-39), snapshot]);
-      setFuture([]);
+      setPreflightError("");
+      setHistoryState((current) =>
+        commitInvitationHistory(current, snapshot, coalesceKey, Date.now()),
+      );
       setSnapshot(next);
       setDirty(true);
     },
@@ -360,66 +365,139 @@ export default function InvitationEditorPage() {
     return () => window.clearTimeout(timer);
   }, [canWrite, currentWorkspace, demoMode, dirty, saveDraft, saving]);
 
+  // The server enforces more publish rules than the local checklist can see, so
+  // run the read-only preflight as soon as the review tab is open on a saved
+  // draft instead of surprising the couple at the moment they press publish.
+  React.useEffect(() => {
+    if (inspectorTab !== "publish" || !canPublish || demoMode) return;
+    if (!currentWorkspace || !site || dirty || saving || preflight) return;
+    const signature = `${site.version}:${activeVariantId ?? "base"}`;
+    if (preflightSignatureRef.current === signature) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      preflightSignatureRef.current = signature;
+      setPreflightBusy(true);
+      setPreflightError("");
+      void weddingOsApi
+        .invitationPreflight(currentWorkspace.id)
+        .then((value) => {
+          if (active) setPreflight(value);
+        })
+        .catch((caught) => {
+          if (active) setPreflightError(apiErrorMessage(caught));
+        })
+        .finally(() => {
+          if (active) setPreflightBusy(false);
+        });
+    }, 400);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [
+    activeVariantId,
+    canPublish,
+    currentWorkspace,
+    demoMode,
+    dirty,
+    inspectorTab,
+    preflight,
+    saving,
+    site,
+  ]);
+
+  const undo = React.useCallback(() => {
+    const result = undoInvitationHistory(historyState, snapshot);
+    if (!result) return;
+    editRevisionRef.current += 1;
+    setPreflight(null);
+    setHistoryState(result.state);
+    setSnapshot(result.snapshot);
+    setDirty(true);
+  }, [historyState, snapshot]);
+
+  const redo = React.useCallback(() => {
+    const result = redoInvitationHistory(historyState, snapshot);
+    if (!result) return;
+    editRevisionRef.current += 1;
+    setPreflight(null);
+    setHistoryState(result.state);
+    setSnapshot(result.snapshot);
+    setDirty(true);
+  }, [historyState, snapshot]);
+
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      if (!event.metaKey && !event.ctrlKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "s") {
         event.preventDefault();
         void saveDraft();
+        return;
+      }
+      // Inline canvas text is contentEditable and only reaches the snapshot on
+      // blur, so the browser's own undo is the correct one while editing there.
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+        return;
+      }
+      if ((key === "z" && event.shiftKey) || key === "y") {
+        event.preventDefault();
+        redo();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [saveDraft]);
+  }, [redo, saveDraft, undo]);
 
-  const undo = () => {
-    const previous = history.at(-1);
-    if (!previous) return;
-    editRevisionRef.current += 1;
-    setFuture((current) => [snapshot, ...current]);
-    setSnapshot(previous);
-    setHistory((current) => current.slice(0, -1));
-    setDirty(true);
-  };
-
-  const redo = () => {
-    const next = future[0];
-    if (!next) return;
-    editRevisionRef.current += 1;
-    setHistory((current) => [...current, snapshot]);
-    setSnapshot(next);
-    setFuture((current) => current.slice(1));
-    setDirty(true);
-  };
-
-  const updateSection = (id: string, update: Partial<InvitationSection>) => {
-    commit({
-      ...snapshot,
-      sections: snapshot.sections.map((section) =>
-        section.id === id ? { ...section, ...update } : section,
-      ),
-    });
+  const updateSection = (
+    id: string,
+    update: Partial<InvitationSection>,
+    coalesceKey: string | null = defaultSectionCoalesceKey(id, update),
+  ) => {
+    commit(
+      {
+        ...snapshot,
+        sections: snapshot.sections.map((section) =>
+          section.id === id ? { ...section, ...update } : section,
+        ),
+      },
+      coalesceKey,
+    );
   };
 
   const updateContent = (key: string, value: unknown) => {
     if (!selected) return;
-    updateSection(selected.id, {
-      content: { ...selected.content, [key]: value },
-    });
+    updateSection(
+      selected.id,
+      { content: { ...selected.content, [key]: value } },
+      invitationContentCoalesceKey(selected.id, key),
+    );
   };
 
   const updateContentMany = (values: Record<string, unknown>) => {
     if (!selected) return;
-    updateSection(selected.id, { content: { ...selected.content, ...values } });
+    updateSection(
+      selected.id,
+      { content: { ...selected.content, ...values } },
+      invitationRecordCoalesceKey(`content:${selected.id}`, values),
+    );
   };
 
   const updateDesign = (update: Partial<InvitationDesign>) =>
-    commit({ ...snapshot, design: { ...snapshot.design, ...update } });
+    commit(
+      { ...snapshot, design: { ...snapshot.design, ...update } },
+      invitationRecordCoalesceKey("design", update),
+    );
 
   const updateExperience = (update: Partial<InvitationExperienceSettings>) =>
-    commit({
-      ...snapshot,
-      experience: { ...snapshot.experience, ...update },
-    });
+    commit(
+      { ...snapshot, experience: { ...snapshot.experience, ...update } },
+      invitationRecordCoalesceKey("experience", update),
+    );
 
   const structureLockedByVariant = () => {
     if (!activeVariantId) return false;
@@ -439,6 +517,17 @@ export default function InvitationEditorPage() {
     if (index < 0 || target < 0 || target >= snapshot.sections.length) return;
     const sections = [...snapshot.sections];
     [sections[index], sections[target]] = [sections[target], sections[index]];
+    commit({ ...snapshot, sections });
+  };
+
+  const reorderSection = (id: string, toIndex: number) => {
+    if (structureLockedByVariant()) return;
+    const from = snapshot.sections.findIndex((section) => section.id === id);
+    const to = Math.max(0, Math.min(snapshot.sections.length - 1, toIndex));
+    if (from < 0 || from === to) return;
+    const sections = [...snapshot.sections];
+    const [moved] = sections.splice(from, 1);
+    sections.splice(to, 0, moved);
     commit({ ...snapshot, sections });
   };
 
@@ -511,8 +600,7 @@ export default function InvitationEditorPage() {
     setBaseSnapshot(sourceBase);
     setSnapshot(next);
     setActiveVariantId(variant?.id ?? null);
-    setHistory([]);
-    setFuture([]);
+    setHistoryState(createInvitationHistory());
     setDirty(false);
     setSelectedId(next.sections[0]?.id ?? "");
   };
@@ -540,8 +628,7 @@ export default function InvitationEditorPage() {
       setBaseSnapshot(sourceBase);
       setSnapshot(structuredClone(sourceBase));
       setVariantCreateOpen(false);
-      setHistory([]);
-      setFuture([]);
+      setHistoryState(createInvitationHistory());
       setDirty(false);
       toast({
         title: "Variantă creată",
@@ -614,8 +701,7 @@ export default function InvitationEditorPage() {
       setSnapshot(next);
       setActiveVariantId(null);
       setDirty(false);
-      setHistory([]);
-      setFuture([]);
+      setHistoryState(createInvitationHistory());
       setVersionToRestore(null);
       const versionData = await weddingOsApi.invitationVersions(
         currentWorkspace.id,
@@ -624,7 +710,7 @@ export default function InvitationEditorPage() {
       toast({
         title: "Versiune restaurată",
         description:
-          "Am creat o ciornă nouă; versiunea publicată nu s-a schimbat.",
+          "Am creat o ciornă nouă; versiunea publicată nu s-a schimbat. Istoricul de anulare pornește de aici.",
         variant: "success",
       });
     } catch (caught) {
@@ -682,14 +768,13 @@ export default function InvitationEditorPage() {
       setBaseSnapshot(next);
       setSnapshot(next);
       setDirty(false);
-      setHistory([]);
-      setFuture([]);
+      setHistoryState(createInvitationHistory());
       setSyncPreview(
         await weddingOsApi.invitationSyncPreview(currentWorkspace.id),
       );
       toast({
         title: "Ciorna a fost actualizată",
-        description: `${paths.length} diferențe au fost aplicate. Invitația publică nu s-a schimbat.`,
+        description: `${paths.length} diferențe au fost aplicate. Invitația publică nu s-a schimbat, iar istoricul de anulare pornește de aici.`,
         variant: "success",
       });
     } catch (caught) {
@@ -784,6 +869,17 @@ export default function InvitationEditorPage() {
     [currentWorkspace, mediaPreviews],
   );
 
+  const experienceCoverUrl = resolveMedia(
+    snapshot.experience.coverMediaId ?? "",
+    snapshot.experience.coverImageUrl ?? "",
+  );
+
+  const openRevealPreview = () => {
+    setInspectorTab("experience");
+    setInspectorOpen(false);
+    setRevealPreviewOpen(true);
+  };
+
   const publish = async () => {
     if (!currentWorkspace || demoMode || !canPublish) return;
     if (readiness.completed !== readiness.total) {
@@ -855,8 +951,7 @@ export default function InvitationEditorPage() {
             ? current
             : (refreshedSnapshot.sections[0]?.id ?? ""),
         );
-        setHistory([]);
-        setFuture([]);
+        setHistoryState(createInvitationHistory());
         setDirty(false);
         setLastSavedAt(new Date());
       } catch (refreshError) {
@@ -864,8 +959,7 @@ export default function InvitationEditorPage() {
         setSnapshot(refreshedBase);
         setVariants([]);
         setActiveVariantId(null);
-        setHistory([]);
-        setFuture([]);
+        setHistoryState(createInvitationHistory());
         setDirty(false);
         setLoadAttempt((current) => current + 1);
         toast({
@@ -907,6 +1001,47 @@ export default function InvitationEditorPage() {
     });
   };
 
+  React.useEffect(() => {
+    const node = canvasScrollRef.current;
+    if (!node) return;
+    const style = window.getComputedStyle(node);
+    setCanvasViewportWidth(
+      node.clientWidth -
+        Number.parseFloat(style.paddingLeft) -
+        Number.parseFloat(style.paddingRight),
+    );
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (typeof width === "number") setCanvasViewportWidth(width);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loading]);
+
+  // Selecting from the structure rail should bring the section into view; a
+  // click straight on the canvas must not move the ground under the cursor.
+  const selectSectionFromRail = (id: string) => {
+    setSelectedId(id);
+    setInspectorTab("content");
+    scrollRequestRef.current = id;
+  };
+
+  React.useEffect(() => {
+    const id = scrollRequestRef.current;
+    if (!id) return;
+    scrollRequestRef.current = null;
+    const target = canvasScrollRef.current?.querySelector<HTMLElement>(
+      `[data-invitation-section-id="${cssAttributeValue(id)}"]`,
+    );
+    if (!target) return;
+    target.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }, [selectedId]);
+
   const showInspectorTab = (tab: InspectorTab) => {
     setInspectorTab(tab);
     if (window.innerWidth < 1024) setInspectorOpen(true);
@@ -915,6 +1050,28 @@ export default function InvitationEditorPage() {
   const showInvitationStructure = () => {
     setLeftPanelTab("layers");
     if (window.innerWidth < 768) setSectionsOpen(true);
+  };
+
+  const runPreflightAction = (action: InvitationPreflightAction) => {
+    if (action.kind === "route") {
+      router.push(action.href);
+      return;
+    }
+    if (action.kind === "workflow") {
+      setInspectorOpen(false);
+      setWorkflowOpen(true);
+      return;
+    }
+    if (action.kind === "save") {
+      void saveDraft();
+      return;
+    }
+    if (action.kind === "starter-section") {
+      const sectionId = invitationStarterSectionId(snapshot);
+      if (!sectionId) return;
+      setSelectedId(sectionId);
+      setInspectorTab("content");
+    }
   };
 
   const resolveReadinessCheck = (sectionId?: string) => {
@@ -927,11 +1084,21 @@ export default function InvitationEditorPage() {
     setAddOpen(true);
   };
 
-  const widths: Record<Device, string> = {
-    desktop: "w-[1440px]",
-    tablet: "w-[768px]",
-    mobile: "w-[390px]",
-  };
+  const fitZoom =
+    canvasViewportWidth > 0
+      ? Math.min(
+          1,
+          Math.max(canvasFitFloor, canvasViewportWidth / deviceWidths[device]),
+        )
+      : 1;
+  const canvasZoom = zoom === "fit" ? fitZoom : zoom;
+  const canvasWidth = deviceWidths[device] * canvasZoom;
+  const canvasOverflows =
+    canvasViewportWidth > 0 && canvasWidth > canvasViewportWidth + 1;
+  const stepZoom = (delta: number) =>
+    setZoom(
+      Math.min(1.5, Math.max(0.25, Math.round((canvasZoom + delta) * 100) / 100)),
+    );
 
   if (loading) {
     return (
@@ -1014,27 +1181,27 @@ export default function InvitationEditorPage() {
           >
             <LayoutPanelLeft className="size-4" aria-hidden />
           </Button>
-          <Tooltip content="Anulează">
-            <span className="hidden sm:inline-flex">
+          <Tooltip content="Anulează · Ctrl+Z">
+            <span className="inline-flex">
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={undo}
-                disabled={!history.length}
-                aria-label="Anulează"
+                disabled={!historyState.past.length}
+                aria-label="Anulează ultima modificare"
               >
                 <Undo2 className="size-4" aria-hidden />
               </Button>
             </span>
           </Tooltip>
-          <Tooltip content="Refă">
-            <span className="hidden sm:inline-flex">
+          <Tooltip content="Refă · Ctrl+Shift+Z">
+            <span className="inline-flex">
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={redo}
-                disabled={!future.length}
-                aria-label="Refă"
+                disabled={!historyState.future.length}
+                aria-label="Refă modificarea anulată"
               >
                 <Redo2 className="size-4" aria-hidden />
               </Button>
@@ -1096,11 +1263,9 @@ export default function InvitationEditorPage() {
             onTabChange={setLeftPanelTab}
             snapshot={snapshot}
             selectedId={selectedId}
-            onSelect={(id) => {
-              setSelectedId(id);
-              setInspectorTab("content");
-            }}
+            onSelect={selectSectionFromRail}
             onMove={moveSection}
+            onReorder={reorderSection}
             onToggle={(section) =>
               updateSection(section.id, { visible: !section.visible })
             }
@@ -1147,17 +1312,30 @@ export default function InvitationEditorPage() {
               ]}
             />
             <div className="flex items-center gap-1">
-              <span className="hidden text-xs font-medium text-muted sm:inline">
-                Lățime reală
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Deschide previzualizarea mare"
-                onClick={() => setCanvasPreviewOpen(true)}
-              >
-                <Maximize2 className="size-4" aria-hidden />
-              </Button>
+              <Tooltip content="Vezi cum se deschide invitația">
+                <span className="inline-flex">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Vezi animația de deschidere a invitației"
+                    onClick={openRevealPreview}
+                  >
+                    <PlayCircle className="size-4" aria-hidden />
+                  </Button>
+                </span>
+              </Tooltip>
+              <Tooltip content="Previzualizare la lățime reală">
+                <span className="inline-flex">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Deschide previzualizarea mare"
+                    onClick={() => setCanvasPreviewOpen(true)}
+                  >
+                    <Maximize2 className="size-4" aria-hidden />
+                  </Button>
+                </span>
+              </Tooltip>
             </div>
           </div>
           <EditorJourneyBar
@@ -1169,49 +1347,84 @@ export default function InvitationEditorPage() {
             onPersonalize={() => showInspectorTab("design")}
             onReview={() => showInspectorTab("publish")}
           />
-          <div className="min-h-0 flex-1 overflow-auto px-3 py-5 sm:p-8">
-            <div
-              className={cn(
-                "mx-auto shrink-0 transition-[width] duration-200",
-                widths[device],
-              )}
-            >
-              <div className="mb-2 flex items-center justify-between px-1 text-xs text-faint">
-                <span>
-                  {device === "desktop"
-                    ? "1440 px"
-                    : device === "tablet"
-                      ? "768 px"
-                      : "390 px"}
+          <div
+            ref={canvasScrollRef}
+            className="min-h-0 flex-1 overflow-auto px-3 py-5 sm:p-8"
+          >
+            {/* `w-fit min-w-full` keeps the canvas centered while it fits and
+                makes both edges reachable once it is wider than the panel. */}
+            <div className="mx-auto flex w-fit min-w-full flex-col">
+              <div
+                className="mx-auto flex min-w-0 items-center justify-between gap-3 px-1 pb-2 text-xs text-faint"
+                style={{ width: canvasWidth }}
+              >
+                <span className="shrink-0">
+                  {deviceWidths[device]} px
+                  {canvasOverflows ? (
+                    <span className="hidden sm:inline"> · derulează lateral</span>
+                  ) : null}
                 </span>
-                <span>
-                  {
-                    snapshot.sections.filter((section) => section.visible)
-                      .length
-                  }{" "}
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Micșorează previzualizarea"
+                    disabled={canvasZoom <= 0.25}
+                    onClick={() => stepZoom(-0.1)}
+                  >
+                    <Minus className="size-3.5" aria-hidden />
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setZoom("fit")}
+                    aria-label="Potrivește previzualizarea pe lățime"
+                    className={cn(
+                      "min-h-8 cursor-pointer rounded-md px-2 font-medium tabular-nums hover:bg-surface hover:text-ink",
+                      zoom === "fit" && "text-brand",
+                    )}
+                  >
+                    {Math.round(canvasZoom * 100)}%
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Mărește previzualizarea"
+                    disabled={canvasZoom >= 1.5}
+                    onClick={() => stepZoom(0.1)}
+                  >
+                    <Plus className="size-3.5" aria-hidden />
+                  </Button>
+                </div>
+                <span className="hidden shrink-0 sm:inline">
+                  {snapshot.sections.filter((section) => section.visible).length}{" "}
                   secțiuni vizibile
                 </span>
               </div>
-              <InvitationCanvas
-                snapshot={snapshot}
-                selectedId={selectedId}
-                resolveMedia={resolveMedia}
-                onSelect={(id) => {
-                  setSelectedId(id);
-                  setInspectorTab("content");
-                  if (window.innerWidth < 1024) setInspectorOpen(true);
-                }}
-                onUpdateSection={updateSection}
-                onUpdateContent={(sectionId, key, value) => {
-                  const section = snapshot.sections.find(
-                    (item) => item.id === sectionId,
-                  );
-                  if (section)
-                    updateSection(sectionId, {
-                      content: { ...section.content, [key]: value },
-                    });
-                }}
-              />
+              <div
+                className="mx-auto shrink-0"
+                style={{ width: deviceWidths[device], zoom: canvasZoom }}
+              >
+                <InvitationCanvas
+                  snapshot={snapshot}
+                  selectedId={selectedId}
+                  resolveMedia={resolveMedia}
+                  onSelect={(id) => {
+                    setSelectedId(id);
+                    setInspectorTab("content");
+                    if (window.innerWidth < 1024) setInspectorOpen(true);
+                  }}
+                  onUpdateSection={updateSection}
+                  onUpdateContent={(sectionId, key, value) => {
+                    const section = snapshot.sections.find(
+                      (item) => item.id === sectionId,
+                    );
+                    if (section)
+                      updateSection(sectionId, {
+                        content: { ...section.content, [key]: value },
+                      });
+                  }}
+                />
+              </div>
             </div>
           </div>
         </main>
@@ -1231,10 +1444,7 @@ export default function InvitationEditorPage() {
             onUpdateContentMany={updateContentMany}
             onUpdateDesign={updateDesign}
             onUpdateExperience={updateExperience}
-            coverPreviewUrl={resolveMedia(
-              snapshot.experience.coverMediaId ?? "",
-              snapshot.experience.coverImageUrl ?? "",
-            )}
+            coverPreviewUrl={experienceCoverUrl}
             onUploadExperienceCover={(file) =>
               void uploadInvitationImage(file, (mediaId) =>
                 updateExperience({
@@ -1251,6 +1461,11 @@ export default function InvitationEditorPage() {
             onResolveCheck={resolveReadinessCheck}
             onPublish={requestPublish}
             preflight={preflight}
+            preflightBusy={preflightBusy}
+            preflightError={preflightError}
+            canPublish={canPublish}
+            onPreflightAction={runPreflightAction}
+            onPreviewReveal={openRevealPreview}
           />
         </aside>
       </div>
@@ -1260,15 +1475,16 @@ export default function InvitationEditorPage() {
         onClose={() => setSectionsOpen(false)}
         title="Structura invitației"
       >
-        <SectionsPanel
+        <EditorSectionsPanel
           snapshot={snapshot}
           selectedId={selectedId}
           onSelect={(id) => {
-            setSelectedId(id);
+            selectSectionFromRail(id);
             setSectionsOpen(false);
             setInspectorOpen(true);
           }}
           onMove={moveSection}
+          onReorder={reorderSection}
           onToggle={(section) =>
             updateSection(section.id, { visible: !section.visible })
           }
@@ -1298,10 +1514,7 @@ export default function InvitationEditorPage() {
           onUpdateContentMany={updateContentMany}
           onUpdateDesign={updateDesign}
           onUpdateExperience={updateExperience}
-          coverPreviewUrl={resolveMedia(
-            snapshot.experience.coverMediaId ?? "",
-            snapshot.experience.coverImageUrl ?? "",
-          )}
+          coverPreviewUrl={experienceCoverUrl}
           onUploadExperienceCover={(file) =>
             void uploadInvitationImage(file, (mediaId) =>
               updateExperience({ coverMediaId: mediaId, coverImageUrl: null }),
@@ -1318,8 +1531,22 @@ export default function InvitationEditorPage() {
           onResolveCheck={resolveReadinessCheck}
           onPublish={requestPublish}
           preflight={preflight}
+          preflightBusy={preflightBusy}
+          preflightError={preflightError}
+          canPublish={canPublish}
+          onPreflightAction={runPreflightAction}
+          onPreviewReveal={openRevealPreview}
         />
       </Drawer>
+
+      <EditorRevealPreview
+        open={revealPreviewOpen}
+        onClose={() => setRevealPreviewOpen(false)}
+        snapshot={snapshot}
+        device={device}
+        coverImageUrl={experienceCoverUrl}
+        resolveMedia={resolveMedia}
+      />
 
       <Modal
         open={canvasPreviewOpen}
@@ -1330,10 +1557,8 @@ export default function InvitationEditorPage() {
       >
         <div className="overflow-auto rounded-xl bg-sunken p-2 sm:p-4">
           <div
-            className={cn(
-              "mx-auto overflow-hidden rounded-xl shadow-overlay",
-              widths[device],
-            )}
+            className="mx-auto overflow-hidden rounded-xl shadow-overlay"
+            style={{ width: deviceWidths[device] }}
           >
             <InvitationRenderer
               snapshot={snapshot}
@@ -1383,7 +1608,7 @@ export default function InvitationEditorPage() {
       >
         <div className="grid gap-2 sm:grid-cols-2">
           {sectionCatalog.map((entry) => {
-            const Icon = icons[entry.type];
+            const Icon = invitationSectionIcons[entry.type];
             return (
               <button
                 key={entry.type}
@@ -1411,7 +1636,7 @@ export default function InvitationEditorPage() {
             );
           })}
           {advancedBlockCatalog.map((entry) => {
-            const Icon = advancedIcons[entry.blockKind];
+            const Icon = invitationBlockIcons[entry.blockKind];
             return (
               <button
                 key={entry.blockKind}
@@ -1727,6 +1952,7 @@ function CreativeRail({
   selectedId,
   onSelect,
   onMove,
+  onReorder,
   onToggle,
   onDuplicate,
   onRemove,
@@ -1740,6 +1966,7 @@ function CreativeRail({
   selectedId: string;
   onSelect: (id: string) => void;
   onMove: (id: string, direction: -1 | 1) => void;
+  onReorder: (id: string, toIndex: number) => void;
   onToggle: (section: InvitationSection) => void;
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
@@ -1790,7 +2017,7 @@ function CreativeRail({
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             {sectionCatalog.map((entry) => {
-              const Icon = icons[entry.type];
+              const Icon = invitationSectionIcons[entry.type];
               return (
                 <button
                   key={entry.type}
@@ -1813,7 +2040,7 @@ function CreativeRail({
               );
             })}
             {advancedBlockCatalog.map((entry) => {
-              const Icon = advancedIcons[entry.blockKind];
+              const Icon = invitationBlockIcons[entry.blockKind];
               return (
                 <button
                   key={entry.blockKind}
@@ -1838,11 +2065,12 @@ function CreativeRail({
           </div>
         </div>
       ) : (
-        <SectionsPanel
+        <EditorSectionsPanel
           snapshot={snapshot}
           selectedId={selectedId}
           onSelect={onSelect}
           onMove={onMove}
+          onReorder={onReorder}
           onToggle={onToggle}
           onDuplicate={onDuplicate}
           onRemove={onRemove}
@@ -1850,156 +2078,6 @@ function CreativeRail({
           structuralLocked={structuralLocked}
         />
       )}
-    </div>
-  );
-}
-
-function SectionsPanel({
-  snapshot,
-  selectedId,
-  onSelect,
-  onMove,
-  onToggle,
-  onDuplicate,
-  onRemove,
-  onAdd,
-  structuralLocked,
-}: {
-  snapshot: InvitationEditorSnapshot;
-  selectedId: string;
-  onSelect: (id: string) => void;
-  onMove: (id: string, direction: -1 | 1) => void;
-  onToggle: (section: InvitationSection) => void;
-  onDuplicate: (id: string) => void;
-  onRemove: (id: string) => void;
-  onAdd: () => void;
-  structuralLocked: boolean;
-}) {
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-line px-4 py-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[.14em] text-faint">
-            Structură
-          </p>
-          <Badge variant="neutral">{snapshot.sections.length}</Badge>
-        </div>
-        <p className="mt-1 text-xs text-muted">
-          {structuralLocked
-            ? "În variantă poți schimba conținutul și vizibilitatea, nu structura."
-            : "Ordinea de aici este ordinea invitației."}
-        </p>
-      </div>
-      <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-        {snapshot.sections.map((section, index) => {
-          const Icon = sectionIcon(section);
-          const active = selectedId === section.id;
-          return (
-            <li
-              key={section.id}
-              className={cn(
-                "group rounded-lg border transition-colors",
-                active
-                  ? "border-brand/35 bg-brand-softer"
-                  : "border-transparent hover:bg-subtle",
-              )}
-            >
-              <div className="flex items-center gap-1.5 p-1.5">
-                <GripVertical
-                  className="size-3.5 shrink-0 text-faint"
-                  aria-hidden
-                />
-                <button
-                  onClick={() => onSelect(section.id)}
-                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 py-1 text-left"
-                >
-                  <span
-                    className={cn(
-                      "grid size-7 shrink-0 place-items-center rounded-lg",
-                      section.visible
-                        ? "bg-surface text-brand-strong"
-                        : "bg-subtle text-faint",
-                    )}
-                  >
-                    <Icon className="size-3.5" aria-hidden />
-                  </span>
-                  <span
-                    className={cn(
-                      "truncate text-sm font-medium",
-                      section.visible ? "text-ink" : "text-faint line-through",
-                    )}
-                  >
-                    {section.label}
-                  </span>
-                </button>
-                <button
-                  onClick={() => onToggle(section)}
-                  className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink"
-                  aria-label={
-                    section.visible ? "Ascunde secțiunea" : "Afișează secțiunea"
-                  }
-                >
-                  {section.visible ? (
-                    <Eye className="size-3.5" aria-hidden />
-                  ) : (
-                    <EyeOff className="size-3.5" aria-hidden />
-                  )}
-                </button>
-              </div>
-              {active && (
-                <div className="flex items-center justify-end gap-0.5 border-t border-brand/10 px-2 py-1">
-                  <button
-                    onClick={() => onMove(section.id, -1)}
-                    disabled={structuralLocked || index === 0}
-                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Mută mai sus"
-                  >
-                    <ChevronUp className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onMove(section.id, 1)}
-                    disabled={
-                      structuralLocked || index === snapshot.sections.length - 1
-                    }
-                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Mută mai jos"
-                  >
-                    <ChevronDown className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onDuplicate(section.id)}
-                    disabled={structuralLocked}
-                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Duplică secțiunea"
-                  >
-                    <Copy className="size-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onRemove(section.id)}
-                    disabled={structuralLocked}
-                    className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-danger-soft hover:text-danger disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label="Șterge secțiunea"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      <div className="border-t border-line p-3">
-        <Button
-          className="w-full"
-          variant="outline"
-          size="sm"
-          disabled={structuralLocked}
-          onClick={onAdd}
-        >
-          <Plus className="size-4" />
-          Adaugă secțiune
-        </Button>
-      </div>
     </div>
   );
 }
@@ -2026,6 +2104,11 @@ function Inspector({
   onResolveCheck,
   onPublish,
   preflight,
+  preflightBusy,
+  preflightError,
+  canPublish,
+  onPreflightAction,
+  onPreviewReveal,
 }: {
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
@@ -2051,6 +2134,11 @@ function Inspector({
   onResolveCheck: (sectionId?: string) => void;
   onPublish: () => void;
   preflight: InvitationPreflightResource | null;
+  preflightBusy: boolean;
+  preflightError: string;
+  canPublish: boolean;
+  onPreflightAction: (action: InvitationPreflightAction) => void;
+  onPreviewReveal: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -2116,6 +2204,7 @@ function Inspector({
             uploading={uploadingMedia}
             onUploadCover={onUploadExperienceCover}
             coverPreviewUrl={coverPreviewUrl}
+            onPreviewReveal={onPreviewReveal}
           />
         )}
         {tab === "publish" && (
@@ -2164,33 +2253,13 @@ function Inspector({
                 ))}
               </ul>
             </div>
-            {preflight ? (
-              <div
-                className={cn(
-                  "rounded-xl border p-3",
-                  preflight.ready
-                    ? "border-success/30 bg-success-soft"
-                    : "border-warning/30 bg-warning-soft",
-                )}
-              >
-                <p className="text-xs font-semibold text-ink">
-                  {preflight.ready
-                    ? "Verificările serverului sunt complete"
-                    : `${preflight.errors.length} blocaje de publicare`}
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-muted">
-                  {preflight.assignedRecipients} destinatari ·{" "}
-                  {preflight.activeVariants} variante active
-                </p>
-                {preflight.errors.length ? (
-                  <ul className="mt-2 space-y-1 text-xs text-danger">
-                    {preflight.errors.map((issue, index) => (
-                      <li key={`${issue.code}-${index}`}>{issue.message}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
+            <PreflightPanel
+              preflight={preflight}
+              busy={preflightBusy}
+              error={preflightError}
+              canPublish={canPublish}
+              onAction={onPreflightAction}
+            />
             <div className="rounded-xl border border-line bg-subtle/50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-faint">
                 Acces invitați
@@ -2209,7 +2278,10 @@ function Inspector({
             </div>
             <Button
               className="w-full"
-              disabled={readiness.completed !== readiness.total}
+              disabled={
+                readiness.completed !== readiness.total ||
+                (preflight !== null && !preflight.ready)
+              }
               onClick={onPublish}
             >
               Verifică și publică
@@ -2217,6 +2289,128 @@ function Inspector({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PreflightPanel({
+  preflight,
+  busy,
+  error,
+  canPublish,
+  onAction,
+}: {
+  preflight: InvitationPreflightResource | null;
+  busy: boolean;
+  error: string;
+  canPublish: boolean;
+  onAction: (action: InvitationPreflightAction) => void;
+}) {
+  if (!canPublish)
+    return (
+      <div className="rounded-xl border border-line bg-subtle/50 p-3">
+        <p className="text-xs font-semibold text-ink">
+          Verificările serverului cer drept de publicare
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Poți edita și salva invitația. Verificarea completă și publicarea sunt
+          făcute de cine are dreptul de publicare în acest spațiu.
+        </p>
+      </div>
+    );
+
+  if (error)
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger-soft p-3">
+        <p className="text-xs font-semibold text-ink">
+          Verificările serverului nu au putut fi rulate
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">{error}</p>
+      </div>
+    );
+
+  if (busy || !preflight)
+    return (
+      <div className="rounded-xl border border-line bg-subtle/50 p-3">
+        <p className="text-xs font-semibold text-ink">
+          {busy ? "Se verifică pe server…" : "Verificările serverului"}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          {busy
+            ? "Confirmăm formularul RSVP, momentele vizibile invitaților și imaginile folosite."
+            : "Pornesc automat imediat ce ciorna e salvată."}
+        </p>
+      </div>
+    );
+
+  const issues = [
+    ...preflight.errors.map((issue) => ({ issue, blocking: true })),
+    ...preflight.warnings.map((issue) => ({ issue, blocking: false })),
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div
+        className={cn(
+          "rounded-xl border p-3",
+          preflight.ready
+            ? "border-success/30 bg-success-soft"
+            : "border-warning/30 bg-warning-soft",
+        )}
+      >
+        <p className="text-xs font-semibold text-ink">
+          {preflight.ready
+            ? "Serverul confirmă că invitația poate fi publicată"
+            : `${preflight.errors.length} ${preflight.errors.length === 1 ? "blocaj" : "blocaje"} de publicare`}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          {preflight.assignedRecipients} destinatari ·{" "}
+          {preflight.activeVariants} variante active
+        </p>
+      </div>
+      {issues.map(({ issue, blocking }, index) => {
+        const guide = invitationPreflightGuide(issue.code, issue.message);
+        return (
+          <div
+            key={`${issue.code}-${index}`}
+            className={cn(
+              "rounded-xl border p-3",
+              blocking
+                ? "border-danger/30 bg-danger-soft"
+                : "border-line bg-subtle/50",
+            )}
+          >
+            <div className="flex items-start gap-2">
+              <span
+                className={cn(
+                  "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full",
+                  blocking
+                    ? "bg-danger/15 text-danger"
+                    : "bg-warning-soft text-warning",
+                )}
+              >
+                <CircleHelp className="size-3" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-ink">{guide.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  {guide.detail}
+                </p>
+                {guide.action.kind !== "none" ? (
+                  <Button
+                    className="mt-2"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onAction(guide.action)}
+                  >
+                    {guide.action.label}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2245,7 +2439,7 @@ function SectionInspector({
     <div className="space-y-5 p-4">
       <div className="flex items-center gap-3">
         <span className="grid size-9 place-items-center rounded-lg bg-brand-softer text-brand-strong">
-          {React.createElement(sectionIcon(section), {
+          {React.createElement(invitationSectionIcon(section), {
             className: "size-4",
             "aria-hidden": true,
           })}
@@ -3696,6 +3890,7 @@ function InvitationCanvas({
       }
       renderSectionFrame={({ section, children }) => (
         <div
+          data-invitation-section-id={section.id}
           onClick={() => onSelect(section.id)}
           onKeyDown={(event) => {
             if (event.target !== event.currentTarget) return;
@@ -3773,6 +3968,25 @@ function InvitationCanvas({
   );
 }
 
+/**
+ * Text and slider edits belong to one undo step per field; discrete changes
+ * such as toggling visibility always get their own.
+ */
+function defaultSectionCoalesceKey(
+  id: string,
+  update: Partial<InvitationSection>,
+) {
+  const keys = Object.keys(update);
+  if (keys.length !== 1) return null;
+  return keys[0] === "label" || keys[0] === "style"
+    ? `section:${id}:${keys[0]}`
+    : null;
+}
+
+function cssAttributeValue(value: string) {
+  return value.replace(/["\\]/g, "\\$&");
+}
+
 function validColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#20211F";
 }
@@ -3814,19 +4028,6 @@ function safeImageUrl(value: string) {
   } catch {
     return "";
   }
-}
-
-function sectionIcon(section: InvitationSection) {
-  const blockKind = section.content.blockKind;
-  if (
-    section.type === "custom" &&
-    (blockKind === "artwork" ||
-      blockKind === "video" ||
-      blockKind === "media_text" ||
-      blockKind === "divider")
-  )
-    return advancedIcons[blockKind];
-  return icons[section.type];
 }
 
 function invitationSlug(title: string, workspaceId: string) {

@@ -8,6 +8,7 @@ import {
   Gauge,
   ImagePlus,
   MailOpen,
+  PlayCircle,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -21,12 +22,14 @@ export function InvitationExperiencePanel({
   uploading,
   onUploadCover,
   coverPreviewUrl,
+  onPreviewReveal,
 }: {
   experience: InvitationExperienceSettings;
   onChange: (update: Partial<InvitationExperienceSettings>) => void;
   uploading: boolean;
   onUploadCover: (file: File) => void;
   coverPreviewUrl?: string;
+  onPreviewReveal?: () => void;
 }) {
   const coverInputRef = React.useRef<HTMLInputElement>(null);
   const panelInk = readableTextColor(experience.panelColor);
@@ -43,6 +46,17 @@ export function InvitationExperiencePanel({
           Alege ce vede invitatul înainte să apară invitația. Animația rulează o
           dată pentru fiecare versiune publicată și poate fi revăzută.
         </p>
+        {onPreviewReveal ? (
+          <Button
+            className="mt-3 w-full"
+            variant="outline"
+            size="sm"
+            onClick={onPreviewReveal}
+          >
+            <PlayCircle className="size-3.5" aria-hidden />
+            Vezi deschiderea
+          </Button>
+        ) : null}
       </div>
 
       <fieldset className="space-y-2">

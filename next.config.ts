@@ -23,6 +23,10 @@ const contentSecurityPolicy = productionSecurityPolicy
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  // The API only accepts `http://127.0.0.1:3000` as a request origin, so local
+  // browsing has to use that host and the dev server has to serve it its own
+  // assets.
+  allowedDevOrigins: ["127.0.0.1"],
   ...(process.env.NEXT_DISABLE_DEV_INDICATORS === "true"
     ? { devIndicators: false }
     : {}),

@@ -807,15 +807,25 @@ export function invitationVariantOverrides(
   };
 }
 
+export function invitationStarterSectionId(
+  snapshot: InvitationEditorSnapshot,
+): string | null {
+  return (
+    snapshot.sections.find(
+      (section) =>
+        section.visible &&
+        invitationContainsStarterContent({ sections: [section.content] }),
+    )?.id ?? null
+  );
+}
+
 export function invitationReadiness(snapshot: InvitationEditorSnapshot) {
   const visible = snapshot.sections.filter((section) => section.visible);
   const hero = visible.find((section) => section.type === "hero");
   const rsvp = visible.find((section) => section.type === "rsvp");
   const schedule = visible.find((section) => section.type === "schedule");
   const locations = visible.find((section) => section.type === "locations");
-  const starterSection = visible.find((section) =>
-    invitationContainsStarterContent({ sections: [section.content] }),
-  );
+  const starterSectionId = invitationStarterSectionId(snapshot);
   const checks = [
     {
       label: "Numele cuplului",
@@ -847,7 +857,7 @@ export function invitationReadiness(snapshot: InvitationEditorSnapshot) {
       done: !invitationContainsStarterContent({
         sections: visible.map((section) => section.content),
       }),
-      sectionId: starterSection?.id,
+      sectionId: starterSectionId ?? undefined,
     },
   ];
   return {
