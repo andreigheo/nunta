@@ -37,7 +37,7 @@ export function PricingSection() {
         </div>
 
         <p className="mt-8 text-sm font-semibold text-brand lg:hidden">
-          Compară toate cele trei planuri, fără informații ascunse.
+          Compară cele trei planuri.
         </p>
         <div
           className="mt-4 grid gap-4 md:grid-cols-3 lg:mt-14"

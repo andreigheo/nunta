@@ -7,7 +7,7 @@ export function FaqSection() {
     <Section id="intrebari" spacing="major">
       <SectionHeading
         title="Întrebări înainte să începi"
-        lead="Răspunsuri directe despre invitați, acces, abonamente, date și plățile către furnizori."
+        lead="Invitați, acces, abonamente, date și plăți către furnizori."
         className="mx-auto text-center"
       />
       <div className="mx-auto mt-8 max-w-4xl divide-y divide-line border-y border-line sm:mt-12">

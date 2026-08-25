@@ -159,7 +159,7 @@ export function HeroDashboard() {
           </span>
           <div>
             <p className="text-sm font-semibold text-ink">
-              Spațiul evenimentului
+              Evenimentul tău
             </p>
             <p className="text-xs text-muted">
               {touring ? hero.tourHint : hero.nextStepHint}
@@ -300,7 +300,7 @@ export function HeroDashboard() {
             />
             <ol
               className="mt-3 hidden grid-cols-4 gap-2 sm:grid"
-              aria-label="Firul etapelor prezentate"
+              aria-label="Etapele prezentate"
             >
               {showcaseStages.map((stage) => {
                 const selected = stage.id === activeId;
@@ -467,8 +467,8 @@ function PhoneAction({
 
 function PlanScreen() {
   const tasks = [
-    { title: "Clarifică prioritățile", state: "Finalizat", tone: "done" },
-    { title: "Revizuiește dependențele", state: "Blocat", tone: "blocked" },
+    { title: "Stabilește prioritățile", state: "Finalizat", tone: "done" },
+    { title: "Verifică ce blochează etapa", state: "Blocat", tone: "blocked" },
     { title: "Aprobă etapa următoare", state: "În lucru", tone: "active" },
   ] as const;
 
@@ -592,12 +592,12 @@ function OffersScreen() {
   const offers = [
     {
       label: "Ofertă anterioară",
-      state: "Cerințe parțiale",
+      state: "Nu acoperă tot",
       revised: false,
     },
     {
       label: "Ofertă revizuită",
-      state: "Cerințe aliniate",
+      state: "Potrivită cu cererea",
       revised: true,
     },
   ] as const;
@@ -640,7 +640,7 @@ function OffersScreen() {
       </ul>
 
       <p className="text-[0.6875rem] leading-4 text-muted">
-        Versiune păstrată pentru comparație
+        Versiunea rămâne, ca să poți compara
       </p>
       <p className="flex items-center gap-1.5 text-[0.6875rem] font-medium leading-4 text-muted">
         <FileCheck2 className="size-3 shrink-0 text-brand" aria-hidden />
@@ -674,7 +674,7 @@ function EventDayScreen() {
           Urmează
         </p>
         <p className="mt-0.5 text-[0.8125rem] font-semibold leading-[1.2] text-brand">
-          Pregătește tranziția
+          Pregătește ce urmează
         </p>
       </div>
 

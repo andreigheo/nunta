@@ -10,9 +10,9 @@ import { TrustSection } from "@/components/marketing/trust-section";
 import { productStories } from "@/content/marketing/sarbato";
 import { getMarketingProductProof } from "@/lib/marketing/product-proof";
 
-const title = "Sarbato — toate detaliile evenimentului rămân împreună";
+const title = "Sarbato — plan, invitații, furnizori și ziua nunții, împreună";
 const description =
-  "Planificare, invitații, RSVP, logistică, furnizori, buget și coordonarea zilei evenimentului într-un singur sistem.";
+  "Invitație, RSVP, logistică, furnizori, buget și coordonarea zilei nunții, în același loc.";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 export const dynamic = "force-dynamic";

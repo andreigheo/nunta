@@ -51,7 +51,7 @@ export function FinalCta() {
             />
           </div>
           <p className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-white/75">
-            Intri direct în fluxul real de cont.
+            Intri direct în crearea contului.
             <ArrowRight className="size-4" aria-hidden />
           </p>
         </div>

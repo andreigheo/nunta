@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowRight, Check } from "lucide-react";
+import { ArrowDown, ArrowRight } from "lucide-react";
+import { FlowStagePreview } from "@/components/marketing/flow-stage-preview";
 import { flow } from "@/content/marketing/sarbato";
 import { cn } from "@/lib/utils";
 
@@ -18,40 +19,28 @@ const chapterTone = {
   planning: {
     ink: "text-brand",
     fill: "bg-brand",
+    tint: "bg-brand-soft",
     span: "col-span-1",
   },
   guests: {
     ink: "text-accent-strong",
     fill: "bg-accent",
+    tint: "bg-accent-soft",
     span: "col-span-3",
   },
   vendors: {
     ink: "text-sun-strong",
     fill: "bg-sun",
+    tint: "bg-sun-soft",
     span: "col-span-2",
   },
   "event-day": {
     ink: "text-success",
     fill: "bg-success",
+    tint: "bg-success-soft",
     span: "col-span-1",
   },
 } as const;
-
-const resultTone = [
-  "bg-accent-soft text-accent-strong",
-  "bg-warning-soft text-warning",
-  "bg-success-soft text-success",
-] as const;
-
-function isChapterStart(stepId: FlowId, chapter: FlowChapter) {
-  return chapter.stepIds[0] === stepId;
-}
-
-function showMobileChapter(stepId: FlowId, chapter: FlowChapter) {
-  if (!isChapterStart(stepId, chapter)) return false;
-  const step = flow.steps.find((item) => item.id === stepId);
-  return !(chapter.stepIds.length === 1 && chapter.label === step?.label);
-}
 
 const DWELL_MS = 3800;
 
@@ -204,84 +193,79 @@ export function LiveFlow() {
           }}
           onMouseLeave={() => setHoverPaused(false)}
         >
-          <div className="relative border-b border-line px-4 py-3 sm:px-6 sm:py-4">
+          <div className="border-b border-line px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-semibold text-ink">
-                Firul complet al evenimentului
+                Toate etapele
               </p>
               <p className="text-xs leading-5 text-muted">
                 {touring ? flow.tourHint : flow.pickHint}
               </p>
             </div>
-            {touring ? (
-              <span
-                key={active.id}
-                aria-hidden
-                className={cn(
-                  "mkt-flow-dwell pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-brand",
-                  hoverPaused && "mkt-flow-dwell-paused",
-                )}
-              />
-            ) : null}
           </div>
 
-          <div className="border-b border-line bg-subtle px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+          <div className="border-b border-line bg-subtle px-4 pt-4 pb-4 sm:px-6 sm:pt-5 sm:pb-5 lg:px-0 lg:pt-6 lg:pb-0">
             <div className="mb-3 hidden grid-cols-7 lg:grid">
               {flow.chapters.map((chapter) => {
                 const activeChapter = (chapter.stepIds as readonly string[]).includes(
                   active.id,
                 );
+                const tone = chapterTone[chapter.id];
 
                 return (
-                  <p
+                  <div
                     key={chapter.id}
-                    className={cn(
-                      "px-1 text-xs font-semibold leading-4",
-                      chapterTone[chapter.id].ink,
-                      chapterTone[chapter.id].span,
-                    )}
+                    className={cn("flex min-w-0 flex-col pr-1.5 last:pr-0", tone.span)}
                   >
-                    {chapter.label}
+                    <p
+                      className={cn(
+                        "flex min-h-8 flex-1 items-center px-2.5 text-[10px] font-semibold leading-[1.2] tracking-[0.08em] uppercase xl:text-[11px]",
+                        tone.tint,
+                        tone.ink,
+                      )}
+                    >
+                      {chapter.label}
+                    </p>
                     <span
                       aria-hidden
                       className={cn(
-                        "mt-2 block h-0.5 rounded-full motion-reduce:transition-none motion-safe:transition-opacity motion-safe:duration-200",
-                        chapterTone[chapter.id].fill,
-                        activeChapter ? "opacity-100" : "opacity-35",
+                        "block h-[3px] motion-reduce:transition-none motion-safe:transition-opacity motion-safe:duration-200",
+                        tone.fill,
+                        activeChapter ? "opacity-100" : "opacity-25",
                       )}
                     />
-                  </p>
+                  </div>
                 );
               })}
             </div>
 
             <ol
-              className="flex flex-col lg:grid lg:grid-cols-7"
-              aria-label="Etapele informației în Sarbato"
+              className="flex flex-col lg:-mb-px lg:grid lg:grid-cols-7"
+              aria-label="Etapele din Sarbato"
               onKeyDown={onListKeyDown}
             >
               {flow.steps.map((step, index) => {
                 const chapter = chapterByStepId[step.id];
+                const tone = chapterTone[chapter.id];
                 const selected = step.id === active.id;
-                const showChapter = showMobileChapter(step.id, chapter);
+                const startsChapter = chapter.stepIds[0] === step.id;
                 const isFirst = index === 0;
                 const isLast = index === flow.steps.length - 1;
-                const nextStep = flow.steps[index + 1];
-                const nextShowsChapter = nextStep
-                  ? showMobileChapter(nextStep.id, chapterByStepId[nextStep.id])
-                  : false;
                 const previousChapter =
                   index > 0 ? chapterByStepId[flow.steps[index - 1].id] : chapter;
+                const traversed = activeIndex >= index;
                 const incomingFilled = !isFirst && activeIndex >= index;
                 const outgoingFilled = !isLast && activeIndex > index;
 
                 return (
                   <li key={step.id} className="relative min-w-0">
-                    {showChapter ? (
+                    {startsChapter ? (
                       <p
                         className={cn(
-                          "pb-1 pl-7 text-xs font-semibold leading-4 lg:hidden",
-                          chapterTone[chapter.id].ink,
+                          "-mx-4 mb-1.5 px-4 py-1.5 text-[10px] font-semibold leading-4 tracking-[0.08em] uppercase sm:-mx-6 sm:px-6 lg:hidden",
+                          isFirst ? "mt-0" : "mt-3",
+                          tone.tint,
+                          tone.ink,
                         )}
                       >
                         {chapter.label}
@@ -300,13 +284,18 @@ export function LiveFlow() {
                       aria-pressed={selected}
                       aria-current={selected ? "step" : undefined}
                       tabIndex={selected ? 0 : -1}
-                      className="relative flex min-h-11 w-full touch-manipulation items-center gap-3 py-1 text-left focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:min-h-16 lg:flex-col lg:items-center lg:justify-start lg:gap-2 lg:px-1 lg:pt-0 lg:text-center"
+                      className={cn(
+                        "relative flex min-h-11 w-full touch-manipulation items-center gap-3 py-2 pr-3 pl-4 text-left focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200 lg:min-h-28 lg:flex-col lg:items-center lg:justify-start lg:gap-1 lg:px-2 lg:pt-10 lg:pb-5 lg:text-center",
+                        selected
+                          ? "bg-surface shadow-sm lg:shadow-none"
+                          : "hover:bg-surface/60",
+                      )}
                     >
                       {isFirst ? null : (
                         <span
                           aria-hidden
                           className={cn(
-                            "absolute top-[0.375rem] right-[calc(50%+0.5rem)] left-0 hidden h-0.5 lg:block motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
+                            "absolute top-5 right-1/2 left-0 hidden h-[3px] lg:block motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
                             incomingFilled
                               ? chapterTone[previousChapter.id].fill
                               : "bg-line-strong",
@@ -317,41 +306,53 @@ export function LiveFlow() {
                         <span
                           aria-hidden
                           className={cn(
-                            "absolute top-[0.375rem] left-[calc(50%+0.5rem)] right-0 hidden h-0.5 lg:block motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
-                            outgoingFilled
-                              ? chapterTone[chapter.id].fill
-                              : "bg-line-strong",
+                            "absolute top-5 right-0 left-1/2 hidden h-[3px] lg:block motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
+                            outgoingFilled ? tone.fill : "bg-line-strong",
                           )}
-                        />
-                      )}
-                      {isLast ? null : (
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "absolute left-[5px] w-0.5 lg:hidden motion-reduce:transition-none motion-safe:transition-colors motion-safe:duration-200",
-                            outgoingFilled
-                              ? chapterTone[chapter.id].fill
-                              : "bg-line-strong",
-                          )}
-                          style={{
-                            top: "1.375rem",
-                            bottom: nextShowsChapter ? "-2.625rem" : "-1.375rem",
-                          }}
                         />
                       )}
                       <span
                         aria-hidden
                         className={cn(
-                          "relative z-[1] rounded-full border-2 motion-reduce:transition-none motion-safe:transition-[width,height,background-color,border-color] motion-safe:duration-200",
+                          "absolute inset-y-0 left-0 w-[3px] lg:hidden motion-reduce:transition-none motion-safe:transition-opacity motion-safe:duration-200",
+                          tone.fill,
+                          traversed ? "opacity-100" : "opacity-25",
+                        )}
+                      />
+                      {selected && touring ? (
+                        <span
+                          key={step.id}
+                          aria-hidden
+                          className={cn(
+                            "mkt-flow-dwell pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[3px] lg:top-5 lg:bottom-auto lg:left-1/2",
+                            tone.fill,
+                            hoverPaused && "mkt-flow-dwell-paused",
+                          )}
+                        />
+                      ) : null}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "absolute top-5 left-1/2 z-[2] hidden -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] lg:block motion-reduce:transition-none motion-safe:transition-[width,height,background-color,border-color] motion-safe:duration-200",
                           selected
-                            ? "size-3.5 border-brand bg-brand"
-                            : "size-3 border-line-strong bg-surface",
+                            ? "size-5 border-surface"
+                            : "size-3.5 border-subtle",
+                          traversed ? tone.fill : "bg-line-strong",
                         )}
                       />
                       <span
+                        aria-hidden
+                        className={cn(
+                          "shrink-0 text-[11px] font-semibold leading-4 tabular-nums lg:text-xs",
+                          selected ? tone.ink : "text-faint",
+                        )}
+                      >
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span
                         className={cn(
                           "min-w-0 text-sm font-semibold leading-5",
-                          selected ? "text-brand" : "text-muted",
+                          selected ? "text-ink" : "text-muted",
                         )}
                       >
                         {step.label}
@@ -366,7 +367,7 @@ export function LiveFlow() {
           <div className="grid min-w-0 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <div className="border-b border-line p-4 sm:p-8 lg:border-r lg:border-b-0 lg:p-10">
               <div>
-                <p className="text-sm font-semibold text-accent-strong">Preia</p>
+                <p className="text-sm font-semibold text-accent-strong">Primește</p>
                 <p className="mt-1 max-w-[50ch] text-base leading-6 text-ink">
                   {takes}
                 </p>
@@ -388,7 +389,7 @@ export function LiveFlow() {
                   <span className="hidden lg:inline">
                     <ArrowRight className="size-4" aria-hidden />
                   </span>
-                  Predă
+                  Dă mai departe
                 </p>
                 <p className="mt-1 max-w-[50ch] text-base font-semibold leading-6 text-ink">
                   {active.next}
@@ -399,35 +400,18 @@ export function LiveFlow() {
             <div className="marketing-product-surface-flat p-4 sm:p-8 lg:p-10">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-sm font-semibold text-muted">
-                  Devine disponibil în produs
+                  În produs, după acest pas
                 </p>
                 <span className="text-xs font-semibold text-faint tabular-nums">
                   {String(activeIndex + 1).padStart(2, "0")} / 07
                 </span>
               </div>
-              <ul
-                className="mt-3 divide-y divide-line border-y border-line sm:mt-5"
-                aria-label="Rezultatele etapei"
+              <div
+                key={active.id}
+                className="mkt-phone-swap mt-3 flex min-w-0 sm:mt-5 lg:min-h-[21.5rem]"
               >
-                {active.results.map((result, index) => (
-                  <li
-                    key={result}
-                    className="flex min-h-12 items-center gap-3 py-2.5 sm:min-h-14 sm:gap-4 sm:py-3"
-                  >
-                    <span
-                      className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full",
-                        resultTone[Math.min(index, resultTone.length - 1)],
-                      )}
-                    >
-                      <Check className="size-4" strokeWidth={2.2} aria-hidden />
-                    </span>
-                    <span className="text-base font-semibold leading-6 text-ink">
-                      {result}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                <FlowStagePreview stageId={active.id} />
+              </div>
               <p
                 data-testid="showcase-label"
                 className="mt-3 text-xs leading-5 text-muted sm:mt-5"

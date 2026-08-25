@@ -68,7 +68,7 @@ export function Hero() {
           <HeroDashboard />
           <div className="absolute -bottom-8 left-4 hidden items-center gap-2 text-sm font-semibold text-brand lg:flex">
             <ArrowDownRight className="size-5 text-accent" aria-hidden />
-            Urmărește informația prin produs
+            Urmărește etapele prin produs
           </div>
         </div>
       </div>

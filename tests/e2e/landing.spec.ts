@@ -121,7 +121,7 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await page.goto("/");
 
   await expect(page).toHaveTitle(
-    "Sarbato — toate detaliile evenimentului rămân împreună",
+    "Sarbato — plan, invitații, furnizori și ziua nunții, împreună",
   );
   await expect(
     page.getByRole("heading", {
@@ -225,13 +225,17 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await expect(rsvpStep).toHaveAttribute("aria-pressed", "true");
   const flux = page.locator("#flux");
   await expect(flux.locator('[aria-live="polite"]')).toContainText(
-    "Răspunsul devine logistică",
+    "Confirmarea nu rămâne într-un mesaj",
   );
-  await expect(flux).toContainText("Starea invitatului se actualizează");
-  await expect(flux).toContainText("Meniul primește preferința");
-  await expect(flux).toContainText("Planul meselor cere alocarea");
-  await expect(flux).toContainText("Transportul primește cererea");
-  await expect(flux).toContainText("Următoarea acțiune: alocarea la masă");
+  await expect(flux).toContainText("Invitat");
+  await expect(flux).toContainText("Stare actualizată");
+  await expect(flux).toContainText("Meniu");
+  await expect(flux).toContainText("Preferință primită");
+  await expect(flux).toContainText("Mese");
+  await expect(flux).toContainText("Cer alocare");
+  await expect(flux).toContainText("Transport");
+  await expect(flux).toContainText("Cerere primită");
+  await expect(flux).toContainText("Urmează să așezi oamenii la mese");
 
   // Editorul de invitații este prezentat la nivelul capabilității reale.
   const invitations = page.locator("#invitatii");
@@ -261,7 +265,7 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await expect(
     pricing.getByText("Până la 200 de invitați și 5 colaboratori"),
   ).toBeVisible();
-  await expect(pricing.getByText("Disponibil în cont").first()).toBeVisible();
+  await expect(pricing.getByText("Alegi din cont").first()).toBeVisible();
   await expect(pricing.getByRole("link")).toHaveCount(4);
   await expect(
     pricing.getByRole("link", { name: "Începe gratuit" }),
@@ -279,7 +283,7 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   await expect(faq).not.toHaveAttribute("open", "");
   await faq.locator("summary").click();
   await expect(faq).toHaveAttribute("open", "");
-  await expect(faq.getByText(/Invitații folosesc linkul primit/)).toBeVisible();
+  await expect(faq.getByText(/Folosesc linkul primit/)).toBeVisible();
 
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
@@ -335,7 +339,7 @@ test("landing mobil — meniu, ordine semantică și reduced motion", async ({
   await eventDayStep.click();
   await expect(eventDayStep).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#flux")).toContainText(
-    "Planul devine vedere operațională",
+    "În ziua nunții, toată echipa vede același plan",
   );
 
   const pricingCards = page.locator("#abonamente article");

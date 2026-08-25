@@ -34,7 +34,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "hero-lead",
     statement:
-      "Creezi invitația, strângi confirmările, organizezi invitații, compari furnizorii, urmărești bugetul și coordonezi ziua evenimentului din același loc.",
+      "Invitația, confirmările, invitații, furnizorii, bugetul și ziua nunții stau în același loc.",
     support:
       "/invitations/editor, /rsvp, /guests, /marketplace + /offers, /budget, /wedding-day",
     status: "implemented",
@@ -50,7 +50,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "shared-information",
     statement:
-      "Aceeași informație este folosită în modulele conectate, astfel încât fiecare decizie să aibă context.",
+      "Când un invitat confirmă, preferința ajunge la meniu, mese și transport. Tu decizi alocările.",
     support:
       "Înregistrarea invitat servește /rsvp, /seating, /menus, /transport, /accommodation (același workspace API)",
     status: "implemented",
@@ -60,7 +60,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "flow-rsvp-propagation",
     statement:
-      "RSVP primit: starea invitatului se actualizează, meniul primește preferința, planul meselor cere alocarea, transportul primește cererea.",
+      "RSVP primit: invitatul are starea actualizată, meniul primește preferința, mesele cer alocare, transportul primește cererea.",
     support: "/rsvp (formular publicat), /menus, /seating, /transport",
     status: "implemented",
     limitation:
@@ -116,7 +116,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "vendor-chain",
     statement:
-      "Cererea, oferta, compararea, rezervarea, contractul și bugetul păstrează aceeași urmă operațională.",
+      "Cererea, oferta, rezervarea, contractul și bugetul stau împreună. Plata către furnizor o faci tu, direct.",
     support:
       "/requests, /offers (versiuni imuabile, accept atomic → booking + contract + proiecție de buget), /contracts, /budget",
     status: "implemented",
@@ -141,7 +141,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "event-day-command",
     statement:
-      "Când începe evenimentul, echipa vede ce se întâmplă, ce urmează și ce trebuie pregătit: Acum/Urmează, desfășurător, checklisturi, check-in și incidente.",
+      "Când începe nunta, echipa vede ce se întâmplă, ce urmează și ce trebuie pregătit: Acum/Urmează, desfășurător, checklisturi, check-in și incidente.",
     support: "/wedding-day (command center cu stări, check-in, incidente)",
     status: "partial",
     limitation:
@@ -150,14 +150,14 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "trust-workspace",
     statement:
-      "Datele fiecărui eveniment rămân în workspace-ul său și în rolurile autorizate.",
+      "Planul, răspunsurile, bugetul și ziua evenimentului rămân în echipă, după rol.",
     support: "Izolare pe workspace + permisiuni pe roluri verificate pe server",
     status: "implemented",
   },
   {
     id: "trust-explicit-actions",
     statement:
-      "Publicările, aprobările și tranzițiile importante cer o intenție explicită.",
+      "Publicările, aprobările și schimbările de stare cer o confirmare explicită.",
     support:
       "ConfirmDialog pentru publicare invitație/plan/seating/transport, accept ofertă, tranziții wedding-day",
     status: "implemented",
@@ -165,7 +165,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "trust-external",
     statement:
-      "Paddle procesează abonamentul Sarbato, iar plățile dintre organizatori și furnizorii evenimentului rămân directe și separate.",
+      "Paddle procesează abonamentul Sarbato. Banii către furnizori îi plătești tu, direct.",
     support:
       "/settings?tab=billing + catalogul Paddle Live; /payments păstrează numai evidența operațională a plăților externe către furnizori",
     status: "implemented",

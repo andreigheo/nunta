@@ -47,7 +47,7 @@ export function MarketingFooter() {
           <p className="text-xs text-muted">
             © 2026 Sarbato. Toate drepturile rezervate.
           </p>
-          <p className="text-xs text-muted">Totul rămâne legat.</p>
+          <p className="text-xs text-muted">Totul stă în același loc.</p>
         </div>
       </div>
     </footer>

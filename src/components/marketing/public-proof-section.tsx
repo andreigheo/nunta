@@ -30,7 +30,7 @@ export function PublicProofSection({
             id="public-proof-title"
             className="marketing-heading mt-3 text-[clamp(2.25rem,10.5vw,2.75rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-white text-balance sm:mt-4 sm:text-[clamp(2.35rem,3.7vw,3.5rem)] sm:leading-[1.02] sm:tracking-[-0.035em]"
           >
-            Produsul poate fi măsurat fără să expună evenimentele.
+            Cifre agregate, fără evenimente expuse.
           </h2>
           <p className="mt-4 max-w-[52ch] text-base leading-7 text-white/75 sm:mt-5">
             Publicăm numai procente rotunjite, din cohorte care trec pragul de

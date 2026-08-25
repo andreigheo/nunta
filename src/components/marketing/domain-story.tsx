@@ -151,7 +151,7 @@ export function DomainStory({
                   dark ? "text-white/60" : "text-faint",
                 )}
               >
-                Intră în etapă
+                De aici
               </dt>
               <dd
                 className={cn(
@@ -176,7 +176,7 @@ export function DomainStory({
                   dark ? "text-white/60" : "text-faint",
                 )}
               >
-                Continuă ca
+                Merge mai departe
               </dt>
               <dd
                 className={cn(
@@ -293,13 +293,13 @@ function PlanningSurface() {
   const views = ["Listă", "Panou", "Cronologie", "Calendar"] as const;
   const tasks = [
     {
-      title: "Clarifică prioritățile",
+      title: "Stabilește prioritățile",
       status: "Pregătit",
       owner: "Organizator",
       deadline: "Termen săptămâna aceasta",
     },
     {
-      title: "Revizuiește dependențele",
+      title: "Verifică ce blochează etapa",
       status: "De verificat",
       owner: "Organizator",
       deadline: "Blocată de o decizie",
@@ -315,7 +315,7 @@ function PlanningSurface() {
   return (
     <SurfaceShell
       title="Planul evenimentului"
-      description="Propunere, responsabilități și riscuri înainte de aplicare"
+      description="Sarcini, responsabili și riscuri, înainte de aplicare"
     >
       <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(14rem,0.85fr)]">
         <div className="border-b border-line p-3.5 sm:p-6 lg:border-r lg:border-b-0">
@@ -388,7 +388,7 @@ function PlanningSurface() {
             Aprobă etapa și publică termenele
           </p>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Calendarul și responsabilitățile vor folosi versiunea revizuită.
+            Calendarul și responsabilii vor folosi versiunea pe care o aprobi.
           </p>
           <div className="mt-6 bg-brand-softer p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-brand">
@@ -396,7 +396,7 @@ function PlanningSurface() {
               Plan B atașat
             </div>
             <p className="mt-2 text-xs leading-5 text-muted">
-              Riscul și decizia rămân lângă etapa care le folosește.
+              Riscul și decizia stau lângă etapa care le folosește.
             </p>
           </div>
         </div>
@@ -423,13 +423,13 @@ function GuestSurface() {
   return (
     <SurfaceShell
       title="Invitație și RSVP"
-      description="Blocuri, design, previzualizare și răspunsuri conectate"
+      description="Blocuri, design, previzualizare și răspunsuri"
     >
       <div className="flex flex-col items-start gap-3 border-b border-line px-4 py-3 min-[430px]:flex-row min-[430px]:flex-wrap min-[430px]:items-center min-[430px]:justify-between sm:px-5">
         <div>
           <p className="text-sm font-semibold text-ink">Editor invitație</p>
           <p className="mt-0.5 text-xs text-muted">
-            Structură, canvas și inspector vizual
+            Structură, canvas și inspector
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -525,7 +525,7 @@ function GuestSurface() {
             </div>
             <div className="border-t border-line p-4 text-center">
               <p className="text-xs leading-5 text-muted">
-                Confirmarea și preferințele merg direct în RSVP.
+                Confirmarea și preferințele merg în RSVP.
               </p>
               <span className="mt-3 flex min-h-10 items-center justify-center rounded-lg bg-brand px-3 text-sm font-semibold text-on-brand">
                 Confirmă participarea
@@ -592,7 +592,7 @@ function GuestSurface() {
         <div className="flex items-center gap-2">
           <UsersRound className="size-5 text-accent-strong" aria-hidden />
           <p className="text-sm font-semibold text-ink">
-            Răspunsul continuă în logistică
+            Răspunsul ajunge în logistică
           </p>
         </div>
         <ul className="mt-3 grid grid-cols-1 gap-px bg-line min-[430px]:grid-cols-2 xl:grid-cols-4">
@@ -624,7 +624,7 @@ function VendorSurface() {
   return (
     <SurfaceShell
       title="Furnizori și buget"
-      description="Urma deciziei de la cerere până la angajament"
+      description="De la cerere până la rezervare și buget"
     >
       <div className="p-3.5 sm:p-6">
         <ol
@@ -684,9 +684,9 @@ function VendorSurface() {
             </div>
             <dl className="mt-4 divide-y divide-line">
               {[
-                ["Cerințe", "Aliniate cu cererea"],
-                ["Versiune", "Păstrată pentru comparație"],
-                ["Rezervare", "Pregătită după acceptare"],
+                ["Cerințe", "Potrivite cu cererea"],
+                ["Versiune", "Păstrată ca să compari"],
+                ["Rezervare", "Gata după acceptare"],
               ].map(([term, value]) => (
                 <div
                   key={term}
@@ -702,11 +702,10 @@ function VendorSurface() {
           </div>
 
           <div className="bg-brand p-4 text-on-brand">
-            <p className="text-sm font-semibold">Bugetul păstrează contextul</p>
+            <p className="text-sm font-semibold">Plata către furnizor e a ta</p>
             <p className="mt-3 text-sm leading-6 text-on-brand">
               Sarbato nu colectează și nu transferă plățile dintre organizatori
-              și furnizori. Platforma păstrează evidența operațională; plățile
-              se fac direct, prin metoda agreată de părți.
+              și furnizori. Ținem evidența; banii îi plătești tu, direct.
             </p>
             <span className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-elevated px-3 text-sm font-semibold text-brand">
               <ShieldCheck className="size-4" aria-hidden />
@@ -722,7 +721,7 @@ function VendorSurface() {
 function EventDaySurface() {
   return (
     <SurfaceShell
-      title="Centrul operațional"
+      title="Ziua evenimentului"
       description="Acum, Urmează, echipă și incidente"
       dark
     >
@@ -735,7 +734,7 @@ function EventDaySurface() {
                 Moment în desfășurare
               </p>
               <p className="mt-2 text-xs leading-5 text-white/70 sm:text-sm sm:leading-6">
-                Checklistul și starea momentului sunt vizibile echipei.
+                Checklistul și starea momentului sunt vizibile pentru echipă.
               </p>
             </div>
             <div className="bg-white p-3 text-ink sm:p-4">
@@ -743,10 +742,10 @@ function EventDaySurface() {
                 URMEAZĂ
               </p>
               <p className="mt-2 text-base font-semibold leading-5 text-brand sm:text-lg sm:leading-normal">
-                Pregătește tranziția
+                Pregătește ce urmează
               </p>
               <p className="mt-2 text-xs leading-5 text-muted sm:text-sm sm:leading-6">
-                Următoarea acțiune păstrează contextul din plan.
+                Următoarea acțiune folosește ce e deja în plan.
               </p>
             </div>
           </div>
@@ -765,7 +764,7 @@ function EventDaySurface() {
           <ol className="mt-5 divide-y divide-white/15">
             {[
               ["Moment confirmat", "Finalizat"],
-              ["Tranziție în pregătire", "Acum"],
+              ["Pregătire pentru următorul moment", "Acum"],
               ["Verificare echipă", "Urmează"],
             ].map(([title, state], index) => (
               <li
@@ -807,7 +806,7 @@ function EventDaySurface() {
             <p className="text-base font-semibold">Incident controlat</p>
           </div>
           <p className="mt-3 text-sm leading-6 text-white/70">
-            Tipul, severitatea și starea rămân în aceeași vedere operațională.
+            Tipul, gravitatea și starea stau în aceeași vedere.
           </p>
           <div className="mt-5 bg-white/10 p-4">
             <p className="text-xs font-semibold text-white/65">STARE</p>
