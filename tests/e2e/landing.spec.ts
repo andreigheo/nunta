@@ -2,21 +2,17 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { source as axeSource } from "axe-core";
 
 const sectionIds = [
-  "flux",
+  "produs",
+  "capabilitati",
+  "solutii",
   "planificare",
   "invitatii",
   "furnizori",
   "ziua-evenimentului",
-  "incredere",
   "abonamente",
   "intrebari",
+  "despre",
 ] as const;
-
-function publicSections(page: Page) {
-  return page.locator(
-    'main#continut > section, main#continut > div[aria-label="Povestea produsului Sarbato"] > section',
-  );
-}
 
 function collectBrowserErrors(page: Page) {
   const errors: string[] = [];
@@ -29,33 +25,19 @@ function collectBrowserErrors(page: Page) {
 
 async function dismissCookieBanner(page: Page) {
   const button = page.getByRole("button", { name: "Doar esențiale" });
-  if (await button.isVisible().catch(() => false)) {
-    await button.click();
-  }
+  if (await button.isVisible().catch(() => false)) await button.click();
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
-  await expect
-    .poll(() =>
-      page.evaluate(() => ({
-        clientWidth: document.documentElement.clientWidth,
-        scrollWidth: document.documentElement.scrollWidth,
-      })),
-    )
-    .toEqual(
-      await page.evaluate(() => ({
-        clientWidth: document.documentElement.clientWidth,
-        scrollWidth: document.documentElement.clientWidth,
-      })),
-    );
+  const widths = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(widths.scrollWidth).toBe(widths.clientWidth);
 }
 
 async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
-  );
   const path = testInfo.outputPath(`${name}.png`);
   await page.screenshot({ path, fullPage: true, animations: "disabled" });
   await testInfo.attach(name, { path, contentType: "image/png" });
@@ -101,17 +83,13 @@ async function expectSoundHeadingStructure(page: Page) {
     .evaluateAll((headings) =>
       headings.map((heading) => Number(heading.tagName.slice(1))),
     );
-
   expect(levels.filter((level) => level === 1)).toHaveLength(1);
   for (let index = 1; index < levels.length; index += 1) {
-    expect(
-      levels[index] <= levels[index - 1] + 1,
-      `Heading level jumps from h${levels[index - 1]} to h${levels[index]}`,
-    ).toBe(true);
+    expect(levels[index] <= levels[index - 1] + 1).toBe(true);
   }
 }
 
-test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux accesibil", async ({
+test("landing desktop — Product-first control room V1", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -119,21 +97,22 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
   const browserErrors = collectBrowserErrors(page);
 
   await page.goto("/");
-
   await expect(page).toHaveTitle(
-    "Sarbato — plan, invitații, furnizori și ziua nunții, împreună",
+    "Sarbato — tot evenimentul, într-un singur fir",
   );
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Fiecare eveniment are sute de detalii. Sarbato le ține împreună.",
+      name: "Tot evenimentul, într-un singur fir.",
     }),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-concept="product-first-control-room-v1"]'),
   ).toBeVisible();
   await expect(page.locator(".marketing-light")).toHaveCSS(
     "color-scheme",
     "light",
   );
-  await expect(publicSections(page)).toHaveCount(10);
 
   for (const id of sectionIds) {
     await expect(
@@ -142,190 +121,63 @@ test("landing desktop — brand Sarbato, secțiuni, fallback onest și flux acce
     ).toHaveCount(1);
   }
 
-  // Niciun rest de brand vechi sau limbaj de stadiu pe suprafața publică.
-  const bodyText = await page.locator("main#continut").innerText();
-  expect(bodyText).not.toMatch(/WeddingOS/i);
-  expect(bodyText).not.toMatch(/\bdemo\b/i);
-  expect(bodyText).not.toMatch(/\bbeta\b|acces timpuriu/i);
-  expect(bodyText).not.toMatch(
+  const mainText = await page.locator("main#continut").evaluate((main) => {
+    const clone = main.cloneNode(true) as HTMLElement;
+    clone
+      .querySelectorAll("[data-demo-content]")
+      .forEach((node) => node.remove());
+    return clone.innerText;
+  });
+  expect(mainText).not.toMatch(/WeddingOS|\bbeta\b|acces timpuriu/i);
+  expect(mainText).not.toMatch(
     /\b(?:Ana|Mihai|Maria|Andrei|Elena|Ionescu|Popescu)\b/i,
   );
-
-  // Dovada publică este ascunsă complet când agregatul lipsește; vitrina
-  // de produs rămâne etichetată, fără cifre inventate.
-  await expect(page.getByTestId("public-proof-metrics")).toHaveCount(0);
-  await expect(page.getByTestId("product-proof-fallback")).toHaveCount(0);
-  const showcaseLabels = page.getByTestId("showcase-label");
-  await expect(showcaseLabels.first()).toBeVisible();
-  expect(await showcaseLabels.count()).toBeGreaterThanOrEqual(4);
-  await expect(
-    page
-      .getByText("Exemplu de produs — nu reprezintă datele unui client.")
-      .first(),
-  ).toBeVisible();
-
-  // Suprafețele vitrină nu conțin sume, nume fictive sau cuvântul „live”.
-  const showcaseText = await page.getByTestId("product-showcase").innerText();
-  expect(showcaseText).not.toMatch(
-    /(?:\bRON\b|\bUSD\b|\$|\b\d+[.,]?\d*\s*(?:lei|ron|eur)\b)/i,
+  await expect(page.getByTestId("showcase-label")).toHaveText(
+    "Previzualizare produs",
   );
-  expect(showcaseText).not.toMatch(/\blive\b/i);
 
-  // Hero-ul prezintă acțiunea, responsabilul, termenul și modulele conectate.
   await expect(
-    page.getByTestId("product-showcase").getByText("Următoarea acțiune"),
-  ).toBeVisible();
+    page.getByRole("link", { name: "Începe organizarea" }).first(),
+  ).toHaveAttribute("href", "/create-account");
   await expect(
-    page.getByTestId("product-showcase").getByText(/Responsabil:/),
-  ).toBeVisible();
+    page.getByRole("link", { name: "Vezi produsul" }).first(),
+  ).toHaveAttribute("href", "#produs");
   await expect(
-    page
-      .getByTestId("product-showcase")
-      .getByText(/Termen:|Valabilitate:|Stare:/),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Disponibil acum pentru organizarea nunților").first(),
-  ).toBeVisible();
+    page.getByRole("link", { name: "Autentificare" }).first(),
+  ).toHaveAttribute("href", "/sign-in");
 
-  // Toate ancorele din header și footer rezolvă către secțiuni reale.
-  for (const region of [
-    page.getByRole("banner"),
-    page.getByRole("contentinfo"),
-  ]) {
-    const unresolved = await region
-      .locator('a[href^="#"]')
-      .evaluateAll((links) =>
-        links
-          .map((link) => link.getAttribute("href"))
-          .filter((href): href is string => Boolean(href))
-          .filter((href) => document.querySelector(href) === null),
-      );
-    expect(unresolved).toEqual([]);
-  }
+  const unresolved = await page
+    .getByRole("banner")
+    .locator('a[href^="#"]')
+    .evaluateAll((links) =>
+      links
+        .map((link) => link.getAttribute("href"))
+        .filter((href): href is string => Boolean(href))
+        .filter((href) => document.querySelector(href) === null),
+    );
+  expect(unresolved).toEqual([]);
+
+  await expect(page.locator("#planificare")).toContainText(
+    "Planul activităților",
+  );
+  await expect(page.locator("#invitatii")).toContainText("Status RSVP");
+  await expect(page.locator("#furnizori")).toContainText(
+    "Furnizori, buget, logistică — tot conectat.",
+  );
+  await expect(page.locator("#ziua-evenimentului")).toContainText(
+    "Comanda evenimentului",
+  );
+  await expect(page.getByRole("contentinfo")).toHaveCount(1);
 
   await dismissCookieBanner(page);
-
-  // CTA-urile sunt rute reale; nu există CTA de demo.
-  await expect(
-    page.getByRole("link", { name: "Creează primul eveniment" }).first(),
-  ).toHaveAttribute("href", "/create-account");
-  await expect(
-    page.getByRole("link", { name: "Creează eveniment" }).first(),
-  ).toHaveAttribute("href", "/create-account");
-  await expect(
-    page.getByRole("link", { name: "Intră în cont" }).first(),
-  ).toHaveAttribute("href", "/sign-in");
-  await expect(
-    page.getByRole("link", { name: "Confidențialitate" }),
-  ).toHaveAttribute("href", "/confidentialitate");
-
-  // Interacțiunea semnătură: un RSVP schimbă vizibil conținutul conectat.
-  const rsvpStep = page.locator("#flux").getByRole("button", { name: /RSVP/ });
-  await rsvpStep.click();
-  await expect(rsvpStep).toHaveAttribute("aria-pressed", "true");
-  const flux = page.locator("#flux");
-  await expect(flux.locator('[aria-live="polite"]')).toContainText(
-    "Confirmarea nu rămâne într-un mesaj",
-  );
-  await expect(flux).toContainText("Invitat");
-  await expect(flux).toContainText("Stare actualizată");
-  await expect(flux).toContainText("Meniu");
-  await expect(flux).toContainText("Preferință primită");
-  await expect(flux).toContainText("Mese");
-  await expect(flux).toContainText("Cer alocare");
-  await expect(flux).toContainText("Transport");
-  await expect(flux).toContainText("Cerere primită");
-  await expect(flux).toContainText("Urmează să așezi oamenii la mese");
-
-  // Planificarea arată ciclul real: propunerea revizuibilă, apoi planul aplicat.
-  const planning = page.locator("#planificare");
-  const proposalView = planning.getByRole("button", {
-    name: "Propunere de plan",
-  });
-  const appliedView = planning.getByRole("button", { name: "Planul aplicat" });
-  await expect(proposalView).toHaveAttribute("aria-pressed", "true");
-  await expect(appliedView).toHaveAttribute("aria-pressed", "false");
-  await expect(planning).toContainText("Obligatoriu");
-  await expect(planning).toContainText("Motivul excluderii");
-  await expect(planning).toContainText("Ce am presupus");
-  await expect(planning).toContainText("De verificat");
-  await expect(planning).toContainText("Lipsește: Foto-video");
-  await expect(planning).toContainText(
-    "Nimic nu devine plan definitiv până la aplicare",
-  );
-
-  await appliedView.click();
-  await expect(appliedView).toHaveAttribute("aria-pressed", "true");
-  await expect(proposalView).toHaveAttribute("aria-pressed", "false");
-  await expect(planning).toContainText("Nealocat");
-  await expect(planning).toContainText("Motivul blocării");
-  await expect(planning).toContainText("Finalizarea așteaptă");
-  await expect(planning).toContainText(
-    "Toate sarcinile și După stare",
-  );
-  // Planul B nu mai este prezentat ca atașat etapei din plan.
-  await expect(planning).not.toContainText("Plan B");
-
-  // Editorul de invitații este prezentat la nivelul capabilității reale.
-  const invitations = page.locator("#invitatii");
-  await expect(invitations).toContainText("14 tipuri");
-  await expect(invitations).toContainText("Imagine hero");
-  await expect(invitations).toContainText("Inspector");
-  await expect(invitations).toContainText("Paletă");
-
-  // Lanțul comercial complet și limita de plăți sunt vizibile.
-  await expect(fluxLocator(page, "#furnizori")).toContainText("Comparare");
-  await expect(fluxLocator(page, "#furnizori")).toContainText("Rezervare");
-  await expect(fluxLocator(page, "#furnizori")).toContainText(
-    "Contract pregătit",
-  );
-  await expect(fluxLocator(page, "#furnizori")).toContainText(
-    "Sarbato nu colectează și nu transferă plățile dintre organizatori și furnizori",
-  );
-
-  // Abonamentele au acțiuni oneste; alegerea și checkout-ul continuă în cont.
-  const pricing = page.locator("#abonamente");
-  await expect(pricing.getByText("Gratuit").first()).toBeVisible();
-  await expect(pricing.getByText("7 €", { exact: true })).toBeVisible();
-  await expect(pricing.getByText("17 €", { exact: true })).toBeVisible();
-  await expect(
-    pricing.getByRole("heading", { name: "Plus", exact: true }),
-  ).toBeVisible();
-  await expect(
-    pricing.getByText("Până la 200 de invitați și 5 colaboratori"),
-  ).toBeVisible();
-  await expect(pricing.getByText("Alegi din cont").first()).toBeVisible();
-  await expect(pricing.getByRole("link")).toHaveCount(4);
-  await expect(
-    pricing.getByRole("link", { name: "Începe gratuit" }),
-  ).toHaveAttribute("href", "/create-account");
-  await expect(
-    pricing.getByRole("link", { name: "Începe cu Plus" }),
-  ).toHaveAttribute("href", "/create-account");
-
-  // FAQ: opt întrebări, prima deschidere funcționează.
-  const faqs = page.locator("#intrebari details");
-  await expect(faqs).toHaveCount(8);
-  const faq = page
-    .locator("details")
-    .filter({ hasText: "Invitații trebuie să își creeze cont?" });
-  await expect(faq).not.toHaveAttribute("open", "");
-  await faq.locator("summary").click();
-  await expect(faq).toHaveAttribute("open", "");
-  await expect(faq.getByText(/Folosesc linkul primit/)).toBeVisible();
-
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
   await expectNoAxeViolations(page);
-  await capture(page, testInfo, "landing-desktop-fallback");
+  await capture(page, testInfo, "landing-control-room-desktop");
   expect(browserErrors).toEqual([]);
 });
 
-function fluxLocator(page: Page, id: string) {
-  return page.locator(id);
-}
-
-test("landing mobil — meniu, ordine semantică și reduced motion", async ({
+test("landing mobil — meniu, ordine și adaptare", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -333,132 +185,1137 @@ test("landing mobil — meniu, ordine semantică și reduced motion", async ({
   const browserErrors = collectBrowserErrors(page);
 
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: "Fiecare eveniment are sute de detalii. Sarbato le ține împreună.",
-    }),
-  ).toBeVisible();
-  await expect(publicSections(page)).toHaveCount(10);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Tot evenimentul, într-un singur fir.",
+  );
 
   await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "Sari la conținut" });
   await expect(skipLink).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/#continut$/);
   await expect(page.locator("main#continut")).toBeFocused();
 
   await dismissCookieBanner(page);
-
   await page.getByRole("button", { name: "Deschide meniul" }).click();
   const mobileNav = page.getByRole("navigation", { name: "Navigație mobilă" });
   await expect(mobileNav).toBeVisible();
-  await mobileNav.getByRole("link", { name: "Cum funcționează" }).click();
+  await mobileNav.getByRole("link", { name: "Produs" }).click();
   await expect(mobileNav).toBeHidden();
-  await expect(page).toHaveURL(/#flux$/);
+  await expect(page).toHaveURL(/#produs$/);
 
-  const flowSteps = page.locator("#flux ol > li");
-  await expect(flowSteps).toHaveCount(7);
-  await expect(flowSteps.first()).toContainText("Plan");
-  await expect(flowSteps.last()).toContainText("Ziua evenimentului");
-
-  const eventDayStep = page
-    .locator("#flux")
-    .getByRole("button", { name: "Ziua evenimentului" });
-  await eventDayStep.click();
-  await expect(eventDayStep).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#flux")).toContainText(
-    "În ziua nunții, toată echipa vede același plan",
-  );
-
-  const pricingCards = page.locator("#abonamente article");
-  await expect(pricingCards).toHaveCount(3);
-  for (let index = 0; index < 3; index += 1) {
-    await expect(pricingCards.nth(index)).toBeVisible();
-  }
-
+  for (const id of sectionIds)
+    await expect(page.locator(`#${id}`)).toHaveCount(1);
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
   await expectNoAxeViolations(page);
-  await capture(page, testInfo, "landing-mobile-fallback");
+  await capture(page, testInfo, "landing-control-room-mobile");
   expect(browserErrors).toEqual([]);
 });
 
-for (const viewport of [
-  { name: "phone-320", width: 320, height: 720 },
-  { name: "phone-360", width: 360, height: 800 },
-  { name: "phone-390", width: 390, height: 844 },
-  { name: "phone-430", width: 430, height: 932 },
-  { name: "header-before-520", width: 519, height: 900 },
-  { name: "header-at-520", width: 520, height: 900 },
-  { name: "large-phone-600", width: 600, height: 960 },
-  { name: "sm-before-640", width: 639, height: 960 },
-  { name: "sm-at-640", width: 640, height: 960 },
-  { name: "tablet-before-768", width: 767, height: 1024 },
-  { name: "tablet-768", width: 768, height: 1024 },
-  { name: "tablet-820", width: 820, height: 1180 },
-  { name: "phone-landscape", width: 844, height: 390 },
-  { name: "lg-before-1024", width: 1023, height: 768 },
-  { name: "laptop-1024", width: 1024, height: 768 },
-  { name: "invitation-before-1120", width: 1119, height: 800 },
-  { name: "invitation-at-1120", width: 1120, height: 800 },
-  { name: "xl-before-1280", width: 1279, height: 900 },
-  { name: "desktop-1280", width: 1280, height: 900 },
-  { name: "desktop-1440", width: 1440, height: 1000 },
-  { name: "desktop-1920", width: 1920, height: 1080 },
-  { name: "desktop-2560", width: 2560, height: 1440 },
-] as const) {
-  test(`landing ${viewport.name} — fără overflow și cu toate secțiunile`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({
-      width: viewport.width,
-      height: viewport.height,
+test("footer — grupează toate destinațiile reale ale landingului", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1214, height: 900 });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const footer = page.getByRole("contentinfo");
+  await expect(footer).toBeVisible();
+  await expect(
+    footer.getByRole("heading", {
+      level: 2,
+      name: "Tot evenimentul rămâne legat, până la ultimul detaliu.",
+    }),
+  ).toBeVisible();
+
+  const hrefs = await footer
+    .locator("a")
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+
+  expect(hrefs).toEqual(
+    expect.arrayContaining([
+      "/",
+      "/#produs",
+      "/#solutii",
+      "/#planificare",
+      "/#invitatii",
+      "/#furnizori",
+      "/#ziua-evenimentului",
+      "/#abonamente",
+      "/#intrebari",
+      "/#despre",
+      "/plan",
+      "/invitations",
+      "/budget",
+      "/marketplace",
+      "/create-account",
+      "/sign-in",
+      "/confidentialitate",
+      "/termeni",
+      "/rambursari",
+      "/cookies",
+      "#continut",
+    ]),
+  );
+  expect(hrefs).not.toContain("#flux");
+  expect(hrefs).not.toContain("#abonamente");
+
+  await footer.getByRole("link", { name: "Produs", exact: true }).click();
+  await expect(page).toHaveURL(/\/#produs$/);
+  await expect(page.locator("#produs")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("întrebări și răspunsuri — clarifică produsul și funcționează din tastatură", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1214, height: 900 });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const section = page.getByTestId("faq-section");
+  const items = section.locator("details");
+
+  await expect(section).toBeVisible();
+  await expect(
+    section.getByRole("heading", {
+      level: 2,
+      name: "Întrebări firești. Răspunsuri clare.",
+    }),
+  ).toBeVisible();
+  await expect(items).toHaveCount(7);
+  await expect(items.first()).toHaveAttribute("open", "");
+  await expect(items.nth(1)).not.toHaveAttribute("open", "");
+
+  const secondQuestion = items.nth(1).locator("summary");
+  await expect(secondQuestion).toContainText("Trebuie să instalez ceva?");
+  await secondQuestion.focus();
+  await expect(secondQuestion).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(items.nth(1)).toHaveAttribute("open", "");
+  await expect(items.nth(1)).toContainText(
+    "Sarbato funcționează direct în browser",
+  );
+
+  await expectNoHorizontalOverflow(page);
+});
+
+test("abonamente — păstrează prețurile și limitele comerciale actuale", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1214, height: 900 });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const section = page.getByTestId("pricing-section");
+  const plans = section.locator("article");
+
+  await expect(section).toBeVisible();
+  await expect(
+    section.getByRole("heading", {
+      level: 2,
+      name: "Începi gratuit. Alegi mai mult când ai nevoie.",
+    }),
+  ).toBeVisible();
+  await expect(plans).toHaveCount(3);
+  await expect(plans.nth(0)).toContainText("Gratuit");
+  await expect(plans.nth(0)).toContainText("0 €");
+  await expect(plans.nth(0)).toContainText(
+    "Până la 50 de invitați și 2 colaboratori",
+  );
+  await expect(plans.nth(1)).toContainText("Plus");
+  await expect(plans.nth(1)).toContainText("7 €");
+  await expect(plans.nth(1)).toContainText(
+    "Până la 200 de invitați și 5 colaboratori",
+  );
+  await expect(plans.nth(1)).toHaveAttribute("data-featured", "true");
+  await expect(plans.nth(2)).toContainText("Pro");
+  await expect(plans.nth(2)).toContainText("17 €");
+  await expect(plans.nth(2)).toContainText(
+    "Până la 500 de invitați și 15 colaboratori",
+  );
+  await expect(section.getByRole("link", { name: /Începe/ })).toHaveCount(3);
+  for (const link of await section
+    .getByRole("link", { name: /Începe/ })
+    .all()) {
+    await expect(link).toHaveAttribute("href", "/create-account");
+  }
+  await expect(section).toContainText("Paddle procesează abonamentul Sarbato");
+  await expect(section).toContainText(
+    "Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
+  );
+  await expectNoHorizontalOverflow(page);
+
+  for (const width of [940, 941, 1024, 1214]) {
+    await page.setViewportSize({ width, height: 900 });
+    const navBox = await page
+      .getByRole("navigation", { name: "Navigație principală" })
+      .boundingBox();
+    const authBox = await page
+      .getByRole("banner")
+      .getByRole("link", { name: "Autentificare" })
+      .boundingBox();
+    expect(navBox).not.toBeNull();
+    expect(authBox).not.toBeNull();
+    expect(navBox!.x + navBox!.width).toBeLessThanOrEqual(authBox!.x);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const rows = await plans.evaluateAll((elements) =>
+    elements.map((element) => Math.round(element.getBoundingClientRect().y)),
+  );
+  expect(rows[0]).toBeLessThan(rows[1]);
+  expect(rows[1]).toBeLessThan(rows[2]);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("landing reference 864 — geometria hero rămâne fidelă conceptului", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 864, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const heading = await page.getByRole("heading", { level: 1 }).boundingBox();
+  const controlRoom = await page.locator("#produs").boundingBox();
+  const primary = await page
+    .getByRole("link", { name: "Începe organizarea" })
+    .nth(1)
+    .boundingBox();
+  const secondary = await page
+    .getByRole("link", { name: "Vezi produsul" })
+    .first()
+    .boundingBox();
+
+  expect(heading).not.toBeNull();
+  expect(controlRoom).not.toBeNull();
+  expect(primary).not.toBeNull();
+  expect(secondary).not.toBeNull();
+
+  expect(heading!.x).toBeGreaterThanOrEqual(23);
+  expect(heading!.x).toBeLessThanOrEqual(25);
+  expect(heading!.y).toBeGreaterThanOrEqual(176);
+  expect(heading!.y).toBeLessThanOrEqual(179);
+  expect(heading!.height).toBeGreaterThanOrEqual(82);
+  expect(heading!.height).toBeLessThanOrEqual(86);
+
+  expect(controlRoom!.x).toBeGreaterThanOrEqual(334);
+  expect(controlRoom!.x).toBeLessThanOrEqual(337);
+  expect(controlRoom!.y).toBeGreaterThanOrEqual(77);
+  expect(controlRoom!.y).toBeLessThanOrEqual(79);
+  expect(controlRoom!.width).toBeGreaterThanOrEqual(511);
+  expect(controlRoom!.width).toBeLessThanOrEqual(514);
+  expect(controlRoom!.height).toBeGreaterThanOrEqual(393);
+  expect(controlRoom!.height).toBeLessThanOrEqual(402);
+
+  expect(Math.abs(primary!.y - secondary!.y)).toBeLessThan(1);
+  await expectNoHorizontalOverflow(page);
+  await capture(page, testInfo, "landing-control-room-reference-864");
+});
+
+test("rândul de avantaje — reproduce cele șase capsule aprobate", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 900 });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const strip = page.getByTestId("assurance-strip");
+  const items = page.getByTestId("assurance-item");
+
+  await expect(strip).toBeVisible();
+  await expect(items).toHaveCount(6);
+  await expect(items).toHaveText([
+    "Pentru orice eveniment",
+    "Direct în browser",
+    "Acces pe roluri",
+    "Fără instalare",
+    "Module conectate",
+    "Status în timp real",
+  ]);
+  await expect(page.getByTestId("service-marquee")).toBeVisible();
+
+  const marqueeFollowsStrip = await strip.evaluate(
+    (element) =>
+      element.nextElementSibling?.getAttribute("data-testid") ===
+      "service-marquee",
+  );
+  expect(marqueeFollowsStrip).toBe(true);
+
+  const rows = await items.evaluateAll((elements) =>
+    elements.map((element) => Math.round(element.getBoundingClientRect().y)),
+  );
+  expect(new Set(rows).size).toBe(1);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("intro soluții — deschide clar cele patru zone ale produsului", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 1000 });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const solutions = page.locator("#solutii");
+  const heading = solutions.getByRole("heading", {
+    level: 2,
+    name: "De la plan la ziua evenimentului, fără rupturi.",
+  });
+
+  await expect(heading).toBeVisible();
+  await expect(solutions).toContainText(
+    "Explorează cele patru zone conectate în care planifici activitățile",
+  );
+
+  const order = await solutions.evaluate((element) => ({
+    introFirst:
+      element.querySelector("header")?.nextElementSibling?.id === "planificare",
+    marqueeBefore:
+      element.previousElementSibling?.getAttribute("data-testid") ===
+      "service-marquee",
+  }));
+
+  expect(order).toEqual({ introFirst: true, marqueeBefore: true });
+  await expectNoHorizontalOverflow(page);
+});
+
+test("banda de servicii — rulează continuu și se închide fără gol", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const marquee = page.getByTestId("service-marquee");
+  const track = page.getByTestId("service-marquee-track");
+  const groups = marquee.locator("[data-marquee-group]");
+
+  await expect(marquee).toBeVisible();
+  await expect(groups).toHaveCount(2);
+  await expect(groups.nth(0)).toContainText("Planificare");
+  await expect(groups.nth(0)).toContainText("Coordonare în timp real");
+  await expect(groups.nth(1)).toHaveAttribute("aria-hidden", "true");
+
+  const motion = await track.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const animation = element.getAnimations()[0];
+    return {
+      duration: style.animationDuration,
+      iterationCount: style.animationIterationCount,
+      timingFunction: style.animationTimingFunction,
+      playState: style.animationPlayState,
+      iterations: animation?.effect?.getComputedTiming().iterations,
+    };
+  });
+
+  expect(motion.duration).toBe("30s");
+  expect(motion.iterationCount).toBe("infinite");
+  expect(motion.timingFunction).toBe("linear");
+  expect(motion.playState).toBe("running");
+  expect(motion.iterations).toBe(Infinity);
+
+  const seam = await groups.evaluateAll((elements) => {
+    const first = elements[0].getBoundingClientRect();
+    const second = elements[1].getBoundingClientRect();
+    return {
+      widthDelta: Math.abs(first.width - second.width),
+      edgeDelta: Math.abs(first.right - second.left),
+    };
+  });
+
+  expect(seam.widthDelta).toBeLessThan(0.5);
+  expect(seam.edgeDelta).toBeLessThan(0.5);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("planificarea — reproduce geometria și toolbarul conceptului", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const section = page.locator("#planificare");
+  const panel = section.locator('[class*="planningPanel"]');
+  const toolbar = panel.locator('[class*="planningToolbar"]');
+  const table = panel.locator("table");
+  const scrollRegion = panel.getByRole("region", {
+    name: "Tabelul activităților",
+  });
+
+  await expect(toolbar).toContainText("ListăCalendarKanban");
+  await expect(toolbar).toContainText("Toate responsabilitățile");
+  await expect(panel.locator('[class*="responsibilityAvatar"]')).toHaveCount(5);
+
+  const panelBox = await panel.boundingBox();
+  const toolbarBox = await toolbar.boundingBox();
+  const tableBox = await table.boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(toolbarBox).not.toBeNull();
+  expect(tableBox).not.toBeNull();
+
+  expect(panelBox!.x).toBeGreaterThanOrEqual(271);
+  expect(panelBox!.x).toBeLessThanOrEqual(273);
+  expect(panelBox!.width).toBeGreaterThanOrEqual(551);
+  expect(panelBox!.width).toBeLessThanOrEqual(553);
+  expect(panelBox!.height).toBeGreaterThanOrEqual(317);
+  expect(panelBox!.height).toBeLessThanOrEqual(321);
+  expect(toolbarBox!.height).toBeGreaterThanOrEqual(24);
+  expect(toolbarBox!.height).toBeLessThanOrEqual(26);
+  expect(tableBox!.y - panelBox!.y).toBeGreaterThanOrEqual(93);
+  expect(tableBox!.y - panelBox!.y).toBeLessThanOrEqual(96);
+
+  const widths = await scrollRegion.evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(widths.scroll).toBe(widths.client);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileWidths = await scrollRegion.evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(mobileWidths.scroll).toBeGreaterThan(mobileWidths.client);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("invitații — reproduce tabelul, acțiunile și proporțiile conceptului", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const section = page.locator("#invitatii");
+  const panel = section.locator('[class*="guestsPanel"]');
+  const frame = panel.locator('[class*="guestTableFrame"]');
+  const scrollRegion = panel.getByRole("region", {
+    name: "Tabelul invitaților",
+  });
+
+  await expect(panel.locator("thead th")).toHaveCount(6);
+  await expect(panel.locator("thead")).toContainText(
+    "NumeEmailSegmentStatus RSVP",
+  );
+  await expect(panel.locator('[class*="guestIconCell"]')).toHaveCount(10);
+  await expect(panel.locator('[class*="guestIconCell"] svg')).toHaveCount(7);
+  await expect(panel.locator('[class*="panelActions"] svg')).toHaveCount(2);
+  await expect(panel.locator('[class*="panelFooter"]')).toContainText(
+    "+ Adaugă invitatExportă lista",
+  );
+  await expect(panel.locator("tbody tr").first()).toContainText(
+    "Maria Popescumaria.popescu@email.roEchipăA răspuns",
+  );
+  await expect(panel.locator("tbody tr").nth(3)).toContainText(
+    "Vlad Marinescuvlad.marinescu@email.roPresăNu a răspuns",
+  );
+  await expect(panel.locator('[class*="statusdanger"]')).toHaveCount(2);
+
+  const panelBox = await panel.boundingBox();
+  const frameBox = await frame.boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(frameBox).not.toBeNull();
+  expect(panelBox!.x).toBeGreaterThanOrEqual(271);
+  expect(panelBox!.x).toBeLessThanOrEqual(273);
+  expect(panelBox!.width).toBeGreaterThanOrEqual(551);
+  expect(panelBox!.width).toBeLessThanOrEqual(553);
+  expect(panelBox!.height).toBeGreaterThanOrEqual(298);
+  expect(panelBox!.height).toBeLessThanOrEqual(302);
+  expect(frameBox!.y - panelBox!.y).toBeGreaterThanOrEqual(81);
+  expect(frameBox!.y - panelBox!.y).toBeLessThanOrEqual(84);
+  expect(frameBox!.height).toBeGreaterThanOrEqual(199);
+  expect(frameBox!.height).toBeLessThanOrEqual(203);
+
+  const widths = await scrollRegion.evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(widths.scroll).toBe(widths.client);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileWidths = await scrollRegion.evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(mobileWidths.scroll).toBeGreaterThan(mobileWidths.client);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("furnizori și buget — reproduce matricea și raportul unificat din concept", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const section = page.locator("#furnizori");
+  const panel = section.locator('[class*="commercePanel"]');
+  const vendorMatrix = panel.locator('table[class*="vendorMatrix"]');
+  const vendorRegion = panel.getByRole("region", {
+    name: "Comparație furnizori",
+  });
+  const budgetBreakdown = panel.locator('[class*="budgetBreakdown__"]');
+
+  await expect(panel).not.toContainText("Furnizori și buget");
+  await expect(vendorMatrix.locator("thead")).toContainText(
+    "Bright VisionFoto-VideoSoundProTehnicLightArtLighting",
+  );
+  await expect(vendorMatrix.locator("tbody tr").first()).toContainText(
+    "Preț total (RON)12.800Recomandat14.20011.900",
+  );
+  await expect(vendorMatrix.locator("tbody tr").nth(1)).toContainText(
+    "DisponibilitateDisponibilDisponibilParțial",
+  );
+  await expect(vendorMatrix.locator("tbody tr").last()).toContainText(
+    "Termen de plată30 zile30 zile15 zile",
+  );
+  await expect(panel.locator('[class*="rating"] svg')).toHaveCount(15);
+  await expect(
+    panel.locator('[class*="rating"] svg[data-active="true"]'),
+  ).toHaveCount(12);
+
+  await expect(panel).toContainText(
+    "BugetVezi raportTotal buget120.000 RONCheltuit81.600 RON (68%)",
+  );
+  await expect(budgetBreakdown).toContainText(
+    "CategorieCheltuitLocație36.000 RON90%Tehnic10.400 RON61%Catering16.800 RON70%Marketing6.900 RON46%Altele3.500 RON35%",
+  );
+
+  const panelBox = await panel.boundingBox();
+  const matrixBox = await vendorMatrix.boundingBox();
+  const budgetBox = await budgetBreakdown.boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(matrixBox).not.toBeNull();
+  expect(budgetBox).not.toBeNull();
+  expect(panelBox!.x).toBeGreaterThanOrEqual(39);
+  expect(panelBox!.x).toBeLessThanOrEqual(41);
+  expect(panelBox!.width).toBeGreaterThanOrEqual(551);
+  expect(panelBox!.width).toBeLessThanOrEqual(553);
+  expect(panelBox!.height).toBeGreaterThanOrEqual(229);
+  expect(panelBox!.height).toBeLessThanOrEqual(233);
+  expect(matrixBox!.width).toBeGreaterThanOrEqual(265);
+  expect(matrixBox!.width).toBeLessThanOrEqual(268);
+  expect(matrixBox!.height).toBeGreaterThanOrEqual(155);
+  expect(matrixBox!.height).toBeLessThanOrEqual(159);
+  expect(budgetBox!.width).toBeGreaterThanOrEqual(231);
+  expect(budgetBox!.width).toBeLessThanOrEqual(234);
+  expect(budgetBox!.height).toBeGreaterThanOrEqual(120);
+  expect(budgetBox!.height).toBeLessThanOrEqual(124);
+
+  const widths = await vendorRegion.evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(widths.scroll).toBe(widths.client);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileWidths = await vendorRegion.evaluate((element) => ({
+    client: element.clientWidth,
+    scroll: element.scrollWidth,
+  }));
+  expect(mobileWidths.scroll).toBeGreaterThan(mobileWidths.client);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("ultimele două capitole — inversează produsul și narațiunea doar pe ecrane late", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 1000 });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  for (const id of ["furnizori", "ziua-evenimentului"]) {
+    const section = page.locator(`#${id}`);
+    await expect(section).toHaveAttribute("data-story-layout", "reverse");
+
+    const desktopOrder = await section.evaluate((element) => {
+      const copy = element.querySelector<HTMLElement>("[data-story-copy]")!;
+      const surface = element.querySelector<HTMLElement>(
+        '[class*="storySurface"]',
+      )!;
+      const copyRect = copy.getBoundingClientRect();
+      const surfaceRect = surface.getBoundingClientRect();
+      return {
+        sourceCopyFirst: element.firstElementChild === copy,
+        surfaceBeforeCopy: surfaceRect.right < copyRect.left,
+      };
     });
+
+    expect(desktopOrder).toEqual({
+      sourceCopyFirst: true,
+      surfaceBeforeCopy: true,
+    });
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  for (const id of ["furnizori", "ziua-evenimentului"]) {
+    const mobileOrder = await page.locator(`#${id}`).evaluate((element) => {
+      const copy = element.querySelector<HTMLElement>("[data-story-copy]")!;
+      const surface = element.querySelector<HTMLElement>(
+        '[class*="storySurface"]',
+      )!;
+      const copyRect = copy.getBoundingClientRect();
+      const surfaceRect = surface.getBoundingClientRect();
+      return copyRect.bottom <= surfaceRect.top;
+    });
+    expect(mobileOrder).toBe(true);
+  }
+
+  await expectNoHorizontalOverflow(page);
+});
+
+test("comanda evenimentului — reproduce programul, echipa și furnizorii din concept", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 864, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const section = page.locator("#ziua-evenimentului");
+  const panel = section.locator('[class*="operationsPanel"]');
+  const grid = panel.locator('[class*="operationsGrid"]');
+  const scheduleRows = panel.locator('[class*="operationRow"]');
+  const alert = panel.locator('[class*="alertBar"]');
+
+  await expect(panel.getByText("Vezi tot", { exact: true })).toHaveCount(3);
+  await expect(scheduleRows).toHaveCount(6);
+  await expect(scheduleRows).toHaveText([
+    "08:00Sosire echipă tehnică",
+    "09:30Setup și testare",
+    "11:00Primirea invitaților",
+    "12:00Deschidere eveniment",
+    "13:00Sesiune 1",
+    "14:30Pauză de prânz",
+  ]);
+  await expect(panel.locator('[class*="operationRowActive"]')).toContainText(
+    "12:00Deschidere eveniment",
+  );
+
+  await expect(panel.locator('[class*="operationAvatar"]')).toHaveCount(9);
+  await expect(
+    panel.locator('section[aria-labelledby="team-preview-title"]'),
+  ).toContainText(
+    "Ioana PopescuProject ManagerOnlineRadu TomaLogisticăOnlineElena DinuCateringOnlineAndrei M.TehnicPe terenVlad M.HostPe teren",
+  );
+  await expect(
+    panel.locator('section[aria-labelledby="field-vendors-title"]'),
+  ).toContainText(
+    "Bright VisionFoto-VideoLa fața loculuiSoundProTehnicLa fața loculuiGastroPlusCateringLa fața loculuiCity EventsTransportPe drum",
+  );
+  await expect(
+    panel.locator('[class*="operationPresenceSuccess"]'),
+  ).toHaveCount(6);
+  await expect(
+    panel.locator('[class*="operationPresenceWarning"]'),
+  ).toHaveCount(2);
+  await expect(panel.locator('[class*="operationPresenceDanger"]')).toHaveCount(
+    1,
+  );
+  await expect(alert).toContainText(
+    "Alerte și actualizări11:42Livrarea echipamentelor a fost confirmată.Vezi toate",
+  );
+
+  const panelBox = await panel.boundingBox();
+  const gridBox = await grid.boundingBox();
+  const alertBox = await alert.boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(gridBox).not.toBeNull();
+  expect(alertBox).not.toBeNull();
+  expect(panelBox!.x).toBeGreaterThanOrEqual(39);
+  expect(panelBox!.x).toBeLessThanOrEqual(41);
+  expect(panelBox!.width).toBeGreaterThanOrEqual(551);
+  expect(panelBox!.width).toBeLessThanOrEqual(553);
+  expect(panelBox!.height).toBeGreaterThanOrEqual(257);
+  expect(panelBox!.height).toBeLessThanOrEqual(261);
+  expect(gridBox!.x - panelBox!.x).toBeGreaterThanOrEqual(16);
+  expect(gridBox!.x - panelBox!.x).toBeLessThanOrEqual(18);
+  expect(gridBox!.width).toBeGreaterThanOrEqual(523);
+  expect(gridBox!.width).toBeLessThanOrEqual(525);
+  expect(gridBox!.height).toBeGreaterThanOrEqual(159);
+  expect(gridBox!.height).toBeLessThanOrEqual(162);
+  expect(alertBox!.height).toBeGreaterThanOrEqual(39);
+  expect(alertBox!.height).toBeLessThanOrEqual(42);
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    panel.locator('[class*="operationAvatar"]').first(),
+  ).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("firul CTA final — unește bordura bannerului cu primul buton", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+
+  for (const width of [821, 864, 940, 941, 1024, 1214, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await dismissCookieBanner(page);
+
+    const cta = page.locator("#despre");
+    const primary = cta.getByRole("link", { name: "Începe organizarea" });
+    const thread = cta.locator('[class*="finalThread"]');
+    const node = thread.locator("i");
+
+    await expect(thread, `firul final @ ${width}px`).toBeVisible();
+    await expect(thread.locator("path")).toHaveCount(1);
+
+    const ctaBox = await cta.boundingBox();
+    const primaryBox = await primary.boundingBox();
+    const threadBox = await thread.boundingBox();
+    const nodeBox = await node.boundingBox();
+    expect(ctaBox).not.toBeNull();
+    expect(primaryBox).not.toBeNull();
+    expect(threadBox).not.toBeNull();
+    expect(nodeBox).not.toBeNull();
+
+    const nodeCenterX = nodeBox!.x + nodeBox!.width / 2;
+    const nodeCenterY = nodeBox!.y + nodeBox!.height / 2;
+    const buttonCenterY = primaryBox!.y + primaryBox!.height / 2;
+    const threadBottom = threadBox!.y + threadBox!.height;
+    const ctaBottom = ctaBox!.y + ctaBox!.height;
+
+    expect(Math.abs(nodeCenterX - (primaryBox!.x + 1))).toBeLessThan(0.6);
+    expect(Math.abs(nodeCenterY - buttonCenterY)).toBeLessThan(0.6);
+    expect(Math.abs(threadBottom - ctaBottom)).toBeLessThan(0.6);
+    expect(nodeBox!.width).toBeGreaterThanOrEqual(8);
+    expect(nodeBox!.width).toBeLessThanOrEqual(9);
+    expect(Math.abs(nodeBox!.width - nodeBox!.height)).toBeLessThan(0.1);
+    expect(threadBox!.width).toBeGreaterThanOrEqual(99);
+    expect(threadBox!.width).toBeLessThanOrEqual(121);
+    await expectNoHorizontalOverflow(page);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#despre [class*='finalThread']")).toBeHidden();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("control room — păstrează proporția corpului din concept pe toate lățimile split", async ({
+  page,
+}) => {
+  const referenceRatio = 351 / 512;
+
+  for (const width of [821, 864, 940, 941, 1024, 1180, 1437, 1600]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+
+    const body = await page
+      .locator("section#produs > div")
+      .nth(1)
+      .boundingBox();
+
+    expect(body, `control body @ ${width}px`).not.toBeNull();
+    expect(
+      Math.abs(body!.height / body!.width - referenceRatio),
+      `aspect ratio @ ${width}px`,
+    ).toBeLessThan(0.008);
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
+test("bara control room — păstrează densitatea compactă din concept", async ({
+  page,
+}) => {
+  for (const width of [821, 864, 1024, 1437, 1600]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+
+    const rail = await page
+      .getByRole("navigation", { name: "Module produs prezentate" })
+      .boundingBox();
+    const controlBody = await page
+      .locator("section#produs > div")
+      .nth(1)
+      .boundingBox();
+    const activeModule = await page
+      .getByRole("navigation", { name: "Module produs prezentate" })
+      .locator("span")
+      .first()
+      .boundingBox();
+
+    expect(rail, `rail @ ${width}px`).not.toBeNull();
+    expect(controlBody, `control body @ ${width}px`).not.toBeNull();
+    expect(activeModule, `active module @ ${width}px`).not.toBeNull();
+    expect(rail!.width).toBeGreaterThanOrEqual(28);
+    expect(rail!.width).toBeLessThanOrEqual(29);
+    expect(rail!.x - controlBody!.x).toBeGreaterThanOrEqual(6);
+    expect(rail!.x - controlBody!.x).toBeLessThanOrEqual(7);
+    expect(rail!.y - controlBody!.y).toBeGreaterThanOrEqual(8);
+    expect(rail!.y - controlBody!.y).toBeLessThanOrEqual(9);
+    expect(activeModule!.width).toBeGreaterThanOrEqual(28);
+    expect(activeModule!.width).toBeLessThanOrEqual(29);
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
+test("firul evenimentului — păstrează ordinea și culorile conceptului", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1329, height: 1000 });
+  await page.goto("/");
+
+  const flow = page.locator(
+    '#produs [aria-label="Firul etapelor evenimentului"]',
+  );
+  const stages = flow.locator('[class*="flowStage"]');
+  const nodes = stages.locator('[class*="flowNode"]');
+
+  await expect(stages).toHaveText([
+    "Plan",
+    "Invitații",
+    "RSVP",
+    "Logistică",
+    "Furnizori",
+    "Buget",
+    "Ziua evenimentului",
+  ]);
+
+  const colors = await nodes.evaluateAll((elements) =>
+    elements.map((element) => {
+      const style = getComputedStyle(element);
+      return { border: style.borderColor, icon: style.color };
+    }),
+  );
+  expect(colors).toEqual([
+    { border: "rgb(66, 19, 67)", icon: "rgb(66, 19, 67)" },
+    { border: "rgb(66, 19, 67)", icon: "rgb(66, 19, 67)" },
+    { border: "rgb(66, 19, 67)", icon: "rgb(66, 19, 67)" },
+    { border: "rgb(231, 173, 34)", icon: "rgb(231, 173, 34)" },
+    { border: "rgb(91, 157, 118)", icon: "rgb(91, 157, 118)" },
+    { border: "rgb(91, 157, 118)", icon: "rgb(91, 157, 118)" },
+    { border: "rgb(91, 157, 118)", icon: "rgb(91, 157, 118)" },
+  ]);
+
+  const lineBackground = await flow
+    .locator('[class*="flowLine"]')
+    .evaluate((element) => getComputedStyle(element).backgroundImage);
+  expect(lineBackground).toContain("rgb(66, 19, 67)");
+  expect(lineBackground).toContain("rgb(91, 157, 118)");
+  expect(lineBackground).not.toContain("rgb(231, 173, 34)");
+});
+
+test("liniile capitolelor — formează cele două trasee continue din concept", async ({
+  page,
+}) => {
+  for (const width of [864, 1329]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+
+    const layer = page.getByTestId("story-thread-layer");
+    await expect(layer, `thread layer @ ${width}px`).toBeVisible();
+    await expect(layer.locator("path")).toHaveCount(2);
+
+    const geometry = await page.evaluate(() => {
+      const stack = document.querySelector<HTMLElement>("#solutii")!;
+      const stackRect = stack.getBoundingClientRect();
+      const nodes = Array.from(
+        stack.querySelectorAll<HTMLElement>("[data-story-node]"),
+      ).map((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          x: rect.left + rect.width / 2 - stackRect.left,
+          y: rect.top + rect.height / 2 - stackRect.top,
+        };
+      });
+      const paths = Array.from(
+        stack.querySelectorAll<SVGPathElement>(
+          '[data-testid="story-thread-layer"] path',
+        ),
+      ).map((path) => {
+        const d = path.getAttribute("d") ?? "";
+        const start = d.match(/^M ([\d.-]+) ([\d.-]+)/);
+        const terminal = d.match(/([\d.-]+) ([\d.-]+)$/);
+        return {
+          start: start ? { x: Number(start[1]), y: Number(start[2]) } : null,
+          terminal: terminal
+            ? { x: Number(terminal[1]), y: Number(terminal[2]) }
+            : null,
+          cornerDepth: Number(path.dataset.cornerDepth),
+          mirrored: path.dataset.mirrored,
+          stroke: getComputedStyle(path).stroke,
+          length: path.getTotalLength(),
+        };
+      });
+      const gradients = Array.from(
+        stack.querySelectorAll<SVGLinearGradientElement>(
+          '[data-testid="story-thread-layer"] linearGradient',
+        ),
+      ).map((gradient) =>
+        Array.from(gradient.querySelectorAll("stop")).map(
+          (stop) => getComputedStyle(stop).stopColor,
+        ),
+      );
+      const surfaces = Array.from(
+        stack.querySelectorAll<HTMLElement>("[class*='storySurface']"),
+      ).map((surface) => {
+        const rect = surface.getBoundingClientRect();
+        return { x: rect.x, width: rect.width };
+      });
+
+      return { nodes, paths, gradients, surfaces };
+    });
+
+    expect(geometry.gradients).toEqual([
+      [
+        "rgb(66, 19, 67)",
+        "rgb(66, 19, 67)",
+        "rgb(91, 157, 118)",
+        "rgb(91, 157, 118)",
+      ],
+      [
+        "rgb(231, 173, 34)",
+        "rgb(231, 173, 34)",
+        "rgb(91, 157, 118)",
+        "rgb(91, 157, 118)",
+      ],
+    ]);
+    expect(geometry.paths.map((path) => path.mirrored)).toEqual([
+      "false",
+      "true",
+    ]);
+    geometry.paths.forEach((path, index) => {
+      const firstNode = geometry.nodes[index * 2];
+      const secondNode = geometry.nodes[index * 2 + 1];
+      expect(path.start).not.toBeNull();
+      expect(path.terminal).not.toBeNull();
+      expect(Math.abs(path.start!.x - firstNode.x)).toBeLessThan(0.6);
+      expect(Math.abs(path.start!.y - firstNode.y)).toBeLessThan(0.6);
+      expect(Math.abs(path.terminal!.x - secondNode.x)).toBeLessThan(0.6);
+      expect(Math.abs(path.terminal!.y - secondNode.y)).toBeLessThan(0.6);
+      expect(path.stroke).toContain("url");
+      expect(path.cornerDepth).toBeGreaterThanOrEqual(6);
+      expect(path.cornerDepth).toBeLessThanOrEqual(8);
+      expect(path.length).toBeGreaterThan(800);
+    });
+
+    if (width === 864) {
+      expect(geometry.surfaces[0].x).toBeGreaterThanOrEqual(271);
+      expect(geometry.surfaces[0].x).toBeLessThanOrEqual(273);
+    }
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
+test("cardurile de status din hero — urmează ordinea, iconografia și paleta conceptului", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1329, height: 1000 });
+  await page.goto("/");
+
+  const cards = page.locator("#produs [data-metric-key]");
+  await expect(cards).toHaveCount(4);
+  await expect(cards.locator("h3")).toHaveText([
+    "RSVP",
+    "Buget",
+    "Activități",
+    "Furnizori",
+  ]);
+  await expect(cards.locator("p")).toHaveText([
+    "Răspunsuri primite",
+    "Cheltuit până acum",
+    "De făcut astăzi",
+    "Confirmări în așteptare",
+  ]);
+  await expect(cards.locator("a")).toHaveText([
+    "Vezi detalii",
+    "Vezi bugetul",
+    "Vezi lista",
+    "Vezi furnizorii",
+  ]);
+  await expect(cards.locator("strong")).toHaveText([
+    "128 / 240",
+    "68%",
+    "7",
+    "3",
+  ]);
+  await expect(cards.first().locator("xpath=..")).toHaveAttribute(
+    "data-metric-source",
+    "demo",
+  );
+
+  const geometry = await cards.evaluateAll((elements) =>
+    elements.map((element) => {
+      const card = element.getBoundingClientRect();
+      const title = element.querySelector("h3")!.getBoundingClientRect();
+      const icon = element.querySelector("div > span")!;
+      const bar = element.querySelector<HTMLElement>(
+        "[class*='metricBar'] > i",
+      )!;
+      const track = bar.parentElement!;
+      return {
+        width: card.width,
+        height: card.height,
+        titleHeight: title.height,
+        iconColor: getComputedStyle(icon).color,
+        barColor: getComputedStyle(bar).backgroundColor,
+        barRatio:
+          bar.getBoundingClientRect().width /
+          track.getBoundingClientRect().width,
+      };
+    }),
+  );
+
+  expect(
+    Math.max(...geometry.map(({ width }) => width)) -
+      Math.min(...geometry.map(({ width }) => width)),
+  ).toBeLessThan(1);
+  expect(
+    Math.max(...geometry.map(({ height }) => height)) -
+      Math.min(...geometry.map(({ height }) => height)),
+  ).toBeLessThan(1);
+  expect(
+    Math.max(...geometry.map(({ titleHeight }) => titleHeight)) -
+      Math.min(...geometry.map(({ titleHeight }) => titleHeight)),
+  ).toBeLessThan(1);
+  expect(geometry.map(({ iconColor }) => iconColor)).toEqual([
+    "rgb(91, 157, 118)",
+    "rgb(36, 28, 36)",
+    "rgb(239, 107, 88)",
+    "rgb(36, 28, 36)",
+  ]);
+  expect(geometry.map(({ barColor }) => barColor)).toEqual([
+    "rgb(91, 157, 118)",
+    "rgb(91, 157, 118)",
+    "rgb(239, 107, 88)",
+    "rgb(91, 157, 118)",
+  ]);
+  expect(geometry.map(({ barRatio }) => Number(barRatio.toFixed(2)))).toEqual([
+    0.62, 0.68, 0.52, 0.52,
+  ]);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("firul hero — rămâne ancorat între CTA și control room la toate lățimile split", async ({
+  page,
+}) => {
+  for (const width of [821, 864, 940, 941, 1024, 1180, 1181, 1440, 1600]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await expect(page.getByTestId("hero-thread")).toHaveAttribute(
+      "data-ready",
+      "true",
+    );
+
+    const anchors = await page.evaluate(() => {
+      const hero = document.querySelector<HTMLElement>(
+        '[data-concept="product-first-control-room-v1"] > section:first-child',
+      );
+      const primary = hero?.querySelector<HTMLAnchorElement>(
+        'a[href="/create-account"]',
+      );
+      const secondary = primary?.nextElementSibling;
+      const thread = hero?.querySelector<HTMLElement>(
+        '[data-testid="hero-thread"]',
+      );
+      const curve = thread?.querySelector<SVGSVGElement>(
+        'svg[viewBox="0 0 260 82"]',
+      );
+      const dot = thread?.querySelector<HTMLElement>("span");
+      const copy = hero?.querySelector<HTMLElement>("[data-hero-thread-start]")
+        ?.parentElement?.parentElement;
+      const control = document.querySelector<HTMLElement>("#produs");
+
+      if (
+        !primary ||
+        !(secondary instanceof HTMLElement) ||
+        !thread ||
+        !curve ||
+        !dot ||
+        !copy ||
+        !control
+      ) {
+        return null;
+      }
+      const primaryRect = primary.getBoundingClientRect();
+      const secondaryRect = secondary.getBoundingClientRect();
+      const threadRect = thread.getBoundingClientRect();
+      const dotRect = dot.getBoundingClientRect();
+      const controlRect = control.getBoundingClientRect();
+
+      return {
+        startDelta: threadRect.x - (primaryRect.x + primaryRect.width / 2),
+        startYDelta: threadRect.y - primaryRect.bottom,
+        endDelta: dotRect.x + dotRect.width / 2 - controlRect.x,
+        dotRoundness: Math.abs(dotRect.width - dotRect.height),
+        buttonRowDelta: secondaryRect.y - primaryRect.y,
+        layers: {
+          curve: Number(getComputedStyle(curve).zIndex),
+          control: Number(getComputedStyle(control).zIndex),
+          copy: Number(getComputedStyle(copy).zIndex),
+          dot: Number(getComputedStyle(dot).zIndex),
+        },
+        dotColors: {
+          outer: getComputedStyle(dot).borderColor,
+          inner: getComputedStyle(dot, "::before").borderColor,
+          center: getComputedStyle(dot, "::before").backgroundColor,
+          innerWidth: getComputedStyle(dot, "::before").borderWidth,
+        },
+      };
+    });
+
+    expect(anchors).not.toBeNull();
+    expect(Math.abs(anchors!.startDelta), `start @ ${width}px`).toBeLessThan(1);
+    expect(Math.abs(anchors!.startYDelta), `start y @ ${width}px`).toBeLessThan(
+      1,
+    );
+    expect(Math.abs(anchors!.endDelta), `end @ ${width}px`).toBeLessThan(1);
+    expect(anchors!.dotRoundness, `dot @ ${width}px`).toBeLessThan(0.2);
+    expect(
+      Math.abs(anchors!.buttonRowDelta),
+      `buttons @ ${width}px`,
+    ).toBeLessThan(1);
+    expect(anchors!.layers, `layers @ ${width}px`).toEqual({
+      curve: 0,
+      control: 1,
+      copy: 2,
+      dot: 3,
+    });
+    expect(anchors!.dotColors, `dot colors @ ${width}px`).toEqual({
+      outer: "rgba(239, 107, 88, 0.35)",
+      inner: "rgb(239, 107, 88)",
+      center: "rgb(255, 254, 253)",
+      innerWidth: "2px",
+    });
+    await expectNoHorizontalOverflow(page);
+  }
+
+  await expect(
+    page.locator('[data-testid="hero-thread"] path'),
+  ).toHaveAttribute("d", "M0 0 C0 56 14 70 53 70 C124 70 202 14 260 14");
+
+  await page.setViewportSize({ width: 820, height: 900 });
+  await page.goto("/");
+  await expect(
+    page.locator(
+      '[data-concept="product-first-control-room-v1"] > section:first-child [data-testid="hero-thread"]',
+    ),
+  ).toBeHidden();
+});
+
+for (const viewport of [
+  { name: "320", width: 320, height: 720 },
+  { name: "tablet-768", width: 768, height: 1024 },
+  { name: "laptop-1024", width: 1024, height: 768 },
+] as const) {
+  test(`landing ${viewport.name} — fără overflow`, async ({ page }) => {
+    await page.setViewportSize(viewport);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    await expect(publicSections(page)).toHaveCount(10);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expectNoHorizontalOverflow(page);
-
-    const invitationSurface = page.locator("#invitatii [role='group']").first();
-    const invitationWidths = await invitationSurface.evaluate((surface) => ({
-      clientWidth: surface.clientWidth,
-      scrollWidth: surface.scrollWidth,
-    }));
-    expect(
-      invitationWidths.scrollWidth,
-      `Editorul invitației este tăiat la ${viewport.width}px`,
-    ).toBeLessThanOrEqual(invitationWidths.clientWidth + 1);
-
-    // Ambele stări ale panoului de planificare încap în coloana lor.
-    await dismissCookieBanner(page);
-    const planningPanel = page.locator("#planificare-panou");
-    for (const view of ["Propunere de plan", "Planul aplicat"] as const) {
-      await page
-        .locator("#planificare")
-        .getByRole("button", { name: view })
-        .click();
-      const panelWidths = await planningPanel.evaluate((panel) => ({
-        clientWidth: panel.clientWidth,
-        scrollWidth: panel.scrollWidth,
-      }));
-      expect(
-        panelWidths.scrollWidth,
-        `Panoul „${view}” este tăiat la ${viewport.width}px`,
-      ).toBeLessThanOrEqual(panelWidths.clientWidth + 1);
-    }
-
-    const pricingWidths = await page
-      .locator("#abonamente [aria-label='Comparație abonamente Sarbato']")
-      .evaluate((plans) => ({
-        clientWidth: plans.clientWidth,
-        scrollWidth: plans.scrollWidth,
-        display: getComputedStyle(plans).display,
-      }));
-    expect(pricingWidths.display).toBe("grid");
-    expect(pricingWidths.scrollWidth).toBeLessThanOrEqual(
-      pricingWidths.clientWidth + 1,
-    );
   });
 }

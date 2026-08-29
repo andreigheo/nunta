@@ -7,6 +7,7 @@ import {
   CalendarCheck2,
   Check,
   CheckCircle2,
+  ClipboardCheck,
   Eye,
   EyeOff,
   FileCheck2,
@@ -62,7 +63,7 @@ export function DomainStory({
     <section
       id={story.id}
       className={cn(
-        "relative scroll-mt-16 overflow-hidden py-14 sm:scroll-mt-[4.5rem] sm:py-24 lg:py-32",
+        "relative overflow-hidden py-20 sm:py-24 lg:py-32",
         toneClasses[story.tone],
       )}
       aria-labelledby={`${story.id}-title`}
@@ -83,7 +84,7 @@ export function DomainStory({
       />
       <div
         className={cn(
-          "marketing-safe-container mx-auto grid w-full max-w-[90rem] gap-8 px-4 sm:gap-12 sm:px-8 lg:items-center lg:gap-16 lg:px-10 xl:px-12",
+          "mx-auto grid w-full max-w-[90rem] gap-12 px-5 sm:px-8 lg:items-center lg:gap-16 lg:px-10 xl:px-12",
           index % 2 === 1
             ? "lg:grid-cols-[minmax(0,1.28fr)_minmax(20rem,0.72fr)]"
             : "lg:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1.28fr)]",
@@ -122,7 +123,7 @@ export function DomainStory({
           <h2
             id={`${story.id}-title`}
             className={cn(
-              "marketing-heading mt-3 text-[clamp(2.25rem,10.5vw,2.75rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-balance sm:mt-4 sm:text-[clamp(2.5rem,4vw,3.5rem)] sm:leading-[1.02] sm:tracking-[-0.035em]",
+              "marketing-heading mt-4 text-[clamp(2.5rem,4vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-balance",
               dark ? "text-on-brand" : "text-brand",
             )}
           >
@@ -130,7 +131,7 @@ export function DomainStory({
           </h2>
           <p
             className={cn(
-              "mt-4 max-w-[58ch] text-[1.0625rem] leading-7 sm:mt-6 sm:text-lg sm:leading-8",
+              "mt-6 max-w-[58ch] text-lg leading-8",
               dark ? "text-on-brand" : "text-muted",
             )}
           >
@@ -139,7 +140,7 @@ export function DomainStory({
 
           <dl
             className={cn(
-              "mt-5 grid grid-cols-1 items-start gap-2.5 border-y py-4 sm:mt-7 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-3",
+              "mt-7 grid gap-3 border-y py-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center",
               dark ? "border-white/15" : "border-line-strong",
             )}
           >
@@ -150,7 +151,7 @@ export function DomainStory({
                   dark ? "text-white/60" : "text-faint",
                 )}
               >
-                De aici
+                Intră în etapă
               </dt>
               <dd
                 className={cn(
@@ -163,7 +164,7 @@ export function DomainStory({
             </div>
             <ArrowRight
               className={cn(
-                "ml-1 block size-4 rotate-90 sm:ml-0 sm:size-5 sm:rotate-0",
+                "hidden size-5 sm:block",
                 dark ? "text-warning-soft" : "text-accent-strong",
               )}
               aria-hidden
@@ -175,7 +176,7 @@ export function DomainStory({
                   dark ? "text-white/60" : "text-faint",
                 )}
               >
-                Merge mai departe
+                Continuă ca
               </dt>
               <dd
                 className={cn(
@@ -188,7 +189,7 @@ export function DomainStory({
             </div>
           </dl>
 
-          <ul className="mt-5 space-y-3 sm:mt-7 sm:space-y-4">
+          <ul className="mt-7 space-y-4">
             {story.capabilities.map((capability) => (
               <li key={capability} className="flex items-start gap-3">
                 <span
@@ -203,7 +204,7 @@ export function DomainStory({
                 </span>
                 <span
                   className={cn(
-                    "text-base font-semibold leading-6 sm:leading-7",
+                    "text-base font-semibold leading-7",
                     dark ? "text-on-brand" : "text-ink",
                   )}
                 >
@@ -223,6 +224,7 @@ export function DomainStory({
 }
 
 function ProductSurface({ type }: { type: ProductStory["surface"] }) {
+  if (type === "planning") return <PlanningSurface />;
   if (type === "guests") return <GuestSurface />;
   if (type === "vendors") return <VendorSurface />;
   return <EventDaySurface />;
@@ -250,7 +252,7 @@ function SurfaceShell({
     >
       <div
         className={cn(
-          "flex flex-wrap items-center justify-between gap-2.5 border-b px-4 py-3 sm:gap-3 sm:px-5",
+          "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5",
           dark ? "border-white/15" : "border-line",
         )}
       >
@@ -275,7 +277,7 @@ function SurfaceShell({
         <span
           data-testid="showcase-label"
           className={cn(
-            "max-w-full rounded-full px-3 py-1.5 text-xs font-semibold leading-4",
+            "rounded-full px-3 py-1.5 text-xs font-semibold",
             dark ? "bg-white/10 text-white" : "bg-subtle text-muted",
           )}
         >
@@ -284,6 +286,122 @@ function SurfaceShell({
       </div>
       {children}
     </div>
+  );
+}
+
+function PlanningSurface() {
+  const views = ["Listă", "Panou", "Cronologie", "Calendar"] as const;
+  const tasks = [
+    {
+      title: "Clarifică prioritățile",
+      status: "Pregătit",
+      owner: "Organizator",
+      deadline: "Termen săptămâna aceasta",
+    },
+    {
+      title: "Revizuiește dependențele",
+      status: "De verificat",
+      owner: "Organizator",
+      deadline: "Blocată de o decizie",
+    },
+    {
+      title: "Aprobă etapa următoare",
+      status: "Acțiune",
+      owner: "Coordonator",
+      deadline: "Termen apropiat",
+    },
+  ] as const;
+
+  return (
+    <SurfaceShell
+      title="Planul evenimentului"
+      description="Propunere, responsabilități și riscuri înainte de aplicare"
+    >
+      <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(14rem,0.85fr)]">
+        <div className="border-b border-line p-4 sm:p-6 lg:border-r lg:border-b-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck className="size-5 text-brand" aria-hidden />
+              <p className="text-base font-semibold text-ink">
+                Etapa în revizuire
+              </p>
+            </div>
+            <span className="rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning">
+              Necesită aprobare
+            </span>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-faint">
+              Vizualizări:
+            </span>
+            <ul className="flex flex-wrap gap-1.5" aria-label="Vizualizări disponibile">
+              {views.map((view) => (
+                <li
+                  key={view}
+                  className="rounded-full bg-subtle px-2.5 py-1 text-xs font-semibold text-muted"
+                >
+                  {view}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <ul className="mt-4 divide-y divide-line">
+            {tasks.map((task, index) => (
+              <li
+                key={task.title}
+                className="flex min-h-16 items-center gap-3 py-3"
+              >
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                    index === 2
+                      ? "bg-accent text-white"
+                      : index === 1
+                        ? "bg-warning-soft text-warning"
+                        : "bg-success-soft text-success",
+                  )}
+                >
+                  {index === 2 ? (
+                    <ArrowRight className="size-4" aria-hidden />
+                  ) : (
+                    <CheckCircle2 className="size-4" aria-hidden />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-ink">
+                    {task.title}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted">
+                    {task.status} · {task.owner} · {task.deadline}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          <p className="text-sm font-semibold text-muted">Următoarea acțiune</p>
+          <p className="mt-2 text-xl font-semibold leading-tight text-brand">
+            Aprobă etapa și publică termenele
+          </p>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Calendarul și responsabilitățile vor folosi versiunea revizuită.
+          </p>
+          <div className="mt-6 bg-brand-softer p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-brand">
+              <ShieldCheck className="size-4" aria-hidden />
+              Plan B atașat
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted">
+              Riscul și decizia rămân lângă etapa care le folosește.
+            </p>
+          </div>
+        </div>
+      </div>
+    </SurfaceShell>
   );
 }
 
@@ -305,13 +423,13 @@ function GuestSurface() {
   return (
     <SurfaceShell
       title="Invitație și RSVP"
-      description="Blocuri, design, previzualizare și răspunsuri"
+      description="Blocuri, design, previzualizare și răspunsuri conectate"
     >
-      <div className="flex flex-col items-start gap-3 border-b border-line px-4 py-3 min-[430px]:flex-row min-[430px]:flex-wrap min-[430px]:items-center min-[430px]:justify-between sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-5">
         <div>
           <p className="text-sm font-semibold text-ink">Editor invitație</p>
           <p className="mt-0.5 text-xs text-muted">
-            Structură, canvas și inspector
+            Structură, canvas și inspector vizual
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -341,16 +459,13 @@ function GuestSurface() {
         </div>
       </div>
 
-      <div className="grid min-w-0 min-[1120px]:grid-cols-[10.5rem_minmax(16rem,1fr)_12rem]">
-        <div className="border-b border-line p-3.5 sm:p-4 min-[1120px]:border-r min-[1120px]:border-b-0">
+      <div className="grid min-w-0 lg:grid-cols-[10.5rem_minmax(16rem,1fr)_12rem]">
+        <div className="border-b border-line p-4 lg:border-r lg:border-b-0">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-ink">Blocuri</p>
-            <span className="text-xs font-semibold text-faint">14 tipuri</span>
+              <span className="text-xs font-semibold text-faint">14 tipuri</span>
           </div>
-          <ul
-            className="mt-3 grid grid-cols-1 gap-2 min-[400px]:grid-cols-2 min-[1120px]:block min-[1120px]:space-y-2"
-            aria-label="Exemple de blocuri disponibile"
-          >
+          <ul className="mt-3 space-y-2" aria-label="Exemple de blocuri disponibile">
             {blocks.map(([Icon, name, status], index) => (
               <li
                 key={name}
@@ -378,7 +493,7 @@ function GuestSurface() {
           </span>
         </div>
 
-        <div className="min-w-0 border-b border-line bg-subtle p-4 sm:p-5 min-[1120px]:border-r min-[1120px]:border-b-0">
+        <div className="min-w-0 border-b border-line bg-subtle p-4 sm:p-5 lg:border-r lg:border-b-0">
           <div className="mx-auto max-w-[25rem] overflow-hidden border border-line bg-elevated shadow-card">
             <div className="relative min-h-36 bg-accent-soft px-5 py-6 text-center">
               <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-1 text-xs font-semibold text-brand">
@@ -395,7 +510,7 @@ function GuestSurface() {
                 Povestea, programul și detaliile importante.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-2 p-3.5 sm:p-4">
+            <div className="grid gap-2 p-4 sm:grid-cols-3">
               {["Poveste", "Program", "Locație"].map((item) => (
                 <span
                   key={item}
@@ -407,7 +522,7 @@ function GuestSurface() {
             </div>
             <div className="border-t border-line p-4 text-center">
               <p className="text-xs leading-5 text-muted">
-                Confirmarea și preferințele merg în RSVP.
+                Confirmarea și preferințele merg direct în RSVP.
               </p>
               <span className="mt-3 flex min-h-10 items-center justify-center rounded-lg bg-brand px-3 text-sm font-semibold text-on-brand">
                 Confirmă participarea
@@ -416,12 +531,12 @@ function GuestSurface() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-x-4 p-3.5 min-[430px]:grid-cols-2 sm:p-4 min-[1120px]:block">
-          <div className="flex items-center gap-2 min-[430px]:col-span-2 min-[1120px]:col-span-1">
+        <div className="p-4">
+          <div className="flex items-center gap-2">
             <SlidersHorizontal className="size-4 text-brand" aria-hidden />
             <p className="text-sm font-semibold text-ink">Inspector</p>
           </div>
-          <div className="mt-4 border-b border-line pb-4 lg:mt-4">
+          <div className="mt-4 border-b border-line pb-4">
             <div className="flex items-center gap-2 text-xs font-semibold text-muted">
               <Palette className="size-3.5" aria-hidden />
               Paletă
@@ -454,7 +569,7 @@ function GuestSurface() {
               </span>
             </div>
           </div>
-          <div className="pt-4 min-[430px]:col-span-2 min-[1120px]:col-span-1">
+          <div className="pt-4">
             <p className="text-xs font-semibold text-muted">Imagine hero</p>
             <dl className="mt-3 space-y-2 text-xs">
               <div className="flex justify-between gap-2">
@@ -474,10 +589,10 @@ function GuestSurface() {
         <div className="flex items-center gap-2">
           <UsersRound className="size-5 text-accent-strong" aria-hidden />
           <p className="text-sm font-semibold text-ink">
-            Răspunsul ajunge în logistică
+            Răspunsul continuă în logistică
           </p>
         </div>
-        <ul className="mt-3 grid grid-cols-1 gap-px bg-line min-[430px]:grid-cols-2 xl:grid-cols-4">
+        <ul className="mt-3 grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">
           {logistics.map(([Icon, title, status]) => (
             <li key={title} className="flex min-h-16 items-center gap-3 bg-elevated p-3">
               <Icon className="size-4 shrink-0 text-brand" aria-hidden />
@@ -506,18 +621,18 @@ function VendorSurface() {
   return (
     <SurfaceShell
       title="Furnizori și buget"
-      description="De la cerere până la rezervare și buget"
+      description="Urma deciziei de la cerere până la angajament"
     >
-      <div className="p-3.5 sm:p-6">
+      <div className="p-4 sm:p-6">
         <ol
-          className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2 sm:gap-3 lg:grid-cols-3"
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
           aria-label="Fluxul comercial: cerere, ofertă, comparare, rezervare, contract, buget"
         >
           {steps.map(({ Icon, label }, index) => (
             <li
               key={label}
               className={cn(
-                "relative flex min-h-[4.5rem] min-w-0 items-center gap-2.5 p-2.5 sm:min-h-20 sm:gap-3 sm:p-3",
+                "relative flex min-h-20 items-center gap-3 p-3",
                 index === 1 ? "bg-brand text-on-brand" : "bg-subtle text-ink",
               )}
             >
@@ -566,16 +681,16 @@ function VendorSurface() {
             </div>
             <dl className="mt-4 divide-y divide-line">
               {[
-                ["Cerințe", "Potrivite cu cererea"],
-                ["Versiune", "Păstrată ca să compari"],
-                ["Rezervare", "Gata după acceptare"],
+                ["Cerințe", "Aliniate cu cererea"],
+                ["Versiune", "Păstrată pentru comparație"],
+                ["Rezervare", "Pregătită după acceptare"],
               ].map(([term, value]) => (
                 <div
                   key={term}
-                  className="flex min-h-12 flex-col items-start justify-center gap-1 py-2 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between min-[430px]:gap-4"
+                  className="flex min-h-12 items-center justify-between gap-4 py-2"
                 >
                   <dt className="text-sm text-muted">{term}</dt>
-                  <dd className="text-left text-sm font-semibold text-ink min-[430px]:text-right">
+                  <dd className="text-right text-sm font-semibold text-ink">
                     {value}
                   </dd>
                 </div>
@@ -584,10 +699,11 @@ function VendorSurface() {
           </div>
 
           <div className="bg-brand p-4 text-on-brand">
-            <p className="text-sm font-semibold">Plata către furnizor e a ta</p>
+            <p className="text-sm font-semibold">Bugetul păstrează contextul</p>
             <p className="mt-3 text-sm leading-6 text-on-brand">
               Sarbato nu colectează și nu transferă plățile dintre organizatori
-              și furnizori. Ținem evidența; banii îi plătești tu, direct.
+              și furnizori. Platforma păstrează evidența operațională; plățile
+              se fac direct, prin metoda agreată de părți.
             </p>
             <span className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-elevated px-3 text-sm font-semibold text-brand">
               <ShieldCheck className="size-4" aria-hidden />
@@ -603,31 +719,31 @@ function VendorSurface() {
 function EventDaySurface() {
   return (
     <SurfaceShell
-      title="Ziua evenimentului"
+      title="Centrul operațional"
       description="Acum, Urmează, echipă și incidente"
       dark
     >
       <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(15rem,0.85fr)]">
-        <div className="border-b border-white/15 p-3.5 sm:p-6 lg:border-r lg:border-b-0">
-          <div className="grid grid-cols-1 gap-2.5 min-[430px]:grid-cols-2 sm:gap-3">
-            <div className="bg-white/10 p-3 sm:p-4">
+        <div className="border-b border-white/15 p-4 sm:p-6 lg:border-r lg:border-b-0">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="bg-white/10 p-4">
               <p className="text-xs font-semibold text-warning-soft">ACUM</p>
-              <p className="mt-2 text-base font-semibold leading-5 text-white sm:text-lg sm:leading-normal">
+              <p className="mt-2 text-lg font-semibold text-white">
                 Moment în desfășurare
               </p>
-              <p className="mt-2 text-xs leading-5 text-white/70 sm:text-sm sm:leading-6">
-                Checklistul și starea momentului sunt vizibile pentru echipă.
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                Checklistul și starea momentului sunt vizibile echipei.
               </p>
             </div>
-            <div className="bg-white p-3 text-ink sm:p-4">
+            <div className="bg-white p-4 text-ink">
               <p className="text-xs font-semibold text-accent-strong">
                 URMEAZĂ
               </p>
-              <p className="mt-2 text-base font-semibold leading-5 text-brand sm:text-lg sm:leading-normal">
-                Pregătește ce urmează
+              <p className="mt-2 text-lg font-semibold text-brand">
+                Pregătește tranziția
               </p>
-              <p className="mt-2 text-xs leading-5 text-muted sm:text-sm sm:leading-6">
-                Următoarea acțiune folosește ce e deja în plan.
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Următoarea acțiune păstrează contextul din plan.
               </p>
             </div>
           </div>
@@ -646,7 +762,7 @@ function EventDaySurface() {
           <ol className="mt-5 divide-y divide-white/15">
             {[
               ["Moment confirmat", "Finalizat"],
-              ["Pregătire pentru următorul moment", "Acum"],
+              ["Tranziție în pregătire", "Acum"],
               ["Verificare echipă", "Urmează"],
             ].map(([title, state], index) => (
               <li
@@ -682,13 +798,13 @@ function EventDaySurface() {
           </ol>
         </div>
 
-        <div className="p-3.5 sm:p-6">
+        <div className="p-4 sm:p-6">
           <div className="flex items-center gap-2 text-warning-soft">
             <AlertTriangle className="size-5" aria-hidden />
             <p className="text-base font-semibold">Incident controlat</p>
           </div>
           <p className="mt-3 text-sm leading-6 text-white/70">
-            Tipul, gravitatea și starea stau în aceeași vedere.
+            Tipul, severitatea și starea rămân în aceeași vedere operațională.
           </p>
           <div className="mt-5 bg-white/10 p-4">
             <p className="text-xs font-semibold text-white/65">STARE</p>

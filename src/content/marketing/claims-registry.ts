@@ -24,17 +24,17 @@ export type MarketingClaim = {
 export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "hero-title",
-    statement: "Fiecare eveniment are sute de detalii. Sarbato le ține împreună.",
+    statement: "Tot evenimentul, într-un singur fir.",
     support:
       "Setul de module conectate: /plan, /invitations, /rsvp, /guests, /seating, /menus, /transport, /accommodation, /marketplace, /requests, /offers, /contracts, /budget, /wedding-day",
     status: "implemented",
     limitation:
-      "Afirmație de poziționare; nu se extinde la „toate detaliile” absolute.",
+      "Afirmație de poziționare despre continuitatea dintre module; nu promite automatizare totală.",
   },
   {
     id: "hero-lead",
     statement:
-      "Invitația, confirmările, invitații, furnizorii, bugetul și ziua nunții stau în același loc.",
+      "Plan, oameni, furnizori, buget și ziua evenimentului — conectate într-un singur spațiu.",
     support:
       "/invitations/editor, /rsvp, /guests, /marketplace + /offers, /budget, /wedding-day",
     status: "implemented",
@@ -50,7 +50,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "shared-information",
     statement:
-      "Când un invitat confirmă, preferința ajunge la meniu, mese și transport. Tu decizi alocările.",
+      "Aceeași informație este folosită în modulele conectate, astfel încât fiecare decizie să aibă context.",
     support:
       "Înregistrarea invitat servește /rsvp, /seating, /menus, /transport, /accommodation (același workspace API)",
     status: "implemented",
@@ -60,7 +60,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "flow-rsvp-propagation",
     statement:
-      "RSVP primit: invitatul are starea actualizată, meniul primește preferința, mesele cer alocare, transportul primește cererea.",
+      "RSVP primit: starea invitatului se actualizează, meniul primește preferința, planul meselor cere alocarea, transportul primește cererea.",
     support: "/rsvp (formular publicat), /menus, /seating, /transport",
     status: "implemented",
     limitation:
@@ -69,50 +69,33 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "plan-views",
     statement:
-      "Toate sarcinile și După stare sunt vizualizările complete ale planului; Cronologie și Calendar au fiecare pagina lor.",
-    support:
-      "/plan (SegmentedControl: list, board, timeline, calendar) + /timeline (faze și repere) + /calendar (grilă lunară agregată, export ICS)",
+      "Planul poate fi lucrat în vizualizări Listă, Panou, Cronologie și Calendar.",
+    support: "/plan (SegmentedControl cu cele patru vizualizări)",
     status: "implemented",
-    limitation:
-      "Cele patru comutatoare din /plan există, dar «După termen» și «Calendar» randează liste simplificate; adâncimea reală stă în /timeline și /calendar. Landing-ul nu prezintă cele patru vizualizări ca echivalente.",
   },
   {
     id: "plan-responsibility",
     statement:
-      "Fiecare sarcină are responsabil, prioritate, stare și termen, iar finalizarea așteaptă sarcinile de care depinde.",
-    support:
-      "/plan (coloanele Responsabil, Prioritate, Stare, Termen) + planning.service.ts (finalizarea respinsă până când dependențele sunt COMPLETED) + PUT /tasks/:taskId/dependencies",
+      "Fiecare acțiune are responsabil, termen și dependențe vizibile.",
+    support: "/plan (coloanele Responsabil și Termen, dependențe în TaskDrawer)",
     status: "implemented",
-    limitation:
-      "Responsabilul este un membru al workspace-ului (`assigneeMembershipId`), nu un rol generic; fără alocare, starea afișată este «Nealocat». TaskDrawer permite setarea unui predecesor, dar nu listează încă dependențele existente, deci nu se afirmă «dependențe vizibile».",
-  },
-  {
-    id: "plan-proposal",
-    statement:
-      "Răspunsurile din onboarding devin o propunere de plan cu faze, repere și sarcini, pe care o revizuiești element cu element înainte să devină planul tău.",
-    support:
-      "POST /plan-generations, PATCH /plan-proposals/:id, POST /plan-proposals/:id/apply (capacitatea planning.apply) + components/plan/proposal-review.tsx (include/exclude, motiv obligatoriu la excluderea unui element required, «Ce am presupus», «De verificat», «Ce include propunerea»)",
-    status: "implemented",
-    limitation:
-      "Revizuirea acoperă structura generată, nu fiecare editare manuală ulterioară: o sarcină creată de mână intră direct în plan. Aplicarea creează faze, repere și dependențe, dar nu atribuie responsabili.",
   },
   {
     id: "plan-review",
     statement:
-      "Nimic nu devine plan definitiv până la aplicare; propunerea poate fi regenerată sau respinsă.",
+      "Schimbările importante sunt revizuite înainte să intre în plan.",
     support:
-      "/plan + components/plan/proposal-review.tsx (Regenerează, Respinge, Aplică planul, cu confirmare explicită)",
+      "/plan + components/plan/proposal-review.tsx (revizuire, include/exclude, applyPlanProposal)",
     status: "implemented",
     limitation:
-      "Unele generări de plan folosesc generatorul determinist de rezervă; produsul o spune explicit prin badge-ul de generator. Nu se promite comportament AI universal.",
+      "Unele generări de plan folosesc generatorul determinist de rezervă; produsul o spune explicit. Nu se promite comportament AI universal.",
   },
   {
     id: "plan-b",
-    statement: "Riscurile și Planul B se administrează în modulele lor.",
+    statement: "Riscurile și Planul B rămân lângă decizie.",
     support: "/risks + /contingency-plans (trigger și acțiuni)",
     status: "implemented",
-    limitation:
-      "Planul B se leagă opțional de un risc, nu de o sarcină sau o fază din plan; contractele nu au `taskId`/`phaseId`. Afirmația nu mai apare în capitolul #planificare, ca să nu sugereze atașarea la etapa din plan.",
+    limitation: "Planul B se administrează în modulul său dedicat.",
   },
   {
     id: "invitation-editor",
@@ -133,7 +116,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "vendor-chain",
     statement:
-      "Cererea, oferta, rezervarea, contractul și bugetul stau împreună. Plata către furnizor o faci tu, direct.",
+      "Cererea, oferta, compararea, rezervarea, contractul și bugetul păstrează aceeași urmă operațională.",
     support:
       "/requests, /offers (versiuni imuabile, accept atomic → booking + contract + proiecție de buget), /contracts, /budget",
     status: "implemented",
@@ -158,7 +141,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "event-day-command",
     statement:
-      "Când începe nunta, echipa vede ce se întâmplă, ce urmează și ce trebuie pregătit: Acum/Urmează, desfășurător, checklisturi, check-in și incidente.",
+      "Când începe evenimentul, echipa vede ce se întâmplă, ce urmează și ce trebuie pregătit: Acum/Urmează, desfășurător, checklisturi, check-in și incidente.",
     support: "/wedding-day (command center cu stări, check-in, incidente)",
     status: "partial",
     limitation:
@@ -167,14 +150,14 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "trust-workspace",
     statement:
-      "Planul, răspunsurile, bugetul și ziua evenimentului rămân în echipă, după rol.",
+      "Datele fiecărui eveniment rămân în workspace-ul său și în rolurile autorizate.",
     support: "Izolare pe workspace + permisiuni pe roluri verificate pe server",
     status: "implemented",
   },
   {
     id: "trust-explicit-actions",
     statement:
-      "Publicările, aprobările și schimbările de stare cer o confirmare explicită.",
+      "Publicările, aprobările și tranzițiile importante cer o intenție explicită.",
     support:
       "ConfirmDialog pentru publicare invitație/plan/seating/transport, accept ofertă, tranziții wedding-day",
     status: "implemented",
@@ -182,7 +165,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "trust-external",
     statement:
-      "Paddle procesează abonamentul Sarbato. Banii către furnizori îi plătești tu, direct.",
+      "Paddle procesează abonamentul Sarbato, iar plățile dintre organizatori și furnizorii evenimentului rămân directe și separate.",
     support:
       "/settings?tab=billing + catalogul Paddle Live; /payments păstrează numai evidența operațională a plăților externe către furnizori",
     status: "implemented",

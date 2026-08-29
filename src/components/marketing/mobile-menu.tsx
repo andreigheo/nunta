@@ -15,7 +15,7 @@ export function MobileMenu() {
   const [open, setOpen] = React.useState(false);
 
   return (
-    <div className="xl:hidden">
+    <div className="min-[821px]:hidden">
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -31,7 +31,6 @@ export function MobileMenu() {
         onClose={() => setOpen(false)}
         width="sm"
         title={<BrandMark compact />}
-        className="marketing-light overscroll-contain pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)]"
       >
         <nav aria-label="Navigație mobilă" className="flex flex-col gap-1 p-4">
           {headerNav.map((item) => (

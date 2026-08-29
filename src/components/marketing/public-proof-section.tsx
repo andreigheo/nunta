@@ -11,11 +11,11 @@ export function PublicProofSection({
 
   return (
     <section
-      className="border-y border-line bg-ink py-14 text-white sm:py-20"
+      className="border-y border-line bg-ink py-16 text-white sm:py-20"
       aria-labelledby="public-proof-title"
       data-testid="public-proof-metrics"
     >
-      <div className="marketing-safe-container mx-auto grid w-full max-w-[90rem] gap-8 px-4 sm:gap-10 sm:px-8 lg:grid-cols-[minmax(18rem,0.7fr)_minmax(0,1.3fr)] lg:items-end lg:gap-16 lg:px-10 xl:px-12">
+      <div className="mx-auto grid w-full max-w-[90rem] gap-10 px-5 sm:px-8 lg:grid-cols-[minmax(18rem,0.7fr)_minmax(0,1.3fr)] lg:items-end lg:gap-16 lg:px-10 xl:px-12">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-warning-soft">
             <ShieldCheck className="size-4" aria-hidden />
@@ -28,11 +28,11 @@ export function PublicProofSection({
           </p>
           <h2
             id="public-proof-title"
-            className="marketing-heading mt-3 text-[clamp(2.25rem,10.5vw,2.75rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-white text-balance sm:mt-4 sm:text-[clamp(2.35rem,3.7vw,3.5rem)] sm:leading-[1.02] sm:tracking-[-0.035em]"
+            className="marketing-heading mt-4 text-[clamp(2.35rem,3.7vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-white text-balance"
           >
-            Cifre agregate, fără evenimente expuse.
+            Produsul poate fi măsurat fără să expună evenimentele.
           </h2>
-          <p className="mt-4 max-w-[52ch] text-base leading-7 text-white/75 sm:mt-5">
+          <p className="mt-5 max-w-[52ch] text-base leading-7 text-white/75">
             Publicăm numai procente rotunjite, din cohorte care trec pragul de
             confidențialitate.
           </p>
@@ -48,16 +48,16 @@ export function PublicProofSection({
               <p
                 className={
                   metric.state === "published"
-                    ? "mt-6 break-words marketing-heading text-4xl font-semibold text-white tabular-nums"
-                    : "mt-6 break-words text-base font-semibold leading-6 text-white"
+                    ? "mt-6 marketing-heading text-4xl font-semibold text-white tabular-nums"
+                    : "mt-6 text-base font-semibold leading-6 text-white"
                 }
               >
                 {metric.value ?? "Cohortă insuficientă"}
               </p>
-              <p className="mt-2 break-words text-sm font-semibold leading-6 text-white">
+              <p className="mt-2 text-sm font-semibold leading-6 text-white">
                 {metric.label}
               </p>
-              <p className="mt-2 break-words text-xs leading-5 text-white/65">
+              <p className="mt-2 text-xs leading-5 text-white/65">
                 {metric.cohort ??
                   "Pragul public de confidențialitate nu a fost atins."}
               </p>

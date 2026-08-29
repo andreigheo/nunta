@@ -16,16 +16,16 @@ export function Hero() {
         <span className="absolute -right-24 top-4 size-72 rounded-full bg-warning-soft blur-3xl" />
       </div>
 
-      <div className="marketing-safe-container relative mx-auto grid w-full max-w-[90rem] gap-6 px-4 pb-10 pt-7 sm:gap-9 sm:px-8 sm:pb-16 sm:pt-12 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] lg:items-center lg:gap-10 lg:px-10 lg:pb-20 lg:pt-16 xl:px-12">
-        <div className="min-w-0 max-w-[40rem]">
-          <p className="mkt-rise inline-flex max-w-full items-center gap-2 rounded-full bg-brand-softer px-3 py-2 text-xs font-semibold leading-5 text-brand sm:text-sm">
+      <div className="relative mx-auto grid w-full max-w-[90rem] gap-12 px-5 pb-20 pt-16 sm:px-8 sm:pb-24 sm:pt-20 lg:grid-cols-[minmax(21rem,0.82fr)_minmax(36rem,1.18fr)] lg:items-center lg:gap-12 lg:px-10 lg:pb-28 lg:pt-24 xl:px-12">
+        <div className="max-w-[40rem]">
+          <p className="mkt-rise inline-flex items-center gap-2 rounded-full bg-brand-softer px-3 py-2 text-sm font-semibold text-brand">
             <span className="size-2 rounded-full bg-success" aria-hidden />
             {hero.availability}
           </p>
 
           <h1
             id="landing-title"
-            className="marketing-heading mkt-rise mkt-rise-1 mt-5 text-[clamp(2.25rem,9.5vw,2.5rem)] font-semibold leading-[1.03] tracking-[-0.03em] text-brand text-balance sm:mt-6 sm:text-[clamp(3rem,4.25vw,3.75rem)] sm:leading-[1.02] sm:tracking-[-0.035em]"
+            className="marketing-heading mkt-rise mkt-rise-1 mt-7 text-[clamp(3rem,4.25vw,3.75rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-brand text-balance"
           >
             {titleStart}{" "}
             <span className="relative inline">
@@ -37,24 +37,24 @@ export function Hero() {
             </span>
           </h1>
 
-          <p className="mkt-rise mkt-rise-2 mt-5 max-w-[57ch] text-base leading-7 text-ink sm:mt-6 sm:text-lg sm:leading-8">
+          <p className="mkt-rise mkt-rise-2 mt-8 max-w-[57ch] text-lg leading-8 text-ink">
             {hero.lead}
           </p>
 
-          <div className="mkt-rise mkt-rise-2 mt-6 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3 lg:flex-col lg:items-stretch xl:flex-row xl:items-center">
+          <div className="mkt-rise mkt-rise-2 mt-9 flex flex-col gap-3 min-[430px]:flex-row min-[430px]:items-center">
             <CtaLink
               cta={primaryCta}
               withArrow
-              className="w-full sm:w-auto lg:w-full xl:w-auto xl:px-4 xl:text-sm 2xl:px-5 2xl:text-base"
+              className="w-full min-[430px]:w-auto"
             />
             <CtaLink
               cta={secondaryCta}
               variant="ghost"
-              className="w-full sm:w-auto lg:w-full xl:w-auto xl:px-4 xl:text-sm 2xl:px-5 2xl:text-base"
+              className="w-full min-[430px]:w-auto"
             />
           </div>
 
-          <div className="mkt-rise mkt-rise-2 mt-6 flex max-w-[34rem] items-start gap-3 border-t border-line pt-4 sm:mt-7">
+          <div className="mkt-rise mkt-rise-2 mt-8 flex max-w-[34rem] items-start gap-3 border-t border-line pt-5">
             <LockKeyhole
               className="mt-0.5 size-5 shrink-0 text-success"
               strokeWidth={1.8}
@@ -68,7 +68,7 @@ export function Hero() {
           <HeroDashboard />
           <div className="absolute -bottom-8 left-4 hidden items-center gap-2 text-sm font-semibold text-brand lg:flex">
             <ArrowDownRight className="size-5 text-accent" aria-hidden />
-            Urmărește etapele prin produs
+            Urmărește informația prin produs
           </div>
         </div>
       </div>
