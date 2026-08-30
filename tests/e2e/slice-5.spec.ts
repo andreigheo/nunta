@@ -1075,7 +1075,7 @@ test("E2E 18 — Over-budget", async ({ page }) => {
   expect(summary.overBudget).toBe(true);
   await authorizePage(page, couple);
   await page.goto("/budget");
-  await expect(page.getByText("145%")).toBeVisible();
+  await expect(page.getByText(/^145% ·/)).toBeVisible();
 });
 
 test("E2E 19 — Payment reminder", async () => {

@@ -380,29 +380,22 @@ test("E2E 7B — Complete visual seating workflow with guests and menus", async 
     name: /Scena principală E2E\. Trage pentru mutare/,
   });
   await expect(stage).toBeVisible();
-  const stageBox = await stage.boundingBox();
-  expect(stageBox).not.toBeNull();
-  if (stageBox) {
-    await page.mouse.move(stageBox.x + 20, stageBox.y + 20);
-    await page.mouse.down();
-    await page.mouse.move(stageBox.x + 120, stageBox.y + 350, { steps: 8 });
-    await page.mouse.up();
-  }
+  await stage.focus();
+  await stage.press("Shift+ArrowDown");
   await expect
-    .poll(async () => (await seatingDetail()).floorObjects[0]?.y)
+    .poll(
+      async () =>
+        (await seatingDetail()).floorObjects.find(
+          (item) => item.label === "Scena principală E2E",
+        )?.y,
+    )
     .toBeGreaterThan(72);
 
   const tableOnCanvas = page.getByRole("button", {
     name: /Masa familiei E2E, 0 din 4/,
   });
-  const tableBox = await tableOnCanvas.boundingBox();
-  expect(tableBox).not.toBeNull();
-  if (tableBox) {
-    await page.mouse.move(tableBox.x + 30, tableBox.y + 30);
-    await page.mouse.down();
-    await page.mouse.move(tableBox.x + 100, tableBox.y + 75, { steps: 6 });
-    await page.mouse.up();
-  }
+  await tableOnCanvas.focus();
+  await tableOnCanvas.press("Shift+ArrowRight");
   await expect
     .poll(async () => (await seatingDetail()).tables[1]?.x)
     .toBeGreaterThan(253);
@@ -513,7 +506,9 @@ test("E2E 7C — Floor object menu stays fully visible on small screens", async 
   await expect(zoomLevel).toHaveText("75%");
   await page.getByRole("button", { name: "Micșorează planul" }).click();
   await expect(zoomLevel).toHaveText("50%");
-  await page.getByRole("button", { name: "Mărește planul" }).click();
+  await page
+    .getByRole("button", { name: "Mărește planul", exact: true })
+    .click();
   await expect(zoomLevel).toHaveText("75%");
   await page.getByRole("button", { name: "Resetează zoomul" }).click();
   await expect(zoomLevel).toHaveText("100%");

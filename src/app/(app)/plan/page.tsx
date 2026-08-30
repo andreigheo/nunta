@@ -603,7 +603,7 @@ export default function PlanPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <PageHeader
-        title="Planul nunții"
+        title="Planul evenimentului"
         description="Vezi ce urmează, ce necesită atenție și cine se ocupă — fără să cauți prin toate sarcinile."
         actions={
           tasks.length === 0 ? (
@@ -701,7 +701,7 @@ export default function PlanPage() {
                 id="plan-start-title"
                 className="max-w-2xl font-brand text-2xl font-semibold tracking-[-0.02em] text-ink sm:text-3xl"
               >
-                Transformă detaliile nunții într-un plan pe care îl controlezi.
+                Transformă detaliile evenimentului într-un plan pe care îl controlezi.
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">
                 Sarbato pregătește o propunere pe baza răspunsurilor tale. Nimic

@@ -217,7 +217,7 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
   await expect(
     page.getByRole("heading", { name: "Data & evenimentele" }),
   ).toBeVisible();
-  await page.getByLabel("Data nunții").fill("2027-09-12");
+  await page.getByLabel("Data evenimentului").fill("2027-09-12");
   await page.getByRole("button", { name: "Continuă" }).click();
 
   await expect(page.getByRole("heading", { name: "Locația" })).toBeVisible();
@@ -257,7 +257,7 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
   await expect(
     page.getByRole("heading", { name: "Planul evenimentului" }),
   ).toBeVisible();
-  await expect(page.getByText("Acoperire minimă")).toBeVisible({
+  await expect(page.getByText("Ce include propunerea")).toBeVisible({
     timeout: 90_000,
   });
   await expect(
@@ -283,7 +283,7 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
 
   await page.getByRole("button", { name: "Configurează bugetul" }).click();
   await expect(
-    page.getByRole("heading", { name: "Bugetul nunții" }),
+    page.getByRole("heading", { name: "Bugetul evenimentului" }),
   ).toBeVisible();
   await expect(page.getByText("185.000 RON")).toBeVisible();
   await captureGuidedSurface(page, "13-guided-budget-import-desktop.png");
@@ -323,7 +323,7 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
   for (const [path, heading, filename] of [
     ["/overview", "Olivia & Paul", "16-guided-overview-mobile.png"],
     ["/plan", "Planul evenimentului", "17-guided-plan-mobile.png"],
-    ["/budget", "Bugetul nunții", "18-guided-budget-mobile.png"],
+    ["/budget", "Bugetul evenimentului", "18-guided-budget-mobile.png"],
     ["/calendar", "Calendar", "19-guided-calendar-mobile.png"],
   ] as const) {
     await mobilePage.goto(path);

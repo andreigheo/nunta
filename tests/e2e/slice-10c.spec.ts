@@ -566,41 +566,51 @@ test("S10C E2E 17 — security gate has zero critical and high findings", async 
   });
 });
 
-test("S10C E2E 18 — staging deployment evidence proves HTTPS and observability", async () => {
-  const deployment = JSON.parse(
-    await readFile(
-      resolve(
-        root,
-        "ops/release-evidence/current/staging-like-deployment.json",
+test("S10C E2E 18 — staging evidence contract requires HTTPS and observability", async () => {
+  const directory = await mkdtemp(
+    resolve(tmpdir(), "weddingos-staging-evidence-"),
+  );
+  try {
+    await seedReadyReleaseEvidence(directory);
+    const deployment = JSON.parse(
+      await readFile(
+        resolve(directory, "staging-like-deployment.json"),
+        "utf8",
       ),
-      "utf8",
-    ),
-  ) as { status: string; checks: Record<string, boolean>; tls: string };
-  expect(deployment.status).toBe("HEALTHY");
-  expect(deployment.tls).toBe("CADDY_LOCAL_CA");
-  expect(deployment.checks).toMatchObject({
-    https: true,
-    metrics: true,
-    dashboards: true,
-    alertRoute: true,
-    traces: true,
-  });
+    ) as { status: string; checks: Record<string, boolean>; tls: string };
+    expect(deployment.status).toBe("HEALTHY");
+    expect(deployment.tls).toBe("CADDY_LOCAL_CA");
+    expect(deployment.checks).toMatchObject({
+      https: true,
+      metrics: true,
+      dashboards: true,
+      alertRoute: true,
+      traces: true,
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
-test("S10C E2E 19 — rollback evidence keeps previous release healthy", async () => {
-  const rollback = JSON.parse(
-    await readFile(
-      resolve(root, "ops/release-evidence/current/staging-like-rollback.json"),
-      "utf8",
-    ),
-  ) as { status: string; checks: Record<string, boolean> };
-  expect(rollback.status).toBe("HEALTHY");
-  expect(rollback.checks).toMatchObject({
-    previousArtifactsRetained: true,
-    databaseCompatibility: true,
-    readiness: true,
-    workerOutboxSafe: true,
-  });
+test("S10C E2E 19 — rollback evidence contract keeps the previous release viable", async () => {
+  const directory = await mkdtemp(
+    resolve(tmpdir(), "weddingos-rollback-evidence-"),
+  );
+  try {
+    await seedReadyReleaseEvidence(directory);
+    const rollback = JSON.parse(
+      await readFile(resolve(directory, "staging-like-rollback.json"), "utf8"),
+    ) as { status: string; checks: Record<string, boolean> };
+    expect(rollback.status).toBe("HEALTHY");
+    expect(rollback.checks).toMatchObject({
+      previousArtifactsRetained: true,
+      databaseCompatibility: true,
+      readiness: true,
+      workerOutboxSafe: true,
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("S10C E2E 20 — release gate changes from READY to BLOCKED when evidence disappears", async () => {
@@ -823,9 +833,24 @@ async function seedReadyReleaseEvidence(directory: string) {
     },
     "staging-like-deployment.json": {
       status: "HEALTHY",
-      checks: { metrics: true, dashboards: true, alertRoute: true },
+      tls: "CADDY_LOCAL_CA",
+      checks: {
+        https: true,
+        metrics: true,
+        dashboards: true,
+        alertRoute: true,
+        traces: true,
+      },
     },
-    "staging-like-rollback.json": { status: "HEALTHY" },
+    "staging-like-rollback.json": {
+      status: "HEALTHY",
+      checks: {
+        previousArtifactsRetained: true,
+        databaseCompatibility: true,
+        readiness: true,
+        workerOutboxSafe: true,
+      },
+    },
     "backup-verification.json": {
       status: "VERIFIED",
       destination: "SEPARATE_LOCAL_DESTINATION",

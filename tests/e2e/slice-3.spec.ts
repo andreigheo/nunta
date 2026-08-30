@@ -420,7 +420,9 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
   ).toBe(true);
 
   await page.goto("/invitations/editor");
-  await page.getByRole("button", { name: "Deschidere" }).click();
+  await page
+    .getByRole("button", { name: "Deschiderea: Plic, panouri sau direct" })
+    .click();
   await page.getByRole("button", { name: /^Plic animat/ }).click();
   await page.getByRole("button", { name: /^Personalizează:/ }).click();
   await expect(page.getByText("Paleta invitației")).toBeVisible();

@@ -46,9 +46,9 @@ function WorkspaceSwitcher() {
               {currentWorkspace?.title ?? "Spațiul tău"}
             </span>
             <span className="block text-xs text-faint">
-              {currentWorkspace?.weddingDate
-                ? `${formatDateShort(currentWorkspace.weddingDate)} · ${days} zile rămase`
-                : "Data nunții nu este setată"}
+              {currentWorkspace?.eventDate ?? currentWorkspace?.weddingDate
+                ? `${formatDateShort(currentWorkspace.eventDate ?? currentWorkspace.weddingDate!)} · ${days} zile rămase`
+                : "Data evenimentului nu este setată"}
             </span>
           </span>
           <ChevronsUpDown className="size-4 shrink-0 text-faint" aria-hidden />
@@ -70,7 +70,9 @@ function WorkspaceSwitcher() {
             <span className="flex flex-col">
               <span>{w.title}</span>
               <span className="text-xs text-faint">
-                {w.weddingDate ? formatDateShort(w.weddingDate) : "Dată nesetată"} · {w.location ?? "Locație nesetată"}
+                {w.eventDate ?? w.weddingDate
+                  ? formatDateShort(w.eventDate ?? w.weddingDate!)
+                  : "Dată nesetată"} · {w.location ?? "Locație nesetată"}
               </span>
             </span>
           </DropdownItem>

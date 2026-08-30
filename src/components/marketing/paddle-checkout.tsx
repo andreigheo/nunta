@@ -67,7 +67,7 @@ export function PaddleCheckout({ transactionId }: { transactionId: string | null
       <div className="flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand">
         <CreditCard className="size-5" aria-hidden />
       </div>
-      <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-accent">
+      <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-accent-strong">
         Abonament Sarbato
       </p>
       <h1 className="marketing-heading mt-3 text-4xl font-semibold leading-tight tracking-[-0.035em] text-brand sm:text-5xl">
