@@ -391,8 +391,7 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   const rows = await plans.evaluateAll((elements) =>
     elements.map((element) => Math.round(element.getBoundingClientRect().y)),
   );
-  expect(rows[0]).toBeLessThan(rows[1]);
-  expect(rows[1]).toBeLessThan(rows[2]);
+  expect(Math.max(...rows) - Math.min(...rows)).toBeLessThanOrEqual(2);
   await expectNoHorizontalOverflow(page);
 });
 
@@ -492,7 +491,7 @@ test("intro soluții — deschide clar cele patru zone ale produsului", async ({
 
   await expect(heading).toBeVisible();
   await expect(solutions).toContainText(
-    "Explorează cele patru zone conectate în care planifici activitățile",
+    "Sarbato aduce planul, invitații, furnizorii, bugetul și coordonarea din ziua evenimentului într-un singur sistem.",
   );
 
   const order = await solutions.evaluate((element) => ({
@@ -832,7 +831,7 @@ test("comanda evenimentului — reproduce programul, echipa și furnizorii din c
     "12:00Deschidere eveniment",
   );
 
-  await expect(panel.locator('[class*="operationAvatar"]')).toHaveCount(9);
+  await expect(panel.locator('[class*="operationAvatar"]')).toHaveCount(10);
   await expect(
     panel.locator('section[aria-labelledby="team-preview-title"]'),
   ).toContainText(
@@ -1349,3 +1348,69 @@ for (const viewport of [
     await expectNoHorizontalOverflow(page);
   });
 }
+
+test("tranziția mobil-tabletă — nu lasă coloane fantomă sau salturi de lățime", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+
+  const samples: Array<{ viewport: number; panelWidth: number }> = [];
+  for (const width of [639, 640, 641, 660, 700, 740, 780, 800, 820]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await dismissCookieBanner(page);
+
+    const geometry = await page.locator("#produs").evaluate((controlRoom) => {
+      const body = controlRoom.querySelector<HTMLElement>(
+        '[class*="controlBody"]',
+      );
+      const content = controlRoom.querySelector<HTMLElement>(
+        '[class*="controlContent"]',
+      );
+      const nextStep = controlRoom.querySelector<HTMLElement>(
+        '[class*="mobileNextStep"]',
+      );
+      if (!body || !content || !nextStep) return null;
+
+      const panelRect = controlRoom.getBoundingClientRect();
+      const bodyRect = body.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      const nextRect = nextStep.getBoundingClientRect();
+      return {
+        panelWidth: panelRect.width,
+        bodyWidth: bodyRect.width,
+        contentWidth: contentRect.width,
+        contentOffset: contentRect.x - bodyRect.x,
+        nextWidth: nextRect.width,
+      };
+    });
+
+    expect(geometry, `geometrie @ ${width}px`).not.toBeNull();
+    expect(
+      Math.abs(geometry!.contentOffset),
+      `aliniere conținut @ ${width}px`,
+    ).toBeLessThan(1);
+    expect(
+      geometry!.contentWidth / geometry!.bodyWidth,
+      `corp complet @ ${width}px`,
+    ).toBeGreaterThan(0.99);
+    expect(
+      geometry!.nextWidth / geometry!.contentWidth,
+      `card următorul pas @ ${width}px`,
+    ).toBeGreaterThan(0.9);
+
+    samples.push({ viewport: width, panelWidth: geometry!.panelWidth });
+    await expectNoHorizontalOverflow(page);
+  }
+
+  for (let index = 1; index < samples.length; index += 1) {
+    expect(
+      samples[index].panelWidth,
+      `lățimea trebuie să crească fluid @ ${samples[index].viewport}px`,
+    ).toBeGreaterThanOrEqual(samples[index - 1].panelWidth - 0.5);
+  }
+
+  const before = samples.find(({ viewport }) => viewport === 640)!;
+  const after = samples.find(({ viewport }) => viewport === 641)!;
+  expect(Math.abs(after.panelWidth - before.panelWidth)).toBeLessThan(2);
+});

@@ -109,7 +109,7 @@ export const productFirstControlRoom = {
   ],
   solutionsIntro: {
     title: "De la plan la ziua evenimentului, fără rupturi.",
-    lead: "Explorează cele patru zone conectate în care planifici activitățile, coordonezi invitații, gestionezi furnizorii și bugetul, apoi urmărești ziua evenimentului în timp real.",
+    lead: "Sarbato aduce planul, invitații, furnizorii, bugetul și coordonarea din ziua evenimentului într-un singur sistem. Vezi ce urmează, cine se ocupă și ce are nevoie de atenție — fără să pierzi firul.",
   },
   chapters: {
     planning: {

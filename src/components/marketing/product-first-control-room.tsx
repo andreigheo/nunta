@@ -255,7 +255,11 @@ function AssuranceStrip() {
       aria-label="Avantajele Sarbato"
       data-testid="assurance-strip"
     >
-      <ul className={styles.assuranceList}>
+      <ul
+        className={styles.assuranceList}
+        aria-label="Avantajele Sarbato, listă glisabilă pe mobil"
+        tabIndex={0}
+      >
         {assuranceItems.map((item, index) => {
           const Icon = assuranceIcons[index];
           return (
@@ -376,6 +380,21 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
               <span>{copy.recommendedAction.detail}</span>
             </div>
             <Link href="/create-account">{copy.recommendedAction.action}</Link>
+          </div>
+
+          <div className={styles.mobileNextStep} aria-label="Următorul pas recomandat">
+            <p>Următorul pas</p>
+            <Link href="/create-account">
+              <span className={styles.mobileNextIcon} aria-hidden>
+                <Mail />
+              </span>
+              <span className={styles.mobileNextCopy}>
+                <strong>Trimite invitațiile</strong>
+                <i aria-hidden><b /></i>
+                <small>128 din 240 răspunsuri</small>
+              </span>
+              <ArrowRight aria-hidden />
+            </Link>
           </div>
 
           <div
@@ -692,7 +711,12 @@ function CommerceSurface() {
               </tbody>
             </table>
           </div>
-          <div className={styles.vendorCards} role="list" aria-label="Comparație furnizori">
+          <div
+            className={styles.vendorCards}
+            role="list"
+            aria-label="Comparație furnizori, listă glisabilă pe mobil"
+            tabIndex={0}
+          >
             {chapter.vendors.map((vendor) => (
               <article
                 key={vendor.name}
@@ -765,7 +789,7 @@ function CommerceSurface() {
           <span className={styles.budgetTotalBar} aria-hidden>
             <i style={{ width: chapter.budgetSpentPercent }} />
           </span>
-          <div className={styles.budgetBreakdown}>
+          <div className={`${styles.budgetBreakdown} budgetBreakdown__proof`}>
             <div className={styles.budgetBreakdownHeader}>
               <span>Categorie</span>
               <span>Cheltuit</span>
@@ -789,6 +813,32 @@ function OperationsSurface() {
   const chapter = copy.chapters.operations;
   return (
     <ProductPanel title={chapter.surfaceTitle} className={styles.operationsPanel}>
+      <div className={styles.mobileOperationsSummary}>
+        <div>
+          <Image
+            alt=""
+            aria-hidden
+            className={styles.operationAvatar}
+            height={20}
+            loading="eager"
+            src={chapter.team[0][3]}
+            unoptimized
+            width={20}
+          />
+          <span>Echipă</span>
+          <strong>3 online</strong>
+        </div>
+        <div>
+          <Store aria-hidden />
+          <span>Furnizori</span>
+          <strong data-tone="warning">1 pe teren</strong>
+        </div>
+        <div>
+          <CalendarDays aria-hidden />
+          <span>Program</span>
+          <strong>Deschidere eveniment</strong>
+        </div>
+      </div>
       <div className={styles.operationsGrid}>
         <section aria-labelledby="schedule-preview-title">
           <div className={styles.operationsColumnHeading}>
@@ -907,6 +957,9 @@ function ProductPanel({
     <div className={`${styles.productPanel} ${className ?? ""}`}>
       <div className={styles.panelHeading}>
         <h3>{title}</h3>
+        <span className={styles.mobilePanelAction} aria-hidden>
+          <ArrowRight />
+        </span>
         {actions.length ? (
           <div className={styles.panelActions}>
             {actions.map((action) => (

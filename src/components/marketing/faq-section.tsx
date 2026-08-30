@@ -1,7 +1,18 @@
+"use client";
+
+import * as React from "react";
 import { faqs } from "@/content/marketing/sarbato";
 import styles from "./faq-section.module.css";
 
 export function FaqSection() {
+  const firstItemRef = React.useRef<HTMLDetailsElement>(null);
+
+  React.useEffect(() => {
+    if (window.matchMedia("(max-width: 820px)").matches) {
+      firstItemRef.current?.removeAttribute("open");
+    }
+  }, []);
+
   return (
     <section
       id="intrebari"
@@ -24,6 +35,7 @@ export function FaqSection() {
               key={item.q}
               className={styles.item}
               open={index === 0}
+              ref={index === 0 ? firstItemRef : undefined}
             >
               <summary>
                 <span className={styles.question}>{item.q}</span>

@@ -3266,8 +3266,13 @@
   }
 }
 
-/* Mobile product surfaces recompose into complete, touch-first layouts. */
-@media (max-width: 640px) {
+/*
+ * Keep the complete touch-first composition active for the whole portrait
+ * breakpoint.  The dedicated concept below also runs through 820px; stopping
+ * these structural rules at 640px left 641-820px with a mobile shell around
+ * desktop grid tracks (most visibly the empty hero card column).
+ */
+@media (max-width: 820px) {
   .page :global(section[id]) {
     scroll-margin-top: 5.5rem;
   }
@@ -3643,5 +3648,764 @@
   .panelFooter {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+/* Dedicated phone and portrait-tablet composition approved in the mobile concept board. */
+.mobileNextStep,
+.mobileOperationsSummary,
+.mobilePanelAction {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .page {
+    background: #fbfaf8;
+  }
+
+  .hero,
+  .assuranceStrip,
+  .storyStack,
+  .finalCta {
+    width: min(100% - 1.75rem, 30rem);
+  }
+
+  .hero {
+    gap: 1.35rem;
+    padding-block: 2rem 1.2rem;
+  }
+
+  .heroCopy {
+    padding: 0;
+  }
+
+  .category {
+    margin-bottom: 0.9rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+  }
+
+  .heroTitle {
+    max-width: 12ch;
+    font-size: clamp(2.42rem, 12.25vw, 3.35rem);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+  }
+
+  .heroLead {
+    margin-top: 1rem;
+    font-size: 0.98rem;
+    line-height: 1.46;
+  }
+
+  .heroActions {
+    gap: 0.3rem;
+    margin-top: 1.15rem;
+  }
+
+  .heroActions .primaryButton {
+    width: 100%;
+    min-height: 3.15rem;
+    border-radius: 0.55rem;
+    font-size: 0.94rem;
+  }
+
+  .heroActions .secondaryButton {
+    min-height: 2.8rem;
+    border: 0;
+    padding-block: 0.6rem;
+    background: transparent;
+  }
+
+  .heroActions .secondaryButton::after {
+    margin-left: 0.65rem;
+    content: "\2192";
+  }
+
+  .controlRoom {
+    border-color: #e2dce0;
+    border-radius: 0.95rem;
+    box-shadow: 0 5px 13px rgb(59 24 63 / 7%);
+  }
+
+  .controlTopbar,
+  .controlRail,
+  .controlContent > h2,
+  .recommendedAction {
+    display: none;
+  }
+
+  .controlContent {
+    display: flex;
+    padding: 0.85rem;
+    flex-direction: column;
+  }
+
+  .mobileNextStep {
+    display: block;
+    order: 1;
+  }
+
+  .mobileNextStep > p {
+    margin: 0 0 0.55rem 0.15rem;
+    color: var(--ink);
+    font-size: 0.82rem;
+    font-weight: 650;
+  }
+
+  .mobileNextStep > a {
+    display: grid;
+    min-height: 6.15rem;
+    grid-template-columns: 2.25rem minmax(0, 1fr) 1.25rem;
+    align-items: center;
+    gap: 0.7rem;
+    border-radius: 0.65rem;
+    padding: 0.8rem;
+    color: #fff;
+    background: linear-gradient(115deg, #5a1859, #351036);
+    text-decoration: none;
+  }
+
+  .mobileNextIcon {
+    display: grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    border-radius: 0.45rem;
+    background: rgb(255 255 255 / 12%);
+  }
+
+  .mobileNextIcon svg,
+  .mobileNextStep > a > svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .mobileNextCopy {
+    display: grid;
+    min-width: 0;
+    gap: 0.38rem;
+  }
+
+  .mobileNextCopy strong {
+    overflow: hidden;
+    font-size: 1rem;
+    font-style: normal;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileNextCopy i {
+    display: block;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 24%);
+    overflow: hidden;
+  }
+
+  .mobileNextCopy i b {
+    display: block;
+    width: 42%;
+    height: 100%;
+    border-radius: inherit;
+    background: #fff;
+  }
+
+  .mobileNextCopy small {
+    color: rgb(255 255 255 / 90%);
+    font-size: 0.72rem;
+    font-style: normal;
+  }
+
+  .metricGrid {
+    order: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.62rem;
+    margin-top: 0.65rem;
+  }
+
+  .metricCard {
+    min-height: 6.4rem;
+    padding: 0.75rem;
+    border-radius: 0.62rem;
+  }
+
+  .metricHeader > span {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .metricHeader h3 {
+    font-size: 0.78rem;
+  }
+
+  .metricCard p,
+  .metricLink {
+    display: none;
+  }
+
+  .metricCard strong {
+    margin-top: 0.55rem;
+    font-size: 1.35rem;
+  }
+
+  .metricBar {
+    height: 0.26rem;
+    margin-top: 0.55rem;
+  }
+
+  .flow {
+    order: 3;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    margin-top: 0.85rem;
+    padding: 0.55rem 0 0;
+    overflow: visible;
+  }
+
+  .flowStage {
+    grid-column: auto !important;
+    gap: 0.38rem;
+    font-size: clamp(0.52rem, 2.4vw, 0.62rem);
+  }
+
+  .flowStage:nth-child(n + 6) {
+    display: none;
+  }
+
+  .flowStage::after {
+    top: 1rem;
+    left: 50%;
+    display: block !important;
+    width: 100%;
+    height: 1px;
+    background: #b89cb5 !important;
+  }
+
+  .flowStage[data-stage-index="4"]::after {
+    display: block !important;
+  }
+
+  .flowNode {
+    width: 2rem;
+    height: 2rem;
+    border-width: 1px;
+  }
+
+  .flow::after {
+    z-index: 1;
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    justify-self: center;
+    border: 1px solid #9f919b;
+    border-radius: 999px;
+    color: var(--ink);
+    background: #fff;
+    content: "\2026";
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .assuranceStrip {
+    position: relative;
+    margin-top: 0.7rem;
+    padding-bottom: 2.1rem;
+  }
+
+  .assuranceList {
+    display: flex;
+    gap: 0.55rem;
+    padding: 0.2rem 0 0.35rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .assuranceList::-webkit-scrollbar {
+    display: none;
+  }
+
+  .assuranceItem {
+    min-width: calc((100% - 1.1rem) / 3);
+    min-height: 4.45rem;
+    flex: 0 0 calc((100% - 1.1rem) / 3);
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-direction: column;
+    gap: 0.42rem;
+    border-radius: 0.62rem;
+    padding: 0.65rem;
+    font-size: 0.69rem;
+    line-height: 1.25;
+    white-space: normal;
+    scroll-snap-align: start;
+  }
+
+  .assuranceItem svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .assuranceStrip::after {
+    position: absolute;
+    right: 0.1rem;
+    bottom: 0.35rem;
+    color: var(--plum);
+    content: "Glisează  \2192";
+    font-size: 0.7rem;
+    font-weight: 650;
+  }
+
+  .serviceMarquee {
+    display: none;
+  }
+
+  .storyStack {
+    padding-top: 0;
+  }
+
+  .storyIntro {
+    justify-items: start;
+    margin: 0;
+    padding: 2.55rem 0 2.6rem 2.65rem;
+    text-align: left;
+  }
+
+  .storyIntro h2 {
+    max-width: 17ch;
+    font-size: clamp(1.9rem, 9.2vw, 2.55rem);
+    line-height: 1.02;
+  }
+
+  .storyIntro p {
+    max-width: 29ch;
+    margin-top: 0.8rem;
+    font-size: 0.93rem;
+    line-height: 1.45;
+  }
+
+  .story {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 0;
+    gap: 0.85rem;
+    padding: 0 0 2.65rem;
+    overflow: visible;
+  }
+
+  .story::before {
+    position: absolute;
+    top: 0.65rem;
+    bottom: -0.45rem;
+    left: 1.38rem;
+    width: 1px;
+    background: currentColor;
+    content: "";
+    opacity: 0.78;
+  }
+
+  .story[data-story-id="planificare"] { color: var(--plum); }
+  .story[data-story-id="invitatii"] { color: var(--sage); }
+  .story[data-story-id="furnizori"] { color: var(--sun); }
+  .story[data-story-id="ziua-evenimentului"] { color: var(--sage); }
+
+  .storyLast::before {
+    bottom: 1rem;
+  }
+
+  .storyCopy {
+    min-height: 0;
+    padding: 0 0 0 3.25rem;
+    transform: none !important;
+  }
+
+  .chapterIcon {
+    display: none;
+  }
+
+  .storyNode {
+    top: 0.12rem;
+    left: 0.86rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    border: 0.28rem solid currentColor;
+    background: #fbfaf8;
+  }
+
+  .storyCopy h2 {
+    max-width: 17ch;
+    color: var(--ink);
+    font-size: clamp(1.42rem, 6.4vw, 1.75rem) !important;
+    font-weight: 630;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+  }
+
+  .storyCopy p,
+  .storyCopy > a {
+    display: none;
+  }
+
+  .storySurface {
+    width: calc(100% - 3.25rem);
+    margin-left: 3.25rem;
+  }
+
+  .productPanel {
+    border-color: #e5dfe2;
+    border-radius: 0.82rem;
+    padding: 0.78rem;
+    box-shadow: 0 4px 11px rgb(41 25 40 / 4%);
+  }
+
+  .panelHeading {
+    min-height: 2rem;
+    align-items: center;
+    flex-direction: row;
+    margin-bottom: 0.45rem;
+  }
+
+  .panelHeading h3,
+  .subpanelHeading h3 {
+    font-size: 0.79rem;
+  }
+
+  .mobilePanelAction {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: auto;
+    color: var(--plum);
+    font-size: 0.62rem;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  .mobilePanelAction svg {
+    width: 0.72rem;
+    height: 0.72rem;
+  }
+
+  .mobilePanelAction::before {
+    content: "Vezi tot";
+  }
+
+  .panelActions,
+  .planningToolbar,
+  .tabs,
+  .addAction,
+  .panelFooter,
+  .centerAction {
+    display: none;
+  }
+
+  .planningPanel .tableScroll,
+  .guestsPanel .tableScroll {
+    border-top: 1px solid var(--line);
+    overflow: visible;
+  }
+
+  .planningPanel .dataTable tbody,
+  .guestsPanel .dataTable tbody {
+    display: block;
+  }
+
+  .planningPanel .dataTable tr,
+  .guestsPanel .dataTable tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 3.15rem;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    padding: 0.55rem 0.12rem;
+    background: transparent;
+  }
+
+  .planningPanel .dataTable tr:nth-child(n + 4),
+  .guestsPanel .dataTable tr:nth-child(n + 4) {
+    display: none;
+  }
+
+  .planningPanel .dataTable td,
+  .guestsPanel .dataTable td {
+    display: none;
+  }
+
+  .planningPanel .dataTable td:first-child,
+  .planningPanel .dataTable td:last-child,
+  .guestsPanel .dataTable td:first-child,
+  .guestsPanel .dataTable td:nth-child(4) {
+    display: block;
+    grid-column: auto;
+    color: var(--ink);
+    font-size: 0.68rem;
+    line-height: 1.3;
+  }
+
+  .planningPanel .dataTable td::before,
+  .guestsPanel .dataTable td::before {
+    display: none;
+  }
+
+  .planningPanel .status,
+  .guestsPanel .status {
+    min-height: 1.6rem;
+    padding: 0.24rem 0.52rem;
+    font-size: 0.57rem;
+  }
+
+  .guestTableFrame {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .commercePanel {
+    padding: 0;
+  }
+
+  .commercePanel .commerceGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    gap: 0.75rem;
+  }
+
+  .commercePanel .vendorPane,
+  .commercePanel .budgetPane {
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    padding: 0.68rem;
+    background: #fff;
+  }
+
+  .commercePanel .subpanelHeading {
+    min-height: 1.85rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .commercePanel .vendorPane .subpanelHeading h3 {
+    font-size: 0;
+  }
+
+  .commercePanel .vendorPane .subpanelHeading h3::after {
+    content: "Compară furnizori";
+    font-size: 0.76rem;
+  }
+
+  .categoryFilter {
+    min-height: 1.85rem;
+    border: 0;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .categoryFilter::before {
+    content: "Vezi tot";
+    font-size: 0.6rem;
+  }
+
+  .categoryFilter::after {
+    content: "\2192";
+    font-size: 0.72rem;
+  }
+
+  .categoryFilter svg {
+    display: none;
+  }
+
+  .vendorCards {
+    display: flex;
+    gap: 0.58rem;
+    margin-right: -0.68rem;
+    padding-right: 0.68rem;
+    overflow-x: auto;
+    scroll-padding-inline: 0.1rem;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .vendorCards::-webkit-scrollbar {
+    display: none;
+  }
+
+  .vendorCard {
+    min-width: 80%;
+    flex: 0 0 80%;
+    border-radius: 0.62rem;
+    padding: 0.7rem;
+    scroll-snap-align: start;
+  }
+
+  .vendorCard header strong {
+    font-size: 0.75rem;
+  }
+
+  .vendorCard dl {
+    gap: 0.6rem;
+  }
+
+  .vendorCard dt {
+    font-size: 0.52rem;
+  }
+
+  .vendorCard dd {
+    font-size: 0.66rem;
+  }
+
+  .commercePanel .budgetPane {
+    border-left: 1px solid var(--line);
+  }
+
+  .budgetSummaryExact {
+    gap: 0.45rem;
+  }
+
+  .budgetSummaryExact strong {
+    font-size: 0.72rem;
+  }
+
+  .budgetTotalBar {
+    margin: 0.55rem 0 0.1rem;
+  }
+
+  .budgetBreakdown {
+    display: none;
+  }
+
+  .operationsPanel .panelHeading h3 {
+    font-size: 0;
+  }
+
+  .operationsPanel .panelHeading h3::after {
+    content: "Acum  \2022  12:00";
+    font-size: 0.74rem;
+  }
+
+  .operationsPanel .mobilePanelAction {
+    font-size: 0;
+  }
+
+  .operationsPanel .mobilePanelAction::before {
+    content: "Vezi programul";
+    font-size: 0.6rem;
+  }
+
+  .mobileOperationsSummary {
+    display: grid;
+    border-top: 1px solid var(--line);
+  }
+
+  .mobileOperationsSummary > div {
+    display: grid;
+    min-height: 2.75rem;
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 0.65rem;
+  }
+
+  .mobileOperationsSummary svg {
+    width: 0.9rem;
+    height: 0.9rem;
+    color: var(--sage);
+  }
+
+  .mobileOperationsSummary strong {
+    color: #288359;
+    font-size: 0.58rem;
+    font-weight: 560;
+  }
+
+  .mobileOperationsSummary strong[data-tone="warning"] {
+    color: #aa6900;
+  }
+
+  .operationsGrid,
+  .alertBar {
+    display: none;
+  }
+
+  .finalCta {
+    gap: 0.85rem;
+    min-height: 0;
+    margin: 0.15rem auto 1.25rem;
+    border-radius: 0.72rem;
+    padding: 0.95rem;
+  }
+
+  .finalCta h2 {
+    max-width: 17ch;
+    font-size: 1.55rem;
+    line-height: 1.04;
+  }
+
+  .finalCta .finalActions {
+    display: block;
+    margin-top: 0;
+  }
+
+  .finalCta .primaryButton {
+    width: 100%;
+    min-height: 2.9rem;
+  }
+
+  .finalCta .secondaryButton {
+    display: none;
+  }
+}
+
+/*
+ * Fluid bridge between the 30rem phone canvas and the split desktop canvas.
+ * It starts at exactly 30rem when the viewport passes 640px, then grows with
+ * the window instead of leaving an expanding empty gutter until 820px.
+ */
+@media (min-width: 641px) and (max-width: 820px) {
+  .hero,
+  .assuranceStrip,
+  .storyStack,
+  .finalCta {
+    width: min(
+      calc(30rem + (100vw - 40rem) * 1.42),
+      calc(100% - 3rem),
+      46rem
+    );
+  }
+}
+
+@media (max-width: 350px) {
+  .hero,
+  .assuranceStrip,
+  .storyStack,
+  .finalCta {
+    width: min(100% - 1.25rem, 30rem);
+  }
+
+  .metricCard {
+    min-height: 6.1rem;
+  }
+
+  .assuranceItem {
+    min-width: calc((100% - 0.55rem) / 2);
+    flex-basis: calc((100% - 0.55rem) / 2);
+  }
+
+  .storySurface {
+    width: calc(100% - 2.9rem);
+    margin-left: 2.9rem;
+  }
+
+  .storyCopy {
+    padding-left: 2.9rem;
   }
 }
