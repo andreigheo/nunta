@@ -30,10 +30,11 @@ RUN apt-get update -y \
  && apt-get install -y --no-install-recommends ca-certificates openssl \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/worker/node_modules ./apps/worker/node_modules
-COPY --from=build /app/apps/worker/dist ./apps/worker/dist
-COPY --from=build /app/apps/worker/package.json ./apps/worker/package.json
-COPY --from=build /app/packages ./packages
-COPY --from=build /app/.weddingos-build-id ./.weddingos-build-id
+COPY --chown=node:node --from=build /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/apps/worker/node_modules ./apps/worker/node_modules
+COPY --chown=node:node --from=build /app/apps/worker/dist ./apps/worker/dist
+COPY --chown=node:node --from=build /app/apps/worker/package.json ./apps/worker/package.json
+COPY --chown=node:node --from=build /app/packages ./packages
+COPY --chown=node:node --from=build /app/.weddingos-build-id ./.weddingos-build-id
+USER node
 CMD ["node", "apps/worker/dist/main.js"]

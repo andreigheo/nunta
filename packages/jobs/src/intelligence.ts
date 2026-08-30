@@ -10,6 +10,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   copilotDomainCatalog,
   copilotImplementedActionDefinitions,
+  copilotMemoryContentCanPersist,
   generatedCopilotContentIsAcceptable,
   sarbatoCopilotPolicy,
   sarbatoCopilotSystemInstructions,
@@ -894,6 +895,27 @@ function relevantProviderContext(input: {
 export function explicitWebResearchRequested(message: string) {
   return /(?:caută|cauta|verifică|verifica|documentează|documenteaza|research|internet|online|web|surse|știri|stiri|prețuri\s+actuale|preturi\s+actuale)/iu.test(
     message,
+  );
+}
+
+export function copilotWebResearchRequested(
+  message: string,
+  workspaceEnabled: boolean,
+) {
+  return workspaceEnabled && explicitWebResearchRequested(message);
+}
+
+export function copilotEmbeddingRequested(input: {
+  memoryEnabled: boolean;
+  embeddingEnabled: boolean;
+  apiKey: string | undefined;
+  content: string;
+}) {
+  return (
+    input.memoryEnabled &&
+    input.embeddingEnabled &&
+    Boolean(input.apiKey) &&
+    copilotMemoryContentCanPersist(input.content)
   );
 }
 

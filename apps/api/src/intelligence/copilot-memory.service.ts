@@ -29,6 +29,13 @@ type MemoryUpdate = {
   version: number;
 };
 
+export function enabledCopilotWebResearch(
+  requested: boolean | undefined,
+  available: boolean,
+) {
+  return requested === true && available;
+}
+
 @Injectable()
 export class CopilotMemoryService {
   constructor(
@@ -48,10 +55,19 @@ export class CopilotMemoryService {
     settings: Parameters<typeof mapSettings>[0] | null,
     workspaceId: string,
   ) {
+    const webResearchAvailable = this.webResearchAvailable();
+    const persisted = settings
+      ? mapSettings(settings)
+      : defaultSettings(workspaceId);
     return {
-      ...(settings ? mapSettings(settings) : defaultSettings(workspaceId)),
-      webResearchEnabled: this.webResearchAvailable(),
-      webResearchAvailable: this.webResearchAvailable(),
+      ...persisted,
+      // Availability is a platform control; enablement remains an explicit
+      // workspace choice and is forced off whenever the platform disallows it.
+      webResearchEnabled: enabledCopilotWebResearch(
+        persisted.webResearchEnabled,
+        webResearchAvailable,
+      ),
+      webResearchAvailable,
     };
   }
 
@@ -89,7 +105,10 @@ export class CopilotMemoryService {
             data: {
               workspaceId,
               memoryEnabled: input.memoryEnabled,
-              webResearchEnabled: this.webResearchAvailable(),
+              webResearchEnabled: enabledCopilotWebResearch(
+                input.webResearchEnabled,
+                this.webResearchAvailable(),
+              ),
               proactiveSuggestions: input.proactiveSuggestions,
               memoryRetentionDays: input.memoryRetentionDays,
               createdById: userId,
@@ -104,7 +123,10 @@ export class CopilotMemoryService {
         where: { id: current.id, version: input.version },
         data: {
           memoryEnabled: input.memoryEnabled,
-          webResearchEnabled: this.webResearchAvailable(),
+          webResearchEnabled: enabledCopilotWebResearch(
+            input.webResearchEnabled,
+            this.webResearchAvailable(),
+          ),
           proactiveSuggestions: input.proactiveSuggestions,
           memoryRetentionDays: input.memoryRetentionDays,
           updatedById: userId,

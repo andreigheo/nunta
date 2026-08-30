@@ -257,7 +257,7 @@ export default function PlanPage() {
     );
   }, [currentWorkspace, demoMode]);
 
-  const run = async (operation: () => Promise<void>) => {
+  const run = React.useCallback(async (operation: () => Promise<void>) => {
     setBusy(true);
     setError("");
     try {
@@ -274,9 +274,11 @@ export default function PlanPage() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [toast]);
 
-  const generatePlan = async (mode: "auto" | "deterministic" = "auto") => {
+  const generatePlan = React.useCallback(async (
+    mode: "auto" | "deterministic" = "auto",
+  ) => {
     if (!currentWorkspace || demoMode) {
       toast({
         title: "Demo izolat",
@@ -351,7 +353,7 @@ export default function PlanPage() {
         variant: full.fallbackUsed ? "warning" : "success",
       });
     });
-  };
+  }, [currentWorkspace, demoMode, router, run, toast]);
 
   React.useEffect(() => {
     if (loading || automaticGenerationStarted.current) return;
@@ -368,7 +370,7 @@ export default function PlanPage() {
       if (tasks.length === 0) void generatePlan("auto");
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loading, proposal, router, tasks.length]);
+  }, [generatePlan, loading, proposal, router, tasks.length]);
 
   const createTask = async (input: CreateTask, subtasks: string[]) => {
     if (!currentWorkspace) return;

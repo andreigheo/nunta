@@ -42,3 +42,23 @@ community infrastructure, not a hotel inventory or pricing service.
 
 Production cutover details and the current acceptance boundary are recorded in
 `docs/SARBATO_PRODUCTION_CUTOVER_2026-08-08.md`.
+
+## Backup, restore and monitoring
+
+`sarbato-backup.timer` creates and verifies an encrypted database and object
+backup every day. Set `BACKUP_OFFHOST_REMOTE` in `/etc/sarbato-backup.env` to an
+rclone destination and install/configure rclone under root; the uploader uses
+immutable copy plus checksum verification. Set `BACKUP_REQUIRE_OFFHOST=true`
+only after the remote has been proven. Without those two settings the backup is
+truthfully reported as local and remains a disaster-recovery gate.
+
+`sarbato-restore-drill.timer` restores the freshest verified backup every month
+into the guarded `weddingos_restore_production_drill` database and a temporary
+object directory. Evidence is stored under
+`/var/backups/sarbato/restore-evidence` without application data.
+
+`sarbato-monitor.timer` checks internal readiness, public status, container
+state, disk pressure and backup freshness every five minutes. Failures are sent
+through the configured Resend SMTP account to `FORWARD_TO_EMAIL`. A controlled
+delivery test can be run with `SARBATO_MONITOR_FORCE_FAILURE=true`; it exits
+non-zero after sending the test alert.

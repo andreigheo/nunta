@@ -9,15 +9,15 @@ O suprafață nu este considerată controlabilă până când operația are adap
 ## Rezumat
 
 - Pagini: **81**
-- Operații API: **685**
-- Domenii API: **129**
+- Operații API: **690**
+- Domenii API: **130**
 - Operații executabile prin propunere: **44**
-- Operații disponibile pentru citire contextuală: **231**
-- Operații explicate, dar neexecutate direct: **354**
+- Operații disponibile pentru citire contextuală: **232**
+- Operații explicate, dar neexecutate direct: **358**
 - Operații excluse intenționat: **56**
 - Operații neclasificate: **0**
-- Operații de citire candidate: **246**
-- Modificări numai prin propunere/aprobare: **398**
+- Operații de citire candidate: **247**
+- Modificări numai prin propunere/aprobare: **402**
 - Operații doar ghidate, fără execuție directă: **41**
 
 ## Domenii API
@@ -44,7 +44,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | budget                              |   11 |      4 |         7 |            0 | budget.read, budget.write                                                                                                                                                                                                      |
 | calendar-events                     |    5 |      2 |         3 |            0 | calendar.read, calendar.write                                                                                                                                                                                                  |
 | calendar.ics                        |    1 |      1 |         0 |            0 | calendar.read                                                                                                                                                                                                                  |
-| campaigns                           |    8 |      5 |         3 |            0 | campaign.read, campaign.send, campaign.view_delivery, campaign.write                                                                                                                                                           |
+| campaigns                           |    9 |      5 |         4 |            0 | campaign.read, campaign.send, campaign.view_delivery, campaign.write                                                                                                                                                           |
 | catering-exports                    |    1 |      0 |         1 |            0 | menu.export                                                                                                                                                                                                                    |
 | check-in                            |   18 |      3 |         4 |           11 | check_in.manage_devices, check_in.manage_sessions, check_in.offline_sync, check_in.read, check_in.write                                                                                                                        |
 | commercial-exports                  |    1 |      0 |         1 |            0 | budget.export                                                                                                                                                                                                                  |
@@ -99,10 +99,11 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | rfqs                                |   10 |      5 |         5 |            0 | offer.read, rfq.read, rfq.send, rfq.write                                                                                                                                                                                      |
 | risk-detections                     |    1 |      0 |         1 |            0 | risk.detect                                                                                                                                                                                                                    |
 | risks                               |    8 |      2 |         6 |            0 | risk.assess, risk.read, risk.write                                                                                                                                                                                             |
+| rsvp-dashboard                      |    1 |      1 |         0 |            0 | rsvp.read                                                                                                                                                                                                                      |
 | rsvp-form                           |    3 |      1 |         2 |            0 | rsvp.configure, rsvp.read                                                                                                                                                                                                      |
 | rsvp-submissions                    |    1 |      0 |         1 |            0 | rsvp.override                                                                                                                                                                                                                  |
 | search                              |    1 |      1 |         0 |            0 | planning.read                                                                                                                                                                                                                  |
-| seating-plans                       |   23 |      5 |        18 |            0 | seating.assign, seating.export, seating.generate_suggestion, seating.publish, seating.write                                                                                                                                    |
+| seating-plans                       |   26 |      5 |        21 |            0 | seating.assign, seating.export, seating.generate_suggestion, seating.publish, seating.write                                                                                                                                    |
 | secure-commerce                     |    4 |      2 |         2 |            0 | signature.create, signature.read                                                                                                                                                                                               |
 | signature-envelopes                 |    9 |      4 |         0 |            5 | signature.cancel, signature.create, signature.download_evidence, signature.send, signature.sign                                                                                                                                |
 | signature-signing-sessions          |    2 |      0 |         0 |            2 | —                                                                                                                                                                                                                              |

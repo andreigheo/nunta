@@ -318,6 +318,13 @@ async function materializeWeddingProfile(
   const location = asRecord(locationValue);
   const budget = asRecord(budgetValue);
   const title = onboardingText(couple.title, 160);
+  const eventType = onboardingEventType(
+    couple.eventType ?? dateEvents.eventType,
+  );
+  const organizerName = onboardingText(
+    couple.organizerName ?? couple.organizer,
+    160,
+  );
   const partnerOneName = onboardingText(couple.partnerOne, 100);
   const partnerTwoName = onboardingText(couple.partnerTwo, 100);
   const weddingDate = onboardingDate(dateEvents.date ?? dateEvents.exactDate);
@@ -345,6 +352,8 @@ async function materializeWeddingProfile(
     where: { workspaceId },
     create: {
       workspaceId,
+      eventType,
+      organizerName,
       partnerOneName,
       partnerTwoName,
       weddingDate,
@@ -353,6 +362,8 @@ async function materializeWeddingProfile(
       updatedById: userId,
     },
     update: {
+      eventType,
+      organizerName,
       partnerOneName,
       partnerTwoName,
       weddingDate,
@@ -374,6 +385,22 @@ function onboardingDate(value: unknown) {
     return null;
   const date = new Date(`${value}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function onboardingEventType(value: unknown) {
+  const allowed = new Set([
+    "wedding",
+    "baptism",
+    "birthday",
+    "corporate",
+    "conference",
+    "anniversary",
+    "private_party",
+    "festival",
+    "fundraiser",
+    "other",
+  ]);
+  return typeof value === "string" && allowed.has(value) ? value : "wedding";
 }
 
 async function materializeWeddingEvents(

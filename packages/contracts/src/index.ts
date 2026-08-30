@@ -573,7 +573,7 @@ export const defaultRoleTemplates: ReadonlyArray<{
   },
   {
     key: "couple_partner",
-    name: "Partener",
+    name: "Co-organizator",
     description:
       "Administrează planificarea, fără ștergere sau transfer implicit.",
     capabilities: capabilityKeys.filter(
@@ -590,7 +590,7 @@ export const defaultRoleTemplates: ReadonlyArray<{
   },
   {
     key: "wedding_planner",
-    name: "Wedding planner",
+    name: "Organizator de evenimente",
     description:
       "Acces operațional configurabil, fără date sensibile implicite.",
     capabilities: [
@@ -1065,9 +1065,26 @@ export const sessionSummarySchema = z.object({
 export type SessionSummary = z.infer<typeof sessionSummarySchema>;
 
 export const workspaceStatusSchema = z.enum(["active", "archived"]);
+export const eventTypeSchema = z.enum([
+  "wedding",
+  "baptism",
+  "birthday",
+  "corporate",
+  "conference",
+  "anniversary",
+  "private_party",
+  "festival",
+  "fundraiser",
+  "other",
+]);
+export type EventType = z.infer<typeof eventTypeSchema>;
 export const workspaceSummarySchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
+  eventType: eventTypeSchema,
+  eventDate: z.string().date().nullable(),
+  organizerName: z.string().nullable(),
+  /** @deprecated Use eventDate. */
   weddingDate: z.string().date().nullable(),
   location: z.string().nullable(),
   status: workspaceStatusSchema,
@@ -1078,9 +1095,33 @@ export const workspaceSummarySchema = z.object({
 });
 export type WorkspaceSummary = z.infer<typeof workspaceSummarySchema>;
 
+function consistentEventDate(
+  input: {
+    eventDate?: string | null | undefined;
+    weddingDate?: string | null | undefined;
+  },
+  context: z.RefinementCtx,
+) {
+  if (
+    input.eventDate !== undefined &&
+    input.weddingDate !== undefined &&
+    input.eventDate !== input.weddingDate
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["eventDate"],
+      message: "eventDate and legacy weddingDate must match when both are sent",
+    });
+  }
+}
+
 export const workspaceMutationSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
+  eventType: eventTypeSchema,
+  eventDate: z.string().date().nullable(),
+  organizerName: z.string().nullable(),
+  /** @deprecated Use eventDate. */
   weddingDate: z.string().date().nullable(),
   location: z.string().nullable(),
   timezone: z.string(),
@@ -1088,37 +1129,47 @@ export const workspaceMutationSchema = z.object({
   version: z.number().int().positive(),
 });
 
-export const createWorkspaceRequestSchema = z.object({
-  title: z.string().trim().min(1).max(160),
-  partnerOneName: z.string().trim().max(100).optional(),
-  partnerTwoName: z.string().trim().max(100).optional(),
-  weddingDate: z.string().date().optional(),
-  location: z.string().trim().max(160).optional(),
-  locale: z.string().min(2).max(16).default(DEFAULT_LOCALE),
-  timezone: z.string().min(1).max(80).default(DEFAULT_TIMEZONE),
-  currency: z
-    .string()
-    .regex(/^[A-Z]{3}$/)
-    .default(DEFAULT_CURRENCY),
-});
+export const createWorkspaceRequestSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160),
+    eventType: eventTypeSchema.default("wedding"),
+    eventDate: z.string().date().optional(),
+    organizerName: z.string().trim().max(160).optional(),
+    partnerOneName: z.string().trim().max(100).optional(),
+    partnerTwoName: z.string().trim().max(100).optional(),
+    weddingDate: z.string().date().optional(),
+    location: z.string().trim().max(160).optional(),
+    locale: z.string().min(2).max(16).default(DEFAULT_LOCALE),
+    timezone: z.string().min(1).max(80).default(DEFAULT_TIMEZONE),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/)
+      .default(DEFAULT_CURRENCY),
+  })
+  .superRefine(consistentEventDate);
 export type CreateWorkspaceRequest = z.input<
   typeof createWorkspaceRequestSchema
 >;
 
-export const updateWorkspaceRequestSchema = z.object({
-  title: z.string().trim().min(1).max(160).optional(),
-  partnerOneName: z.string().trim().max(100).nullable().optional(),
-  partnerTwoName: z.string().trim().max(100).nullable().optional(),
-  weddingDate: z.string().date().nullable().optional(),
-  location: z.string().trim().max(160).nullable().optional(),
-  locale: z.string().min(2).max(16).optional(),
-  timezone: z.string().min(1).max(80).optional(),
-  currency: z
-    .string()
-    .regex(/^[A-Z]{3}$/)
-    .optional(),
-  version: z.number().int().positive(),
-});
+export const updateWorkspaceRequestSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160).optional(),
+    eventType: eventTypeSchema.optional(),
+    eventDate: z.string().date().nullable().optional(),
+    organizerName: z.string().trim().max(160).nullable().optional(),
+    partnerOneName: z.string().trim().max(100).nullable().optional(),
+    partnerTwoName: z.string().trim().max(100).nullable().optional(),
+    weddingDate: z.string().date().nullable().optional(),
+    location: z.string().trim().max(160).nullable().optional(),
+    locale: z.string().min(2).max(16).optional(),
+    timezone: z.string().min(1).max(80).optional(),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/)
+      .optional(),
+    version: z.number().int().positive(),
+  })
+  .superRefine(consistentEventDate);
 export type UpdateWorkspaceRequest = z.infer<
   typeof updateWorkspaceRequestSchema
 >;
@@ -1128,6 +1179,9 @@ export const workspaceBootstrapSchema = z.object({
     id: z.string().uuid(),
     title: z.string(),
     status: workspaceStatusSchema,
+    eventType: eventTypeSchema,
+    eventDate: z.string().date().nullable(),
+    /** @deprecated Use eventDate. */
     weddingDate: z.string().date().nullable(),
     timezone: z.string(),
     currency: z.string(),

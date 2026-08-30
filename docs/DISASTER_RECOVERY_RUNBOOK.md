@@ -31,4 +31,9 @@ Status: operational draft for controlled beta. RPO/RTO are targets, not guarante
 3. Observe error rate, queue age, dead letters and provider reconciliation. Roll back traffic if acceptance thresholds fail; do not write to both primaries.
 4. State the measured data-loss window to affected stakeholders. Complete a post-incident review within five business days and update the runbook.
 
-The repository proves only a local disposable restore. Off-host backup, external alert delivery, DNS cutover and production credentials remain deployment gates.
+The production tooling schedules encrypted local backup verification and a
+monthly isolated restore drill. It also implements an rclone off-host upload
+with immutable copy and checksum verification. Off-host recovery is not proven
+until `BACKUP_OFFHOST_REMOTE` and independent credentials are configured and a
+download/restore is observed. DNS cutover and any untested external alert route
+remain deployment gates.

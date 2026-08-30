@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   capabilityKeys,
+  createWorkspaceRequestSchema,
   createTeamInvitationRequestSchema,
   defaultRoleTemplates,
   moneySchema,
@@ -10,11 +11,13 @@ import {
   semanticEvents,
   isOnboardingComplete,
   workspaceStatusSchema,
+  updateWorkspaceRequestSchema,
 } from "@weddingos/contracts";
 import { parseApiEnvironment } from "@weddingos/config";
 import { createOpaqueToken, hashSecret } from "../src/auth/auth.crypto";
 import { assertUsableOneTimeToken } from "../src/auth/one-time-token";
 import { ProblemException } from "../src/common/problem";
+import { enabledCopilotWebResearch } from "../src/intelligence/copilot-memory.service";
 import { assertPendingInvitation } from "../src/team/invitation-state";
 import { resolveCapabilities } from "../src/workspaces/capability.guard";
 
@@ -84,6 +87,13 @@ describe("Slice 0/1 foundation", () => {
     expect(environment.FEATURE_MFA_ENABLED).toBe(false);
   });
 
+  it("enables Copilot web research only for an explicit available opt-in", () => {
+    expect(enabledCopilotWebResearch(undefined, true)).toBe(false);
+    expect(enabledCopilotWebResearch(false, true)).toBe(false);
+    expect(enabledCopilotWebResearch(true, false)).toBe(false);
+    expect(enabledCopilotWebResearch(true, true)).toBe(true);
+  });
+
   it("normalizes email and enforces the shared password policy", () => {
     const parsed = registerRequestSchema.parse({
       firstName: " Ana ",
@@ -151,6 +161,34 @@ describe("Slice 0/1 foundation", () => {
     ).toThrow();
     expect(workspaceStatusSchema.options).toEqual(["active", "archived"]);
     expect(() => workspaceStatusSchema.parse("deleted")).toThrow();
+  });
+
+  it("accepts generic event workspaces while preserving the legacy date alias", () => {
+    expect(
+      createWorkspaceRequestSchema.parse({
+        title: "Conferința anuală",
+        eventType: "conference",
+        eventDate: "2027-10-14",
+        organizerName: "Sarbato Events",
+      }),
+    ).toMatchObject({
+      eventType: "conference",
+      eventDate: "2027-10-14",
+      organizerName: "Sarbato Events",
+    });
+    expect(
+      createWorkspaceRequestSchema.parse({
+        title: "Nunta Ana și Mihai",
+        weddingDate: "2027-09-12",
+      }),
+    ).toMatchObject({ eventType: "wedding", weddingDate: "2027-09-12" });
+    expect(() =>
+      updateWorkspaceRequestSchema.parse({
+        version: 2,
+        eventDate: "2027-10-14",
+        weddingDate: "2027-10-15",
+      }),
+    ).toThrow(/must match/);
   });
 
   it("defines least-privilege default role templates", () => {

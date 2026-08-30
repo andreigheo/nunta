@@ -1,0 +1,16 @@
+[Unit]
+Description=Sarbato isolated production restore drill
+After=docker.service sarbato-backup.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/sarbato/current/ops/production/run-vps-restore-drill.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/sarbato

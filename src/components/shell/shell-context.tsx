@@ -55,7 +55,10 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
   React.useEffect(() => {
-    setAiOpen(window.sessionStorage.getItem("sarbato:copilot:open") === "true");
+    const timer = window.setTimeout(() => {
+      setAiOpen(window.sessionStorage.getItem("sarbato:copilot:open") === "true");
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   React.useEffect(() => {

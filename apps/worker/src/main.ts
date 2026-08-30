@@ -48,7 +48,8 @@ import {
   ConfiguredAiCopilotProvider,
   copilotEnumLabel,
   copilotMemoryFingerprint,
-  explicitWebResearchRequested,
+  copilotEmbeddingRequested,
+  copilotWebResearchRequested,
   extractExplicitCopilotMemory,
   formatCopilotMoneyMinor,
   copilotMemoryContentCanPersist,
@@ -6380,6 +6381,7 @@ async function processCopilotRun(
       run,
       message,
       memoryEnabled: copilotSettings?.memoryEnabled !== false,
+      webResearchEnabled: copilotSettings?.webResearchEnabled === true,
       memoryRetentionDays: copilotSettings?.memoryRetentionDays ?? 180,
       context: {
         workspaceId: snapshot.workspace_id!,
@@ -6426,11 +6428,11 @@ async function processCopilotRun(
   });
   if (prepared.completed) return { runId, status: "completed", replayed: true };
 
-  const researchRequested = true;
-  const explicitResearch = explicitWebResearchRequested(
+  const researchRequested = copilotWebResearchRequested(
     prepared.message.content,
+    prepared.webResearchEnabled,
   );
-  const researchQueryHash = explicitResearch
+  const researchQueryHash = researchRequested
     ? createHash("sha256")
         .update(prepared.message.content.trim().toLocaleLowerCase("ro"))
         .digest("hex")
@@ -6456,14 +6458,19 @@ async function processCopilotRun(
       })
     : null;
 
+  const embeddingApiKey = environment.COPILOT_EMBEDDING_API_KEY;
   if (
-    environment.COPILOT_EMBEDDING_ENABLED &&
-    environment.COPILOT_EMBEDDING_API_KEY &&
-    copilotMemoryContentCanPersist(prepared.message.content)
+    embeddingApiKey &&
+    copilotEmbeddingRequested({
+      memoryEnabled: prepared.memoryEnabled,
+      embeddingEnabled: environment.COPILOT_EMBEDDING_ENABLED,
+      apiKey: embeddingApiKey,
+      content: prepared.message.content,
+    })
   ) {
     const queryEmbedding = await requestCopilotEmbedding({
       endpoint: environment.COPILOT_EMBEDDING_ENDPOINT,
-      apiKey: environment.COPILOT_EMBEDDING_API_KEY,
+      apiKey: embeddingApiKey,
       model: environment.COPILOT_EMBEDDING_MODEL,
       text: prepared.message.content,
     });

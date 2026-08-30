@@ -16,7 +16,8 @@ x-api-environment: &api-environment
   ADMIN_STEP_UP_TTL_SECONDS: 600
   CSRF_ENFORCEMENT: "true"
   CSRF_TOKEN_TTL_SECONDS: 1800
-  COOKIE_DOMAIN: sarbato.space
+  # Keep the session cookie host-only; no sibling subdomain needs it.
+  COOKIE_DOMAIN: ""
   SESSION_COOKIE_NAME: sarbato_session
   EMAIL_FROM: Sarbato <no-reply@sarbato.space>
   EMAIL_PROVIDER: smtp
@@ -187,6 +188,19 @@ services:
       retries: 45
       start_period: 120s
 
+  runtime-volumes-init:
+    image: alpine:3.22
+    restart: "no"
+    command:
+      - /bin/sh
+      - -ec
+      - chown -R 1000:1000 /activity-exports /web-cache
+    volumes:
+      - activity-exports:/activity-exports
+      - web-cache:/web-cache
+    security_opt:
+      - no-new-privileges:true
+
   migrate:
     image: sarbato-api:${SARBATO_RELEASE_ID:-current}
     build:
@@ -223,6 +237,8 @@ services:
     ports:
       - "127.0.0.1:43222:4000"
     depends_on:
+      runtime-volumes-init:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
       redis:
@@ -231,6 +247,28 @@ services:
         condition: service_completed_successfully
       clamav:
         condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 768m
+    cpus: 1.5
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/ready').then(async r=>{const b=await r.text();if(!r.ok||!b.includes('ready'))process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   worker:
     image: sarbato-worker:${SARBATO_RELEASE_ID:-current}
@@ -251,6 +289,8 @@ services:
       - activity-exports:/var/lib/sarbato/activity-exports
       - /etc/sarbato/redis-tls/ca.crt:/etc/ssl/certs/sarbato-redis-ca.crt:ro
     depends_on:
+      runtime-volumes-init:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
       redis:
@@ -259,6 +299,16 @@ services:
         condition: service_completed_successfully
       clamav:
         condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2.0
 
   web:
     image: sarbato-web:${SARBATO_RELEASE_ID:-current}
@@ -275,11 +325,37 @@ services:
       API_INTERNAL_URL: http://api:4000
       NEXT_PUBLIC_DEMO_MODE_ENABLED: "false"
       SESSION_COOKIE_NAME: sarbato_session
+    volumes:
+      - web-cache:/app/.next/cache
     ports:
       - "127.0.0.1:43221:3000"
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
+      runtime-volumes-init:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   resend-relay:
     image: sarbato-resend-relay:${SARBATO_RELEASE_ID:-current}
@@ -308,6 +384,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.5
     healthcheck:
       test:
         [
@@ -326,4 +405,5 @@ volumes:
   storage-data:
   clamav-data:
   activity-exports:
+  web-cache:
   resend-relay-events:

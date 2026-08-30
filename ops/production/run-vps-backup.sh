@@ -45,6 +45,13 @@ ops/backup/verify-local-backup.sh "${run_root}"
 destination_run="${verified_root}/$(basename "${run_root}")"
 cp "${run_root}/.verified" "${destination_run}/.verified"
 
+if [[ -n "${BACKUP_OFFHOST_REMOTE:-}" ]]; then
+  ops/backup/upload-offhost-rclone.sh "${destination_run}"
+elif [[ "${BACKUP_REQUIRE_OFFHOST:-false}" = "true" ]]; then
+  echo "BACKUP_REQUIRE_OFFHOST=true but BACKUP_OFFHOST_REMOTE is not configured" >&2
+  exit 1
+fi
+
 printf 'backup_run=%s\n' "$(basename "${run_root}")"
 du -sh "${run_root}" "${destination_run}"
 grep -E '"(status|provider|offHost)"' "${run_root}/manifest.json"

@@ -193,9 +193,7 @@ test("E2E 9 — Copilot answer is persisted in the conversation", async () => {
 
 test("E2E 9B — Copilot stores only an explicitly requested durable memory", async () => {
   const before = await apiData<{ items: Array<{ content: string }> }>(
-    await owner.api.get(
-      `/api/v1/workspaces/${workspaceId}/copilot/memories`,
-    ),
+    await owner.api.get(`/api/v1/workspaces/${workspaceId}/copilot/memories`),
   );
   expect(before.items).toHaveLength(0);
   const request = await apiData<{ job: { id: string } }>(
@@ -215,9 +213,7 @@ test("E2E 9B — Copilot stores only an explicitly requested durable memory", as
   );
   await waitForJob(request.job.id);
   const after = await apiData<{ items: Array<{ content: string }> }>(
-    await owner.api.get(
-      `/api/v1/workspaces/${workspaceId}/copilot/memories`,
-    ),
+    await owner.api.get(`/api/v1/workspaces/${workspaceId}/copilot/memories`),
   );
   expect(after.items).toHaveLength(1);
   expect(after.items[0]?.content).toBe("preferăm decor minimalist");

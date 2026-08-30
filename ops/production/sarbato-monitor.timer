@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Sarbato production monitor every five minutes
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=5m
+AccuracySec=30s
+Persistent=true
+Unit=sarbato-monitor.service
+
+[Install]
+WantedBy=timers.target

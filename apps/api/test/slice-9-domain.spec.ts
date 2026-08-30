@@ -21,9 +21,11 @@ import {
   copilotEnumLabel,
   copilotApiOperations,
   copilotDomainCatalog,
+  copilotEmbeddingRequested,
   copilotImplementedActionDefinitions,
   copilotMemoryContentCanPersist,
   copilotMemoryFingerprint,
+  copilotWebResearchRequested,
   copilotPageSurfaces,
   DeterministicCopilotProvider,
   detectDeterministicRisks,
@@ -732,6 +734,27 @@ describe("Slice 9 intelligence contracts", () => {
       false,
     );
     expect(explicitWebResearchRequested("Caută online prețuri actuale")).toBe(
+      true,
+    );
+    expect(
+      copilotWebResearchRequested("Caută online prețuri actuale", false),
+    ).toBe(false);
+    expect(
+      copilotWebResearchRequested("Caută online prețuri actuale", true),
+    ).toBe(true);
+    expect(copilotWebResearchRequested("Schimbă bugetul", true)).toBe(false);
+  });
+
+  it("never requests embeddings when workspace memory is disabled", () => {
+    const request = {
+      embeddingEnabled: true,
+      apiKey: "test-key",
+      content: "Preferăm o locație centrală",
+    };
+    expect(
+      copilotEmbeddingRequested({ ...request, memoryEnabled: false }),
+    ).toBe(false);
+    expect(copilotEmbeddingRequested({ ...request, memoryEnabled: true })).toBe(
       true,
     );
   });

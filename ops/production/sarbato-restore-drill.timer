@@ -1,0 +1,11 @@
+[Unit]
+Description=Run a monthly Sarbato isolated restore drill
+
+[Timer]
+OnCalendar=Sun *-*-01..07 04:30:00 Europe/Chisinau
+Persistent=true
+RandomizedDelaySec=30m
+Unit=sarbato-restore-drill.service
+
+[Install]
+WantedBy=timers.target
