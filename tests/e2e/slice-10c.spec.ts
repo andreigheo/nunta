@@ -530,6 +530,14 @@ test("S10C E2E 15 — backup retention protects minimum copies and legal holds",
 });
 
 test("S10C E2E 16 — complete restore target is isolated from source", async () => {
+  await execFileAsync(
+    process.execPath,
+    [resolve(root, "scripts/prepare-isolated-database.mjs"), "restore-target"],
+    {
+      cwd: root,
+      env: process.env,
+    },
+  );
   const restore = new PrismaClient({
     datasourceUrl:
       "postgresql://weddingos:weddingos@127.0.0.1:54339/weddingos_restore_target?schema=public",
