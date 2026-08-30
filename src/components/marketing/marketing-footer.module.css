@@ -125,6 +125,7 @@
 
 .linkColumn a {
   display: inline-flex;
+  min-width: 2.75rem;
   min-height: 2.75rem;
   align-items: center;
   font-size: 1rem;

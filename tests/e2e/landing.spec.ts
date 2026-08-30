@@ -208,6 +208,33 @@ test("landing mobil — meniu, ordine și adaptare", async ({
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
   await expectNoAxeViolations(page);
+
+  const stageFlow = page.locator('[aria-label="Firul etapelor evenimentului"]');
+  await expect(stageFlow.locator("[data-stage-index]")).toHaveCount(7);
+  const stageBounds = await stageFlow
+    .locator("[data-stage-index]")
+    .evaluateAll((stages) =>
+      stages.map((stage) => {
+        const rect = stage.getBoundingClientRect();
+        return { left: rect.left, right: rect.right };
+      }),
+    );
+  expect(
+    stageBounds.every(({ left, right }) => left >= 0 && right <= 390),
+  ).toBe(true);
+
+  for (const sectionId of ["planificare", "invitatii"] as const) {
+    const region = page.locator(`#${sectionId}`).getByRole("region");
+    const widths = await region.evaluate((element) => ({
+      client: element.clientWidth,
+      scroll: element.scrollWidth,
+    }));
+    expect(widths.scroll).toBe(widths.client);
+  }
+
+  await expect(
+    page.locator('#furnizori [class*="vendorCards"] [role="listitem"]'),
+  ).toHaveCount(3);
   await capture(page, testInfo, "landing-control-room-mobile");
   expect(browserErrors).toEqual([]);
 });
@@ -580,7 +607,8 @@ test("planificarea — reproduce geometria și toolbarul conceptului", async ({
     client: element.clientWidth,
     scroll: element.scrollWidth,
   }));
-  expect(mobileWidths.scroll).toBeGreaterThan(mobileWidths.client);
+  expect(mobileWidths.scroll).toBe(mobileWidths.client);
+  await expect(panel.locator("tbody td[data-label]")).toHaveCount(20);
   await expectNoHorizontalOverflow(page);
 });
 
@@ -644,7 +672,8 @@ test("invitații — reproduce tabelul, acțiunile și proporțiile conceptului"
     client: element.clientWidth,
     scroll: element.scrollWidth,
   }));
-  expect(mobileWidths.scroll).toBeGreaterThan(mobileWidths.client);
+  expect(mobileWidths.scroll).toBe(mobileWidths.client);
+  await expect(panel.locator("tbody td[data-label]")).toHaveCount(20);
   await expectNoHorizontalOverflow(page);
 });
 
@@ -677,9 +706,9 @@ test("furnizori și buget — reproduce matricea și raportul unificat din conce
   await expect(vendorMatrix.locator("tbody tr").last()).toContainText(
     "Termen de plată30 zile30 zile15 zile",
   );
-  await expect(panel.locator('[class*="rating"] svg')).toHaveCount(15);
+  await expect(vendorMatrix.locator('[class*="rating"] svg')).toHaveCount(15);
   await expect(
-    panel.locator('[class*="rating"] svg[data-active="true"]'),
+    vendorMatrix.locator('[class*="rating"] svg[data-active="true"]'),
   ).toHaveCount(12);
 
   await expect(panel).toContainText(
@@ -718,11 +747,12 @@ test("furnizori și buget — reproduce matricea și raportul unificat din conce
   await expectNoHorizontalOverflow(page);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  const mobileWidths = await vendorRegion.evaluate((element) => ({
-    client: element.clientWidth,
-    scroll: element.scrollWidth,
-  }));
-  expect(mobileWidths.scroll).toBeGreaterThan(mobileWidths.client);
+  await expect(vendorRegion).toBeHidden();
+  const vendorCards = panel.locator('[class*="vendorCards"] [role="listitem"]');
+  await expect(vendorCards).toHaveCount(3);
+  await expect(vendorCards.first()).toContainText(
+    "Bright VisionFoto-VideoRecomandatPreț total12.800 RONDisponibilitateDisponibilEvaluare internăTermen de plată30 zile",
+  );
   await expectNoHorizontalOverflow(page);
 });
 

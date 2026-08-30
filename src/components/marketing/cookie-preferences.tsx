@@ -50,7 +50,7 @@ export function PublicCookiePreferences() {
           Detalii despre categorii
         </a>
       </div>
-      <div className="mt-3 flex shrink-0 gap-2 sm:mt-0">
+      <div className="mt-3 grid shrink-0 grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:mt-0 sm:flex">
         <Button size="sm" variant="outline" onClick={() => save(false)}>
           Doar esențiale
         </Button>

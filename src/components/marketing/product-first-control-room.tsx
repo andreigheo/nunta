@@ -350,13 +350,16 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
           <div
             className={styles.flow}
             aria-label="Firul etapelor evenimentului"
-            tabIndex={0}
           >
             <span className={styles.flowLine} aria-hidden />
             {copy.stages.map((stage, index) => {
               const Icon = stageIcons[index];
               return (
-                <div key={stage} className={styles.flowStage}>
+                <div
+                  key={stage}
+                  className={styles.flowStage}
+                  data-stage-index={index + 1}
+                >
                   <span className={styles.flowNode}>
                     <Icon aria-hidden />
                   </span>
@@ -514,8 +517,8 @@ function PlanningSurface() {
           <tbody>
             {chapter.rows.map((row, index) => (
               <tr key={row[0]}>
-                <td>{row[0]}</td>
-                <td>
+                <td data-label="Activitate">{row[0]}</td>
+                <td data-label="Responsabil">
                   <span className={styles.responsibleCell}>
                     <span
                       className={styles.responsibilityAvatar}
@@ -527,8 +530,8 @@ function PlanningSurface() {
                     {row[1]}
                   </span>
                 </td>
-                <td>{row[2]}</td>
-                <td>
+                <td data-label="Termen">{row[2]}</td>
+                <td data-label="Stare">
                   <Status value={row[3]} />
                 </td>
               </tr>
@@ -581,10 +584,10 @@ function GuestsSurface() {
             <tbody>
               {chapter.rows.map((row, index) => (
                 <tr key={row[0]}>
-                  <td>{row[0]}</td>
-                  <td>{row[1]}</td>
-                  <td>{row[2]}</td>
-                  <td>
+                  <td data-label="Nume">{row[0]}</td>
+                  <td data-label="Email">{row[1]}</td>
+                  <td data-label="Segment">{row[2]}</td>
+                  <td data-label="Status RSVP">
                     <Status value={row[3]} />
                   </td>
                   <td className={styles.guestIconCell}>
@@ -688,6 +691,57 @@ function CommerceSurface() {
                 </tr>
               </tbody>
             </table>
+          </div>
+          <div className={styles.vendorCards} role="list" aria-label="Comparație furnizori">
+            {chapter.vendors.map((vendor) => (
+              <article
+                key={vendor.name}
+                className={styles.vendorCard}
+                role="listitem"
+              >
+                <header>
+                  <div>
+                    <strong>{vendor.name}</strong>
+                    <span>{vendor.category}</span>
+                  </div>
+                  {vendor.recommended ? (
+                    <span className={styles.recommendedBadge}>Recomandat</span>
+                  ) : null}
+                </header>
+                <dl>
+                  <div>
+                    <dt>Preț total</dt>
+                    <dd>{vendor.price} RON</dd>
+                  </div>
+                  <div>
+                    <dt>Disponibilitate</dt>
+                    <dd>{vendor.availability}</dd>
+                  </div>
+                  <div>
+                    <dt>Evaluare internă</dt>
+                    <dd>
+                      <span
+                        className={styles.rating}
+                        role="img"
+                        aria-label={`${vendor.rating} din 5 stele`}
+                      >
+                        {Array.from({ length: 5 }, (_, index) => (
+                          <Star
+                            key={index}
+                            aria-hidden
+                            data-active={index < vendor.rating}
+                          />
+                        ))}
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Termen de plată</dt>
+                    <dd>{vendor.paymentTerm}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
           </div>
           <button className={styles.centerAction} type="button">Vezi detalii și contacte</button>
         </section>
