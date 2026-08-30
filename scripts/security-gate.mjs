@@ -99,6 +99,8 @@ await writeFile(
 const excluded = [
   "node_modules",
   ".next",
+  ".next-e2e",
+  ".next-sarbato-design-unified",
   ".git",
   "ops/release-evidence",
   "test-results",

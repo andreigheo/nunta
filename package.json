@@ -23,7 +23,7 @@
     "test": "pnpm test:web && pnpm --filter @weddingos/api test && pnpm --filter @weddingos/worker test",
     "test:web": "vitest run --config vitest.web.config.ts",
     "test:integration": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:integration && env DATABASE_PURPOSE=integration pnpm --filter @weddingos/api test:integration",
-    "test:e2e": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:e2e && pnpm --filter @weddingos/api build && pnpm --filter @weddingos/worker build && playwright test",
+    "test:e2e": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:e2e && pnpm --filter @weddingos/api build && pnpm --filter @weddingos/worker build && pnpm security:gate && playwright test",
     "db:generate": "pnpm --filter @weddingos/database generate",
     "db:migrate": "pnpm --filter @weddingos/database migrate",
     "db:seed": "pnpm --filter @weddingos/database seed",
