@@ -21,7 +21,13 @@ const heroInvitationReveal = invitationExperienceFromResource(
   "tine",
 );
 
-export function HeroInvitationDemo() {
+export function HeroInvitationDemo({
+  onPresentationComplete,
+  onUserInteraction,
+}: {
+  onPresentationComplete: () => void;
+  onUserInteraction: () => void;
+}) {
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const [autoScrollState, setAutoScrollState] = React.useState<
     "waiting" | "running" | "stopped" | "complete" | "disabled"
@@ -49,6 +55,7 @@ export function HeroInvitationDemo() {
       cancelled = true;
       window.cancelAnimationFrame(animationFrame);
       setAutoScrollState("stopped");
+      onUserInteraction();
     };
 
     const interactionEvents: Array<keyof HTMLElementEventMap> = [
@@ -66,6 +73,7 @@ export function HeroInvitationDemo() {
       const distance = scroller.scrollHeight - scroller.clientHeight;
       if (distance <= 0) {
         setAutoScrollState("complete");
+        onPresentationComplete();
         return;
       }
 
@@ -82,6 +90,7 @@ export function HeroInvitationDemo() {
           animationFrame = window.requestAnimationFrame(advance);
         } else {
           setAutoScrollState("complete");
+          onPresentationComplete();
         }
       };
 
@@ -96,7 +105,7 @@ export function HeroInvitationDemo() {
         scroller.removeEventListener(eventName, stopAutoScroll),
       );
     };
-  }, []);
+  }, [onPresentationComplete, onUserInteraction]);
 
   return (
     <div className={styles.heroInvitationStage}>
@@ -147,7 +156,7 @@ function createHeroInvitationSnapshot(): InvitationEditorSnapshot {
       monogram: "S",
       frontMessage: "O invitație pentru tine",
       coverImageUrl: "/invitation-art/nocturne-glass.webp",
-      durationMs: 1600,
+      durationMs: 2400,
     },
     sections: [
       {

@@ -46,7 +46,6 @@ import {
   type MarketingProductProof,
 } from "@/lib/marketing/product-proof-normalizer";
 import { HeroThread } from "./hero-thread";
-import { HeroInvitationDemo } from "./hero-invitation-demo";
 import { HeroShowcaseCycle } from "./hero-showcase-cycle";
 import { FaqSection } from "./faq-section";
 import { PricingSection } from "./pricing-section";
@@ -490,7 +489,6 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
       </div>
         </section>
       }
-      invitation={<HeroInvitationDemo />}
     />
   );
 }

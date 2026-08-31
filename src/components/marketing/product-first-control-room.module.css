@@ -211,6 +211,19 @@
     forwards;
 }
 
+.heroThread[data-charging="retracting"] .heroThreadCharge {
+  opacity: 1;
+}
+
+.heroThread[data-charging="retracting"] .heroThreadChargePath {
+  animation: hero-thread-retract 420ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.heroThread[data-charging="retracting"] .heroThreadChargeEnd {
+  animation: hero-thread-charge-end-retract 160ms cubic-bezier(0.4, 0, 1, 1)
+    forwards;
+}
+
 @keyframes hero-thread-charge {
   to {
     stroke-dashoffset: 0;
@@ -227,6 +240,30 @@
   to {
     opacity: 1;
     transform: scale(1);
+    transform-origin: center;
+  }
+}
+
+@keyframes hero-thread-retract {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: var(--thread-charge-length, 1);
+  }
+}
+
+@keyframes hero-thread-charge-end-retract {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: center;
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.72);
     transform-origin: center;
   }
 }
@@ -400,6 +437,18 @@
   transform: translate3d(0, 0, 0) scale(1);
 }
 
+.heroShowcaseCycle[data-showcase-view="returning"] .heroShowcaseInvitation {
+  transition-duration: 300ms;
+}
+
+.heroShowcaseCycle[data-showcase-view="returning"] .heroShowcaseDashboard {
+  animation: hero-dashboard-return 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.heroShowcaseCycle[data-showcase-view="returning"] .heroPhoneShell {
+  animation: hero-phone-return 300ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
 @keyframes hero-phone-morph {
   from {
     opacity: 0;
@@ -407,6 +456,31 @@
   }
 
   to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes hero-phone-return {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(0, 0.3rem, 0) scale(0.94);
+  }
+}
+
+@keyframes hero-dashboard-return {
+  0%,
+  54% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+
+  100% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
   }
@@ -446,48 +520,6 @@
 
 .heroInvitationStage :global([data-reveal-transition-veil]) {
   display: none;
-}
-
-.heroInvitationStage
-  :global([data-reveal-state="opening"] [data-reveal-invitation]) {
-  animation: hero-invitation-reveal 120ms 190ms
-    cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.heroInvitationStage
-  :global([data-reveal-state="opening"] [data-reveal-style]) {
-  animation: hero-envelope-handoff 320ms cubic-bezier(0.22, 1, 0.36, 1)
-    both;
-}
-
-.heroInvitationStage
-  :global([data-reveal-state="opening"] [data-reveal-envelope]),
-.heroInvitationStage
-  :global([data-reveal-state="opening"] [data-reveal-envelope] *) {
-  animation: none !important;
-}
-
-@keyframes hero-invitation-reveal {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes hero-envelope-handoff {
-  0%,
-  45% {
-    opacity: 1;
-  }
-
-  58%,
-  100% {
-    opacity: 0;
-    transform: none;
-  }
 }
 
 .heroInvitationStage :global([data-invitation-renderer]) {
@@ -3696,6 +3728,10 @@
     animation: none !important;
   }
 
+  .heroShowcaseDashboard {
+    animation: none !important;
+  }
+
   .heroInvitationStage
     :global([data-reveal-state="opening"] [data-reveal-invitation]),
   .heroInvitationStage
@@ -3704,7 +3740,9 @@
   }
 
   .heroThread[data-charging="true"] .heroThreadChargePath,
-  .heroThread[data-charging="true"] .heroThreadChargeEnd {
+  .heroThread[data-charging="true"] .heroThreadChargeEnd,
+  .heroThread[data-charging="retracting"] .heroThreadChargePath,
+  .heroThread[data-charging="retracting"] .heroThreadChargeEnd {
     animation: none;
   }
 
@@ -3714,6 +3752,14 @@
 
   .heroThread[data-charging="true"] .heroThreadChargeEnd {
     opacity: 1;
+  }
+
+  .heroThread[data-charging="retracting"] .heroThreadChargePath {
+    stroke-dashoffset: var(--thread-charge-length, 1);
+  }
+
+  .heroThread[data-charging="retracting"] .heroThreadChargeEnd {
+    opacity: 0;
   }
 
   .heroShowcaseCycle[data-showcase-view="invitation"] .heroShowcaseDashboard {

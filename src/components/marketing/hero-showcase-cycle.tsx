@@ -2,61 +2,76 @@
 
 import * as React from "react";
 import type { ReactNode } from "react";
+import { HeroInvitationDemo } from "./hero-invitation-demo";
 import styles from "./product-first-control-room.module.css";
 
 const dashboardDwellMs = 3600;
 const phoneMorphMs = 520;
+const invitationReviewMs = 3000;
+const phoneReturnMs = 520;
 
-type ShowcaseView = "dashboard" | "morphing" | "invitation";
+type ShowcaseView = "dashboard" | "morphing" | "invitation" | "returning";
 
 export function HeroShowcaseCycle({
   dashboard,
-  invitation,
 }: {
   dashboard: ReactNode;
-  invitation: ReactNode;
 }) {
   const [view, setView] = React.useState<ShowcaseView>("dashboard");
   const [autoTransitionCancelled, setAutoTransitionCancelled] =
     React.useState(false);
+  const [invitationPresentationComplete, setInvitationPresentationComplete] =
+    React.useState(false);
 
   React.useEffect(() => {
     if (autoTransitionCancelled) return;
-    let morphTimer: number | undefined;
-    const dwellTimer = window.setTimeout(() => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        setView("invitation");
-        return;
-      }
+    let nextView: ShowcaseView | undefined;
+    let delay = 0;
 
-      setView("morphing");
-      morphTimer = window.setTimeout(
-        () => setView("invitation"),
-        phoneMorphMs,
-      );
-    }, dashboardDwellMs);
-    return () => {
-      window.clearTimeout(dwellTimer);
-      if (morphTimer !== undefined) window.clearTimeout(morphTimer);
-    };
-  }, [autoTransitionCancelled]);
+    if (view === "dashboard") {
+      nextView = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "invitation"
+        : "morphing";
+      delay = dashboardDwellMs;
+    } else if (view === "morphing") {
+      nextView = "invitation";
+      delay = phoneMorphMs;
+    } else if (view === "returning") {
+      nextView = "dashboard";
+      delay = phoneReturnMs;
+    }
 
-  const preserveDashboard = React.useCallback(() => {
-    if (view === "dashboard") setAutoTransitionCancelled(true);
-  }, [view]);
+    if (!nextView) return;
+    const timer = window.setTimeout(() => {
+      if (nextView === "dashboard") setInvitationPresentationComplete(false);
+      setView(nextView);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [autoTransitionCancelled, view]);
 
-  const preserveDashboardForControl = React.useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest("a, button, input, select, textarea")
-      ) {
-        preserveDashboard();
-      }
-    },
-    [preserveDashboard],
-  );
+  React.useEffect(() => {
+    if (
+      autoTransitionCancelled ||
+      view !== "invitation" ||
+      !invitationPresentationComplete ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+
+    const reviewTimer = window.setTimeout(
+      () => setView("returning"),
+      invitationReviewMs,
+    );
+    return () => window.clearTimeout(reviewTimer);
+  }, [autoTransitionCancelled, invitationPresentationComplete, view]);
+
+  const stopAutoCycle = React.useCallback(() => {
+    setAutoTransitionCancelled(true);
+  }, []);
+
+  const finishInvitationPresentation = React.useCallback(() => {
+    setInvitationPresentationComplete(true);
+  }, []);
 
   return (
     <div
@@ -65,10 +80,11 @@ export function HeroShowcaseCycle({
       data-hero-thread-end
       data-testid="product-showcase"
       data-showcase-view={view}
+      data-auto-cycle={autoTransitionCancelled ? "paused" : "running"}
       role="region"
       aria-label="Previzualizare produs Sarbato"
-      onFocusCapture={preserveDashboard}
-      onPointerDownCapture={preserveDashboardForControl}
+      onFocusCapture={stopAutoCycle}
+      onPointerDownCapture={stopAutoCycle}
     >
       <div
         className={styles.heroShowcaseDashboard}
@@ -91,7 +107,10 @@ export function HeroShowcaseCycle({
               className={styles.heroPhoneScreen}
               data-testid="hero-invitation-screen"
             >
-              {invitation}
+              <HeroInvitationDemo
+                onPresentationComplete={finishInvitationPresentation}
+                onUserInteraction={stopAutoCycle}
+              />
             </div>
             <span
               className={styles.heroPhoneChargePort}

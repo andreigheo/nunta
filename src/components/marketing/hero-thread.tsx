@@ -3,6 +3,8 @@
 import { useLayoutEffect, useRef } from "react";
 import styles from "./product-first-control-room.module.css";
 
+const threadRetractMs = 420;
+
 export function HeroThread() {
   const threadRef = useRef<HTMLDivElement>(null);
   const chargeRef = useRef<SVGSVGElement>(null);
@@ -31,6 +33,7 @@ export function HeroThread() {
 
     let measureFrame: number | null = null;
     let chargeFrame: number | null = null;
+    let retractTimer: number | null = null;
     let active = true;
 
     const update = () => {
@@ -44,6 +47,8 @@ export function HeroThread() {
       thread.style.setProperty("--thread-top", `${startRect.bottom - heroRect.top}px`);
       thread.style.setProperty("--thread-width", `${Math.max(0, endX - startX)}px`);
       thread.dataset.ready = "true";
+
+      if (end.dataset.showcaseView === "returning") return;
 
       if (end.dataset.showcaseView !== "invitation") {
         thread.dataset.charging = "false";
@@ -105,6 +110,16 @@ export function HeroThread() {
     const measureSettledInvitation = () => {
       if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
       if (chargeFrame !== null) window.cancelAnimationFrame(chargeFrame);
+      if (retractTimer !== null) window.clearTimeout(retractTimer);
+
+      if (end.dataset.showcaseView === "returning") {
+        thread.dataset.charging = "retracting";
+        retractTimer = window.setTimeout(() => {
+          if (active) thread.dataset.charging = "false";
+        }, threadRetractMs);
+        return;
+      }
+
       thread.dataset.charging = "false";
       measureFrame = window.requestAnimationFrame(() => {
         measureFrame = window.requestAnimationFrame(update);
@@ -130,6 +145,7 @@ export function HeroThread() {
       active = false;
       if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
       if (chargeFrame !== null) window.cancelAnimationFrame(chargeFrame);
+      if (retractTimer !== null) window.clearTimeout(retractTimer);
       observer.disconnect();
       mutationObserver.disconnect();
       window.removeEventListener("resize", update);

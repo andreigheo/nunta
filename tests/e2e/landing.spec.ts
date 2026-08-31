@@ -554,6 +554,11 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
   await expect(phoneScreen).toBeVisible();
   const embeddedReveal = showcase.locator('[data-reveal-variant="embedded"]');
   await expect(embeddedReveal).toHaveCSS("overflow", "hidden");
+  await expect(embeddedReveal).toHaveAttribute("data-reveal-state", "opening", {
+    timeout: 2_000,
+  });
+  await page.waitForTimeout(900);
+  await expect(embeddedReveal).toHaveAttribute("data-reveal-state", "opening");
   const invitationLayer = showcase.locator("[data-reveal-invitation]");
   await expect(invitationLayer).toHaveCSS("transform", "none");
   const screenCenter = await phoneScreen.evaluate((element) => {
@@ -637,6 +642,7 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
     "data-auto-scroll",
     "stopped",
   );
+  await expect(showcase).toHaveAttribute("data-auto-cycle", "paused");
 
   await invitationDocument.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
@@ -644,6 +650,67 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
   await expect(
     showcase.getByRole("heading", { name: "Vii alături de noi?" }),
   ).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("Hero-ul reia la infinit dashboardul după prezentarea completă a invitației", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const showcase = page.getByTestId("product-showcase");
+  const heroThread = page.getByTestId("hero-thread");
+
+  await expect(showcase).toHaveAttribute("data-auto-cycle", "running");
+  await expect(showcase).toHaveAttribute("data-showcase-view", "dashboard");
+  await expect(showcase).toHaveAttribute("data-showcase-view", "invitation", {
+    timeout: 6_000,
+  });
+
+  const completeInvitation = showcase.getByTestId("hero-complete-invitation");
+  await expect(completeInvitation).toHaveAttribute(
+    "data-auto-scroll",
+    "complete",
+    { timeout: 17_000 },
+  );
+  await expect(showcase).toHaveAttribute("data-showcase-view", "returning", {
+    timeout: 4_000,
+  });
+  await expect(heroThread).toHaveAttribute("data-charging", "retracting");
+  const returnMotion = await showcase.evaluate((element) => {
+    const [dashboard, invitation] = Array.from(
+      element.children,
+    ) as HTMLElement[];
+    const dashboardStyle = getComputedStyle(dashboard!);
+    const phone = invitation!.querySelector<HTMLElement>(
+      '[data-testid="hero-invitation-phone"]',
+    );
+    const phoneStyle = getComputedStyle(phone!);
+    return {
+      dashboardAnimation: dashboardStyle.animationName,
+      dashboardDuration: dashboardStyle.animationDuration,
+      phoneAnimation: phoneStyle.animationName,
+      phoneDuration: phoneStyle.animationDuration,
+    };
+  });
+  expect(returnMotion.dashboardAnimation).toContain("hero-dashboard-return");
+  expect(returnMotion.dashboardDuration).toBe("0.52s");
+  expect(returnMotion.phoneAnimation).toContain("hero-phone-return");
+  expect(returnMotion.phoneDuration).toBe("0.3s");
+
+  await expect(showcase).toHaveAttribute("data-showcase-view", "dashboard", {
+    timeout: 2_000,
+  });
+  await expect(showcase.getByTestId("hero-invitation-phone")).toHaveCount(0);
+  await expect(heroThread).toHaveAttribute("data-charging", "false");
+
+  await expect(showcase).toHaveAttribute("data-showcase-view", "morphing", {
+    timeout: 5_000,
+  });
+  await expect(showcase).toHaveAttribute("data-auto-cycle", "running");
   await expectNoHorizontalOverflow(page);
 });
 
