@@ -41,6 +41,7 @@ describe("invitationExperienceFromResource", () => {
           panelColor: "#402044",
           backgroundColor: "#F7F7F3",
           accentColor: "not-a-color",
+          sealStyle: "botanical",
           coverMediaId: "media-cover-1",
           coverImageUrl: "javascript:alert(1)",
           texture: "linen",
@@ -57,6 +58,7 @@ describe("invitationExperienceFromResource", () => {
       panelColor: "#402044",
       backgroundColor: "#F7F7F3",
       accentColor: "#F06449",
+      sealStyle: "botanical",
       accentTextColor: "#19151D",
       coverMediaId: "media-cover-1",
       coverImageUrl: "",
@@ -92,5 +94,23 @@ describe("invitationExperienceFromResource", () => {
     expect(contrastRatio(result.accentTextColor, result.accentColor)).toBeGreaterThanOrEqual(
       4.5,
     );
+  });
+
+  it("falls back safely when an older or invalid seal style is loaded", () => {
+    const legacy = invitationExperienceFromResource({
+      settings: { experience: { enabled: true, style: "envelope" } },
+    });
+    const invalid = invitationExperienceFromResource({
+      settings: {
+        experience: {
+          enabled: true,
+          style: "envelope",
+          sealStyle: "rings",
+        },
+      },
+    });
+
+    expect(legacy.sealStyle).toBe("monogram");
+    expect(invalid.sealStyle).toBe("monogram");
   });
 });

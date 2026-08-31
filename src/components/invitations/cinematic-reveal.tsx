@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Columns2, Eye, MailOpen } from "lucide-react";
+import { Columns2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CinematicRevealSettings } from "./invitation-experience";
+import { WaxSeal } from "./wax-seal";
 import styles from "./cinematic-reveal.module.css";
 
 type RevealState = "closed" | "opening" | "open";
@@ -393,7 +394,11 @@ export function CinematicReveal({
             >
               <span className={styles.seal} aria-hidden>
                 {settings.style === "envelope" ? (
-                  <MailOpen className="size-5" />
+                  <WaxSeal
+                    sealStyle={settings.sealStyle}
+                    monogram={settings.monogram}
+                    color={settings.accentColor}
+                  />
                 ) : (
                   <Columns2 className="size-5" />
                 )}

@@ -156,6 +156,7 @@ describe("invitation editor model", () => {
       ...snapshot.experience,
       enabled: true,
       monogram: "I & R",
+      sealStyle: "botanical",
       texture: "linen",
       coverMediaId: "b27a62b6-1b40-4ce8-ac21-a6c5e0aced10",
       durationMs: 1200,
@@ -176,6 +177,7 @@ describe("invitation editor model", () => {
     expect(restored.experience).toMatchObject({
       enabled: true,
       monogram: "I & R",
+      sealStyle: "botanical",
       texture: "linen",
       coverMediaId: "b27a62b6-1b40-4ce8-ac21-a6c5e0aced10",
       durationMs: 1200,
@@ -183,6 +185,22 @@ describe("invitation editor model", () => {
     expect(restored.sections[0].content.artDirection).toEqual(
       hero.content.artDirection,
     );
+  });
+
+  it("keeps legacy invitation drafts on the monogram seal", () => {
+    const snapshot = createInitialSnapshot();
+    const serialized = serializeSnapshot(snapshot);
+    const experience = {
+      ...serialized.settings.experience,
+    } as Record<string, unknown>;
+    delete experience.sealStyle;
+
+    const restored = snapshotFromPersisted(serialized.document.sections, {
+      ...serialized.settings,
+      experience,
+    });
+
+    expect(restored.experience.sealStyle).toBe("monogram");
   });
 
   it("creates advanced blocks inside the compatible custom contract", () => {

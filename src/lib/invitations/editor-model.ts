@@ -1,4 +1,8 @@
 import { invitationContainsStarterContent } from "@weddingos/contracts";
+import {
+  isInvitationSealStyle,
+  type InvitationSealStyle,
+} from "@/lib/invitations/seals";
 
 export type InvitationSectionType =
   | "hero"
@@ -59,6 +63,7 @@ export type InvitationExperienceSettings = {
   panelColor: string;
   backgroundColor: string;
   accentColor: string;
+  sealStyle: InvitationSealStyle;
   texture: "paper" | "linen" | "smooth";
   monogram: string | null;
   frontMessage: string | null;
@@ -168,6 +173,7 @@ export const defaultInvitationExperience: InvitationExperienceSettings = {
   panelColor: "#3B183F",
   backgroundColor: "#F7F7F3",
   accentColor: "#F06449",
+  sealStyle: "monogram",
   texture: "paper",
   monogram: "A & M",
   frontMessage: "O invitație pentru voi",
@@ -925,6 +931,9 @@ function invitationExperienceFromSettings(
       stored.accentColor,
       defaultInvitationExperience.accentColor,
     ),
+    sealStyle: isInvitationSealStyle(stored.sealStyle)
+      ? stored.sealStyle
+      : defaultInvitationExperience.sealStyle,
     texture:
       stored.texture === "linen" || stored.texture === "smooth"
         ? stored.texture
