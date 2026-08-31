@@ -451,6 +451,113 @@ export class RsvpMenuService {
     );
   }
 
+  async invitationBootstrap(token: string) {
+    return this.withGuest(token, async (tx, context) => {
+      const recipient = await tx.invitationRecipient.findFirst({
+        where: { id: context.recipientId, workspaceId: context.workspaceId },
+      });
+      if (!recipient) invalidToken();
+      const identityRecipients = await this.identityRecipients(tx, recipient);
+      const canonicalRecipient = identityRecipients[0] ?? recipient;
+      const site = await tx.invitationSite.findFirst({
+        where: {
+          id: recipient.invitationSiteId,
+          workspaceId: context.workspaceId,
+          status: "PUBLISHED",
+        },
+      });
+      const version = site?.publishedVersionId
+        ? await tx.invitationVersion.findUnique({
+            where: { id: site.publishedVersionId },
+          })
+        : null;
+      if (!version || !site) invalidToken();
+      const variant = canonicalRecipient.invitationVariantId
+        ? await tx.invitationVariant.findFirst({
+            where: {
+              id: canonicalRecipient.invitationVariantId,
+              invitationSiteId: site.id,
+              workspaceId: context.workspaceId,
+              status: "ACTIVE",
+            },
+          })
+        : null;
+      const variantVersion = variant?.publishedVersionId
+        ? await tx.invitationVariantVersion.findFirst({
+            where: {
+              id: variant.publishedVersionId,
+              invitationVariantId: variant.id,
+              baseInvitationVersionId: version.id,
+              workspaceId: context.workspaceId,
+              publishedAt: { not: null },
+            },
+          })
+        : null;
+      const resolvedInvitation = resolveInvitationVariant(
+        version.document,
+        version.settings,
+        variantVersion?.overrides,
+      );
+      const [household, events] = await Promise.all([
+        tx.household.findUnique({
+          where: { id: context.householdId },
+          select: { id: true, name: true },
+        }),
+        tx.weddingEvent.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            guestVisible: true,
+            deletedAt: null,
+            status: { not: "CANCELLED" },
+          },
+          orderBy: [{ position: "asc" }, { startAt: "asc" }],
+        }),
+      ]);
+      if (!household) invalidToken();
+      return {
+        invitation: {
+          siteId: site.id,
+          document: resolvedInvitation.document,
+          settings: resolvedInvitation.settings,
+          language: version.language,
+          baseVersionId: version.id,
+          variant: variantVersion
+            ? {
+                id: variant!.id,
+                name: variant!.name,
+                code: variant!.code,
+                versionId: variantVersion.id,
+              }
+            : null,
+          experience: object(resolvedInvitation.settings).experience ?? null,
+        },
+        interaction: {
+          invitationOpenedAt:
+            canonicalRecipient.openedAt?.toISOString() ?? null,
+          lastAccessedAt:
+            canonicalRecipient.lastAccessedAt?.toISOString() ?? null,
+          shouldPlayReveal: !canonicalRecipient.openedAt,
+        },
+        household,
+        events: events.map(mapEvent),
+      };
+    });
+  }
+
+  async rsvpBootstrap(token: string) {
+    const data = await this.bootstrap(token);
+    return {
+      household: data.household,
+      events: data.events,
+      rsvp: data.rsvp,
+      rsvpConfig: data.rsvpConfig,
+      menus: data.menus,
+      deadline: data.deadline,
+      allowEdits: data.allowEdits,
+      closedMessage: data.closedMessage,
+    };
+  }
+
   async bootstrap(token: string) {
     return this.withGuest(token, async (tx, context) => {
       const recipient = await tx.invitationRecipient.findFirst({

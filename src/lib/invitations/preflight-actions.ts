@@ -24,14 +24,14 @@ export function invitationPreflightGuide(
       return {
         title: "Formularul RSVP nu este publicat",
         detail:
-          "Butonul de confirmare din invitație nu ar avea unde să trimită răspunsurile. Publică formularul o dată și verificarea trece.",
+          "Invitația are un îndemn de confirmare, dar formularul separat nu este publicat. Publică formularul sau elimină îndemnul RSVP din invitație.",
         action: { kind: "route", href: "/rsvp", label: "Deschide RSVP" },
       };
     case "GUEST_EVENT_MISSING":
       return {
         title: "Lipsește un moment vizibil invitaților",
         detail:
-          "Invitația are nevoie de cel puțin un moment confirmat, vizibil invitaților și cu RSVP activ. Momentele nunții nu se adaugă din editorul de invitații, deci această verificare nu se poate rezolva de aici.",
+          "Invitația are nevoie de cel puțin un moment confirmat, vizibil invitaților și cu RSVP activ. Momentele evenimentului nu se adaugă din editorul de invitații, deci această verificare nu se poate rezolva de aici.",
         action: { kind: "none" },
       };
     case "INVITATION_STARTER_CONTENT":

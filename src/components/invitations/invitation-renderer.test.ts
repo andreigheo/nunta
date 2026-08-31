@@ -78,6 +78,7 @@ describe("InvitationRenderer", () => {
 
     expect(markup.match(/id="invitatie-/g)).toHaveLength(13);
     expect(markup).toContain("id=\"confirmare-invitatie\"");
+    expect(markup).toContain('href="#confirmare-invitatie"');
     expect(markup).toContain("Hotel Central");
     expect(markup).toContain("https://example.com/lista");
     expect(markup).toContain("Detalii speciale");
@@ -88,6 +89,16 @@ describe("InvitationRenderer", () => {
     expect(markup).toContain("rounded-full");
     expect(markup).toContain('role="timer"');
     expect(markup).toContain("—");
+
+    const publicMarkup = renderToStaticMarkup(
+      React.createElement(InvitationRenderer, {
+        snapshot,
+        resolveMedia: (_mediaId: string, url = "") => url,
+        rsvpHref: "/guest/rsvp?token=personal",
+      }),
+    );
+    expect(publicMarkup).toContain('href="/guest/rsvp?token=personal"');
+    expect(publicMarkup).not.toContain('href="#confirmare-rsvp"');
   });
 
   it("uses readable foreground text for a coral invitation action", () => {

@@ -156,15 +156,10 @@ async function expectNoSeriousA11yViolations(page: Page, selector: string) {
   expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
 }
 
-async function enterPublishedInvitation(page: Page) {
-  const invitation = page.getByText("Confirmarea familiei", { exact: true });
-  const skipReveal = page.getByRole("button", {
-    name: "Sari peste introducere",
-  });
-
-  await expect(skipReveal).toBeVisible();
-  await skipReveal.click();
-  await expect(invitation).toBeVisible();
+async function enterRsvpPage(page: Page) {
+  await expect(
+    page.getByText("Confirmarea familiei", { exact: true }),
+  ).toBeVisible();
 }
 
 test.beforeAll(async () => {
@@ -556,6 +551,11 @@ test("E2E 5 — Send campaign", async ({ page }) => {
 });
 
 test("E2E 6 — Guest opens invitation", async ({ page }) => {
+  const operationalRequests: string[] = [];
+  page.on("request", (request) => {
+    if (/\/guest\/(event-day|check-in|moments|gallery)/.test(request.url()))
+      operationalRequests.push(request.url());
+  });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
   await expect(
@@ -594,18 +594,29 @@ test("E2E 6 — Guest opens invitation", async ({ page }) => {
     path: "test-results/invitation-v3-envelope-opening-mid.png",
     animations: "allow",
   });
+  await expect(page.locator('[data-invitation-renderer="true"]')).toBeVisible({
+    timeout: 5_000,
+  });
   await expect(
     page.getByRole("button", { name: "Revede introducerea" }),
-  ).toBeVisible({ timeout: 5_000 });
+  ).toHaveCount(0);
   await expect(
     page.getByText("Confirmarea familiei", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("Bine ai venit, Familia Pop E2E")).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByText("Bine ai venit, Familia Pop E2E")).toHaveCount(0);
+  expect(operationalRequests).toEqual([]);
   await expectNoSeriousA11yViolations(
     page,
     '[data-invitation-renderer="true"]',
   );
   await captureInvitationV2(page, "guest-open");
+  const rsvpLink = page
+    .locator('[data-invitation-renderer="true"] a[href*="/guest/rsvp"]')
+    .first();
+  await expect(rsvpLink).toBeVisible();
+  await rsvpLink.click();
+  await expect(page).toHaveURL(/\/guest\/rsvp\?token=/);
+  await enterRsvpPage(page);
   await expect(page.getByText("Ana Pop", { exact: true })).toBeVisible();
   await expect(page.getByText("Mara Pop", { exact: true })).toBeVisible();
   await expect
@@ -640,8 +651,8 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
       }),
     )
   ).id;
-  await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await enterPublishedInvitation(page);
+  await page.goto(`/guest/rsvp?token=${encodeURIComponent(guestToken)}`);
+  await enterRsvpPage(page);
   const selects = page.getByRole("combobox");
   await expect(selects.first()).toBeVisible();
   let attendanceCount = 0;
@@ -725,8 +736,8 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
 
 test("E2E 8 — Plus-one", async ({ page }) => {
   const initialPlusOnes = (await guestList()).summary.people.plusOnes;
-  await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await enterPublishedInvitation(page);
+  await page.goto(`/guest/rsvp?token=${encodeURIComponent(guestToken)}`);
+  await enterRsvpPage(page);
   await page.getByRole("checkbox", { name: "Vin cu un însoțitor" }).click();
   await page
     .getByLabel("Prenumele însoțitorului", { exact: true })
@@ -743,8 +754,8 @@ test("E2E 8 — Plus-one", async ({ page }) => {
 });
 
 test("E2E 9 — Modify RSVP", async ({ page }) => {
-  await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await enterPublishedInvitation(page);
+  await page.goto(`/guest/rsvp?token=${encodeURIComponent(guestToken)}`);
+  await enterRsvpPage(page);
   const select = page
     .locator("select")
     .filter({ has: page.locator('option[value="UNSURE"]') })
@@ -766,8 +777,8 @@ test("E2E 10 — Deadline closed", async ({ page }) => {
     new Date(Date.now() - 86_400_000).toISOString(),
   );
   await publishRsvpForm(closed.version);
-  await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await enterPublishedInvitation(page);
+  await page.goto(`/guest/rsvp?token=${encodeURIComponent(guestToken)}`);
+  await enterRsvpPage(page);
   await expect(page.getByText("Închis", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Salvează RSVP" }),
@@ -811,8 +822,8 @@ test("E2E 11 — Reminder", async () => {
 });
 
 test("E2E 12 — Menu and allergy", async ({ page }) => {
-  await page.goto(`/guest?token=${encodeURIComponent(guestToken)}`);
-  await enterPublishedInvitation(page);
+  await page.goto(`/guest/rsvp?token=${encodeURIComponent(guestToken)}`);
+  await enterRsvpPage(page);
   const attendanceSelects = page
     .locator("select")
     .filter({ has: page.locator('option[value="CONFIRMED"]') });
@@ -940,6 +951,22 @@ test("E2E 15 — Tenant isolation", async () => {
 });
 
 test("E2E 16 — Guest token isolation", async () => {
+  const invitation = await publicJson<Record<string, unknown>>(
+    `/api/v1/guest/invitation?token=${encodeURIComponent(guestToken)}`,
+  );
+  expect(invitation).toHaveProperty("invitation");
+  expect(invitation).not.toHaveProperty("rsvp");
+  expect(invitation).not.toHaveProperty("operations");
+  expect(invitation).not.toHaveProperty("accommodationRecommendations");
+  expect(invitation.household).not.toHaveProperty("members");
+
+  const rsvpBootstrap = await publicJson<Record<string, unknown>>(
+    `/api/v1/guest/rsvp/bootstrap?token=${encodeURIComponent(guestToken)}`,
+  );
+  expect(rsvpBootstrap).toHaveProperty("rsvp");
+  expect(rsvpBootstrap).not.toHaveProperty("invitation");
+  expect(rsvpBootstrap).not.toHaveProperty("operations");
+
   const bootstrap = await publicJson<{
     household: {
       id: string;

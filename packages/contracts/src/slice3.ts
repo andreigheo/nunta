@@ -1078,6 +1078,27 @@ export const guestCompanionBootstrapSchema = z
   })
   .passthrough();
 
+export const guestInvitationBootstrapSchema = z.object({
+  invitation: guestCompanionBootstrapSchema.shape.invitation,
+  interaction: guestCompanionBootstrapSchema.shape.interaction,
+  household: z.object({
+    id: uuid,
+    name: z.string(),
+  }),
+  events: z.array(z.record(z.unknown())),
+});
+
+export const guestRsvpBootstrapSchema = z.object({
+  household: guestCompanionBootstrapSchema.shape.household,
+  events: guestCompanionBootstrapSchema.shape.events,
+  rsvp: guestCompanionBootstrapSchema.shape.rsvp,
+  rsvpConfig: guestCompanionBootstrapSchema.shape.rsvpConfig,
+  menus: guestCompanionBootstrapSchema.shape.menus,
+  deadline: guestCompanionBootstrapSchema.shape.deadline,
+  allowEdits: guestCompanionBootstrapSchema.shape.allowEdits,
+  closedMessage: guestCompanionBootstrapSchema.shape.closedMessage,
+});
+
 export const menuSchema = z
   .object({
     id: uuid,
@@ -1200,5 +1221,11 @@ export type RsvpDashboardHouseholdResource = z.infer<
 export type RsvpSubmissionResource = z.infer<typeof rsvpSubmissionSchema>;
 export type GuestCompanionBootstrapResource = z.infer<
   typeof guestCompanionBootstrapSchema
+>;
+export type GuestInvitationBootstrapResource = z.infer<
+  typeof guestInvitationBootstrapSchema
+>;
+export type GuestRsvpBootstrapResource = z.infer<
+  typeof guestRsvpBootstrapSchema
 >;
 export type MenuResource = z.infer<typeof menuSchema>;

@@ -42,6 +42,7 @@ export type InvitationRendererProps = {
   resolveMedia: InvitationMediaResolver;
   onAddCalendar?: () => void;
   onRsvp?: () => void;
+  rsvpHref?: string;
   onContentChange?: (
     sectionId: string,
     key: string,
@@ -62,6 +63,7 @@ export function InvitationRenderer({
   resolveMedia,
   onAddCalendar,
   onRsvp,
+  rsvpHref,
   onContentChange,
   renderSectionFrame,
   className,
@@ -102,6 +104,7 @@ export function InvitationRenderer({
             resolveMedia={resolveMedia}
             onAddCalendar={onAddCalendar}
             onRsvp={onRsvp}
+            rsvpHref={rsvpHref}
             onContentChange={onContentChange}
             defaultTimeZone={defaultTimeZone}
           />
@@ -131,6 +134,7 @@ type InvitationSectionViewProps = {
   resolveMedia: InvitationMediaResolver;
   onAddCalendar?: () => void;
   onRsvp?: () => void;
+  rsvpHref?: string;
   onContentChange?: InvitationRendererProps["onContentChange"];
   defaultTimeZone?: string;
 };
@@ -175,6 +179,7 @@ function InvitationSectionContent({
   resolveMedia,
   onAddCalendar,
   onRsvp,
+  rsvpHref,
   onContentChange,
   defaultTimeZone,
 }: InvitationSectionViewProps) {
@@ -288,6 +293,7 @@ function InvitationSectionContent({
               design={design}
               inverted={isImmersive}
               onRsvp={onRsvp}
+              href={rsvpHref}
             />
           ) : null}
           {onAddCalendar ? (
@@ -489,7 +495,7 @@ function InvitationSectionContent({
             }
           />
         </p>
-        {text(content.buttonLabel) ? <RsvpAction label={text(content.buttonLabel)} className={cn("mt-7", buttonClass)} design={design} inverted={section.style.tone === "accent" || section.style.tone === "dark"} onRsvp={onRsvp} /> : null}
+        {text(content.buttonLabel) ? <RsvpAction label={text(content.buttonLabel)} className={cn("mt-7", buttonClass)} design={design} inverted={section.style.tone === "accent" || section.style.tone === "dark"} onRsvp={onRsvp} href={rsvpHref} /> : null}
       </section>
     );
   }
@@ -696,10 +702,11 @@ function InvitationCountdown({
   );
 }
 
-function RsvpAction({ label, className, design, inverted, onRsvp }: { label: string; className: string; design: InvitationDesign; inverted: boolean; onRsvp?: () => void }) {
+function RsvpAction({ label, className, design, inverted, onRsvp, href }: { label: string; className: string; design: InvitationDesign; inverted: boolean; onRsvp?: () => void; href?: string }) {
   const style = invitationButtonStyle(design, inverted);
+  if (href) return <a href={href} className={className} style={style}>{label}</a>;
   if (onRsvp) return <button type="button" onClick={onRsvp} className={className} style={style}>{label}</button>;
-  return <a href="#confirmare-rsvp" className={className} style={style}>{label}</a>;
+  return <a href="#confirmare-invitatie" className={className} style={style}>{label}</a>;
 }
 
 function ExternalAction({ content, className, design, inverted }: { content: Record<string, unknown>; className: string; design: InvitationDesign; inverted: boolean }) {

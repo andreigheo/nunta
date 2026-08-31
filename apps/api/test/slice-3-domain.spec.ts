@@ -10,6 +10,8 @@ import {
   defaultRoleTemplates,
   guestBulkCommandSchema,
   guestCompanionBootstrapSchema,
+  guestInvitationBootstrapSchema,
+  guestRsvpBootstrapSchema,
   guestRsvpRequestSchema,
   invitationDocumentSchema,
   invitationRecipientSchema,
@@ -34,7 +36,10 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "../src/guests/guest-crm.service";
-import { campaignTransition } from "../src/guests/invitation-campaign.service";
+import {
+  campaignTransition,
+  invitationRequiresRsvp,
+} from "../src/guests/invitation-campaign.service";
 import { nextGuestAction } from "../src/planning/planning.service";
 import {
   invitationMediaReferences,
@@ -47,6 +52,39 @@ const uuid = "00000000-0000-4000-8000-000000000001";
 const eventId = "00000000-0000-4000-8000-000000000002";
 
 describe("Slice 3 guest, invitation, RSVP and menu rules", () => {
+  it("requires RSVP dependencies only when the invitation exposes an RSVP action", () => {
+    expect(
+      invitationRequiresRsvp({
+        sections: [
+          {
+            id: "hero",
+            type: "hero",
+            visible: true,
+            content: { buttonLabel: "" },
+          },
+          { id: "rsvp", type: "rsvp", visible: false, content: {} },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      invitationRequiresRsvp({
+        sections: [
+          {
+            id: "hero",
+            type: "hero",
+            visible: true,
+            content: { buttonLabel: "Confirmă prezența" },
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      invitationRequiresRsvp({
+        sections: [{ id: "rsvp", type: "rsvp", visible: true, content: {} }],
+      }),
+    ).toBe(true);
+  });
+
   it("contracts organizer menu selection updates and nullable removal", () => {
     expect(
       organizerMenuSelectionSchema.parse({
@@ -468,6 +506,29 @@ describe("Slice 3 guest, invitation, RSVP and menu rules", () => {
     });
     expect(bootstrap.invitation.experience?.coverMediaId).toBe(uuid);
     expect(bootstrap.interaction.shouldPlayReveal).toBe(true);
+    expect(
+      guestInvitationBootstrapSchema.parse({
+        invitation: bootstrap.invitation,
+        interaction: bootstrap.interaction,
+        household: {
+          id: bootstrap.household.id,
+          name: bootstrap.household.name,
+        },
+        events: bootstrap.events,
+      }),
+    ).not.toHaveProperty("rsvp");
+    expect(
+      guestRsvpBootstrapSchema.parse({
+        household: bootstrap.household,
+        events: bootstrap.events,
+        rsvp: bootstrap.rsvp,
+        rsvpConfig: bootstrap.rsvpConfig,
+        menus: bootstrap.menus,
+        deadline: bootstrap.deadline,
+        allowEdits: bootstrap.allowEdits,
+        closedMessage: bootstrap.closedMessage,
+      }),
+    ).not.toHaveProperty("invitation");
   });
 
   it("rejects script and protocol-relative URLs in invitation content", () => {

@@ -51,12 +51,14 @@ export function CinematicReveal({
   onOpened,
   shouldAutoReveal,
   variant = "guest",
+  showReplay = true,
 }: {
   settings: CinematicRevealSettings;
   children: React.ReactNode;
   onOpened?: (source: InvitationOpenSource) => void | Promise<void>;
   shouldAutoReveal?: boolean;
   variant?: "guest" | "embedded";
+  showReplay?: boolean;
 }) {
   const embedded = variant === "embedded";
   const monogram = settings.monogram?.trim() ?? "";
@@ -284,7 +286,7 @@ export function CinematicReveal({
         } as React.CSSProperties
       }
     >
-      {settings.enabled && state === "open" && !embedded ? (
+      {settings.enabled && state === "open" && !embedded && showReplay ? (
         <div className={styles.replayRow}>
           <button type="button" className={styles.replayButton} onClick={replay}>
             <Eye className="size-4" aria-hidden />

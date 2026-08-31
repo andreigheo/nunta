@@ -2623,12 +2623,13 @@ export class InvitationCampaignService {
       variantId?: string;
       references: Set<string>;
     }> = [];
-    if (!form?.publishedVersionId)
+    const requiresRsvp = invitationRequiresRsvp(draft?.document);
+    if (requiresRsvp && !form?.publishedVersionId)
       errors.push({
         code: "RSVP_FORM_NOT_PUBLISHED",
         message: "Publish the RSVP form before the invitation",
       });
-    if (!eventCount)
+    if (requiresRsvp && !eventCount)
       errors.push({
         code: "GUEST_EVENT_MISSING",
         message: "At least one guest-visible RSVP event is required",
@@ -3243,6 +3244,19 @@ function invitationSections(value: unknown) {
     const type = string(record.type);
     if (!id || !type) return [];
     return [{ id, type, content: jsonRecord(record.content) }];
+  });
+}
+
+export function invitationRequiresRsvp(value: unknown) {
+  const sections = jsonRecord(value).sections;
+  if (!Array.isArray(sections)) return false;
+  return sections.some((section) => {
+    const record = jsonRecord(section);
+    if (record.visible === false) return false;
+    const type = string(record.type);
+    const content = jsonRecord(record.content);
+    if (type === "rsvp") return true;
+    return type === "hero" && Boolean(string(content.buttonLabel).trim());
   });
 }
 
