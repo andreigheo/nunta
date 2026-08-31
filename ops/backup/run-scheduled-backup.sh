@@ -35,7 +35,7 @@ if [[ "${BACKUP_SCHEDULE_KEY}" = "weekly-restore-verification" ]]; then
     exit 1
   fi
   started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  ops/backup/restore-disposable.sh "${latest_verified}" "${RESTORE_TARGET_DATABASE}"
+  /bin/bash ops/backup/restore-disposable.sh "${latest_verified}" "${RESTORE_TARGET_DATABASE}"
   printf '%s\n' "${dedupe_key}" > "${last_success_file}"
   RUN_STATUS=VERIFIED RUN_ID="$(basename "${latest_verified}")" STARTED_AT="${started_at}" DEDUPE_KEY="${dedupe_key}" \
     node -e 'const e={schedule:process.env.BACKUP_SCHEDULE_KEY,dedupeKey:process.env.DEDUPE_KEY,runId:process.env.RUN_ID,status:process.env.RUN_STATUS,attempt:1,startedAt:process.env.STARTED_AT,completedAt:new Date().toISOString(),targetDatabase:process.env.RESTORE_TARGET_DATABASE}; process.stdout.write(JSON.stringify(e)+"\n")' >> "${history}"

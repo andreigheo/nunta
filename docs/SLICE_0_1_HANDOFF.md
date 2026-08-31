@@ -81,8 +81,8 @@ Repository hygiene observations:
 - `.env`, `.env.local`, `.env.*.local`, `node_modules`, `.next`, `dist`, `coverage`, logs, Playwright output, test results, and generated Prisma client output are ignored.
 - Only `.env.example` is present; no repository `.env` or `.env.local` was found.
 - PostgreSQL data is in the named Docker volume `weddingos_weddingos-postgres`, not in the repository.
-- No committed-status claim can be made for any file until Git metadata is restored.
-- `package-lock.json` coexists with the authoritative `pnpm-lock.yaml`; remove the npm lock only after Git is restored and provenance is reviewed.
+- Git metadata is available and the committed state can be verified normally.
+- `pnpm-lock.yaml` is the authoritative root lockfile; the stale root npm lock was removed after provenance review. `ops/resend-relay/package-lock.json` remains scoped to its explicit `npm ci` build.
 - `tsconfig.tsbuildinfo` exists and is not currently covered by `.gitignore`; add `*.tsbuildinfo` before the first trustworthy commit.
 - `test-results/` exists but is ignored. It is disposable test output.
 

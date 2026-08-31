@@ -43,7 +43,7 @@ export POSTGRES_CONTAINER="sarbato-production-postgres-1"
 export POSTGRES_USER="sarbato_admin"
 export POSTGRES_PASSWORD="${POSTGRES_ADMIN_PASSWORD}"
 export RESTORE_OBJECT_DIRECTORY="${object_restore}"
-ops/backup/restore-disposable.sh "${latest_verified}" "${target_database}"
+/bin/bash ops/backup/restore-disposable.sh "${latest_verified}" "${target_database}"
 
 mkdir -p "${evidence_root}"
 evidence="${evidence_root}/$(date -u +%Y%m%dT%H%M%SZ).json"
