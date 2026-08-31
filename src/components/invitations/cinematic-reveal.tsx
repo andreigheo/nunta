@@ -51,6 +51,7 @@ export function CinematicReveal({
   children,
   onOpened,
   shouldAutoReveal,
+  autoRevealDelayMs,
   variant = "guest",
   showReplay = true,
 }: {
@@ -58,6 +59,7 @@ export function CinematicReveal({
   children: React.ReactNode;
   onOpened?: (source: InvitationOpenSource) => void | Promise<void>;
   shouldAutoReveal?: boolean;
+  autoRevealDelayMs?: number;
   variant?: "guest" | "embedded";
   showReplay?: boolean;
 }) {
@@ -218,12 +220,14 @@ export function CinematicReveal({
 
   React.useEffect(() => {
     if (!embedded || !settings.enabled || state !== "closed") return;
-    const delay = reducedMotionRef.current ? 0 : embeddedAutoRevealDelayMs;
+    const delay = reducedMotionRef.current
+      ? 0
+      : (autoRevealDelayMs ?? embeddedAutoRevealDelayMs);
     const timer = window.setTimeout(() => {
       open();
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [embedded, open, settings.enabled, state]);
+  }, [autoRevealDelayMs, embedded, open, settings.enabled, state]);
 
   const handleOverlayAnimationEnd = React.useCallback(
     (event: React.AnimationEvent<HTMLDivElement>) => {
@@ -369,7 +373,16 @@ export function CinematicReveal({
                   <span className={styles.letterRule} />
                 </div>
                 <div className={styles.envelopeBack} aria-hidden />
-                <div className={styles.envelopeFlap} aria-hidden />
+                <div
+                  className={styles.envelopeFlap}
+                  data-reveal-envelope-flap
+                  aria-hidden
+                />
+                <div
+                  className={styles.envelopeFlapBack}
+                  data-reveal-envelope-flap-back
+                  aria-hidden
+                />
                 <div className={styles.envelopePocket} aria-hidden />
                 <div className={styles.envelopeFoldLeft} aria-hidden />
                 <div className={styles.envelopeFoldRight} aria-hidden />

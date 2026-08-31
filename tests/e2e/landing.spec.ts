@@ -541,6 +541,8 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
   await expect(showcase).toHaveAttribute("data-showcase-view", "morphing", {
     timeout: 5_000,
   });
+  const embeddedReveal = showcase.locator('[data-reveal-variant="embedded"]');
+  await expect(embeddedReveal).toHaveAttribute("data-reveal-state", "closed");
   const heroThread = page.getByTestId("hero-thread");
   await expect(heroThread).toHaveAttribute("data-charging", "false");
   await expect(showcase).toHaveAttribute("data-showcase-view", "invitation", {
@@ -552,11 +554,16 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
   await expect(phone.locator(":scope > span")).toHaveCount(1);
   const phoneScreen = showcase.getByTestId("hero-invitation-screen");
   await expect(phoneScreen).toBeVisible();
-  const embeddedReveal = showcase.locator('[data-reveal-variant="embedded"]');
   await expect(embeddedReveal).toHaveCSS("overflow", "hidden");
   await expect(embeddedReveal).toHaveAttribute("data-reveal-state", "opening", {
     timeout: 2_000,
   });
+  const envelopeFlap = embeddedReveal.locator("[data-reveal-envelope-flap]");
+  await expect(envelopeFlap).toHaveCSS("animation-duration", "1.5s");
+  await expect(envelopeFlap).toHaveCSS("animation-delay", "0.35s");
+  await expect(
+    embeddedReveal.locator("[data-reveal-envelope-flap-back]"),
+  ).toHaveCSS("animation-duration", "0.75s");
   await page.waitForTimeout(900);
   await expect(embeddedReveal).toHaveAttribute("data-reveal-state", "opening");
   const invitationLayer = showcase.locator("[data-reveal-invitation]");
@@ -674,7 +681,7 @@ test("Hero-ul reia la infinit dashboardul după prezentarea completă a invitaț
   await expect(completeInvitation).toHaveAttribute(
     "data-auto-scroll",
     "complete",
-    { timeout: 17_000 },
+    { timeout: 20_000 },
   );
   await expect(showcase).toHaveAttribute("data-showcase-view", "returning", {
     timeout: 4_000,
