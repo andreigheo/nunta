@@ -87,9 +87,12 @@ export function HeroShowcaseCycle({
             className={styles.heroPhoneShell}
             data-testid="hero-invitation-phone"
           >
-            <span className={styles.heroPhoneSensor} aria-hidden />
-            <div className={styles.heroPhoneScreen}>{invitation}</div>
-            <span className={styles.heroPhoneHome} aria-hidden />
+            <div
+              className={styles.heroPhoneScreen}
+              data-testid="hero-invitation-screen"
+            >
+              {invitation}
+            </div>
             <span
               className={styles.heroPhoneChargePort}
               data-hero-thread-charge

@@ -549,16 +549,17 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
 
   const phone = showcase.getByTestId("hero-invitation-phone");
   await expect(phone).toBeVisible();
+  await expect(phone.locator(":scope > span")).toHaveCount(1);
+  const phoneScreen = showcase.getByTestId("hero-invitation-screen");
+  await expect(phoneScreen).toBeVisible();
   const embeddedReveal = showcase.locator('[data-reveal-variant="embedded"]');
   await expect(embeddedReveal).toHaveCSS("overflow", "hidden");
   const invitationLayer = showcase.locator("[data-reveal-invitation]");
   await expect(invitationLayer).toHaveCSS("transform", "none");
-  const screenCenter = await phone
-    .locator(":scope > div")
-    .evaluate((element) => {
-      const bounds = element.getBoundingClientRect();
-      return bounds.x + bounds.width / 2;
-    });
+  const screenCenter = await phoneScreen.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.x + bounds.width / 2;
+  });
   const invitationCenter = await invitationLayer.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
     return bounds.x + bounds.width / 2;
