@@ -335,8 +335,8 @@
   inset: var(--phone-bezel);
   border-radius: var(--phone-screen-radius);
   box-shadow:
-    0 0 0 1px rgb(0 0 0 / 78%),
-    inset 0 0 0 1px rgb(255 255 255 / 7%);
+    inset 0 0 0 1px rgb(255 255 255 / 8%),
+    inset 0 0 0.16rem rgb(0 0 0 / 24%);
   content: "";
   pointer-events: none;
 }
@@ -347,8 +347,9 @@
   height: 100%;
   border-radius: var(--phone-screen-radius);
   background: var(--plum);
+  background-clip: padding-box;
   overflow: hidden;
-  clip-path: inset(0 round var(--phone-screen-radius));
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
   contain: paint;
   isolation: isolate;
   transform: translateZ(0);
