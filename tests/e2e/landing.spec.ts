@@ -549,6 +549,21 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
 
   const phone = showcase.getByTestId("hero-invitation-phone");
   await expect(phone).toBeVisible();
+  const embeddedReveal = showcase.locator('[data-reveal-variant="embedded"]');
+  await expect(embeddedReveal).toHaveCSS("overflow", "hidden");
+  const invitationLayer = showcase.locator("[data-reveal-invitation]");
+  await expect(invitationLayer).toHaveCSS("transform", "none");
+  const screenCenter = await phone
+    .locator(":scope > div")
+    .evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return bounds.x + bounds.width / 2;
+    });
+  const invitationCenter = await invitationLayer.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.x + bounds.width / 2;
+  });
+  expect(invitationCenter).toBeCloseTo(screenCenter, 1);
   await expect(showcase.locator("[data-hero-thread-charge]")).toBeVisible();
   await expect(heroThread).toHaveAttribute("data-charging", "true");
   const chargePath = heroThread.locator("svg").nth(1).locator("path");

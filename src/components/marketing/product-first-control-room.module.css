@@ -410,6 +410,26 @@
   height: 100%;
 }
 
+.heroInvitationStage :global([data-reveal-variant="embedded"]) {
+  overflow: hidden;
+  scrollbar-width: none;
+}
+
+.heroInvitationStage :global([data-reveal-variant="embedded"]::-webkit-scrollbar) {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.heroInvitationStage :global([data-reveal-invitation]) {
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+  transform: none;
+  transform-origin: 50% 50%;
+  will-change: opacity;
+}
+
 .heroInvitationStage :global([data-reveal-transition-veil]) {
   display: none;
 }
@@ -436,12 +456,10 @@
 @keyframes hero-invitation-reveal {
   from {
     opacity: 0;
-    transform: translate3d(0, 0.3rem, 0) scale(0.992);
   }
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
