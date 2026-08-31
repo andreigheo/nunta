@@ -185,9 +185,59 @@ describe("InvitationRenderer", () => {
     expect(markup).toContain("--hero-name-tracking:-2px");
     expect(markup).toContain("--hero-meta-gap:42px");
     expect(markup).toContain("ml-auto");
-    expect(markup).toContain('contentEditable="true"');
+    expect(markup).toContain('contentEditable="plaintext-only"');
     expect(markup).toContain("Editează numele sau titlul principal");
     expect(markup).toContain("Ana\n&amp; Mihai");
+  });
+
+  it("keeps nested text directly selectable and publishes responsive text styles", () => {
+    const schedule = createDefaultSection("schedule", "schedule-editable");
+    schedule.content.textStyles = {
+      "items.0.title": {
+        all: { letterSpacing: 1, offsetX: 4 },
+        mobile: { fontSize: 18 },
+      },
+    };
+    const snapshot: InvitationEditorSnapshot = {
+      design: invitationTemplates[1].design,
+      experience: {
+        enabled: false,
+        style: "split_panels",
+        replay: "first_visit",
+        panelColor: "#3B183F",
+        backgroundColor: "#F7F7F3",
+        accentColor: "#F06449",
+        sealStyle: "monogram",
+        texture: "paper",
+        monogram: null,
+        frontMessage: null,
+        coverMediaId: null,
+        coverImageUrl: null,
+        durationMs: 1400,
+      },
+      sections: [schedule],
+    };
+
+    const editableMarkup = renderToStaticMarkup(
+      React.createElement(InvitationRenderer, {
+        snapshot,
+        resolveMedia: () => "",
+        onContentChange: () => undefined,
+        onContentFocus: () => undefined,
+      }),
+    );
+    const publicMarkup = renderToStaticMarkup(
+      React.createElement(InvitationRenderer, {
+        snapshot,
+        resolveMedia: () => "",
+      }),
+    );
+
+    expect(editableMarkup).toContain(
+      'data-invitation-content-key="items.0.title"',
+    );
+    expect(publicMarkup).toContain("--editable-letter-spacing-all:1px");
+    expect(publicMarkup).toContain("--editable-font-size-mobile:18px");
   });
 
   it("repairs unreadable custom section and gradient color combinations", () => {

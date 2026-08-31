@@ -7,6 +7,46 @@
   position: relative;
 }
 
+.editableText {
+  --editable-font-size: var(--editable-font-size-desktop, var(--editable-font-size-all, inherit));
+  --editable-letter-spacing: var(--editable-letter-spacing-desktop, var(--editable-letter-spacing-all, inherit));
+  --editable-line-height: var(--editable-line-height-desktop, var(--editable-line-height-all, inherit));
+  --editable-offset-x: var(--editable-offset-x-desktop, var(--editable-offset-x-all, 0px));
+  --editable-offset-y: var(--editable-offset-y-desktop, var(--editable-offset-y-all, 0px));
+  --editable-width: var(--editable-width-desktop, var(--editable-width-all, auto));
+  --editable-align: var(--editable-align-desktop, var(--editable-align-all, inherit));
+  width: var(--editable-width);
+  font-size: var(--editable-font-size);
+  line-height: var(--editable-line-height);
+  letter-spacing: var(--editable-letter-spacing);
+  text-align: var(--editable-align);
+  transform: translate3d(var(--editable-offset-x), var(--editable-offset-y), 0);
+}
+
+@container invitation-canvas (max-width: 780px) {
+  .editableText {
+    --editable-font-size: var(--editable-font-size-tablet, var(--editable-font-size-all, inherit));
+    --editable-letter-spacing: var(--editable-letter-spacing-tablet, var(--editable-letter-spacing-all, inherit));
+    --editable-line-height: var(--editable-line-height-tablet, var(--editable-line-height-all, inherit));
+    --editable-offset-x: var(--editable-offset-x-tablet, var(--editable-offset-x-all, 0px));
+    --editable-offset-y: var(--editable-offset-y-tablet, var(--editable-offset-y-all, 0px));
+    --editable-width: var(--editable-width-tablet, var(--editable-width-all, auto));
+    --editable-align: var(--editable-align-tablet, var(--editable-align-all, inherit));
+  }
+}
+
+@container invitation-canvas (max-width: 480px) {
+  .editableText {
+    --editable-font-size: var(--editable-font-size-mobile, var(--editable-font-size-tablet, var(--editable-font-size-all, inherit)));
+    --editable-letter-spacing: var(--editable-letter-spacing-mobile, var(--editable-letter-spacing-tablet, var(--editable-letter-spacing-all, inherit)));
+    --editable-line-height: var(--editable-line-height-mobile, var(--editable-line-height-tablet, var(--editable-line-height-all, inherit)));
+    --editable-offset-x: var(--editable-offset-x-mobile, var(--editable-offset-x-tablet, var(--editable-offset-x-all, 0px)));
+    --editable-offset-y: var(--editable-offset-y-mobile, var(--editable-offset-y-tablet, var(--editable-offset-y-all, 0px)));
+    --editable-width: var(--editable-width-mobile, var(--editable-width-tablet, var(--editable-width-all, auto)));
+    --editable-align: var(--editable-align-mobile, var(--editable-align-tablet, var(--editable-align-all, inherit)));
+  }
+}
+
 .imageBackedSection {
   text-shadow:
     0 1px 2px rgb(0 0 0 / 72%),

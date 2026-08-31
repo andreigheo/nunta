@@ -22,6 +22,7 @@ import {
   PlayCircle,
   Plus,
   Redo2,
+  RotateCcw,
   Save,
   SlidersHorizontal,
   Smartphone,
@@ -75,6 +76,12 @@ import {
   undoInvitationHistory,
   type InvitationHistoryState,
 } from "@/lib/invitations/editor-history";
+import {
+  invitationEditableField,
+  invitationEditableFields,
+  invitationContentValue,
+  setInvitationContentValue,
+} from "@/lib/invitations/editor-content";
 import {
   invitationPreflightGuide,
   type InvitationPreflightAction,
@@ -140,6 +147,10 @@ export default function InvitationEditorPage() {
     createInvitationHistory,
   );
   const [selectedId, setSelectedId] = React.useState("hero");
+  const [selectedContentKey, setSelectedContentKey] = React.useState<string | null>(
+    "names",
+  );
+  const [structurePanelOpen, setStructurePanelOpen] = React.useState(false);
   const [device, setDevice] = React.useState<Device>("desktop");
   const [leftPanelTab, setLeftPanelTab] =
     React.useState<LeftPanelTab>("layers");
@@ -237,6 +248,7 @@ export default function InvitationEditorPage() {
         setVersions(versionData.items);
         setActiveVariantId(null);
         setSelectedId(next.sections[0]?.id ?? "");
+        setSelectedContentKey(null);
         setLastSavedAt(value?.draft ? new Date() : null);
       } catch (caught) {
         const message = apiErrorMessage(caught);
@@ -482,7 +494,7 @@ export default function InvitationEditorPage() {
     if (!selected) return;
     updateSection(
       selected.id,
-      { content: { ...selected.content, [key]: value } },
+      { content: setInvitationContentValue(selected.content, key, value) },
       invitationContentCoalesceKey(selected.id, key),
     );
   };
@@ -1031,6 +1043,7 @@ export default function InvitationEditorPage() {
   // click straight on the canvas must not move the ground under the cursor.
   const selectSectionFromRail = (id: string) => {
     setSelectedId(id);
+    setSelectedContentKey(null);
     setInspectorTab("content");
     scrollRequestRef.current = id;
   };
@@ -1138,7 +1151,7 @@ export default function InvitationEditorPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-9rem)] min-h-[42rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface lg:h-[calc(100dvh-8rem)]">
+    <div className="flex h-[calc(100dvh-1rem)] min-h-[42rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface sm:h-[calc(100dvh-1.5rem)]">
       <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
         <Button
           variant="ghost"
@@ -1181,6 +1194,19 @@ export default function InvitationEditorPage() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1">
+          <Tooltip content={structurePanelOpen ? "Ascunde structura" : "Arată structura"}>
+            <span className="hidden md:inline-flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setStructurePanelOpen((open) => !open)}
+                aria-label={structurePanelOpen ? "Ascunde structura invitației" : "Arată structura invitației"}
+                aria-pressed={structurePanelOpen}
+              >
+                <LayoutPanelLeft className="size-4" aria-hidden />
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             className="md:hidden"
             variant="ghost"
@@ -1266,7 +1292,7 @@ export default function InvitationEditorPage() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-[286px] shrink-0 border-r border-line bg-surface md:flex md:flex-col">
+        {structurePanelOpen ? <aside className="hidden w-[240px] shrink-0 border-r border-line bg-surface md:flex md:flex-col">
           <CreativeRail
             tab={leftPanelTab}
             onTabChange={setLeftPanelTab}
@@ -1284,7 +1310,7 @@ export default function InvitationEditorPage() {
             onAddAdvanced={addAdvancedSection}
             structuralLocked={Boolean(activeVariantId)}
           />
-        </aside>
+        </aside> : null}
 
         <main className="flex min-w-0 flex-1 flex-col bg-sunken/60">
           <div className="flex min-h-12 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-3">
@@ -1419,12 +1445,17 @@ export default function InvitationEditorPage() {
                   resolveMedia={resolveMedia}
                   onSelect={(id) => {
                     setSelectedId(id);
+                    setSelectedContentKey(null);
                     setInspectorTab("content");
                     if (window.innerWidth < 1024) setInspectorOpen(true);
                   }}
-                  onContentFocus={(id) => {
+                  activeContent={selectedContentKey ? { sectionId: selectedId, key: selectedContentKey } : null}
+                  onContentFocus={(id, key, mode) => {
                     setSelectedId(id);
+                    setSelectedContentKey(key);
                     setInspectorTab("content");
+                    if (mode === "structured" && window.innerWidth < 1024)
+                      setInspectorOpen(true);
                   }}
                   onUpdateSection={updateSection}
                   onUpdateContent={(sectionId, key, value) => {
@@ -1433,7 +1464,11 @@ export default function InvitationEditorPage() {
                     );
                     if (section)
                       updateSection(sectionId, {
-                        content: { ...section.content, [key]: value },
+                        content: setInvitationContentValue(
+                          section.content,
+                          key,
+                          value,
+                        ),
                       });
                   }}
                 />
@@ -1447,6 +1482,7 @@ export default function InvitationEditorPage() {
             tab={inspectorTab}
             onTabChange={setInspectorTab}
             selected={selected}
+            selectedContentKey={selectedContentKey}
             snapshot={snapshot}
             readiness={readiness}
             site={site}
@@ -1512,11 +1548,13 @@ export default function InvitationEditorPage() {
         open={inspectorOpen}
         onClose={() => setInspectorOpen(false)}
         title="Editează invitația"
+        mobilePlacement="bottom"
       >
         <Inspector
           tab={inspectorTab}
           onTabChange={setInspectorTab}
           selected={selected}
+          selectedContentKey={selectedContentKey}
           snapshot={snapshot}
           readiness={readiness}
           site={site}
@@ -2117,6 +2155,7 @@ function Inspector({
   tab,
   onTabChange,
   selected,
+  selectedContentKey,
   snapshot,
   readiness,
   site,
@@ -2144,6 +2183,7 @@ function Inspector({
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
   selected?: InvitationSection;
+  selectedContentKey: string | null;
   snapshot: InvitationEditorSnapshot;
   readiness: ReturnType<typeof invitationReadiness>;
   site: InvitationSiteResource | null;
@@ -2213,6 +2253,7 @@ function Inspector({
         {tab === "content" && selected && (
           <SectionInspector
             section={selected}
+            selectedContentKey={selectedContentKey}
             device={device}
             uploadingMedia={uploadingMedia}
             onUploadImage={onUploadImage}
@@ -2448,6 +2489,7 @@ function PreflightPanel({
 
 function SectionInspector({
   section,
+  selectedContentKey,
   device,
   uploadingMedia,
   onUploadImage,
@@ -2456,6 +2498,7 @@ function SectionInspector({
   onUpdateContentMany,
 }: {
   section: InvitationSection;
+  selectedContentKey: string | null;
   device: Device;
   uploadingMedia: boolean;
   onUploadImage: (
@@ -2466,6 +2509,9 @@ function SectionInspector({
   onUpdateContent: (key: string, value: unknown) => void;
   onUpdateContentMany: (values: Record<string, unknown>) => void;
 }) {
+  const fields = invitationEditableFields(section);
+  const activeContentKey =
+    selectedContentKey ?? fields.find((field) => field.direct)?.path ?? null;
   return (
     <div className="space-y-5 p-4">
       <div className="flex items-center gap-3">
@@ -2484,20 +2530,51 @@ function SectionInspector({
           onCheckedChange={(visible) => onUpdateSection({ visible })}
         />
       </div>
-      <Field label="Numele secțiunii" hint="Este vizibil doar în editor.">
-        <Input
-          value={section.label}
-          onChange={(event) => onUpdateSection({ label: event.target.value })}
+      {selectedContentKey ? (
+        <div className="rounded-lg border border-brand/20 bg-brand-softer/60 px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-strong">
+            Element selectat
+          </p>
+          <p className="mt-0.5 text-sm font-medium text-ink">
+            {invitationEditableField(section, selectedContentKey)?.label ??
+              "Text din invitație"}
+          </p>
+        </div>
+      ) : null}
+      {activeContentKey ? (
+        <ContextualTextControls
+          section={section}
+          contentKey={activeContentKey}
+          device={device}
+          uploadingMedia={uploadingMedia}
+          onUploadImage={onUploadImage}
+          onUpdateContent={onUpdateContent}
+          onUpdateContentMany={onUpdateContentMany}
+          onUpdateSection={onUpdateSection}
         />
-      </Field>
-      <ContentFields
-        section={section}
-        uploadingMedia={uploadingMedia}
-        onUploadImage={onUploadImage}
-        onUpdate={onUpdateContent}
-        onUpdateMany={onUpdateContentMany}
-        onUpdateSection={onUpdateSection}
-      />
+      ) : null}
+      <details className="rounded-xl border border-line bg-subtle/30 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-ink">
+          Toate câmpurile secțiunii
+        </summary>
+        <div className="mt-4 space-y-4">
+          <Field label="Numele secțiunii" hint="Este vizibil doar în editor.">
+            <Input
+              value={section.label}
+              onChange={(event) => onUpdateSection({ label: event.target.value })}
+            />
+          </Field>
+          <ContentFields
+            section={section}
+            selectedContentKey={selectedContentKey}
+            uploadingMedia={uploadingMedia}
+            onUploadImage={onUploadImage}
+            onUpdate={onUpdateContent}
+            onUpdateMany={onUpdateContentMany}
+            onUpdateSection={onUpdateSection}
+          />
+        </div>
+      </details>
       <div className="border-t border-line pt-4">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="size-4 text-brand" />
@@ -2586,8 +2663,568 @@ function SectionInspector({
   );
 }
 
+type ContextualControlTab = "text" | "spacing" | "image";
+type TextStyleDeviceScope = "all" | InvitationDevice;
+type TextElementStyle = {
+  fontSize?: number;
+  letterSpacing?: number;
+  lineHeight?: number;
+  offsetX?: number;
+  offsetY?: number;
+  width?: number;
+  align?: "left" | "center" | "right";
+};
+
+function ContextualTextControls({
+  section,
+  contentKey,
+  device,
+  uploadingMedia,
+  onUploadImage,
+  onUpdateContent,
+  onUpdateContentMany,
+  onUpdateSection,
+}: {
+  section: InvitationSection;
+  contentKey: string;
+  device: InvitationDevice;
+  uploadingMedia: boolean;
+  onUploadImage: (
+    file: File,
+    apply: (mediaId: string, fileName: string) => void,
+  ) => Promise<void>;
+  onUpdateContent: (key: string, value: unknown) => void;
+  onUpdateContentMany: (values: Record<string, unknown>) => void;
+  onUpdateSection: (update: Partial<InvitationSection>) => void;
+}) {
+  const [tab, setTab] = React.useState<ContextualControlTab>("text");
+  const [scope, setScope] = React.useState<"element" | "section">("element");
+  const [deviceScope, setDeviceScope] =
+    React.useState<TextStyleDeviceScope>("all");
+  const field = invitationEditableField(section, contentKey);
+  const rawValue = invitationContentValue(section.content, contentKey);
+  const value = text(rawValue);
+  const stylesValue =
+    section.content.textStyles && typeof section.content.textStyles === "object"
+      ? (section.content.textStyles as Record<string, unknown>)
+      : {};
+  const entry =
+    stylesValue[contentKey] && typeof stylesValue[contentKey] === "object"
+      ? (stylesValue[contentKey] as Record<string, unknown>)
+      : {};
+  const scopedStyle =
+    entry[deviceScope] && typeof entry[deviceScope] === "object"
+      ? (entry[deviceScope] as TextElementStyle)
+      : {};
+  const inheritedStyle =
+    deviceScope !== "all" && entry.all && typeof entry.all === "object"
+      ? (entry.all as TextElementStyle)
+      : {};
+  const defaults = defaultTextElementStyle(section, contentKey);
+  const styleValue = <K extends keyof TextElementStyle>(key: K) =>
+    (scopedStyle[key] ?? inheritedStyle[key] ?? defaults[key]) as NonNullable<
+      TextElementStyle[K]
+    >;
+  const changed = (key: keyof TextElementStyle) => scopedStyle[key] !== undefined;
+  const updateStyle = (update: Partial<TextElementStyle>) => {
+    const nextStyles = structuredClone(stylesValue);
+    const nextEntry =
+      nextStyles[contentKey] && typeof nextStyles[contentKey] === "object"
+        ? (nextStyles[contentKey] as Record<string, unknown>)
+        : {};
+    const nextScope =
+      nextEntry[deviceScope] && typeof nextEntry[deviceScope] === "object"
+        ? (nextEntry[deviceScope] as TextElementStyle)
+        : {};
+    nextEntry[deviceScope] = { ...nextScope, ...update };
+    nextStyles[contentKey] = nextEntry;
+    onUpdateContent("textStyles", nextStyles);
+  };
+  const resetStyle = (key?: keyof TextElementStyle) => {
+    const nextStyles = structuredClone(stylesValue);
+    const nextEntry =
+      nextStyles[contentKey] && typeof nextStyles[contentKey] === "object"
+        ? (nextStyles[contentKey] as Record<string, unknown>)
+        : {};
+    if (!key) delete nextEntry[deviceScope];
+    else if (nextEntry[deviceScope] && typeof nextEntry[deviceScope] === "object") {
+      const nextScope = { ...(nextEntry[deviceScope] as TextElementStyle) };
+      delete nextScope[key];
+      if (Object.keys(nextScope).length) nextEntry[deviceScope] = nextScope;
+      else delete nextEntry[deviceScope];
+    }
+    if (Object.keys(nextEntry).length) nextStyles[contentKey] = nextEntry;
+    else delete nextStyles[contentKey];
+    onUpdateContent("textStyles", nextStyles);
+  };
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-line bg-surface">
+      <div className="grid grid-cols-3 border-b border-line">
+        {(
+          [
+            ["text", "Text"],
+            ["spacing", "Spațiere"],
+            ["image", "Imagine"],
+          ] as Array<[ContextualControlTab, string]>
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTab(value)}
+            className={cn(
+              "min-h-11 border-b-2 px-2 text-xs font-semibold",
+              tab === value
+                ? "border-brand bg-brand-softer/50 text-brand-strong"
+                : "border-transparent text-muted hover:text-ink",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-4 p-3">
+        {tab !== "image" ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex rounded-lg border border-line p-0.5">
+              {(["element", "section"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setScope(value)}
+                  className={cn(
+                    "min-h-11 rounded-md px-3 text-xs font-semibold",
+                    scope === value
+                      ? "bg-brand text-white"
+                      : "text-muted hover:bg-subtle",
+                  )}
+                >
+                  {value === "element" ? "Element" : "Secțiune"}
+                </button>
+              ))}
+            </div>
+            {scope === "element" ? (
+              <div className="text-right">
+                <Select
+                  aria-label="Dispozitive pentru ajustare"
+                  value={deviceScope}
+                  onChange={(event) =>
+                    setDeviceScope(event.target.value as TextStyleDeviceScope)
+                  }
+                  className="min-h-9 w-auto text-xs"
+                >
+                  <option value="all">Toate dispozitivele</option>
+                  <option value="desktop">Doar desktop</option>
+                  <option value="tablet">Doar tabletă</option>
+                  <option value="mobile">Doar mobil</option>
+                </Select>
+                <p className="mt-1 text-[10px] text-faint">
+                  Previzualizare: {device === "desktop" ? "desktop" : device === "tablet" ? "tabletă" : "mobil"}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {tab === "text" && scope === "element" ? (
+          <>
+            <Field
+              label={field?.label ?? "Text"}
+              hint={
+                field?.direct
+                  ? "Poți scrie aici sau direct în invitație."
+                  : "Valoare structurată, editată în siguranță aici."
+              }
+            >
+              {field?.kind === "multiline" ? (
+                <Textarea
+                  value={value}
+                  onChange={(event) =>
+                    onUpdateContent(contentKey, event.target.value)
+                  }
+                />
+              ) : (
+                <Input
+                  type={
+                    field?.kind === "time"
+                      ? "time"
+                      : field?.kind === "phone"
+                        ? "tel"
+                        : field?.kind === "url"
+                          ? "url"
+                          : field?.kind === "date-time" && value.includes("T")
+                            ? "datetime-local"
+                            : "text"
+                  }
+                  value={value}
+                  onChange={(event) =>
+                    onUpdateContent(contentKey, event.target.value)
+                  }
+                />
+              )}
+            </Field>
+            <NumericStepper
+              label="Mărimea textului"
+              value={styleValue("fontSize")}
+              min={8}
+              max={160}
+              step={1}
+              suffix="px"
+              changed={changed("fontSize")}
+              onChange={(fontSize) => updateStyle({ fontSize })}
+              onReset={() => resetStyle("fontSize")}
+            />
+            <div>
+              <p className="mb-2 text-xs font-semibold text-ink">Aliniere</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    ["left", "Stânga", AlignLeft],
+                    ["center", "Centru", AlignCenter],
+                    ["right", "Dreapta", AlignRight],
+                  ] as const
+                ).map(([align, label, Icon]) => (
+                  <button
+                    key={align}
+                    type="button"
+                    onClick={() => updateStyle({ align })}
+                    className={cn(
+                      "flex min-h-11 items-center justify-center gap-1 rounded-lg border text-xs font-medium",
+                      styleValue("align") === align
+                        ? "border-brand bg-brand-softer text-brand-strong"
+                        : "border-line text-muted",
+                    )}
+                  >
+                    <Icon className="size-3.5" aria-hidden />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {tab === "text" && scope === "section" ? (
+          <SectionAlignmentControls section={section} onUpdate={onUpdateSection} />
+        ) : null}
+
+        {tab === "spacing" && scope === "element" ? (
+          <>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-faint">
+                Preseturi rapide
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {(
+                  [
+                    ["Compact", { letterSpacing: -1, lineHeight: 1, width: 92 }],
+                    ["Normal", { letterSpacing: 0, lineHeight: 1.2, width: 100 }],
+                    ["Aerisit", { letterSpacing: 1, lineHeight: 1.5, width: 100 }],
+                  ] as const
+                ).map(([label, preset]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => updateStyle(preset)}
+                    className="min-h-11 rounded-lg border border-line px-2 text-xs font-semibold text-muted hover:border-brand hover:bg-brand-softer hover:text-brand-strong"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                Apasă repetat sau ține apăsat pentru ajustare continuă.
+              </p>
+            </div>
+            <NumericStepper label="Mută stânga / dreapta" value={styleValue("offsetX")} min={-240} max={240} step={2} suffix="px" changed={changed("offsetX")} onChange={(offsetX) => updateStyle({ offsetX })} onReset={() => resetStyle("offsetX")} />
+            <NumericStepper label="Mută sus / jos" value={styleValue("offsetY")} min={-200} max={200} step={2} suffix="px" changed={changed("offsetY")} onChange={(offsetY) => updateStyle({ offsetY })} onReset={() => resetStyle("offsetY")} />
+            <NumericStepper label="Spațiu între litere" value={styleValue("letterSpacing")} min={-8} max={20} step={0.5} suffix="px" changed={changed("letterSpacing")} onChange={(letterSpacing) => updateStyle({ letterSpacing })} onReset={() => resetStyle("letterSpacing")} />
+            <NumericStepper label="Spațiu între rânduri" value={styleValue("lineHeight")} min={0.7} max={2.5} step={0.05} changed={changed("lineHeight")} onChange={(lineHeight) => updateStyle({ lineHeight })} onReset={() => resetStyle("lineHeight")} />
+            <NumericStepper label="Lățimea textului" value={styleValue("width")} min={30} max={100} step={2} suffix="%" changed={changed("width")} onChange={(width) => updateStyle({ width })} onReset={() => resetStyle("width")} />
+            <Button className="w-full" variant="ghost" size="sm" onClick={() => resetStyle()}>
+              <RotateCcw className="size-3.5" aria-hidden />
+              Resetează ajustările elementului
+            </Button>
+          </>
+        ) : null}
+
+        {tab === "spacing" && scope === "section" ? (
+          <>
+            <SectionAlignmentControls section={section} onUpdate={onUpdateSection} />
+            <NumericStepper
+              label="Spațiu vertical în secțiune"
+              value={section.style.padding}
+              min={16}
+              max={120}
+              step={4}
+              suffix="px"
+              changed={section.style.padding !== (section.type === "hero" ? 64 : 48)}
+              onChange={(padding) =>
+                onUpdateSection({ style: { ...section.style, padding } })
+              }
+              onReset={() =>
+                onUpdateSection({
+                  style: {
+                    ...section.style,
+                    padding: section.type === "hero" ? 64 : 48,
+                  },
+                })
+              }
+            />
+          </>
+        ) : null}
+
+        {tab === "image" ? (
+          <>
+            {section.type === "hero" ? (
+              <MediaUploader
+                title="Schimbă imaginea principală"
+                fileName={text(section.content.mediaName)}
+                uploading={uploadingMedia}
+                onFile={(file) =>
+                  void onUploadImage(file, (mediaId, mediaName) =>
+                    onUpdateContentMany({ mediaId, mediaName }),
+                  )
+                }
+                onRemove={() =>
+                  onUpdateContentMany({ mediaId: "", mediaName: "", coverImage: "" })
+                }
+              />
+            ) : null}
+            <SectionBackgroundControls
+              section={section}
+              onUpdateSection={onUpdateSection}
+              uploading={uploadingMedia}
+              onUploadImage={onUploadImage}
+              onUpdateContentMany={onUpdateContentMany}
+            />
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SectionAlignmentControls({
+  section,
+  onUpdate,
+}: {
+  section: InvitationSection;
+  onUpdate: (update: Partial<InvitationSection>) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold text-ink">Alinierea secțiunii</p>
+      <div className="grid grid-cols-3 gap-2">
+        {(
+          [
+            ["left", "Stânga", AlignLeft],
+            ["center", "Centru", AlignCenter],
+            ["right", "Dreapta", AlignRight],
+          ] as const
+        ).map(([align, label, Icon]) => (
+          <button
+            key={align}
+            type="button"
+            onClick={() =>
+              onUpdate({ style: { ...section.style, align } })
+            }
+            className={cn(
+              "flex min-h-11 items-center justify-center gap-1 rounded-lg border text-xs font-medium",
+              section.style.align === align
+                ? "border-brand bg-brand-softer text-brand-strong"
+                : "border-line text-muted",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden />
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NumericStepper({
+  label,
+  value,
+  min,
+  max,
+  step,
+  suffix = "",
+  changed,
+  onChange,
+  onReset,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  suffix?: string;
+  changed: boolean;
+  onChange: (value: number) => void;
+  onReset: () => void;
+}) {
+  const timeoutRef = React.useRef<number | null>(null);
+  const intervalRef = React.useRef<number | null>(null);
+  const currentValueRef = React.useRef(value);
+  React.useEffect(() => {
+    currentValueRef.current = value;
+  }, [value]);
+  const precision = String(step).split(".")[1]?.length ?? 0;
+  const clamp = React.useCallback(
+    (next: number) =>
+      Number(Math.min(max, Math.max(min, next)).toFixed(precision)),
+    [max, min, precision],
+  );
+  const adjust = React.useCallback(
+    (direction: -1 | 1) => {
+      const next = clamp(currentValueRef.current + direction * step);
+      currentValueRef.current = next;
+      onChange(next);
+    },
+    [clamp, onChange, step],
+  );
+  const stop = React.useCallback(() => {
+    if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+    if (intervalRef.current !== null) window.clearInterval(intervalRef.current);
+    timeoutRef.current = null;
+    intervalRef.current = null;
+  }, []);
+  React.useEffect(() => stop, [stop]);
+  const begin = (direction: -1 | 1) => {
+    adjust(direction);
+    timeoutRef.current = window.setTimeout(() => {
+      intervalRef.current = window.setInterval(() => adjust(direction), 90);
+    }, 380);
+  };
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-ink">{label}</p>
+        {changed ? (
+          <button
+            type="button"
+            onClick={onReset}
+            className="grid size-9 place-items-center rounded-md text-brand hover:bg-brand-softer"
+            aria-label={`Revino la valoarea inițială pentru ${label}`}
+            title="Revino la valoarea inițială"
+          >
+            <RotateCcw className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+      <div className={cn("grid grid-cols-[44px_minmax(0,1fr)_44px] overflow-hidden rounded-lg border bg-surface", changed ? "border-brand/35" : "border-line")}>
+        <button
+          type="button"
+          className="grid min-h-11 place-items-center border-r border-line text-ink hover:bg-subtle disabled:opacity-35"
+          aria-label={`Micșorează ${label}`}
+          disabled={value <= min}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            begin(-1);
+          }}
+          onPointerUp={stop}
+          onPointerCancel={stop}
+          onLostPointerCapture={stop}
+          onClick={(event) => {
+            if (event.detail === 0) adjust(-1);
+          }}
+        >
+          <Minus className="size-4" aria-hidden />
+        </button>
+        <div className="relative min-w-0">
+          <input
+            key={`${value}-${suffix}`}
+            type="number"
+            defaultValue={value}
+            min={min}
+            max={max}
+            step={step}
+            onBlur={(event) => {
+              const next = Number(event.target.value);
+              event.target.value = String(Number.isFinite(next) ? clamp(next) : value);
+              if (Number.isFinite(next)) onChange(clamp(next));
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") {
+                event.currentTarget.value = String(value);
+                event.currentTarget.blur();
+              }
+            }}
+            className="min-h-11 w-full appearance-none bg-transparent px-3 pr-10 text-center text-sm font-semibold tabular-nums text-ink outline-none focus:bg-brand-softer/40"
+            aria-label={`${label}, valoare exactă`}
+          />
+          {suffix ? (
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-faint">
+              {suffix}
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="grid min-h-11 place-items-center border-l border-line text-ink hover:bg-subtle disabled:opacity-35"
+          aria-label={`Mărește ${label}`}
+          disabled={value >= max}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            begin(1);
+          }}
+          onPointerUp={stop}
+          onPointerCancel={stop}
+          onLostPointerCapture={stop}
+          onClick={(event) => {
+            if (event.detail === 0) adjust(1);
+          }}
+        >
+          <Plus className="size-4" aria-hidden />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function defaultTextElementStyle(
+  section: InvitationSection,
+  contentKey: string,
+): Required<TextElementStyle> {
+  const isNames = section.type === "hero" && contentKey === "names";
+  const isHeading = contentKey === "title" || contentKey.endsWith(".title");
+  const isSmall =
+    contentKey === "eyebrow" ||
+    contentKey.includes(".detail") ||
+    contentKey.includes(".answer") ||
+    contentKey.includes(".caption");
+  return {
+    fontSize: isNames
+      ? numberValue(section.content.headingSize, 76)
+      : isHeading
+        ? 32
+        : isSmall
+          ? 12
+          : 14,
+    letterSpacing: isNames
+      ? numberValue(section.content.namesLetterSpacing, -3)
+      : 0,
+    lineHeight: isNames
+      ? numberValue(section.content.namesLineHeight, 94) / 100
+      : 1.2,
+    offsetX: 0,
+    offsetY: 0,
+    width: 100,
+    align: section.style.align,
+  };
+}
+
 function ContentFields({
   section,
+  selectedContentKey,
   uploadingMedia,
   onUploadImage,
   onUpdate,
@@ -2595,6 +3232,7 @@ function ContentFields({
   onUpdateSection,
 }: {
   section: InvitationSection;
+  selectedContentKey: string | null;
   uploadingMedia: boolean;
   onUploadImage: (
     file: File,
@@ -2605,7 +3243,14 @@ function ContentFields({
   onUpdateSection: (update: Partial<InvitationSection>) => void;
 }) {
   const c = section.content;
+  const fieldClass = (key: string) =>
+    cn(
+      "rounded-lg transition-[background-color,box-shadow]",
+      selectedContentKey === key &&
+        "bg-brand-softer/70 ring-2 ring-brand/20 ring-offset-2",
+    );
   const input = (key: string, label: string, placeholder?: string) => (
+    <div data-content-field={key} className={fieldClass(key)}>
     <Field label={label}>
       <Input
         value={text(c[key])}
@@ -2613,8 +3258,10 @@ function ContentFields({
         onChange={(event) => onUpdate(key, event.target.value)}
       />
     </Field>
+    </div>
   );
   const area = (key: string, label: string, placeholder?: string) => (
+    <div data-content-field={key} className={fieldClass(key)}>
     <Field label={label}>
       <Textarea
         value={text(c[key])}
@@ -2622,6 +3269,7 @@ function ContentFields({
         onChange={(event) => onUpdate(key, event.target.value)}
       />
     </Field>
+    </div>
   );
   const range = (
     key: string,
@@ -2899,6 +3547,7 @@ function ContentFields({
             ["detail", "Detaliu"],
           ]}
           onChange={(items) => onUpdate("items", items)}
+          selectedContentKey={selectedContentKey}
         />
       </>
     );
@@ -2915,6 +3564,7 @@ function ContentFields({
             ["url", "Link hartă"],
           ]}
           onChange={(items) => onUpdate("items", items)}
+          selectedContentKey={selectedContentKey}
         />
       </>
     );
@@ -2989,6 +3639,7 @@ function ContentFields({
         <GalleryItems
           items={array(c.items)}
           onChange={(items) => onUpdate("items", items)}
+          selectedContentKey={selectedContentKey}
         />
       </>
     );
@@ -3014,6 +3665,7 @@ function ContentFields({
             ["url", "Link"],
           ]}
           onChange={(items) => onUpdate("items", items)}
+          selectedContentKey={selectedContentKey}
         />
       </>
     );
@@ -3030,6 +3682,7 @@ function ContentFields({
           ]}
           onChange={(items) => onUpdate("items", items)}
           multiline={["answer"]}
+          selectedContentKey={selectedContentKey}
         />
       </>
     );
@@ -3296,9 +3949,11 @@ function MediaUploader({
 function GalleryItems({
   items,
   onChange,
+  selectedContentKey,
 }: {
   items: Array<Record<string, unknown>>;
   onChange: (items: Array<Record<string, unknown>>) => void;
+  selectedContentKey: string | null;
 }) {
   if (!items.length)
     return (
@@ -3311,13 +3966,19 @@ function GalleryItems({
       {items.map((item, index) => (
         <div
           key={`${text(item.mediaId)}-${index}`}
-          className="flex items-center gap-2 rounded-lg border border-line p-2"
+          className={cn(
+            "flex items-center gap-2 rounded-lg border p-2",
+            selectedContentKey === `items.${index}.caption`
+              ? "border-brand bg-brand-softer/60 ring-2 ring-brand/15"
+              : "border-line",
+          )}
         >
           <span className="grid size-10 shrink-0 place-items-center rounded-md bg-subtle text-faint">
             <ImageIcon className="size-4" />
           </span>
           <Input
             className="h-9"
+            data-content-field={`items.${index}.caption`}
             value={text(item.caption)}
             placeholder={text(item.fileName, `Imagine ${index + 1}`)}
             onChange={(event) =>
@@ -3620,12 +4281,14 @@ function Repeater({
   fields,
   multiline = [],
   onChange,
+  selectedContentKey,
 }: {
   label: string;
   items: Array<Record<string, unknown>>;
   fields: Array<[string, string]>;
   multiline?: string[];
   onChange: (items: Array<Record<string, unknown>>) => void;
+  selectedContentKey: string | null;
 }) {
   return (
     <div>
@@ -3668,7 +4331,7 @@ function Repeater({
             <div className="space-y-2">
               {fields.map(([key, fieldLabel]) =>
                 multiline.includes(key) ? (
-                  <Field key={key} label={fieldLabel}>
+                  <div key={key} data-content-field={`items.${index}.${key}`} className={cn(selectedContentKey === `items.${index}.${key}` && "rounded-lg bg-brand-softer/70 ring-2 ring-brand/20 ring-offset-2")}><Field label={fieldLabel}>
                     <Textarea
                       className="min-h-20"
                       value={text(item[key])}
@@ -3682,9 +4345,9 @@ function Repeater({
                         )
                       }
                     />
-                  </Field>
+                  </Field></div>
                 ) : (
-                  <Field key={key} label={fieldLabel}>
+                  <div key={key} data-content-field={`items.${index}.${key}`} className={cn(selectedContentKey === `items.${index}.${key}` && "rounded-lg bg-brand-softer/70 ring-2 ring-brand/20 ring-offset-2")}><Field label={fieldLabel}>
                     <Input
                       value={text(item[key])}
                       onChange={(event) =>
@@ -3697,7 +4360,7 @@ function Repeater({
                         )
                       }
                     />
-                  </Field>
+                  </Field></div>
                 ),
               )}
             </div>
@@ -4004,6 +4667,7 @@ function DesignInspector({
 function InvitationCanvas({
   snapshot,
   selectedId,
+  activeContent,
   resolveMedia,
   onSelect,
   onContentFocus,
@@ -4012,9 +4676,14 @@ function InvitationCanvas({
 }: {
   snapshot: InvitationEditorSnapshot;
   selectedId: string;
+  activeContent: { sectionId: string; key: string } | null;
   resolveMedia: (mediaId: string, externalUrl?: string) => string;
   onSelect: (id: string) => void;
-  onContentFocus: (id: string, key: string) => void;
+  onContentFocus: (
+    id: string,
+    key: string,
+    mode?: "direct" | "structured",
+  ) => void;
   onUpdateSection: (id: string, update: Partial<InvitationSection>) => void;
   onUpdateContent: (sectionId: string, key: string, value: unknown) => void;
 }) {
@@ -4027,6 +4696,7 @@ function InvitationCanvas({
         onUpdateContent(sectionId, key, value)
       }
       onContentFocus={onContentFocus}
+      activeContent={activeContent}
       emptyState={
         <div className="grid min-h-96 place-items-center p-8 text-center text-sm opacity-60">
           Afișează sau adaugă o secțiune pentru a construi invitația.

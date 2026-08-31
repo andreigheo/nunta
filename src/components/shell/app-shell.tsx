@@ -30,6 +30,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { loading, loadError, demoMode, bootstrap, currentWorkspace, refresh } =
     useWorkspace();
+  const focusedEditor = pathname === "/invitations/editor";
   if (loading) {
     return <div className="min-h-dvh animate-pulse bg-canvas" role="status" aria-label="Se încarcă spațiul de lucru" />;
   }
@@ -77,12 +78,24 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       )}
-      <div className="flex min-h-dvh">
-        <AppSidebar />
+      <div
+        className={
+          demoMode
+            ? "flex min-h-dvh pt-10 sm:pt-6"
+            : "flex min-h-dvh"
+        }
+      >
+        {!focusedEditor ? <AppSidebar /> : null}
         <div className="flex min-w-0 flex-1 flex-col">
           <OfflineBanner />
-          <Topbar />
-          <main className="min-w-0 flex-1 px-4 pb-24 pt-5 sm:px-6 lg:pb-10">
+          {!focusedEditor ? <Topbar /> : null}
+          <main
+            className={
+              focusedEditor
+                ? "min-w-0 flex-1 p-2 sm:p-3"
+                : "min-w-0 flex-1 px-4 pb-24 pt-5 sm:px-6 lg:pb-10"
+            }
+          >
             {allowed ? (
               children
             ) : (
@@ -99,14 +112,16 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
-      <CommandPalette />
-      <NotificationsDrawer />
-      <AICopilot
-        key={currentWorkspace?.id ?? "no-workspace"}
-      />
-      <QuickCreateModal />
-      <MobileBottomNav />
-      <MobileNavSheet />
+      {!focusedEditor ? (
+        <>
+          <CommandPalette />
+          <NotificationsDrawer />
+          <AICopilot key={currentWorkspace?.id ?? "no-workspace"} />
+          <QuickCreateModal />
+          <MobileBottomNav />
+          <MobileNavSheet />
+        </>
+      ) : null}
     </ShellProvider>
   );
 }

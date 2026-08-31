@@ -171,6 +171,7 @@ export function Drawer({
   children,
   footer,
   headerActions,
+  mobilePlacement = "side",
   className,
   "aria-label": ariaLabel,
 }: {
@@ -182,6 +183,7 @@ export function Drawer({
   children: React.ReactNode;
   footer?: React.ReactNode;
   headerActions?: React.ReactNode;
+  mobilePlacement?: "side" | "bottom";
   className?: string;
   "aria-label"?: string;
 }) {
@@ -216,11 +218,19 @@ export function Drawer({
           aria-describedby={description ? descriptionId : undefined}
           tabIndex={-1}
           className={cn(
-            "absolute inset-y-0 right-0 flex w-full animate-slide-in-right flex-col border-l border-line bg-elevated shadow-overlay",
+            "absolute flex w-full flex-col bg-elevated shadow-overlay",
+            mobilePlacement === "bottom"
+              ? "inset-x-0 bottom-0 max-h-[82dvh] animate-slide-in-right rounded-t-2xl border-t border-line sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:rounded-none sm:border-t-0 sm:border-l"
+              : "inset-y-0 right-0 animate-slide-in-right border-l border-line",
             widths[width],
             className,
           )}
         >
+          {mobilePlacement === "bottom" ? (
+            <div className="flex h-5 shrink-0 items-center justify-center sm:hidden" aria-hidden>
+              <span className="h-1 w-12 rounded-full bg-line-strong" />
+            </div>
+          ) : null}
           <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
             <div className="min-w-0 flex-1">
               {typeof title === "string" ? (
