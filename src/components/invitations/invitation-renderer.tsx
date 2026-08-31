@@ -48,6 +48,7 @@ export type InvitationRendererProps = {
     key: string,
     value: string,
   ) => void;
+  onContentFocus?: (sectionId: string, key: string) => void;
   renderSectionFrame?: InvitationSectionFrame;
   className?: string;
   emptyState?: React.ReactNode;
@@ -65,6 +66,7 @@ export function InvitationRenderer({
   onRsvp,
   rsvpHref,
   onContentChange,
+  onContentFocus,
   renderSectionFrame,
   className,
   emptyState,
@@ -106,6 +108,7 @@ export function InvitationRenderer({
             onRsvp={onRsvp}
             rsvpHref={rsvpHref}
             onContentChange={onContentChange}
+            onContentFocus={onContentFocus}
             defaultTimeZone={defaultTimeZone}
           />
         );
@@ -136,6 +139,7 @@ type InvitationSectionViewProps = {
   onRsvp?: () => void;
   rsvpHref?: string;
   onContentChange?: InvitationRendererProps["onContentChange"];
+  onContentFocus?: InvitationRendererProps["onContentFocus"];
   defaultTimeZone?: string;
 };
 
@@ -181,6 +185,7 @@ function InvitationSectionContent({
   onRsvp,
   rsvpHref,
   onContentChange,
+  onContentFocus,
   defaultTimeZone,
 }: InvitationSectionViewProps) {
   const content = section.content;
@@ -210,6 +215,10 @@ function InvitationSectionContent({
           ? (value) => onContentChange(section.id, key, value)
           : undefined
       }
+      onFocus={
+        onContentFocus ? () => onContentFocus(section.id, key) : undefined
+      }
+      label={invitationTextLabel(section.type, key)}
     />
   );
 
@@ -237,15 +246,17 @@ function InvitationSectionContent({
         className={cn(
           "relative z-10 w-full",
           isImmersive && "text-white",
+          center && "mx-auto",
+          right && "ml-auto",
           styles.heroCopy,
         )}
+        style={heroCopyStyle(content)}
       >
         <p className="text-xs font-semibold uppercase tracking-[.22em] opacity-75">
           {edit("eyebrow")}
         </p>
         <h1
           className={cn(
-            "mt-4 leading-[.94] tracking-[-.035em]",
             headingClass,
             styles.heroHeading,
           )}
@@ -258,7 +269,8 @@ function InvitationSectionContent({
         </h1>
         <div
           className={cn(
-            "mt-6 flex flex-wrap gap-x-3 gap-y-1 text-sm",
+            "flex flex-wrap gap-x-3 gap-y-1 text-sm",
+            styles.heroMeta,
             center && "justify-center",
             right && "justify-end",
           )}
@@ -267,12 +279,13 @@ function InvitationSectionContent({
           <span aria-hidden>·</span>
           <span>{edit("venue")}</span>
         </div>
-        <h2 className={cn("mt-8", headingClass, styles.heroSubheading)}>
+        <h2 className={cn(headingClass, styles.heroSubheading)}>
           {edit("title")}
         </h2>
         <p
           className={cn(
-            "mt-3 max-w-xl text-sm leading-relaxed opacity-80",
+            "max-w-xl whitespace-pre-line text-sm leading-relaxed opacity-80",
+            styles.heroSubtitle,
             center && "mx-auto",
             right && "ml-auto",
           )}
@@ -281,7 +294,8 @@ function InvitationSectionContent({
         </p>
         <div
           className={cn(
-            "mt-7 flex flex-wrap items-center gap-2",
+            "flex flex-wrap items-center gap-2",
+            styles.heroActions,
             center && "justify-center",
             right && "justify-end",
           )}
@@ -488,9 +502,15 @@ function InvitationSectionContent({
           Până pe{" "}
           <InvitationText
             value={deadline}
+            label="termenul RSVP"
             onCommit={
               onContentChange
                 ? (value) => onContentChange(section.id, "deadline", value)
+                : undefined
+            }
+            onFocus={
+              onContentFocus
+                ? () => onContentFocus(section.id, "deadline")
                 : undefined
             }
           />
@@ -634,9 +654,30 @@ function SectionHeading({ section, design, className, children }: { section: Inv
   return <h2 className={cn("text-3xl", className)} style={sectionHeadingStyle(section, design)}>{children}</h2>;
 }
 
-function InvitationText({ value, onCommit }: { value: string; onCommit?: (value: string) => void }) {
+function InvitationText({ value, onCommit, onFocus, label }: { value: string; onCommit?: (value: string) => void; onFocus?: () => void; label: string }) {
   if (!onCommit) return <>{value}</>;
-  return <span className="inline-block min-w-4 cursor-text rounded-sm outline-none focus:bg-white/15 focus:ring-2 focus:ring-current/30" contentEditable suppressContentEditableWarning onClick={(event) => event.stopPropagation()} onBlur={(event) => { const next = event.currentTarget.textContent?.trim() ?? ""; if (next !== value) onCommit(next); }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.blur(); } }}>{value}</span>;
+  return <span className="inline-block min-w-4 cursor-text whitespace-pre-wrap rounded-sm outline-none transition-[background-color,box-shadow] hover:bg-white/10 focus:bg-white/15 focus:ring-2 focus:ring-current/40" contentEditable suppressContentEditableWarning role="textbox" aria-label={`Editează ${label}`} title={`Editează ${label}`} onFocus={onFocus} onClick={(event) => event.stopPropagation()} onBlur={(event) => { const next = editableInvitationText(event.currentTarget); if (next !== value) onCommit(next); }} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.textContent = value; event.currentTarget.blur(); return; } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.blur(); } }}>{value}</span>;
+}
+
+function editableInvitationText(element: HTMLElement) {
+  return element.innerText
+    .replace(/\r\n/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/\n+$/g, "");
+}
+
+function invitationTextLabel(type: InvitationSection["type"], key: string) {
+  if (type === "hero") {
+    return ({
+      eyebrow: "supratitlul",
+      names: "numele sau titlul principal",
+      date: "data",
+      venue: "orașul sau locația",
+      title: "mesajul principal",
+      subtitle: "introducerea",
+    } as Record<string, string>)[key] ?? "textul copertei";
+  }
+  return key === "title" ? "titlul secțiunii" : "textul secțiunii";
 }
 
 function InvitationCountdown({
@@ -723,6 +764,37 @@ function InvitationImage({ src, alt, className, focalX = 50, focalY = 50, artDir
   // Next image configuration while retaining object-position controls.
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={src} alt={alt} className={cn("size-full object-cover", artDirection && styles.artDirectedImage, className)} style={artDirection ? invitationArtDirectionStyle(artDirection) : { objectPosition: `${focalX}% ${focalY}%` }} loading="lazy" decoding="async" />;
+}
+
+function heroCopyStyle(content: Record<string, unknown>): React.CSSProperties {
+  const style: Record<string, string> = {};
+  const setPixels = (property: string, value: unknown, min: number, max: number) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return;
+    style[property] = `${Math.min(max, Math.max(min, value))}px`;
+  };
+  const setUnitless = (
+    property: string,
+    value: unknown,
+    min: number,
+    max: number,
+    divisor = 1,
+  ) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return;
+    style[property] = String(Math.min(max, Math.max(min, value)) / divisor);
+  };
+
+  setPixels("--hero-copy-width", content.textWidth, 280, 960);
+  setPixels("--hero-copy-offset-x", content.textOffsetX, -240, 240);
+  setPixels("--hero-copy-offset-y", content.textOffsetY, -200, 200);
+  setPixels("--hero-names-gap", content.namesGap, 0, 120);
+  setPixels("--hero-meta-gap", content.metaGap, 0, 120);
+  setPixels("--hero-title-gap", content.titleGap, 0, 120);
+  setPixels("--hero-subtitle-gap", content.subtitleGap, 0, 80);
+  setPixels("--hero-actions-gap", content.actionsGap, 0, 100);
+  setPixels("--hero-name-tracking", content.namesLetterSpacing, -8, 8);
+  setUnitless("--hero-name-line-height", content.namesLineHeight, 70, 140, 100);
+
+  return style as React.CSSProperties;
 }
 
 type InvitationArtDirectionValue = {

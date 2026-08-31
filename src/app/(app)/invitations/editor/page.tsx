@@ -1291,7 +1291,7 @@ export default function InvitationEditorPage() {
             <div className="hidden items-center gap-2 sm:flex">
               <span className="size-2 rounded-full bg-success" aria-hidden />
               <span className="text-xs text-muted">
-                Previzualizare live · dublu clic pentru text
+                Previzualizare live · clic pe text pentru editare
               </span>
             </div>
             <SegmentedControl
@@ -1421,6 +1421,10 @@ export default function InvitationEditorPage() {
                     setSelectedId(id);
                     setInspectorTab("content");
                     if (window.innerWidth < 1024) setInspectorOpen(true);
+                  }}
+                  onContentFocus={(id) => {
+                    setSelectedId(id);
+                    setInspectorTab("content");
                   }}
                   onUpdateSection={updateSection}
                   onUpdateContent={(sectionId, key, value) => {
@@ -2492,20 +2496,15 @@ function SectionInspector({
         onUploadImage={onUploadImage}
         onUpdate={onUpdateContent}
         onUpdateMany={onUpdateContentMany}
-      />
-      <EditorLayerStudio
-        section={section}
-        device={device}
-        uploading={uploadingMedia}
-        onUpdateContent={onUpdateContent}
-        onUploadImage={onUploadImage}
+        onUpdateSection={onUpdateSection}
       />
       <div className="border-t border-line pt-4">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="size-4 text-brand" />
           <p className="text-sm font-semibold text-ink">Compoziție</p>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        {section.type !== "hero" ? (
+          <div className="mt-3 grid grid-cols-3 gap-2">
           <button
             onClick={() =>
               onUpdateSection({ style: { ...section.style, align: "left" } })
@@ -2548,7 +2547,8 @@ function SectionInspector({
             <AlignRight className="size-3.5" />
             Dreapta
           </button>
-        </div>
+          </div>
+        ) : null}
         <Field className="mt-3" label="Spațiu vertical">
           <input
             type="range"
@@ -2575,6 +2575,13 @@ function SectionInspector({
           onUpdateContentMany={onUpdateContentMany}
         />
       </div>
+      <EditorLayerStudio
+        section={section}
+        device={device}
+        uploading={uploadingMedia}
+        onUpdateContent={onUpdateContent}
+        onUploadImage={onUploadImage}
+      />
     </div>
   );
 }
@@ -2585,6 +2592,7 @@ function ContentFields({
   onUploadImage,
   onUpdate,
   onUpdateMany,
+  onUpdateSection,
 }: {
   section: InvitationSection;
   uploadingMedia: boolean;
@@ -2594,6 +2602,7 @@ function ContentFields({
   ) => Promise<void>;
   onUpdate: (key: string, value: unknown) => void;
   onUpdateMany: (values: Record<string, unknown>) => void;
+  onUpdateSection: (update: Partial<InvitationSection>) => void;
 }) {
   const c = section.content;
   const input = (key: string, label: string, placeholder?: string) => (
@@ -2614,26 +2623,100 @@ function ContentFields({
       />
     </Field>
   );
+  const range = (
+    key: string,
+    label: string,
+    min: number,
+    max: number,
+    fallback: number,
+    step = 1,
+    suffix = "px",
+  ) => {
+    const value = numberValue(c[key], fallback);
+    return (
+      <Field label={`${label} · ${value}${suffix}`}>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onUpdate(key, Number(event.target.value))}
+          className="min-h-11 w-full accent-[var(--brand)]"
+        />
+      </Field>
+    );
+  };
   if (section.type === "hero")
     return (
       <>
-        <MediaUploader
-          title="Imaginea principală"
-          fileName={text(c.mediaName)}
-          uploading={uploadingMedia}
-          onFile={(file) =>
-            void onUploadImage(file, (mediaId, fileName) => {
-              onUpdateMany({ mediaId, mediaName: fileName });
-            })
-          }
-          onRemove={() =>
-            onUpdateMany({ mediaId: "", mediaName: "", coverImage: "" })
-          }
-        />
-        <div>
-          <p className="text-sm font-medium text-ink">
-            Aranjarea copertei
+        <div className="rounded-xl bg-brand-softer p-3">
+          <p className="text-sm font-semibold text-brand-strong">
+            Textul copertei
           </p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Editează aici sau direct în previzualizare. Enter confirmă, Shift +
+            Enter adaugă un rând, iar Escape anulează editarea directă.
+          </p>
+          <div className="mt-4 space-y-3">
+            {input("eyebrow", "Supratitlu", "De exemplu: Ne căsătorim")}
+            <Field
+              label="Numele sau titlul principal"
+              hint="Poți separa numele pe rânduri diferite."
+            >
+              <Textarea
+                rows={2}
+                value={text(c.names)}
+                onChange={(event) => onUpdate("names", event.target.value)}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              {input("date", "Data afișată")}
+              {input("venue", "Orașul sau locația")}
+            </div>
+            {area("title", "Mesajul principal")}
+            {area("subtitle", "Introducerea")}
+            {input("buttonLabel", "Textul butonului RSVP")}
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-subtle/70 p-3">
+          <p className="text-sm font-semibold text-ink">
+            Poziția blocului de text
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Alinierea mută textul la stânga, centru sau dreapta. Reglajele de
+            mai jos fac ajustarea fină în interiorul copertei.
+          </p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {(
+              [
+                ["left", "Stânga", AlignLeft],
+                ["center", "Centru", AlignCenter],
+                ["right", "Dreapta", AlignRight],
+              ] as const
+            ).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() =>
+                  onUpdateSection({
+                    style: { ...section.style, align: value },
+                  })
+                }
+                aria-pressed={section.style.align === value}
+                className={cn(
+                  "flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold",
+                  section.style.align === value
+                    ? "border-brand bg-surface text-brand-strong"
+                    : "border-line bg-surface/60 text-muted hover:border-line-strong",
+                )}
+              >
+                <Icon className="size-3.5" aria-hidden />
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {[
               ["immersive", "Pe imagine"],
@@ -2654,30 +2737,72 @@ function ContentFields({
               </button>
             ))}
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Field label="Înălțimea copertei">
+              <Select
+                value={String(Number(c.heroHeight) || 620)}
+                onChange={(event) =>
+                  onUpdate("heroHeight", Number(event.target.value))
+                }
+              >
+                <option value="480">Compactă</option>
+                <option value="620">Cinematică</option>
+                <option value="760">Ecran complet</option>
+              </Select>
+            </Field>
+            <Field label="Poziția verticală">
+              <Select
+                value={text(c.contentY, "bottom")}
+                onChange={(event) => onUpdate("contentY", event.target.value)}
+              >
+                <option value="top">Sus</option>
+                <option value="center">Centru</option>
+                <option value="bottom">Jos</option>
+              </Select>
+            </Field>
+          </div>
+          <div className="mt-3 space-y-2">
+            {range("textWidth", "Lățimea zonei de text", 280, 960, 832, 8)}
+            {range("textOffsetX", "Deplasare stânga / dreapta", -240, 240, 0, 4)}
+            {range("textOffsetY", "Deplasare sus / jos", -200, 200, 0, 4)}
+            {range("headingSize", "Mărimea numelor", 38, 96, 76)}
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Înălțime">
-            <Select
-              value={String(Number(c.heroHeight) || 620)}
-              onChange={(event) =>
-                onUpdate("heroHeight", Number(event.target.value))
-              }
-            >
-              <option value="480">Compact</option>
-              <option value="620">Cinematic</option>
-              <option value="760">Full screen</option>
-            </Select>
-          </Field>
-          <Field label="Text vertical">
-            <Select
-              value={text(c.contentY, "bottom")}
-              onChange={(event) => onUpdate("contentY", event.target.value)}
-            >
-              <option value="top">Sus</option>
-              <option value="center">Centru</option>
-              <option value="bottom">Jos</option>
-            </Select>
-          </Field>
+
+        <details className="rounded-xl bg-subtle/70 p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-ink">
+            Spațiere și ritm tipografic
+          </summary>
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            Controlează distanța dintre fiecare rând al copertei, fără spații
+            artificiale introduse în text.
+          </p>
+          <div className="mt-3 space-y-2">
+            {range("namesLineHeight", "Înălțime rând nume", 70, 140, 94, 1, "%")}
+            {range("namesLetterSpacing", "Spațiu între litere", -8, 8, -3, 0.5)}
+            {range("namesGap", "Înainte de nume", 0, 120, 16, 2)}
+            {range("metaGap", "Înainte de dată și loc", 0, 120, 24, 2)}
+            {range("titleGap", "Înainte de mesaj", 0, 120, 32, 2)}
+            {range("subtitleGap", "Înainte de introducere", 0, 80, 12, 2)}
+            {range("actionsGap", "Înainte de buton", 0, 100, 28, 2)}
+          </div>
+        </details>
+
+        <div>
+          <p className="mb-3 text-sm font-semibold text-ink">Imaginea copertei</p>
+          <MediaUploader
+            title="Imaginea principală"
+            fileName={text(c.mediaName)}
+            uploading={uploadingMedia}
+            onFile={(file) =>
+              void onUploadImage(file, (mediaId, fileName) => {
+                onUpdateMany({ mediaId, mediaName: fileName });
+              })
+            }
+            onRemove={() =>
+              onUpdateMany({ mediaId: "", mediaName: "", coverImage: "" })
+            }
+          />
         </div>
         <Field label="Poziția imaginii — orizontal">
           <input
@@ -2720,25 +2845,6 @@ function ContentFields({
             />
           </Field>
         </div>
-        <Field label={`Mărime nume ${Number(c.headingSize) || 76}px`}>
-          <input
-            type="range"
-            min="38"
-            max="96"
-            value={Number(c.headingSize) || 76}
-            onChange={(event) =>
-              onUpdate("headingSize", Number(event.target.value))
-            }
-            className="min-h-11 w-full accent-[var(--brand)]"
-          />
-        </Field>
-        {input("eyebrow", "Supratitlu")}
-        {input("names", "Numele cuplului")}
-        {input("date", "Data afișată")}
-        {input("venue", "Locul")}
-        {input("title", "Mesaj principal")}
-        {area("subtitle", "Introducere")}
-        {input("buttonLabel", "Text buton RSVP")}
         <p className="text-xs leading-5 text-muted">
           Butonul duce automat la pagina RSVP separată. Lasă textul gol și
           ascunde secțiunea RSVP dacă invitația este doar informativă.
@@ -3900,6 +4006,7 @@ function InvitationCanvas({
   selectedId,
   resolveMedia,
   onSelect,
+  onContentFocus,
   onUpdateSection,
   onUpdateContent,
 }: {
@@ -3907,6 +4014,7 @@ function InvitationCanvas({
   selectedId: string;
   resolveMedia: (mediaId: string, externalUrl?: string) => string;
   onSelect: (id: string) => void;
+  onContentFocus: (id: string, key: string) => void;
   onUpdateSection: (id: string, update: Partial<InvitationSection>) => void;
   onUpdateContent: (sectionId: string, key: string, value: unknown) => void;
 }) {
@@ -3918,6 +4026,7 @@ function InvitationCanvas({
       onContentChange={(sectionId, key, value) =>
         onUpdateContent(sectionId, key, value)
       }
+      onContentFocus={onContentFocus}
       emptyState={
         <div className="grid min-h-96 place-items-center p-8 text-center text-sm opacity-60">
           Afișează sau adaugă o secțiune pentru a construi invitația.

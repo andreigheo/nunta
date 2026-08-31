@@ -38,6 +38,11 @@ describe("invitation editor model", () => {
     hero.content.layout = "immersive";
     hero.content.focalX = 0;
     hero.content.overlayOpacity = 0;
+    hero.content.textWidth = 640;
+    hero.content.textOffsetX = -20;
+    hero.content.textOffsetY = 32;
+    hero.content.namesGap = 28;
+    hero.content.metaGap = 44;
     hero.style.tone = "soft";
     hero.style.backgroundMode = "gradient";
     hero.style.gradientFrom = "#123456";
@@ -58,6 +63,11 @@ describe("invitation editor model", () => {
     expect(restored.sections[0].content.layout).toBe("immersive");
     expect(restored.sections[0].content.focalX).toBe(0);
     expect(restored.sections[0].content.overlayOpacity).toBe(0);
+    expect(restored.sections[0].content.textWidth).toBe(640);
+    expect(restored.sections[0].content.textOffsetX).toBe(-20);
+    expect(restored.sections[0].content.textOffsetY).toBe(32);
+    expect(restored.sections[0].content.namesGap).toBe(28);
+    expect(restored.sections[0].content.metaGap).toBe(44);
     expect(restored.sections[0].style.tone).toBe("soft");
     expect(restored.sections[0].style.backgroundMode).toBe("gradient");
     expect(restored.sections[0].style.gradientFrom).toBe("#123456");
