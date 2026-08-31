@@ -20,6 +20,10 @@ import {
   type InvitationEditorSnapshot,
   type InvitationSection,
 } from "@/lib/invitations/editor-model";
+import {
+  invitationContentValue,
+  invitationEditableField,
+} from "@/lib/invitations/editor-content";
 import { cn } from "@/lib/utils";
 import {
   contrastRatio,
@@ -48,7 +52,12 @@ export type InvitationRendererProps = {
     key: string,
     value: string,
   ) => void;
-  onContentFocus?: (sectionId: string, key: string) => void;
+  onContentFocus?: (
+    sectionId: string,
+    key: string,
+    mode?: "direct" | "structured",
+  ) => void;
+  activeContent?: { sectionId: string; key: string } | null;
   renderSectionFrame?: InvitationSectionFrame;
   className?: string;
   emptyState?: React.ReactNode;
@@ -67,6 +76,7 @@ export function InvitationRenderer({
   rsvpHref,
   onContentChange,
   onContentFocus,
+  activeContent,
   renderSectionFrame,
   className,
   emptyState,
@@ -109,6 +119,7 @@ export function InvitationRenderer({
             rsvpHref={rsvpHref}
             onContentChange={onContentChange}
             onContentFocus={onContentFocus}
+            activeContent={activeContent}
             defaultTimeZone={defaultTimeZone}
           />
         );
@@ -140,6 +151,7 @@ type InvitationSectionViewProps = {
   rsvpHref?: string;
   onContentChange?: InvitationRendererProps["onContentChange"];
   onContentFocus?: InvitationRendererProps["onContentFocus"];
+  activeContent?: InvitationRendererProps["activeContent"];
   defaultTimeZone?: string;
 };
 
@@ -186,6 +198,7 @@ function InvitationSectionContent({
   rsvpHref,
   onContentChange,
   onContentFocus,
+  activeContent,
   defaultTimeZone,
 }: InvitationSectionViewProps) {
   const content = section.content;
@@ -209,16 +222,42 @@ function InvitationSectionContent({
   const buttonClass = invitationButtonClass(design);
   const edit = (key: string, fallback = "") => (
     <InvitationText
-      value={text(content[key], fallback)}
+      value={text(invitationContentValue(content, key), fallback)}
       onCommit={
         onContentChange
           ? (value) => onContentChange(section.id, key, value)
           : undefined
       }
       onFocus={
-        onContentFocus ? () => onContentFocus(section.id, key) : undefined
+        onContentFocus
+          ? () => onContentFocus(section.id, key, "direct")
+          : undefined
       }
-      label={invitationTextLabel(section.type, key)}
+      label={
+        invitationEditableField(section, key)?.label ??
+        invitationTextLabel(section.type, key)
+      }
+      contentKey={key}
+      style={invitationEditableTextStyle(content, key)}
+      active={
+        activeContent?.sectionId === section.id && activeContent.key === key
+      }
+    />
+  );
+  const inspect = (key: string, value: string) => (
+    <InvitationStructuredText
+      value={value}
+      label={invitationEditableField(section, key)?.label ?? "detaliul"}
+      contentKey={key}
+      style={invitationEditableTextStyle(content, key)}
+      active={
+        activeContent?.sectionId === section.id && activeContent.key === key
+      }
+      onActivate={
+        onContentFocus
+          ? () => onContentFocus(section.id, key, "structured")
+          : undefined
+      }
     />
   );
 
@@ -302,7 +341,7 @@ function InvitationSectionContent({
         >
           {text(content.buttonLabel) ? (
             <RsvpAction
-              label={text(content.buttonLabel, "Confirmă prezența")}
+              label={edit("buttonLabel", "Confirmă prezența")}
               className={buttonClass}
               design={design}
               inverted={isImmersive}
@@ -459,11 +498,11 @@ function InvitationSectionContent({
           {array(content.items).map((item, index) => (
             <div key={index} className={cn("grid grid-cols-[62px_minmax(0,1fr)] gap-4 border-t border-current/15 py-4 text-left first:border-t-0", styles.scheduleItem)}>
               <p className={cn("text-sm font-semibold tabular-nums", styles.scheduleTime)} style={{ color: design.accent }}>
-                {invitationDisplayTime(text(item.time))}
+                {inspect(`items.${index}.time`, invitationDisplayTime(text(item.time)))}
               </p>
               <div>
-                <p className="text-sm font-semibold">{text(item.title)}</p>
-                <p className="mt-1 text-xs leading-relaxed opacity-65">{text(item.detail)}</p>
+                <p className="text-sm font-semibold">{edit(`items.${index}.title`)}</p>
+                <p className="mt-1 text-xs leading-relaxed opacity-65">{edit(`items.${index}.detail`)}</p>
               </div>
             </div>
           ))}
@@ -480,7 +519,7 @@ function InvitationSectionContent({
           {array(content.items).map((item, index) => {
             const url = safeLink(text(item.url));
             const cardClass = cn("block border border-current/15 p-5 text-left transition-colors", radiusClass(design.radius), url && "hover:bg-black/[.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current");
-            const card = <><MapPin className="size-5" style={{ color: design.accent }} aria-hidden /><p className="mt-4 text-sm font-semibold">{text(item.name)}</p><p className="mt-1 text-xs leading-relaxed opacity-65">{text(item.address)}</p>{url ? <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold underline underline-offset-4">Deschide harta<ExternalLink className="size-3" aria-hidden /></span> : null}</>;
+            const card = <><MapPin className="size-5" style={{ color: design.accent }} aria-hidden /><p className="mt-4 text-sm font-semibold">{edit(`items.${index}.name`)}</p><p className="mt-1 text-xs leading-relaxed opacity-65">{edit(`items.${index}.address`)}</p>{url ? <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold underline underline-offset-4">Deschide harta<ExternalLink className="size-3" aria-hidden /></span> : null}</>;
             return url ? <a key={index} href={url} target="_blank" rel="noreferrer" className={cardClass}>{card}</a> : <div key={index} className={cardClass}>{card}</div>;
           })}
         </div>
@@ -500,22 +539,9 @@ function InvitationSectionContent({
         <p className={cn("mt-4 max-w-xl text-sm leading-relaxed opacity-75", center && "mx-auto", right && "ml-auto")}>{edit("body")}</p>
         <p className="mt-3 text-xs font-semibold opacity-75">
           Până pe{" "}
-          <InvitationText
-            value={deadline}
-            label="termenul RSVP"
-            onCommit={
-              onContentChange
-                ? (value) => onContentChange(section.id, "deadline", value)
-                : undefined
-            }
-            onFocus={
-              onContentFocus
-                ? () => onContentFocus(section.id, "deadline")
-                : undefined
-            }
-          />
+          {inspect("deadline", deadline)}
         </p>
-        {text(content.buttonLabel) ? <RsvpAction label={text(content.buttonLabel)} className={cn("mt-7", buttonClass)} design={design} inverted={section.style.tone === "accent" || section.style.tone === "dark"} onRsvp={onRsvp} href={rsvpHref} /> : null}
+        {text(content.buttonLabel) ? <RsvpAction label={edit("buttonLabel")} className={cn("mt-7", buttonClass)} design={design} inverted={section.style.tone === "accent" || section.style.tone === "dark"} onRsvp={onRsvp} href={rsvpHref} /> : null}
       </section>
     );
   }
@@ -544,7 +570,7 @@ function InvitationSectionContent({
           <div className={cn("mt-8 gap-2", layout === "filmstrip" ? "flex snap-x snap-mandatory overflow-x-auto pb-2" : cn("grid grid-cols-2", styles.galleryMosaic), center && layout !== "filmstrip" && "mx-auto max-w-2xl", right && layout !== "filmstrip" && "ml-auto max-w-2xl")}>
             {items.map((item, index) => {
               const image = resolveMedia(text(item.mediaId), text(item.url));
-              return <figure key={index} className={cn("overflow-hidden bg-black/5", radiusClass(design.radius), layout === "mosaic" && index === 0 && items.length > 2 && "col-span-2 row-span-2", layout === "filmstrip" && cn("shrink-0 snap-center", styles.filmstripItem))}><InvitationImage src={image} alt={text(item.alt, text(item.caption))} className="aspect-square" />{text(item.caption) ? <figcaption className="px-3 py-2 text-xs leading-relaxed opacity-75">{text(item.caption)}</figcaption> : null}</figure>;
+              return <figure key={index} className={cn("overflow-hidden bg-black/5", radiusClass(design.radius), layout === "mosaic" && index === 0 && items.length > 2 && "col-span-2 row-span-2", layout === "filmstrip" && cn("shrink-0 snap-center", styles.filmstripItem))}><InvitationImage src={image} alt={text(item.alt, text(item.caption))} className="aspect-square" />{text(item.caption) ? <figcaption className="px-3 py-2 text-xs leading-relaxed opacity-75">{edit(`items.${index}.caption`)}</figcaption> : null}</figure>;
             })}
           </div>
         ) : onContentChange ? <MediaPlaceholder radius={design.radius} /> : null}
@@ -557,7 +583,7 @@ function InvitationSectionContent({
       <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
         <SectionHeading section={section} design={design} className={headingClass}>{edit("title")}</SectionHeading>
         <div className={cn("mt-7 divide-y divide-current/15 border-y border-current/15 text-left", center && "mx-auto max-w-2xl", right && "ml-auto max-w-2xl")}>
-          {array(content.items).map((item, index) => <details key={index} className="group py-4"><summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{text(item.question)}</summary><p className="pb-2 text-xs leading-relaxed opacity-70">{text(item.answer)}</p></details>)}
+          {array(content.items).map((item, index) => <details key={index} className="group py-4"><summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{edit(`items.${index}.question`)}</summary><p className="pb-2 text-xs leading-relaxed opacity-70">{edit(`items.${index}.answer`)}</p></details>)}
         </div>
       </section>
     );
@@ -572,7 +598,7 @@ function InvitationSectionContent({
         <div className={cn("mt-6 divide-y divide-current/15 border-y border-current/15 text-left", center && "mx-auto max-w-2xl", right && "ml-auto max-w-2xl")}>
           {array(content.items).map((item, index) => {
             const url = safeLink(text(item.url));
-            const inner = <><div><p className="text-sm font-semibold">{text(item.name)}</p><p className="mt-1 text-xs leading-relaxed opacity-70">{text(item.detail)}</p></div>{url ? <ExternalLink className="size-4 shrink-0 opacity-60" aria-hidden /> : null}</>;
+            const inner = <><div><p className="text-sm font-semibold">{edit(`items.${index}.name`)}</p><p className="mt-1 text-xs leading-relaxed opacity-70">{edit(`items.${index}.detail`)}</p></div>{url ? <ExternalLink className="size-4 shrink-0 opacity-60" aria-hidden /> : null}</>;
             return url ? <a key={index} href={url} target="_blank" rel="noreferrer" className="flex min-h-14 items-center justify-between gap-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{inner}</a> : <div key={index} className="flex min-h-14 items-center justify-between gap-4 py-3">{inner}</div>;
           })}
         </div>
@@ -585,7 +611,7 @@ function InvitationSectionContent({
       <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
         <Gift className={cn("size-5 opacity-70", center && "mx-auto", right && "ml-auto")} aria-hidden />
         <GenericSectionBody section={section} design={design} headingClass={headingClass} edit={edit} />
-        <ExternalAction content={content} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} />
+        <ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} />
       </section>
     );
   }
@@ -595,7 +621,7 @@ function InvitationSectionContent({
     return (
       <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
         <GenericSectionBody section={section} design={design} headingClass={headingClass} edit={edit} />
-        {text(content.name) || phone ? <div className={cn("mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold", center && "justify-center", right && "justify-end")}><Phone className="size-4" aria-hidden /><span>{edit("name")}</span>{text(content.name) && phone ? <span aria-hidden>·</span> : null}{phone ? <a href={`tel:${phone.replace(/[^+\d]/g, "")}`} className="underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{edit("phone")}</a> : null}</div> : null}
+        {text(content.name) || phone ? <div className={cn("mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold", center && "justify-center", right && "justify-end")}><Phone className="size-4" aria-hidden /><span>{edit("name")}</span>{text(content.name) && phone ? <span aria-hidden>·</span> : null}{phone ? <a href={`tel:${phone.replace(/[^+\d]/g, "")}`} className="underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{inspect("phone", phone)}</a> : null}</div> : null}
       </section>
     );
   }
@@ -608,28 +634,28 @@ function InvitationSectionContent({
       48,
     );
     if (blockKind === "divider") {
-      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><div className="mx-auto flex max-w-2xl items-center gap-4" aria-hidden={!text(content.label)}><span className="h-px flex-1 bg-current opacity-20"/><span className={cn("font-display text-2xl", !text(content.label) && "text-3xl")}>{text(content.label) || text(content.ornament, "✦")}</span><span className="h-px flex-1 bg-current opacity-20"/></div></section>;
+      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><div className="mx-auto flex max-w-2xl items-center gap-4" aria-hidden={!text(content.label)}><span className="h-px flex-1 bg-current opacity-20"/><span className={cn("font-display text-2xl", !text(content.label) && "text-3xl")}>{text(content.label) ? edit("label") : edit("ornament", "✦")}</span><span className="h-px flex-1 bg-current opacity-20"/></div></section>;
     }
     if (blockKind === "artwork") {
       const image = resolveMedia(text(content.mediaId), text(content.url));
-      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>{text(content.title) ? <h2 className={cn("mb-6", headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2> : null}<figure className={cn("mx-auto max-w-3xl overflow-hidden", radiusClass(design.radius))}><InvitationImage src={image} alt={text(content.alt)} className={styles.artworkImage} artDirection={advancedArtDirection} />{text(content.caption) ? <figcaption className="px-4 py-3 text-xs leading-relaxed opacity-70">{text(content.caption)}</figcaption> : null}</figure></section>;
+      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>{text(content.title) ? <h2 className={cn("mb-6", headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2> : null}<figure className={cn("mx-auto max-w-3xl overflow-hidden", radiusClass(design.radius))}><InvitationImage src={image} alt={text(content.alt)} className={styles.artworkImage} artDirection={advancedArtDirection} />{text(content.caption) ? <figcaption className="px-4 py-3 text-xs leading-relaxed opacity-70">{edit("caption")}</figcaption> : null}</figure></section>;
     }
     if (blockKind === "video") {
       const videoUrl = safeLink(text(content.url));
       const poster = resolveMedia(text(content.posterMediaId), text(content.posterUrl));
-      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><h2 className={cn(headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2>{videoUrl ? <video className={cn("mx-auto mt-6 aspect-video w-full max-w-3xl bg-black object-cover", radiusClass(design.radius), styles.artDirectedImage)} style={advancedArtStyle} src={videoUrl} poster={poster || undefined} controls preload="metadata" playsInline aria-label={text(content.title, "Video invitație")} /> : <div className={cn("mx-auto mt-6 grid aspect-video max-w-3xl place-items-center bg-black/5", radiusClass(design.radius))}><Play className="size-10 opacity-35" aria-hidden /></div>}{text(content.caption) ? <p className="mx-auto mt-3 max-w-2xl text-xs leading-relaxed opacity-70">{text(content.caption)}</p> : null}</section>;
+      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><h2 className={cn(headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2>{videoUrl ? <video className={cn("mx-auto mt-6 aspect-video w-full max-w-3xl bg-black object-cover", radiusClass(design.radius), styles.artDirectedImage)} style={advancedArtStyle} src={videoUrl} poster={poster || undefined} controls preload="metadata" playsInline aria-label={text(content.title, "Video invitație")} /> : <div className={cn("mx-auto mt-6 grid aspect-video max-w-3xl place-items-center bg-black/5", radiusClass(design.radius))}><Play className="size-10 opacity-35" aria-hidden /></div>}{text(content.caption) ? <p className="mx-auto mt-3 max-w-2xl text-xs leading-relaxed opacity-70">{edit("caption")}</p> : null}</section>;
     }
     if (blockKind === "media_text") {
       const image = resolveMedia(text(content.mediaId), text(content.url));
       const mediaRight = text(content.mediaPosition, "left") === "right";
-      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><div className={cn("mx-auto max-w-4xl items-center gap-7", styles.mediaTextGrid)}><InvitationImage src={image} alt={text(content.alt)} className={cn("aspect-[4/5]", radiusClass(design.radius), mediaRight && styles.mediaTextRightImage)} artDirection={advancedArtDirection} /><div className={cn("text-left", mediaRight && styles.mediaTextRightCopy)}><h2 className={cn(headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2><p className="mt-4 whitespace-pre-line text-sm leading-relaxed opacity-75">{edit("body")}</p><ExternalAction content={content} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} /></div></div></section>;
+      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><div className={cn("mx-auto max-w-4xl items-center gap-7", styles.mediaTextGrid)}><InvitationImage src={image} alt={text(content.alt)} className={cn("aspect-[4/5]", radiusClass(design.radius), mediaRight && styles.mediaTextRightImage)} artDirection={advancedArtDirection} /><div className={cn("text-left", mediaRight && styles.mediaTextRightCopy)}><h2 className={cn(headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2><p className="mt-4 whitespace-pre-line text-sm leading-relaxed opacity-75">{edit("body")}</p><ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} /></div></div></section>;
     }
   }
 
   return (
     <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
       <GenericSectionBody section={section} design={design} headingClass={headingClass} edit={edit} />
-      <ExternalAction content={content} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} />
+      <ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} />
     </section>
   );
 }
@@ -654,16 +680,81 @@ function SectionHeading({ section, design, className, children }: { section: Inv
   return <h2 className={cn("text-3xl", className)} style={sectionHeadingStyle(section, design)}>{children}</h2>;
 }
 
-function InvitationText({ value, onCommit, onFocus, label }: { value: string; onCommit?: (value: string) => void; onFocus?: () => void; label: string }) {
-  if (!onCommit) return <>{value}</>;
-  return <span className="inline-block min-w-4 cursor-text whitespace-pre-wrap rounded-sm outline-none transition-[background-color,box-shadow] hover:bg-white/10 focus:bg-white/15 focus:ring-2 focus:ring-current/40" contentEditable suppressContentEditableWarning role="textbox" aria-label={`Editează ${label}`} title={`Editează ${label}`} onFocus={onFocus} onClick={(event) => event.stopPropagation()} onBlur={(event) => { const next = editableInvitationText(event.currentTarget); if (next !== value) onCommit(next); }} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.textContent = value; event.currentTarget.blur(); return; } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.blur(); } }}>{value}</span>;
+function InvitationText({ value, onCommit, onFocus, label, contentKey, active = false, style }: { value: string; onCommit?: (value: string) => void; onFocus?: () => void; label: string; contentKey?: string; active?: boolean; style?: React.CSSProperties }) {
+  if (!onCommit)
+    return Object.keys(style ?? {}).length ? (
+      <span className={styles.editableText} style={style}>{value}</span>
+    ) : (
+      <>{value}</>
+    );
+  return <span className={cn(styles.editableText, "inline-block min-w-4 cursor-text whitespace-pre-wrap rounded-sm outline-none transition-[background-color,box-shadow] hover:bg-white/10 focus:bg-white/15 focus:ring-2 focus:ring-current/40", active && "bg-white/15 ring-2 ring-current/40")} style={style} contentEditable="plaintext-only" suppressContentEditableWarning role="textbox" aria-label={`Editează ${lowercaseFirst(label)}`} title={`Editează ${lowercaseFirst(label)}`} data-invitation-content-key={contentKey} onFocus={onFocus} onClick={(event) => { event.preventDefault(); event.stopPropagation(); }} onBlur={(event) => { const next = editableInvitationText(event.currentTarget); if (next !== value) onCommit(next); }} onPaste={(event) => { event.preventDefault(); const pasted = event.clipboardData.getData("text/plain"); const selection = window.getSelection(); if (!selection?.rangeCount) return; const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(pasted); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); }} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.textContent = value; event.currentTarget.blur(); return; } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.blur(); } }}>{value}</span>;
 }
 
 function editableInvitationText(element: HTMLElement) {
-  return element.innerText
+  return (element.textContent ?? "")
     .replace(/\r\n/g, "\n")
     .replace(/\u00a0/g, " ")
     .replace(/\n+$/g, "");
+}
+
+function InvitationStructuredText({ value, label, contentKey, active, onActivate, style }: { value: string; label: string; contentKey: string; active: boolean; onActivate?: () => void; style?: React.CSSProperties }) {
+  if (!onActivate)
+    return Object.keys(style ?? {}).length ? (
+      <span className={styles.editableText} style={style}>{value}</span>
+    ) : (
+      <>{value}</>
+    );
+  return <span role="button" tabIndex={0} aria-label={`Editează ${lowercaseFirst(label)} în inspector`} title={`Editează ${lowercaseFirst(label)} în inspector`} data-invitation-content-key={contentKey} className={cn(styles.editableText, "inline-block cursor-pointer rounded-sm outline-none transition-[background-color,box-shadow] hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-current/40", active && "bg-white/15 ring-2 ring-current/40")} style={style} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onActivate(); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); onActivate(); } }}>{value}</span>;
+}
+
+function lowercaseFirst(value: string) {
+  return value ? `${value[0].toLocaleLowerCase("ro-RO")}${value.slice(1)}` : value;
+}
+
+type InvitationEditableTextStyle = {
+  fontSize?: number;
+  letterSpacing?: number;
+  lineHeight?: number;
+  offsetX?: number;
+  offsetY?: number;
+  width?: number;
+  align?: "left" | "center" | "right";
+};
+
+function invitationEditableTextStyle(
+  content: Record<string, unknown>,
+  key: string,
+): React.CSSProperties {
+  const stylesValue = content.textStyles;
+  if (!stylesValue || typeof stylesValue !== "object") return {};
+  const entry = (stylesValue as Record<string, unknown>)[key];
+  if (!entry || typeof entry !== "object") return {};
+  const variables: Record<string, string | number> = {};
+  const write = (scope: "all" | "desktop" | "tablet" | "mobile") => {
+    const value = (entry as Record<string, unknown>)[scope];
+    if (!value || typeof value !== "object") return;
+    const style = value as InvitationEditableTextStyle;
+    const suffix = scope === "all" ? "all" : scope;
+    if (typeof style.fontSize === "number")
+      variables[`--editable-font-size-${suffix}`] = `${style.fontSize}px`;
+    if (typeof style.letterSpacing === "number")
+      variables[`--editable-letter-spacing-${suffix}`] = `${style.letterSpacing}px`;
+    if (typeof style.lineHeight === "number")
+      variables[`--editable-line-height-${suffix}`] = style.lineHeight;
+    if (typeof style.offsetX === "number")
+      variables[`--editable-offset-x-${suffix}`] = `${style.offsetX}px`;
+    if (typeof style.offsetY === "number")
+      variables[`--editable-offset-y-${suffix}`] = `${style.offsetY}px`;
+    if (typeof style.width === "number")
+      variables[`--editable-width-${suffix}`] = `${style.width}%`;
+    if (style.align)
+      variables[`--editable-align-${suffix}`] = style.align;
+  };
+  write("all");
+  write("desktop");
+  write("tablet");
+  write("mobile");
+  return variables as React.CSSProperties;
 }
 
 function invitationTextLabel(type: InvitationSection["type"], key: string) {
@@ -743,18 +834,18 @@ function InvitationCountdown({
   );
 }
 
-function RsvpAction({ label, className, design, inverted, onRsvp, href }: { label: string; className: string; design: InvitationDesign; inverted: boolean; onRsvp?: () => void; href?: string }) {
+function RsvpAction({ label, className, design, inverted, onRsvp, href }: { label: React.ReactNode; className: string; design: InvitationDesign; inverted: boolean; onRsvp?: () => void; href?: string }) {
   const style = invitationButtonStyle(design, inverted);
   if (href) return <a href={href} className={className} style={style}>{label}</a>;
   if (onRsvp) return <button type="button" onClick={onRsvp} className={className} style={style}>{label}</button>;
   return <a href="#confirmare-invitatie" className={className} style={style}>{label}</a>;
 }
 
-function ExternalAction({ content, className, design, inverted }: { content: Record<string, unknown>; className: string; design: InvitationDesign; inverted: boolean }) {
-  const label = text(content.buttonLabel);
+function ExternalAction({ content, label, className, design, inverted }: { content: Record<string, unknown>; label?: React.ReactNode; className: string; design: InvitationDesign; inverted: boolean }) {
+  const labelText = text(content.buttonLabel);
   const url = safeLink(text(content.url));
-  if (!label || !url) return null;
-  return <a href={url} target="_blank" rel="noreferrer" className={className} style={invitationButtonStyle(design, inverted)}>{label}<ExternalLink className="ml-2 size-3.5" aria-hidden /></a>;
+  if (!labelText || !url) return null;
+  return <a href={url} target="_blank" rel="noreferrer" className={className} style={invitationButtonStyle(design, inverted)}>{label ?? labelText}<ExternalLink className="ml-2 size-3.5" aria-hidden /></a>;
 }
 
 function InvitationImage({ src, alt, className, focalX = 50, focalY = 50, artDirection }: { src: string; alt: string; className?: string; focalX?: number; focalY?: number; artDirection?: InvitationArtDirection }) {
