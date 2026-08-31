@@ -35,7 +35,12 @@ for (const [capability, declaration] of Object.entries(
     }
     const [, method, relativePath] = match;
     const decorator = `${method[0]}${method.slice(1).toLowerCase()}`;
-    if (!controllerSource.includes(`@${decorator}("${relativePath}")`)) {
+    const singleRoute = `@${decorator}("${relativePath}")`;
+    const canonicalRouteInAliasList = `@${decorator}(["${relativePath}",`;
+    if (
+      !controllerSource.includes(singleRoute) &&
+      !controllerSource.includes(canonicalRouteInAliasList)
+    ) {
       failures.push(
         `${capability}: operation not found in controllers: ${operation}`,
       );

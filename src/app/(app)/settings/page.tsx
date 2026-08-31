@@ -169,7 +169,7 @@ function GeneralSettings() {
   const [email, setEmail] = React.useState("");
   const [workspaceName, setWorkspaceName] = React.useState("");
   const [city, setCity] = React.useState("");
-  const [weddingDate, setWeddingDate] = React.useState("");
+  const [eventDate, setEventDate] = React.useState("");
   const [currency, setCurrency] = React.useState("RON");
   const [saving, setSaving] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
@@ -186,7 +186,7 @@ function GeneralSettings() {
       setEmail(user?.user.email ?? "");
       setWorkspaceName(currentWorkspace?.title ?? "");
       setCity(currentWorkspace?.location ?? "");
-      setWeddingDate(currentWorkspace?.weddingDate ?? "");
+      setEventDate(currentWorkspace?.eventDate ?? "");
       setCurrency(bootstrap?.workspace.currency ?? "RON");
     }, 0);
     return () => window.clearTimeout(timeoutId);
@@ -209,7 +209,7 @@ function GeneralSettings() {
           weddingOsApi.updateWorkspace(currentWorkspace.id, {
             title: workspaceName,
             location: city || null,
-            weddingDate: weddingDate || null,
+            eventDate: eventDate || null,
             currency,
             version: bootstrap.workspace.version,
           }),
@@ -314,7 +314,7 @@ function GeneralSettings() {
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Data evenimentului">
-                <Input value={weddingDate} onChange={(event) => setWeddingDate(event.target.value)} type="date" aria-label="Data evenimentului" />
+                <Input value={eventDate} onChange={(event) => setEventDate(event.target.value)} type="date" aria-label="Data evenimentului" />
               </Field>
               <Field label="Monedă">
                 <Select value={currency} onChange={(event) => setCurrency(event.target.value)} aria-label="Monedă">

@@ -6217,7 +6217,7 @@
       ]
     },
     {
-      "name": "WeddingProfile",
+      "name": "EventProfile",
       "table": "wedding_profiles",
       "migration": "20260717224538_slice_0_1_foundation",
       "handoffStatuses": [

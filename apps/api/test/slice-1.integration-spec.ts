@@ -176,7 +176,7 @@ describe.sequential("Slice 1 API integration and isolation", () => {
 
     const counts = await ownerDatabase.$transaction([
       ownerDatabase.workspace.count({ where: { id: workspaceId } }),
-      ownerDatabase.weddingProfile.count({ where: { workspaceId } }),
+      ownerDatabase.eventProfile.count({ where: { workspaceId } }),
       ownerDatabase.workspaceMembership.count({
         where: { workspaceId, userId: owner.userId },
       }),
@@ -977,11 +977,11 @@ describe.sequential("Slice 1 API integration and isolation", () => {
         select: {
           title: true,
           currency: true,
-          weddingProfile: {
+          eventProfile: {
             select: {
               partnerOneName: true,
               partnerTwoName: true,
-              weddingDate: true,
+              eventDate: true,
               location: true,
             },
           },
@@ -990,10 +990,10 @@ describe.sequential("Slice 1 API integration and isolation", () => {
     ).toMatchObject({
       title: "Ana & Mihai",
       currency: "RON",
-      weddingProfile: {
+      eventProfile: {
         partnerOneName: "Ana",
         partnerTwoName: "Mihai",
-        weddingDate: new Date("2027-09-12T00:00:00.000Z"),
+        eventDate: new Date("2027-09-12T00:00:00.000Z"),
         location: "Brașov",
       },
     });
@@ -1005,6 +1005,7 @@ describe.sequential("Slice 1 API integration and isolation", () => {
         (item: { id: string }) => item.id === workspaceId,
       ),
     ).toMatchObject({
+      eventDate: "2027-09-12",
       weddingDate: "2027-09-12",
       location: "Brașov",
     });

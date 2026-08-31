@@ -40,7 +40,7 @@ export class WorkspacesService {
         }),
     );
     // Listing workspaces intentionally runs without a selected workspace. The
-    // wedding_profiles RLS policy, however, is scoped to
+    // The legacy wedding_profiles RLS policy, however, is scoped to
     // app.current_workspace_id, so an included relation is empty here even for
     // a legitimate member. Resolve each lightweight profile inside its own
     // workspace context so the switcher receives the real date and location.
@@ -53,12 +53,12 @@ export class WorkspacesService {
               await this.database.withContext(
                 { userId, workspaceId: membership.workspaceId },
                 (transaction) =>
-                  transaction.weddingProfile.findUnique({
+                  transaction.eventProfile.findUnique({
                     where: { workspaceId: membership.workspaceId },
                     select: {
                       eventType: true,
                       organizerName: true,
-                      weddingDate: true,
+                      eventDate: true,
                       location: true,
                     },
                   }),
@@ -73,9 +73,9 @@ export class WorkspacesService {
         id: membership.workspace.id,
         title: membership.workspace.title,
         eventType: eventType(profile?.eventType),
-        eventDate: dateOnly(profile?.weddingDate),
+        eventDate: dateOnly(profile?.eventDate),
         organizerName: profile?.organizerName ?? null,
-        weddingDate: dateOnly(profile?.weddingDate),
+        weddingDate: dateOnly(profile?.eventDate),
         location: profile?.location ?? null,
         status: membership.workspace.status.toLowerCase() as
           "active" | "archived",
@@ -173,14 +173,14 @@ export class WorkspacesService {
             updatedById: userId,
           },
         });
-        const weddingProfile = await transaction.weddingProfile.create({
+        const eventProfile = await transaction.eventProfile.create({
           data: {
             workspaceId,
             eventType: input.eventType ?? "wedding",
             organizerName: input.organizerName,
             partnerOneName: input.partnerOneName,
             partnerTwoName: input.partnerTwoName,
-            weddingDate:
+            eventDate:
               (input.eventDate ?? input.weddingDate)
                 ? new Date(
                     `${input.eventDate ?? input.weddingDate}T00:00:00.000Z`,
@@ -201,11 +201,11 @@ export class WorkspacesService {
         const response = {
           id: workspace.id,
           title: workspace.title,
-          eventType: eventType(weddingProfile.eventType),
-          eventDate: dateOnly(weddingProfile.weddingDate),
-          organizerName: weddingProfile.organizerName,
-          weddingDate: dateOnly(weddingProfile.weddingDate),
-          location: weddingProfile.location,
+          eventType: eventType(eventProfile.eventType),
+          eventDate: dateOnly(eventProfile.eventDate),
+          organizerName: eventProfile.organizerName,
+          weddingDate: dateOnly(eventProfile.eventDate),
+          location: eventProfile.location,
           status: "active" as const,
           role: "couple_owner" as const,
           capabilities: ownerRole.capabilities,
@@ -274,7 +274,7 @@ export class WorkspacesService {
           where: { userId, workspaceId, status: "ACTIVE" },
           include: {
             workspace: {
-              include: { weddingProfile: true, subscription: true },
+              include: { eventProfile: true, subscription: true },
             },
             roleTemplate: true,
             overrides: true,
@@ -295,13 +295,13 @@ export class WorkspacesService {
         status: result.membership.workspace.status.toLowerCase() as
           "active" | "archived",
         eventType: eventType(
-          result.membership.workspace.weddingProfile?.eventType,
+          result.membership.workspace.eventProfile?.eventType,
         ),
         eventDate: dateOnly(
-          result.membership.workspace.weddingProfile?.weddingDate,
+          result.membership.workspace.eventProfile?.eventDate,
         ),
         weddingDate: dateOnly(
-          result.membership.workspace.weddingProfile?.weddingDate,
+          result.membership.workspace.eventProfile?.eventDate,
         ),
         timezone: result.membership.workspace.timezone,
         currency: result.membership.workspace.currency,
@@ -379,14 +379,14 @@ export class WorkspacesService {
           input.weddingDate !== undefined ||
           input.location !== undefined
         ) {
-          await transaction.weddingProfile.update({
+          await transaction.eventProfile.update({
             where: { workspaceId },
             data: {
               eventType: input.eventType,
               organizerName: input.organizerName,
               partnerOneName: input.partnerOneName,
               partnerTwoName: input.partnerTwoName,
-              weddingDate:
+              eventDate:
                 input.eventDate === undefined && input.weddingDate === undefined
                   ? undefined
                   : (input.eventDate ?? input.weddingDate) === null
@@ -402,7 +402,7 @@ export class WorkspacesService {
         }
         const workspace = await transaction.workspace.findUniqueOrThrow({
           where: { id: workspaceId },
-          include: { weddingProfile: true },
+          include: { eventProfile: true },
         });
         await transaction.auditEvent.create({
           data: {
@@ -434,11 +434,11 @@ export class WorkspacesService {
         return {
           id: workspace.id,
           title: workspace.title,
-          eventType: eventType(workspace.weddingProfile?.eventType),
-          eventDate: dateOnly(workspace.weddingProfile?.weddingDate),
-          organizerName: workspace.weddingProfile?.organizerName ?? null,
-          weddingDate: dateOnly(workspace.weddingProfile?.weddingDate),
-          location: workspace.weddingProfile?.location ?? null,
+          eventType: eventType(workspace.eventProfile?.eventType),
+          eventDate: dateOnly(workspace.eventProfile?.eventDate),
+          organizerName: workspace.eventProfile?.organizerName ?? null,
+          weddingDate: dateOnly(workspace.eventProfile?.eventDate),
+          location: workspace.eventProfile?.location ?? null,
           timezone: workspace.timezone,
           currency: workspace.currency,
           version: workspace.version,

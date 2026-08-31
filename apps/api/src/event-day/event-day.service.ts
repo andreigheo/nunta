@@ -39,7 +39,7 @@ type GuestContext = {
 };
 
 @Injectable()
-export class WeddingDayService {
+export class EventDayService {
   private readonly storage: S3Client;
   private readonly publicStorage: S3Client;
   private readonly sensitiveKey: { keyId: string; secret: string };
@@ -3723,7 +3723,7 @@ export class WeddingDayService {
     });
   }
 
-  async exportWeddingDay(
+  async exportEventDay(
     userId: string,
     workspaceId: string,
     key: string,
@@ -4406,7 +4406,7 @@ export class WeddingDayService {
             priority: "urgent",
             title: "Incident critic în ziua nunții",
             body: "Un incident critic necesită atenție. Detaliile sensibile sunt disponibile numai în Command Center.",
-            actionUrl: `/wedding-day?incident=${incidentId}`,
+            actionUrl: `/event-day?incident=${incidentId}`,
           },
         },
       });

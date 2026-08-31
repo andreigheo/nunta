@@ -453,3 +453,32 @@ export type CreateRunOfShowItem = z.infer<typeof createRunOfShowItemSchema>;
 export type RunOfShowTransition = z.infer<typeof runOfShowTransitionSchema>;
 export type CreateCheckInSession = z.infer<typeof createCheckInSessionSchema>;
 export type GuestCheckInCommand = z.infer<typeof guestCheckInCommandSchema>;
+
+// Event-neutral names are canonical for new code. The wedding-prefixed exports
+// above remain available as compatibility aliases for existing consumers.
+export const eventDayPlanStatusSchema = weddingDayPlanStatusSchema;
+export const eventDayPrioritySchema = weddingDayPrioritySchema;
+export const createEventDayPlanSchema = createWeddingDayPlanSchema;
+export const updateEventDayPlanSchema = updateWeddingDayPlanSchema;
+export const createEventDayChecklistSchema = createWeddingDayChecklistSchema;
+export const createEventDayChecklistItemSchema =
+  createWeddingDayChecklistItemSchema;
+export const updateEventDayChecklistItemSchema =
+  updateWeddingDayChecklistItemSchema;
+export const eventDayChecklistTransitionSchema =
+  weddingDayChecklistTransitionSchema;
+export const createEventDayIncidentSchema = createWeddingDayIncidentSchema;
+export const eventDayIncidentTransitionSchema =
+  weddingDayIncidentTransitionSchema;
+export const eventDayIncidentUpdateSchema = weddingDayIncidentUpdateSchema;
+export const eventDayDecisionSchema = weddingDayDecisionSchema;
+export const createEventDayAnnouncementSchema =
+  createWeddingDayAnnouncementSchema;
+export const updateEventDayAnnouncementSchema =
+  updateWeddingDayAnnouncementSchema;
+export const createEventDayContactSchema = createWeddingDayContactSchema;
+export const updateEventDayContactSchema = updateWeddingDayContactSchema;
+export const eventDayExportSchema = weddingDayExportSchema;
+export const eventDayLiveEventSchema = weddingDayLiveEventSchema;
+
+export type CreateEventDayPlan = z.infer<typeof createEventDayPlanSchema>;

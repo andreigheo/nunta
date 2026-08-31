@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { HeartHandshake } from "lucide-react";
-import type { TeamInvitation } from "@weddingos/contracts";
+import type { EventType, TeamInvitation } from "@weddingos/contracts";
 import { Avatar, Button } from "@/components/ui";
 import {
   AuthActionLink,
@@ -17,7 +17,7 @@ import { formatDateLong } from "@/lib/utils";
 const roleLabels: Record<string, string> = {
   couple_owner: "Proprietar",
   couple_partner: "Partener",
-  wedding_planner: "Wedding planner",
+  wedding_planner: "Organizator evenimente",
   family_collaborator: "Familie — acces limitat",
   viewer: "Doar vizualizare",
 };
@@ -26,7 +26,11 @@ export default function InvitationAcceptPage() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [invitation, setInvitation] = React.useState<
-    (TeamInvitation & { weddingDate: string | null }) | null
+    (TeamInvitation & {
+      eventDate: string | null;
+      weddingDate: string | null;
+      eventType?: EventType;
+    }) | null
   >(null);
   const [error, setError] = React.useState("");
   const [token, setToken] = React.useState("");
@@ -142,13 +146,15 @@ export default function InvitationAcceptPage() {
           </div>
           <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
             <div className="flex justify-between">
-              <dt className="text-faint">Nuntă</dt>
+              <dt className="text-faint">Eveniment</dt>
               <dd className="font-medium text-ink">{invitation.workspaceTitle}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-faint">Data</dt>
               <dd className="font-medium text-ink">
-                {invitation.weddingDate ? formatDateLong(invitation.weddingDate) : "Nesetată"}
+                {invitation.eventDate
+                  ? formatDateLong(invitation.eventDate)
+                  : "Nesetată"}
               </dd>
             </div>
             <div className="flex justify-between">

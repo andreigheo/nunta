@@ -178,7 +178,7 @@ export function QuickCreateModal() {
 
   React.useEffect(() => {
     if (!currentWorkspace || demoMode || !quickCreate) return;
-    const weddingDayKinds: QuickCreateKind[] = [
+    const eventDayKinds: QuickCreateKind[] = [
       "run_of_show",
       "checklist_item",
       "incident",
@@ -186,10 +186,10 @@ export function QuickCreateModal() {
       "manual_check_in",
       "gallery",
     ];
-    if (!weddingDayKinds.includes(quickCreate)) return;
+    if (!eventDayKinds.includes(quickCreate)) return;
     void (async () => {
       try {
-        const center = await weddingOsApi.weddingDayCommandCenter(
+        const center = await weddingOsApi.eventDayCommandCenter(
           currentWorkspace.id,
         );
         const plan =
@@ -223,7 +223,7 @@ export function QuickCreateModal() {
         )
           throw new Error("Creează mai întâi planul operațional Wedding Day.");
         if (quickCreate === "checklist_item") {
-          const result = await weddingOsApi.weddingDayChecklists(
+          const result = await weddingOsApi.eventDayChecklists(
             currentWorkspace.id,
             planId,
           );
@@ -577,7 +577,7 @@ export function QuickCreateModal() {
         );
       } else if (quickCreate === "checklist_item") {
         if (!values.parentId) throw new Error("Selectează checklist-ul.");
-        await weddingOsApi.createWeddingDayChecklistItem(
+        await weddingOsApi.createEventDayChecklistItem(
           currentWorkspace.id,
           values.parentId,
           {
@@ -599,7 +599,7 @@ export function QuickCreateModal() {
           throw new Error(
             "Planul și descrierea incidentului sunt obligatorii.",
           );
-        await weddingOsApi.createWeddingDayIncident(
+        await weddingOsApi.createEventDayIncident(
           currentWorkspace.id,
           values.planId,
           {
@@ -615,7 +615,7 @@ export function QuickCreateModal() {
       } else if (quickCreate === "announcement") {
         if (!values.planId || !values.description?.trim())
           throw new Error("Planul și mesajul sunt obligatorii.");
-        const announcement = await weddingOsApi.createWeddingDayAnnouncement(
+        const announcement = await weddingOsApi.createEventDayAnnouncement(
           currentWorkspace.id,
           values.planId,
           {
@@ -628,7 +628,7 @@ export function QuickCreateModal() {
             audiences: [{ type: "ALL_CONFIRMED_GUESTS", selector: {} }],
           },
         );
-        await weddingOsApi.publishWeddingDayAnnouncement(
+        await weddingOsApi.publishEventDayAnnouncement(
           currentWorkspace.id,
           announcement.id,
           announcement.version,

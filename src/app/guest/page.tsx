@@ -734,7 +734,7 @@ export default function GuestCompanionPage() {
               )}
             </div>
           </section>
-          <GuestWeddingDayPanel token={token} events={events} />
+          <GuestEventDayPanel token={token} events={events} />
         </>
       )}
     </PortalShell>
@@ -756,7 +756,7 @@ export default function GuestCompanionPage() {
   );
 }
 
-function GuestWeddingDayPanel({
+function GuestEventDayPanel({
   token,
   events,
 }: {
@@ -782,7 +782,7 @@ function GuestWeddingDayPanel({
     try {
       const [nextLive, nextCredential, nextMoments, nextGallery] =
         await Promise.all([
-          weddingOsApi.guestWeddingDayLive(token),
+          weddingOsApi.guestEventDayLive(token),
           weddingOsApi.guestCheckInCredential(token),
           weddingOsApi.guestMoments(token),
           weddingOsApi.guestGallery(token),
@@ -806,7 +806,7 @@ function GuestWeddingDayPanel({
     const initialLoad = window.setTimeout(() => void load(), 0);
     const timer = window.setInterval(() => void load(), 20_000);
     const stream = new EventSource(
-      `/api/v1/guest/wedding-day/live/stream?token=${encodeURIComponent(token)}`,
+      `/api/v1/guest/event-day/live/stream?token=${encodeURIComponent(token)}`,
     );
     const refresh = () => void load();
     for (const eventName of [

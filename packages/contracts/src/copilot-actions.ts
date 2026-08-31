@@ -47,7 +47,7 @@ import {
   createWeddingDayAnnouncementSchema,
   createWeddingDayIncidentSchema,
   updateWeddingDayAnnouncementSchema,
-} from "./wedding-day";
+} from "./event-day";
 
 const uuid = z.string().uuid();
 const version = z.number().int().positive();

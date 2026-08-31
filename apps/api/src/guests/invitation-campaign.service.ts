@@ -3047,7 +3047,7 @@ async function connectedInvitationSources(
       where: { id: workspaceId },
       select: { timezone: true },
     }),
-    tx.weddingProfile.findUnique({ where: { workspaceId } }),
+    tx.eventProfile.findUnique({ where: { workspaceId } }),
     tx.weddingEvent.findMany({
       where: {
         workspaceId,
@@ -3091,14 +3091,14 @@ async function connectedInvitationSources(
       source: "wedding_profile",
       value: names,
     });
-  if (profile?.weddingDate)
+  if (profile?.eventDate)
     values.push({
       path: "hero.date",
       sectionType: "hero",
       field: "date",
       source: "wedding_profile",
       value: connectedInvitationDateLabel(
-        profile.weddingDate,
+        profile.eventDate,
         // weddingDate is a calendar date persisted at UTC midnight, not an
         // instant. Formatting it in a negative-offset workspace would move it
         // to the previous day.

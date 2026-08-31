@@ -331,11 +331,11 @@ export class RsvpMenuService {
           ? new Date(String(config.deadline))
           : null;
         if (deadline) {
-          const wedding = await tx.weddingProfile.findUnique({
+          const eventProfile = await tx.eventProfile.findUnique({
             where: { workspaceId },
           });
-          if (wedding?.weddingDate && deadline >= wedding.weddingDate)
-            validation("RSVP deadline must be before the wedding date");
+          if (eventProfile?.eventDate && deadline >= eventProfile.eventDate)
+            validation("RSVP deadline must be before the event date");
         }
         definition ??= await tx.rsvpFormDefinition.create({
           data: { workspaceId, createdById: userId },
@@ -503,7 +503,7 @@ export class RsvpMenuService {
         where: { id: context.householdId },
       });
       if (!household) invalidToken();
-      const [members, events, form, menus, wedding] = await Promise.all([
+      const [members, events, form, menus, eventProfile] = await Promise.all([
         tx.guest.findMany({
           where: {
             householdId: context.householdId,
@@ -535,7 +535,7 @@ export class RsvpMenuService {
           },
           orderBy: { position: "asc" },
         }),
-        tx.weddingProfile.findUnique({
+        tx.eventProfile.findUnique({
           where: { workspaceId: context.workspaceId },
         }),
       ]);
@@ -635,13 +635,24 @@ export class RsvpMenuService {
         deadlineOpen &&
         (config.allowEdits !== false || !submission?.submittedAt);
       return {
+        event: {
+          eventType: eventProfile?.eventType ?? "other",
+          organizerName: eventProfile?.organizerName ?? null,
+          eventDate:
+            eventProfile?.eventDate?.toISOString().slice(0, 10) ?? null,
+        },
+        /** @deprecated Legacy guest clients read this block. */
         couple: {
-          partnerOneName: wedding?.partnerOneName,
-          partnerTwoName: wedding?.partnerTwoName,
-          displayNames: [wedding?.partnerOneName, wedding?.partnerTwoName]
+          partnerOneName: eventProfile?.partnerOneName,
+          partnerTwoName: eventProfile?.partnerTwoName,
+          displayNames: [
+            eventProfile?.partnerOneName,
+            eventProfile?.partnerTwoName,
+          ]
             .filter(Boolean)
             .join(" & "),
-          weddingDate: wedding?.weddingDate?.toISOString().slice(0, 10) ?? null,
+          weddingDate:
+            eventProfile?.eventDate?.toISOString().slice(0, 10) ?? null,
         },
         invitation: {
           siteId: site.id,

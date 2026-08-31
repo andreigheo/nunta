@@ -47,8 +47,8 @@ import {
   useToast,
 } from "@/components/ui";
 
-const initialCalendarDate = (weddingDate?: string | null) =>
-  weddingDate ? new Date(`${weddingDate}T12:00:00`) : new Date();
+const initialCalendarDate = (eventDate?: string | null) =>
+  eventDate ? new Date(`${eventDate}T12:00:00`) : new Date();
 const sourceLabels: Record<CalendarItem["sourceType"], string> = {
   native_event: "Eveniment",
   task_due: "Termen sarcină",
@@ -290,7 +290,7 @@ export default function CalendarPage() {
   const [items, setItems] = React.useState<CalendarItem[]>([]);
   const [view, setView] = React.useState<CalendarView>("month");
   const [cursorDate, setCursorDate] = React.useState(() =>
-    initialCalendarDate(currentWorkspace?.weddingDate),
+    initialCalendarDate(currentWorkspace?.eventDate),
   );
   const [source, setSource] = React.useState<
     CalendarItem["sourceType"] | "all"
@@ -329,10 +329,10 @@ export default function CalendarPage() {
   }, [load]);
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
-      setCursorDate(initialCalendarDate(currentWorkspace?.weddingDate));
+      setCursorDate(initialCalendarDate(currentWorkspace?.eventDate));
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [currentWorkspace?.id, currentWorkspace?.weddingDate]);
+  }, [currentWorkspace?.id, currentWorkspace?.eventDate]);
   React.useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     if (query.get("create") !== "event" || !canWrite) return;

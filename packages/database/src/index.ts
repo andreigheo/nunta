@@ -18,7 +18,7 @@ export type {
   User,
   UserPreference,
   UserProfile,
-  WeddingProfile,
+  EventProfile,
   Workspace,
   WorkspaceMembership,
   WorkerHeartbeat,

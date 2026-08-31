@@ -159,7 +159,7 @@ export class OnboardingService {
           // effect already happened, but derived profile/event rows may still
           // be missing. Both materializers are idempotent upserts, so reconcile
           // them before returning the original job.
-          await materializeWeddingProfile(
+          await materializeEventProfile(
             transaction,
             userId,
             workspaceId,
@@ -200,7 +200,7 @@ export class OnboardingService {
             version: { increment: 1 },
           },
         });
-        await materializeWeddingProfile(
+        await materializeEventProfile(
           transaction,
           userId,
           workspaceId,
@@ -304,7 +304,7 @@ function asRecord(value: Prisma.JsonValue): Record<string, unknown> {
     : {};
 }
 
-async function materializeWeddingProfile(
+async function materializeEventProfile(
   transaction: Prisma.TransactionClient,
   userId: string,
   workspaceId: string,
@@ -327,7 +327,7 @@ async function materializeWeddingProfile(
   );
   const partnerOneName = onboardingText(couple.partnerOne, 100);
   const partnerTwoName = onboardingText(couple.partnerTwo, 100);
-  const weddingDate = onboardingDate(dateEvents.date ?? dateEvents.exactDate);
+  const eventDate = onboardingDate(dateEvents.date ?? dateEvents.exactDate);
   const profileLocation = onboardingText(
     location.venueAddress ?? location.venue ?? location.city ?? location.region,
     160,
@@ -348,7 +348,7 @@ async function materializeWeddingProfile(
       },
     });
   }
-  await transaction.weddingProfile.upsert({
+  await transaction.eventProfile.upsert({
     where: { workspaceId },
     create: {
       workspaceId,
@@ -356,7 +356,7 @@ async function materializeWeddingProfile(
       organizerName,
       partnerOneName,
       partnerTwoName,
-      weddingDate,
+      eventDate,
       location: profileLocation,
       createdById: userId,
       updatedById: userId,
@@ -366,7 +366,7 @@ async function materializeWeddingProfile(
       organizerName,
       partnerOneName,
       partnerTwoName,
-      weddingDate,
+      eventDate,
       location: profileLocation,
       updatedById: userId,
       version: { increment: 1 },

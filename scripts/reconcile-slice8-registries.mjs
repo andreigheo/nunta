@@ -20,7 +20,7 @@ api.slice8Reconciliation = {
   status: "IMPLEMENTED_ACTIVE_OPENAPI_VALIDATED_E2E_TESTED",
   canonicalPrefix: "/api/v1",
   activeOperationCount: 75,
-  controllers: ["WeddingDayController", "GuestWeddingDayController"],
+  controllers: ["EventDayController", "GuestEventDayController"],
   operationFamilies: {
     plan: "versioned plan draft, immutable publish, live/pause/complete and command center",
     runOfShow:

@@ -82,11 +82,11 @@ test.afterAll(async () => {
   await ownerDatabase.$disconnect();
 });
 
-test("E2E 1 — Create Wedding Day Plan and persist Run of Show", async ({
+test("E2E 1 — Create Event Day Plan and persist Run of Show", async ({
   page,
 }) => {
   await authorizePage(page, owner);
-  await page.goto("/wedding-day");
+  await page.goto("/event-day");
   await expect(
     page.getByRole("heading", { name: "Ziua evenimentului", exact: true }),
   ).toBeVisible();
@@ -106,11 +106,11 @@ test("E2E 1 — Create Wedding Day Plan and persist Run of Show", async ({
 });
 
 test("E2E 2 — Publish immutable version and go live", async () => {
-  plan = await patchResource(`/wedding-day/plans/${plan.id}`, plan.version, {
+  plan = await patchResource(`/event-day/plans/${plan.id}`, plan.version, {
     summary: "Plan operațional validat",
   });
   plan = await postTransition(
-    `/wedding-day/plans/${plan.id}/publish`,
+    `/event-day/plans/${plan.id}/publish`,
     plan.version,
   );
   const immutable = await ownerDatabase.weddingDayPlanVersion.findUnique({
@@ -118,13 +118,13 @@ test("E2E 2 — Publish immutable version and go live", async () => {
   });
   expect(immutable?.immutable).toBe(true);
   plan = await postTransition(
-    `/wedding-day/plans/${plan.id}/go-live`,
+    `/event-day/plans/${plan.id}/go-live`,
     plan.version,
   );
   expect(plan.status).toBe("LIVE");
   const command = await apiData<Record<string, unknown>>(
     await owner.api.get(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/command-center`,
+      `/api/v1/workspaces/${workspaceId}/event-day/command-center`,
     ),
   );
   expect((command.plan as { status: string }).status).toBe("LIVE");
@@ -163,7 +163,7 @@ test("E2E 4 — Critical guest-visible delay reaches live state", async () => {
       async () =>
         (
           (await guestJson(
-            `/api/v1/guest/wedding-day/live?token=${guestToken}`,
+            `/api/v1/guest/event-day/live?token=${guestToken}`,
           )) as { events: Array<{ eventType: string }> }
         ).events.some(
           (event) => event.eventType === "wedding_day.item_delayed.v1",
@@ -178,7 +178,7 @@ test("E2E 5 — Dependency blocks then releases downstream item", async () => {
   dependent = await createRunItem("Deschidere sală", "CUSTOM", false, false, 4);
   const dependencyUpdate = await apiData<{ version: number }>(
     await owner.api.put(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/run-of-show/items/${dependent.id}/dependencies`,
+      `/api/v1/workspaces/${workspaceId}/event-day/run-of-show/items/${dependent.id}/dependencies`,
       {
         headers: mutationHeaders({ "If-Match": `"${dependent.version}"` }),
         data: {
@@ -191,7 +191,7 @@ test("E2E 5 — Dependency blocks then releases downstream item", async () => {
   );
   dependent = { ...dependent, version: dependencyUpdate.version };
   const blocked = await owner.api.post(
-    `/api/v1/workspaces/${workspaceId}/wedding-day/run-of-show/items/${dependent.id}/transitions`,
+    `/api/v1/workspaces/${workspaceId}/event-day/run-of-show/items/${dependent.id}/transitions`,
     {
       headers: mutationHeaders({ "If-Match": `"${dependent.version}"` }),
       data: { transition: "START" },
@@ -207,7 +207,7 @@ test("E2E 5 — Dependency blocks then releases downstream item", async () => {
 test("E2E 6 — Operational checklist persists completion", async () => {
   checklist = await apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/checklists`,
+      `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/checklists`,
       {
         headers: mutationHeaders({
           "Idempotency-Key": `checklist-${randomUUID()}`,
@@ -218,7 +218,7 @@ test("E2E 6 — Operational checklist persists completion", async () => {
   );
   checklistItem = await apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/checklists/${checklist.id}/items`,
+      `/api/v1/workspaces/${workspaceId}/event-day/checklists/${checklist.id}/items`,
       {
         headers: mutationHeaders({
           "Idempotency-Key": `checklist-item-${randomUUID()}`,
@@ -229,7 +229,7 @@ test("E2E 6 — Operational checklist persists completion", async () => {
   );
   checklistItem = await apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/checklist-items/${checklistItem.id}/transitions`,
+      `/api/v1/workspaces/${workspaceId}/event-day/checklist-items/${checklistItem.id}/transitions`,
       {
         headers: mutationHeaders({ "If-Match": `"${checklistItem.version}"` }),
         data: { transition: "COMPLETE" },
@@ -245,7 +245,7 @@ test("E2E 6 — Operational checklist persists completion", async () => {
 test("E2E 7 — Encrypted operational contact CRUD", async () => {
   contact = await apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/contacts`,
+      `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/contacts`,
       {
         headers: mutationHeaders({
           "Idempotency-Key": `contact-${randomUUID()}`,
@@ -266,7 +266,7 @@ test("E2E 7 — Encrypted operational contact CRUD", async () => {
     items: Array<Resource & { phone: string; notesPrivate: string }>;
   }>(
     await owner.api.get(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/contacts`,
+      `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/contacts`,
     ),
   );
   expect(contacts.items[0].phone).toBe("+373 60000000");
@@ -279,7 +279,7 @@ test("E2E 7 — Encrypted operational contact CRUD", async () => {
 test("E2E 8 — Incident update and resolution lifecycle", async () => {
   incident = await apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/incidents`,
+      `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/incidents`,
       {
         headers: mutationHeaders({
           "Idempotency-Key": `incident-${randomUUID()}`,
@@ -295,7 +295,7 @@ test("E2E 8 — Incident update and resolution lifecycle", async () => {
   );
   await apiData(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/incidents/${incident.id}/updates`,
+      `/api/v1/workspaces/${workspaceId}/event-day/incidents/${incident.id}/updates`,
       {
         headers: mutationHeaders({
           "Idempotency-Key": `incident-update-${randomUUID()}`,
@@ -316,16 +316,16 @@ test("E2E 8 — Incident update and resolution lifecycle", async () => {
 test("E2E 9 — Incident privacy and tenant isolation", async () => {
   const own = await apiData<Resource>(
     await owner.api.get(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/incidents/${incident.id}`,
+      `/api/v1/workspaces/${workspaceId}/event-day/incidents/${incident.id}`,
     ),
   );
   expect(own.descriptionPrivate).toContain("foyer");
   const forbidden = await outsider.api.get(
-    `/api/v1/workspaces/${workspaceId}/wedding-day/incidents/${incident.id}`,
+    `/api/v1/workspaces/${workspaceId}/event-day/incidents/${incident.id}`,
   );
   expect(forbidden.status()).toBe(403);
   const guestLive = (await guestJson(
-    `/api/v1/guest/wedding-day/live?token=${guestToken}`,
+    `/api/v1/guest/event-day/live?token=${guestToken}`,
   )) as { events: Array<Record<string, unknown>> };
   expect(JSON.stringify(guestLive)).not.toContain("Invitatul este asistat");
 });
@@ -333,7 +333,7 @@ test("E2E 9 — Incident privacy and tenant isolation", async () => {
 test("E2E 10 — Audience-scoped announcement reaches only selected household", async () => {
   announcement = await apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/announcements`,
+      `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/announcements`,
       {
         headers: mutationHeaders({
           "Idempotency-Key": `announcement-${randomUUID()}`,
@@ -351,14 +351,14 @@ test("E2E 10 — Audience-scoped announcement reaches only selected household", 
     ),
   );
   announcement = await postTransition(
-    `/wedding-day/announcements/${announcement.id}/publish`,
+    `/event-day/announcements/${announcement.id}/publish`,
     announcement.version,
   );
   const first = (await guestJson(
-    `/api/v1/guest/wedding-day/live?token=${guestToken}`,
+    `/api/v1/guest/event-day/live?token=${guestToken}`,
   )) as { announcements: Array<{ id: string }> };
   const second = (await guestJson(
-    `/api/v1/guest/wedding-day/live?token=${secondGuestToken}`,
+    `/api/v1/guest/event-day/live?token=${secondGuestToken}`,
   )) as { announcements: Array<{ id: string }> };
   expect(first.announcements.some((item) => item.id === announcement.id)).toBe(
     true,
@@ -732,18 +732,18 @@ test("E2E 25 — Guest report opens moderation evidence without deleting media",
 test("E2E 26 — Organizer and guest live projections are redacted", async () => {
   const organizer = await apiData<Record<string, unknown>>(
     await owner.api.get(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/command-center`,
+      `/api/v1/workspaces/${workspaceId}/event-day/command-center`,
     ),
   );
   const guest = await guestJson(
-    `/api/v1/guest/wedding-day/live?token=${guestToken}`,
+    `/api/v1/guest/event-day/live?token=${guestToken}`,
   );
   expect((organizer.plan as { status: string }).status).toBe("LIVE");
   expect(JSON.stringify(guest)).not.toContain("descriptionPrivate");
   expect(JSON.stringify(guest)).toContain("wedding_day.item_delayed.v1");
 });
 
-test("E2E 27 — Overview and search use Wedding Day canonical data", async ({
+test("E2E 27 — Overview and search use Event Day canonical data", async ({
   page,
 }) => {
   const dashboard = await apiData<{
@@ -793,7 +793,7 @@ test("E2E 28 — Operational exports create secured artifacts", async () => {
       job: { id: string };
     }>(
       await owner.api.post(
-        `/api/v1/workspaces/${workspaceId}/wedding-day-exports`,
+        `/api/v1/workspaces/${workspaceId}/event-day-exports`,
         {
           headers: mutationHeaders({
             "Idempotency-Key": `wedding-day-export-${input.type}-${randomUUID()}`,
@@ -815,7 +815,7 @@ test("E2E 28 — Operational exports create secured artifacts", async () => {
   }
 });
 
-test("E2E 29 — Demo Wedding Day performs zero API mutations", async ({
+test("E2E 29 — Demo Event Day performs zero API mutations", async ({
   page,
 }) => {
   await authorizePage(page, owner);
@@ -835,7 +835,7 @@ test("E2E 29 — Demo Wedding Day performs zero API mutations", async ({
       sameSite: "Lax",
     },
   ]);
-  await page.goto("/wedding-day?demo=1");
+  await page.goto("/event-day?demo=1");
   await expect(page.getByText(/demo/i).first()).toBeVisible();
   await page.waitForTimeout(500);
   expect(mutations).toBe(0);
@@ -843,21 +843,18 @@ test("E2E 29 — Demo Wedding Day performs zero API mutations", async ({
 
 async function createPlan() {
   return apiData<Resource>(
-    await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans`,
-      {
-        headers: mutationHeaders({ "Idempotency-Key": `plan-${randomUUID()}` }),
-        data: {
-          weddingEventId: eventId,
-          name: "Operațiuni nuntă",
-          title: "Wedding Day",
-          summary: "Plan E2E",
-          timezone: "Europe/Chisinau",
-          operationalDate: "2027-09-12",
-          settings: {},
-        },
+    await owner.api.post(`/api/v1/workspaces/${workspaceId}/event-day/plans`, {
+      headers: mutationHeaders({ "Idempotency-Key": `plan-${randomUUID()}` }),
+      data: {
+        weddingEventId: eventId,
+        name: "Operațiuni eveniment",
+        title: "Ziua evenimentului",
+        summary: "Plan E2E",
+        timezone: "Europe/Chisinau",
+        operationalDate: "2027-09-12",
+        settings: {},
       },
-    ),
+    }),
   );
 }
 
@@ -870,7 +867,7 @@ async function createRunItem(
 ) {
   return apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/run-of-show/items`,
+      `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/run-of-show/items`,
       {
         headers: mutationHeaders({ "Idempotency-Key": `run-${randomUUID()}` }),
         data: {
@@ -897,7 +894,7 @@ async function createRunItem(
 async function runOfShow() {
   return apiData<{ items: Resource[] }>(
     await owner.api.get(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/run-of-show`,
+      `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/run-of-show`,
     ),
   );
 }
@@ -906,7 +903,7 @@ async function checklists() {
   return (
     await apiData<{ items: Resource[] }>(
       await owner.api.get(
-        `/api/v1/workspaces/${workspaceId}/wedding-day/plans/${plan.id}/checklists`,
+        `/api/v1/workspaces/${workspaceId}/event-day/plans/${plan.id}/checklists`,
       ),
     )
   ).items;
@@ -920,7 +917,7 @@ async function transitionItem(
 ) {
   return apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/run-of-show/items/${item.id}/transitions`,
+      `/api/v1/workspaces/${workspaceId}/event-day/run-of-show/items/${item.id}/transitions`,
       {
         headers: mutationHeaders({ "If-Match": `"${item.version}"` }),
         data: { transition, reason, delayEstimateMinutes },
@@ -936,7 +933,7 @@ async function transitionIncident(
 ) {
   return apiData<Resource>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/wedding-day/incidents/${item.id}/transitions`,
+      `/api/v1/workspaces/${workspaceId}/event-day/incidents/${item.id}/transitions`,
       {
         headers: mutationHeaders({ "If-Match": `"${item.version}"` }),
         data: { transition, reason },

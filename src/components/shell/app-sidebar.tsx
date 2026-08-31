@@ -27,7 +27,7 @@ import { SarbatoMark } from "@/components/brand/sarbato-mark";
 function WorkspaceSwitcher() {
   const router = useRouter();
   const { currentWorkspace, workspaces, selectWorkspace } = useWorkspace();
-  const days = currentWorkspace?.weddingDate ? daysUntil(currentWorkspace.weddingDate) : null;
+  const days = currentWorkspace?.eventDate ? daysUntil(currentWorkspace.eventDate) : null;
   const initials = (currentWorkspace?.title ?? "W · O")
     .split(/\s*&\s*|\s+/)
     .filter(Boolean)
@@ -46,8 +46,8 @@ function WorkspaceSwitcher() {
               {currentWorkspace?.title ?? "Spațiul tău"}
             </span>
             <span className="block text-xs text-faint">
-              {currentWorkspace?.eventDate ?? currentWorkspace?.weddingDate
-                ? `${formatDateShort(currentWorkspace.eventDate ?? currentWorkspace.weddingDate!)} · ${days} zile rămase`
+              {currentWorkspace?.eventDate
+                ? `${formatDateShort(currentWorkspace.eventDate)} · ${days} zile rămase`
                 : "Data evenimentului nu este setată"}
             </span>
           </span>
@@ -70,8 +70,8 @@ function WorkspaceSwitcher() {
             <span className="flex flex-col">
               <span>{w.title}</span>
               <span className="text-xs text-faint">
-                {w.eventDate ?? w.weddingDate
-                  ? formatDateShort(w.eventDate ?? w.weddingDate!)
+                {w.eventDate
+                  ? formatDateShort(w.eventDate)
                   : "Dată nesetată"} · {w.location ?? "Locație nesetată"}
               </span>
             </span>

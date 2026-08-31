@@ -25,7 +25,7 @@ import { GuestsModule } from "./guests/guests.module";
 import { CommercialModule } from "./commercial/commercial.module";
 import { SecureCommerceModule } from "./secure-commerce/secure-commerce.module";
 import { TrustMonetizationModule } from "./trust-monetization/trust-monetization.module";
-import { WeddingDayModule } from "./wedding-day/wedding-day.module";
+import { EventDayModule } from "./event-day/event-day.module";
 import { MarketingModule } from "./marketing/marketing.module";
 import { IntelligenceModule } from "./intelligence/intelligence.module";
 import { PlatformModule } from "./platform/platform.module";
@@ -70,7 +70,7 @@ const throttleGuardProviders =
     CommercialModule,
     SecureCommerceModule,
     TrustMonetizationModule,
-    WeddingDayModule,
+    EventDayModule,
     MarketingModule,
     IntelligenceModule,
     PlatformModule,

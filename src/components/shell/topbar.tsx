@@ -202,8 +202,8 @@ export function Topbar() {
   const shell = useShell();
   const { currentWorkspace, bootstrap, user } = useWorkspace();
   const meta = pageMeta(pathname);
-  const days = currentWorkspace?.weddingDate
-    ? daysUntil(currentWorkspace.weddingDate)
+  const days = currentWorkspace?.eventDate
+    ? daysUntil(currentWorkspace.eventDate)
     : null;
   const unread = bootstrap?.shell.unreadNotifications ?? 0;
   const initials = user

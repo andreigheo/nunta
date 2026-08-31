@@ -155,7 +155,7 @@ export default function ArchivePage() {
       <ConnectedArchive
         workspaceId={currentWorkspace.id}
         title={currentWorkspace.title}
-        weddingDate={currentWorkspace.weddingDate}
+        eventDate={currentWorkspace.eventDate}
         capabilities={bootstrap?.membership.capabilities ?? []}
       />
     ) : null;
@@ -424,12 +424,12 @@ export default function ArchivePage() {
 function ConnectedArchive({
   workspaceId,
   title,
-  weddingDate,
+  eventDate,
   capabilities,
 }: {
   workspaceId: string;
   title: string;
-  weddingDate: string | null;
+  eventDate: string | null;
   capabilities: string[];
 }) {
   const [documents, setDocuments] = React.useState<OperationResource[]>([]);
@@ -519,14 +519,14 @@ function ConnectedArchive({
         title="Arhivă"
         description={`Evidențele persistente pentru ${title}. Nimic din această pagină nu este demonstrativ.`}
         meta={
-          weddingDate ? (
+          eventDate ? (
             <span className="inline-flex items-center gap-1.5 text-xs text-muted">
               <CalendarDays className="size-3.5" aria-hidden />
               Eveniment:{" "}
               {new Intl.DateTimeFormat("ro-RO", {
                 dateStyle: "long",
                 timeZone: "UTC",
-              }).format(new Date(`${weddingDate}T00:00:00.000Z`))}
+              }).format(new Date(`${eventDate}T00:00:00.000Z`))}
             </span>
           ) : null
         }

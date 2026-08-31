@@ -124,7 +124,7 @@ export const navGroups: NavGroup[] = [
       { label: "Riscuri & Plan B", href: "/risks", icon: ShieldAlert, capability: "risk.read", minimumPlan: "PRO" },
       { label: "Planuri B", href: "/contingency-plans", icon: ShieldAlert, capability: "contingency.read", minimumPlan: "PRO" },
       { label: "Automatizări", href: "/automations", icon: Workflow, capability: "automation.read", minimumPlan: "PLUS" },
-      { label: "Ziua evenimentului", href: "/wedding-day", icon: Sparkles, capability: "wedding_day.read", minimumPlan: "PRO" },
+      { label: "Ziua evenimentului", href: "/event-day", icon: Sparkles, capability: "wedding_day.read", minimumPlan: "PRO" },
       { label: "Momente", href: "/moments", icon: Camera, capability: "guest_moment.read", minimumPlan: "PRO" },
     ],
   },
@@ -132,7 +132,7 @@ export const navGroups: NavGroup[] = [
     id: "after",
     label: "După eveniment",
     items: [
-      { label: "După eveniment", href: "/post-wedding", icon: Gift, capability: "gallery.read" },
+      { label: "După eveniment", href: "/post-event", icon: Gift, capability: "gallery.read" },
       { label: "Recenzii", href: "/reviews", icon: MessageSquareHeart, capability: "review.read" },
       { label: "Arhivă", href: "/archive", icon: Archive, capability: "document.read" },
     ],

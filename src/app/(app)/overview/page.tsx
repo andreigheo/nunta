@@ -284,7 +284,7 @@ export default function OverviewPage() {
         setDashboard(
           demoDashboard(
             currentWorkspace.title,
-            currentWorkspace.weddingDate,
+            currentWorkspace.eventDate,
             currentWorkspace.location,
           ),
         );
@@ -559,7 +559,7 @@ export default function OverviewPage() {
             value: weddingDay?.status
               ? weddingDay.status.toLowerCase().replaceAll("_", " ")
               : "De configurat",
-            href: "/wedding-day",
+            href: "/event-day",
             icon: CalendarCheck2,
             tone: "success",
           },
@@ -652,7 +652,7 @@ export default function OverviewPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => router.push("/wedding-day")}
+              onClick={() => router.push("/event-day")}
             >
               Deschide centrul
               <ArrowRight className="size-3.5" />
@@ -665,7 +665,7 @@ export default function OverviewPage() {
               hint={`${weddingDay.momentsDelayed} întârziate`}
               icon={CheckCircle2}
               tone={weddingDay.momentsDelayed ? "warning" : "default"}
-              href="/wedding-day"
+              href="/event-day"
             />
             <StatCard
               label="Incidente deschise"
@@ -679,14 +679,14 @@ export default function OverviewPage() {
                     ? "warning"
                     : "default"
               }
-              href="/wedding-day"
+              href="/event-day"
             />
             <StatCard
               label="Check-in"
               value={`${weddingDay.checkedInGuests}/${weddingDay.expectedGuests}`}
               hint={`${weddingDay.notArrivedGuests} nu au sosit`}
               icon={Users}
-              href="/wedding-day"
+              href="/event-day"
             />
             <StatCard
               label="Media de verificat"

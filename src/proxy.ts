@@ -29,8 +29,12 @@ const protectedSegments = new Set([
   "risks",
   "contingency-plans",
   "automations",
+  "event-day",
+  // Deprecated route kept protected while it redirects to /event-day.
   "wedding-day",
   "moments",
+  "post-event",
+  // Deprecated route kept protected while it redirects to /post-event.
   "post-wedding",
   "reviews",
   "archive",

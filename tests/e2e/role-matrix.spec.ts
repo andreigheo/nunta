@@ -227,7 +227,7 @@ test("Role matrix — family collaborator uses creative and task surfaces read-o
     familyPage.getByRole("button", { name: "Salvează", exact: true }),
   ).toBeDisabled();
 
-  await familyPage.goto("/post-wedding");
+  await familyPage.goto("/post-event");
   await expect(familyPage.getByText("doar citire")).toBeVisible();
   await expect(
     familyPage.getByRole("button", { name: "Adaugă un pas" }),

@@ -2008,9 +2008,9 @@ export class PlanningService {
         if (replay) return replay;
         const workspace = await transaction.workspace.findUniqueOrThrow({
           where: { id: workspaceId },
-          include: { weddingProfile: true },
+          include: { eventProfile: true },
         });
-        const weddingDate = workspace.weddingProfile?.weddingDate ?? null;
+        const eventDate = workspace.eventProfile?.eventDate ?? null;
         const tasks = await transaction.task.findMany({
           where: { workspaceId, deletedAt: null },
         });
@@ -2024,14 +2024,11 @@ export class PlanningService {
           proposedAt: string;
           applied: boolean;
         }> = [];
-        if (weddingDate) {
+        if (eventDate) {
           for (const task of tasks.filter(
             (entry) => entry.relativeDueOffsetDays !== null,
           )) {
-            const proposed = shiftDate(
-              weddingDate,
-              task.relativeDueOffsetDays!,
-            )!;
+            const proposed = shiftDate(eventDate, task.relativeDueOffsetDays!)!;
             if (task.dueAt?.getTime() !== proposed.getTime())
               changes.push({
                 resourceType: "task",
@@ -2045,7 +2042,7 @@ export class PlanningService {
             (entry) => entry.relativeOffsetDays !== null,
           )) {
             const proposed = shiftDate(
-              weddingDate,
+              eventDate,
               milestone.relativeOffsetDays!,
             )!;
             if (milestone.targetAt?.getTime() !== proposed.getTime())
@@ -2134,7 +2131,7 @@ export class PlanningService {
           await Promise.all([
             transaction.workspace.findUniqueOrThrow({
               where: { id: workspaceId },
-              include: { weddingProfile: true },
+              include: { eventProfile: true },
             }),
             transaction.task.findMany({
               where: {
@@ -2763,7 +2760,7 @@ export class PlanningService {
               reason: "Un incident critic este încă deschis în Command Center.",
               impact:
                 "Rezolvarea incidentului are prioritate peste restul operațiunilor.",
-              href: `/wedding-day?incident=${criticalIncident.id}`,
+              href: `/event-day?incident=${criticalIncident.id}`,
               priority: "urgent" as const,
             }
           : criticalBlockedItem
@@ -2772,7 +2769,7 @@ export class PlanningService {
                 title: `Deblochează momentul critic: ${criticalBlockedItem.title}`,
                 reason: "Un moment critic din Run of Show este blocat.",
                 impact: "Poate întârzia momentele dependente ale zilei.",
-                href: `/wedding-day?item=${criticalBlockedItem.id}`,
+                href: `/event-day?item=${criticalBlockedItem.id}`,
                 priority: "urgent" as const,
               }
             : delayedItem
@@ -2781,7 +2778,7 @@ export class PlanningService {
                   title: `Recuperează întârzierea: ${delayedItem.title}`,
                   reason: "Un moment principal este marcat cu întârziere.",
                   impact: "Actualizează echipa și invitații eligibili.",
-                  href: `/wedding-day?item=${delayedItem.id}`,
+                  href: `/event-day?item=${delayedItem.id}`,
                   priority: "urgent" as const,
                 }
               : null;
@@ -2995,11 +2992,11 @@ export class PlanningService {
         return {
           wedding: {
             title: workspace.title,
-            date: dateOnly(workspace.weddingProfile?.weddingDate),
-            location: workspace.weddingProfile?.location ?? null,
-            countdownDays: workspace.weddingProfile?.weddingDate
+            date: dateOnly(workspace.eventProfile?.eventDate),
+            location: workspace.eventProfile?.location ?? null,
+            countdownDays: workspace.eventProfile?.eventDate
               ? Math.ceil(
-                  (workspace.weddingProfile.weddingDate.getTime() -
+                  (workspace.eventProfile.eventDate.getTime() -
                     startOfDay(now).getTime()) /
                     86_400_000,
                 )
@@ -3542,49 +3539,49 @@ export class PlanningService {
               type: "wedding_day_plan" as const,
               title: item.name,
               subtitle: `Wedding Day · ${lower(item.status)}`,
-              href: `/wedding-day?plan=${item.id}`,
+              href: `/event-day?plan=${item.id}`,
             })),
             ...runOfShowItems.map((item) => ({
               id: item.id,
               type: "run_of_show_item" as const,
               title: item.title,
               subtitle: `Run of Show · ${lower(item.status)}`,
-              href: `/wedding-day?item=${item.id}`,
+              href: `/event-day?item=${item.id}`,
             })),
             ...checklistItems.map((item) => ({
               id: item.id,
               type: "wedding_day_checklist_item" as const,
               title: item.title,
               subtitle: `Checklist · ${lower(item.status)}`,
-              href: `/wedding-day?checklistItem=${item.id}`,
+              href: `/event-day?checklistItem=${item.id}`,
             })),
             ...incidents.map((item) => ({
               id: item.id,
               type: "wedding_day_incident" as const,
               title: item.title,
               subtitle: `Incident · ${lower(item.status)}`,
-              href: `/wedding-day?incident=${item.id}`,
+              href: `/event-day?incident=${item.id}`,
             })),
             ...decisions.map((item) => ({
               id: item.id,
               type: "wedding_day_decision" as const,
               title: item.title,
               subtitle: "Decizie operațională",
-              href: `/wedding-day?decision=${item.id}`,
+              href: `/event-day?decision=${item.id}`,
             })),
             ...announcements.map((item) => ({
               id: item.id,
               type: "wedding_day_announcement" as const,
               title: item.title,
               subtitle: `Anunț · ${lower(item.status)}`,
-              href: `/wedding-day?announcement=${item.id}`,
+              href: `/event-day?announcement=${item.id}`,
             })),
             ...checkInSessions.map((item) => ({
               id: item.id,
               type: "check_in_session" as const,
               title: item.name,
               subtitle: `Check-in · ${lower(item.status)}`,
-              href: `/wedding-day?checkInSession=${item.id}`,
+              href: `/event-day?checkInSession=${item.id}`,
             })),
             ...guestMoments.map((item) => ({
               id: item.id,

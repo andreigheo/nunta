@@ -281,7 +281,7 @@ export class TeamService {
       (transaction) =>
         transaction.workspace.findUnique({
           where: { id: invitation.workspaceId },
-          include: { weddingProfile: true },
+          include: { eventProfile: true },
         }),
     );
     if (!workspace)
@@ -298,8 +298,11 @@ export class TeamService {
         { ...invitation, workspace },
         inviter ?? undefined,
       ),
-      weddingDate: workspace.weddingProfile?.weddingDate
-        ? workspace.weddingProfile.weddingDate.toISOString().slice(0, 10)
+      eventDate: workspace.eventProfile?.eventDate
+        ? workspace.eventProfile.eventDate.toISOString().slice(0, 10)
+        : null,
+      weddingDate: workspace.eventProfile?.eventDate
+        ? workspace.eventProfile.eventDate.toISOString().slice(0, 10)
         : null,
     };
   }
