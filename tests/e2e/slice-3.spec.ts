@@ -419,7 +419,9 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
     .getByRole("button", { name: "Deschiderea: Plic, panouri sau direct" })
     .click();
   await page.getByRole("button", { name: /^Plic animat/ }).click();
-  await page.getByRole("button", { name: /^Personalizează:/ }).click();
+  await page
+    .getByRole("button", { name: "Personalizează stilul vizual" })
+    .click();
   await expect(page.getByText("Paleta invitației")).toBeVisible();
   const initialPaletteSize = await page
     .getByLabel(/^Modifică culoarea \d+$/)
@@ -443,6 +445,12 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
       name: "Aplică #F06449 drept accent principal",
     }),
   ).toHaveAttribute("aria-pressed", "true");
+  const editorDrawer = page.getByRole("dialog", {
+    name: "Editează invitația",
+  });
+  if (await editorDrawer.isVisible()) {
+    await editorDrawer.getByRole("button", { name: "Închide" }).click();
+  }
   await page.getByRole("button", { name: "Salvează" }).click();
   await expect(page.getByText("Ciornă salvată")).toBeVisible();
   await replaceInvitationStarterContent();

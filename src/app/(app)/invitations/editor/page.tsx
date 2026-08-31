@@ -29,6 +29,7 @@ import {
   Tablet,
   Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 import type {
   InvitationPreflightResource,
@@ -133,6 +134,32 @@ const deviceWidths: Record<Device, number> = {
 const canvasFitFloor = 0.5;
 type InspectorTab = "content" | "design" | "experience" | "publish";
 type LeftPanelTab = "blocks" | "layers";
+type EditorViewport = "mobile" | "compact" | "wide" | "expansive";
+
+function useEditorViewport() {
+  const [viewport, setViewport] =
+    React.useState<EditorViewport>("wide");
+
+  React.useEffect(() => {
+    const update = () => {
+      const width = window.innerWidth;
+      setViewport(
+        width < 768
+          ? "mobile"
+          : width < 1440
+            ? "compact"
+            : width < 1536
+              ? "wide"
+              : "expansive",
+      );
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  return viewport;
+}
 
 export default function InvitationEditorPage() {
   const router = useRouter();
@@ -173,6 +200,7 @@ export default function InvitationEditorPage() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [sectionsOpen, setSectionsOpen] = React.useState(false);
   const [inspectorOpen, setInspectorOpen] = React.useState(false);
+  const editorViewport = useEditorViewport();
   const [uploadingMedia, setUploadingMedia] = React.useState(false);
   const [mediaPreviews, setMediaPreviews] = React.useState<
     Record<string, string>
@@ -190,8 +218,10 @@ export default function InvitationEditorPage() {
     React.useState<InvitationSyncPreviewResource | null>(null);
 
   React.useEffect(() => {
-    if (!window.matchMedia("(max-width: 639px)").matches) return;
-    const timer = window.setTimeout(() => setDevice("mobile"), 0);
+    const width = window.innerWidth;
+    const initialDevice: Device =
+      width < 768 ? "mobile" : width < 1024 ? "tablet" : "desktop";
+    const timer = window.setTimeout(() => setDevice(initialDevice), 0);
     return () => window.clearTimeout(timer);
   }, []);
   const [preflight, setPreflight] =
@@ -220,6 +250,11 @@ export default function InvitationEditorPage() {
   const readiness = invitationReadiness(snapshot);
   const activeVariant =
     variants.find((variant) => variant.id === activeVariantId) ?? null;
+  const mobileEditor = editorViewport === "mobile";
+  const drawerInspector = editorViewport === "compact";
+  const permanentInspector =
+    editorViewport === "wide" || editorViewport === "expansive";
+  const permanentStructure = editorViewport === "expansive";
 
   React.useEffect(() => {
     if (!currentWorkspace || demoMode) {
@@ -591,7 +626,7 @@ export default function InvitationEditorPage() {
     setSelectedId(section.id);
     setInspectorTab("content");
     setAddOpen(false);
-    if (window.innerWidth < 1024) setInspectorOpen(true);
+    if (!permanentInspector) setInspectorOpen(true);
   };
 
   const addAdvancedSection = (blockKind: InvitationBlockKind) => {
@@ -601,7 +636,7 @@ export default function InvitationEditorPage() {
     setSelectedId(section.id);
     setInspectorTab("content");
     setAddOpen(false);
-    if (window.innerWidth < 1024) setInspectorOpen(true);
+    if (!permanentInspector) setInspectorOpen(true);
   };
 
   const selectVariant = async (variantId: string | null) => {
@@ -1013,7 +1048,7 @@ export default function InvitationEditorPage() {
       setPublishOpen(true);
       return;
     }
-    if (window.innerWidth < 1024) setInspectorOpen(true);
+    if (!permanentInspector) setInspectorOpen(true);
     toast({
       title: "Mai sunt detalii de verificat",
       description:
@@ -1064,14 +1099,41 @@ export default function InvitationEditorPage() {
     });
   }, [selectedId]);
 
+  React.useEffect(() => {
+    if (!mobileEditor || !inspectorOpen) return;
+    const timer = window.setTimeout(() => {
+      const container = canvasScrollRef.current;
+      if (!container) return;
+      const section = container.querySelector<HTMLElement>(
+        `[data-invitation-section-id="${cssAttributeValue(selectedId)}"]`,
+      );
+      const target = selectedContentKey
+        ? section?.querySelector<HTMLElement>(
+            `[data-invitation-content-key="${cssAttributeValue(selectedContentKey)}"]`,
+          )
+        : section;
+      target?.scrollIntoView({
+        block: "center",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [inspectorOpen, mobileEditor, selectedContentKey, selectedId]);
+
   const showInspectorTab = (tab: InspectorTab) => {
     setInspectorTab(tab);
-    if (window.innerWidth < 1024) setInspectorOpen(true);
+    if (!permanentInspector) setInspectorOpen(true);
   };
 
   const showInvitationStructure = () => {
     setLeftPanelTab("layers");
-    if (window.innerWidth < 768) setSectionsOpen(true);
+    if (permanentStructure) {
+      setStructurePanelOpen((open) => !open);
+      return;
+    }
+    setSectionsOpen(true);
   };
 
   const runPreflightAction = (action: InvitationPreflightAction) => {
@@ -1121,6 +1183,47 @@ export default function InvitationEditorPage() {
     setZoom(
       Math.min(1.5, Math.max(0.25, Math.round((canvasZoom + delta) * 100) / 100)),
     );
+  const renderInspector = (compact = false) => (
+    <Inspector
+      compact={compact}
+      tab={inspectorTab}
+      onTabChange={setInspectorTab}
+      selected={selected}
+      selectedContentKey={selectedContentKey}
+      snapshot={snapshot}
+      readiness={readiness}
+      site={site}
+      onUpdateSection={(update) =>
+        selected && updateSection(selected.id, update)
+      }
+      onUpdateContent={updateContent}
+      onUpdateContentMany={updateContentMany}
+      onUpdateDesign={updateDesign}
+      onUpdateExperience={updateExperience}
+      coverPreviewUrl={experienceCoverUrl}
+      onUploadExperienceCover={(file) =>
+        void uploadInvitationImage(file, (mediaId) =>
+          updateExperience({ coverMediaId: mediaId, coverImageUrl: null }),
+        )
+      }
+      device={device}
+      uploadingMedia={uploadingMedia}
+      onUploadImage={uploadInvitationImage}
+      onChooseTemplate={() => setTemplateOpen(true)}
+      onOpenWorkflow={() => {
+        setInspectorOpen(false);
+        setWorkflowOpen(true);
+      }}
+      onResolveCheck={resolveReadinessCheck}
+      onPublish={requestPublish}
+      preflight={preflight}
+      preflightBusy={preflightBusy}
+      preflightError={preflightError}
+      canPublish={canPublish}
+      onPreflightAction={runPreflightAction}
+      onPreviewReveal={openRevealPreview}
+    />
+  );
 
   if (loading) {
     return (
@@ -1152,20 +1255,20 @@ export default function InvitationEditorPage() {
 
   return (
     <div className="flex h-[calc(100dvh-1rem)] min-h-[42rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface sm:h-[calc(100dvh-1.5rem)]">
-      <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
+      <header className="flex min-h-14 shrink-0 items-center gap-1 border-b border-line bg-surface px-2 sm:gap-2 sm:px-3">
         <Button
           variant="ghost"
-          size="sm"
+          size="icon-sm"
           aria-label="Înapoi la invitații"
           onClick={() => router.push("/invitations")}
         >
           <ArrowLeft className="size-4" aria-hidden />
-          <span className="hidden sm:inline">Invitații</span>
         </Button>
-        <div className="hidden min-w-0 flex-1 border-l border-line pl-3 sm:block md:flex-none">
+        <div className="min-w-0 flex-1 border-l border-line pl-2 sm:pl-3 xl:flex-none">
           <div className="flex items-center gap-2">
             <h1 className="truncate font-brand text-base font-semibold text-brand">
-              Studio invitație
+              <span className="sm:hidden">Studio</span>
+              <span className="hidden sm:inline">Studio invitație</span>
             </h1>
             {saving ? (
               <Badge className="hidden md:inline-flex" variant="info" dot>
@@ -1181,7 +1284,7 @@ export default function InvitationEditorPage() {
               </Badge>
             )}
           </div>
-          <p className="hidden text-xs text-faint md:block">
+          <p className="hidden text-xs text-faint xl:block">
             {activeVariant
               ? `Personalizare pentru: ${activeVariant.name}`
               : saving
@@ -1193,29 +1296,20 @@ export default function InvitationEditorPage() {
                     : "Ciornă nouă"}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          <Tooltip content={structurePanelOpen ? "Ascunde structura" : "Arată structura"}>
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <Tooltip content={permanentStructure && structurePanelOpen ? "Ascunde structura" : "Arată structura"}>
             <span className="hidden md:inline-flex">
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => setStructurePanelOpen((open) => !open)}
-                aria-label={structurePanelOpen ? "Ascunde structura invitației" : "Arată structura invitației"}
-                aria-pressed={structurePanelOpen}
+                onClick={showInvitationStructure}
+                aria-label={permanentStructure && structurePanelOpen ? "Ascunde structura invitației" : "Arată structura invitației"}
+                aria-pressed={permanentStructure ? structurePanelOpen : undefined}
               >
                 <LayoutPanelLeft className="size-4" aria-hidden />
               </Button>
             </span>
           </Tooltip>
-          <Button
-            className="md:hidden"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setSectionsOpen(true)}
-            aria-label="Deschide secțiunile"
-          >
-            <LayoutPanelLeft className="size-4" aria-hidden />
-          </Button>
           <Tooltip content="Anulează · Ctrl+Z">
             <span className="inline-flex">
               <Button
@@ -1230,7 +1324,7 @@ export default function InvitationEditorPage() {
             </span>
           </Tooltip>
           <Tooltip content="Refă · Ctrl+Shift+Z">
-            <span className="inline-flex">
+            <span className="hidden min-[360px]:inline-flex">
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -1243,7 +1337,7 @@ export default function InvitationEditorPage() {
             </span>
           </Tooltip>
           <Button
-            className="hidden sm:inline-flex"
+            className="hidden xl:inline-flex"
             variant="ghost"
             size="sm"
             onClick={() => setTemplateOpen(true)}
@@ -1252,7 +1346,7 @@ export default function InvitationEditorPage() {
             Alege stilul
           </Button>
           <Button
-            className="hidden md:inline-flex"
+            className="hidden min-[1440px]:inline-flex"
             variant="ghost"
             size="sm"
             onClick={() => setWorkflowOpen(true)}
@@ -1261,7 +1355,7 @@ export default function InvitationEditorPage() {
             Sincronizare și versiuni
           </Button>
           <Button
-            className="lg:hidden"
+            className="hidden md:inline-flex min-[1440px]:hidden"
             variant="ghost"
             size="icon-sm"
             onClick={() => setInspectorOpen(true)}
@@ -1270,16 +1364,14 @@ export default function InvitationEditorPage() {
             <PanelRight className="size-4" aria-hidden />
           </Button>
           <Button
-            className="hidden sm:inline-flex"
             variant="outline"
-            size="sm"
+            size="icon-sm"
             aria-label="Salvează ciorna invitației"
             loading={saving}
             disabled={!canWrite || demoMode}
             onClick={() => void saveDraft()}
           >
             <Save className="size-3.5" aria-hidden />
-            <span className="hidden sm:inline">Salvează acum</span>
           </Button>
           <Button
             size="sm"
@@ -1292,7 +1384,7 @@ export default function InvitationEditorPage() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {structurePanelOpen ? <aside className="hidden w-[240px] shrink-0 border-r border-line bg-surface md:flex md:flex-col">
+        {permanentStructure && structurePanelOpen ? <aside className="flex w-[240px] shrink-0 flex-col border-r border-line bg-surface">
           <CreativeRail
             tab={leftPanelTab}
             onTabChange={setLeftPanelTab}
@@ -1312,7 +1404,10 @@ export default function InvitationEditorPage() {
           />
         </aside> : null}
 
-        <main className="flex min-w-0 flex-1 flex-col bg-sunken/60">
+        <section
+          className="flex min-w-0 flex-1 flex-col bg-sunken/60"
+          aria-label="Canvasul editorului de invitații"
+        >
           <div className="flex min-h-12 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-3">
             <div className="hidden items-center gap-2 sm:flex">
               <span className="size-2 rounded-full bg-success" aria-hidden />
@@ -1328,19 +1423,19 @@ export default function InvitationEditorPage() {
               options={[
                 {
                   value: "desktop",
-                  label: <span className="hidden sm:inline">Desktop</span>,
+                  label: <span className="hidden min-[360px]:inline">Desktop</span>,
                   ariaLabel: "Previzualizare desktop",
                   icon: <Monitor className="size-3.5" />,
                 },
                 {
                   value: "tablet",
-                  label: <span className="hidden sm:inline">Tabletă</span>,
+                  label: <span className="hidden min-[360px]:inline">Tabletă</span>,
                   ariaLabel: "Previzualizare tabletă",
                   icon: <Tablet className="size-3.5" />,
                 },
                 {
                   value: "mobile",
-                  label: <span className="hidden sm:inline">Mobil</span>,
+                  label: <span className="hidden min-[360px]:inline">Mobil</span>,
                   ariaLabel: "Previzualizare mobilă",
                   icon: <Smartphone className="size-3.5" />,
                 },
@@ -1373,14 +1468,24 @@ export default function InvitationEditorPage() {
               </Tooltip>
             </div>
           </div>
-          <EditorJourneyBar
+          <div className="hidden md:block">
+            <EditorJourneyBar
+              activeTab={inspectorTab}
+              choosingStyle={templateOpen}
+              onChooseStyle={() => setTemplateOpen(true)}
+              onChooseOpening={() => showInspectorTab("experience")}
+              onEditSections={showInvitationStructure}
+              onPersonalize={() => showInspectorTab("design")}
+              onReview={() => showInspectorTab("publish")}
+            />
+          </div>
+          <EditorMobileQuickBar
             activeTab={inspectorTab}
-            choosingStyle={templateOpen}
-            onChooseStyle={() => setTemplateOpen(true)}
-            onChooseOpening={() => showInspectorTab("experience")}
-            onEditSections={showInvitationStructure}
-            onPersonalize={() => showInspectorTab("design")}
-            onReview={() => showInspectorTab("publish")}
+            inspectorOpen={inspectorOpen}
+            onSections={showInvitationStructure}
+            onContent={() => showInspectorTab("content")}
+            onDesign={() => showInspectorTab("design")}
+            onExperience={() => showInspectorTab("experience")}
           />
           <div
             ref={canvasScrollRef}
@@ -1447,14 +1552,17 @@ export default function InvitationEditorPage() {
                     setSelectedId(id);
                     setSelectedContentKey(null);
                     setInspectorTab("content");
-                    if (window.innerWidth < 1024) setInspectorOpen(true);
+                    if (!permanentInspector) setInspectorOpen(true);
                   }}
                   activeContent={selectedContentKey ? { sectionId: selectedId, key: selectedContentKey } : null}
                   onContentFocus={(id, key, mode) => {
                     setSelectedId(id);
                     setSelectedContentKey(key);
                     setInspectorTab("content");
-                    if (mode === "structured" && window.innerWidth < 1024)
+                    if (
+                      !permanentInspector &&
+                      (mode === "structured" || mobileEditor)
+                    )
                       setInspectorOpen(true);
                   }}
                   onUpdateSection={updateSection}
@@ -1475,48 +1583,52 @@ export default function InvitationEditorPage() {
               </div>
             </div>
           </div>
-        </main>
+          {mobileEditor && inspectorOpen ? (
+            <section
+              className="flex h-[min(46dvh,26rem)] shrink-0 flex-col border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
+              aria-label="Ajustări pentru elementul selectat"
+            >
+              <div className="flex min-h-12 shrink-0 items-center gap-3 border-b border-line px-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">
+                    Ajustezi acum
+                  </p>
+                  <p className="truncate text-sm font-semibold text-ink">
+                    {inspectorTab === "content"
+                      ? selected
+                        ? invitationEditableField(
+                            selected,
+                            selectedContentKey ?? "",
+                          )?.label ?? selected.label
+                        : "Secțiunea selectată"
+                      : inspectorTab === "design"
+                        ? "Stilul invitației"
+                        : inspectorTab === "experience"
+                          ? "Deschiderea invitației"
+                          : "Verificarea pentru publicare"}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setInspectorOpen(false)}
+                  aria-label="Închide ajustările"
+                >
+                  <X className="size-4" aria-hidden />
+                </Button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {renderInspector(true)}
+              </div>
+            </section>
+          ) : null}
+        </section>
 
-        <aside className="hidden w-[330px] shrink-0 border-l border-line bg-surface lg:flex lg:flex-col">
-          <Inspector
-            tab={inspectorTab}
-            onTabChange={setInspectorTab}
-            selected={selected}
-            selectedContentKey={selectedContentKey}
-            snapshot={snapshot}
-            readiness={readiness}
-            site={site}
-            onUpdateSection={(update) =>
-              selected && updateSection(selected.id, update)
-            }
-            onUpdateContent={updateContent}
-            onUpdateContentMany={updateContentMany}
-            onUpdateDesign={updateDesign}
-            onUpdateExperience={updateExperience}
-            coverPreviewUrl={experienceCoverUrl}
-            onUploadExperienceCover={(file) =>
-              void uploadInvitationImage(file, (mediaId) =>
-                updateExperience({
-                  coverMediaId: mediaId,
-                  coverImageUrl: null,
-                }),
-              )
-            }
-            device={device}
-            uploadingMedia={uploadingMedia}
-            onUploadImage={uploadInvitationImage}
-            onChooseTemplate={() => setTemplateOpen(true)}
-            onOpenWorkflow={() => setWorkflowOpen(true)}
-            onResolveCheck={resolveReadinessCheck}
-            onPublish={requestPublish}
-            preflight={preflight}
-            preflightBusy={preflightBusy}
-            preflightError={preflightError}
-            canPublish={canPublish}
-            onPreflightAction={runPreflightAction}
-            onPreviewReveal={openRevealPreview}
-          />
-        </aside>
+        {permanentInspector ? (
+          <aside className="flex w-[330px] shrink-0 flex-col border-l border-line bg-surface">
+            {renderInspector()}
+          </aside>
+        ) : null}
       </div>
 
       <Drawer
@@ -1545,49 +1657,11 @@ export default function InvitationEditorPage() {
       </Drawer>
 
       <Drawer
-        open={inspectorOpen}
+        open={drawerInspector && inspectorOpen}
         onClose={() => setInspectorOpen(false)}
         title="Editează invitația"
-        mobilePlacement="bottom"
       >
-        <Inspector
-          tab={inspectorTab}
-          onTabChange={setInspectorTab}
-          selected={selected}
-          selectedContentKey={selectedContentKey}
-          snapshot={snapshot}
-          readiness={readiness}
-          site={site}
-          onUpdateSection={(update) =>
-            selected && updateSection(selected.id, update)
-          }
-          onUpdateContent={updateContent}
-          onUpdateContentMany={updateContentMany}
-          onUpdateDesign={updateDesign}
-          onUpdateExperience={updateExperience}
-          coverPreviewUrl={experienceCoverUrl}
-          onUploadExperienceCover={(file) =>
-            void uploadInvitationImage(file, (mediaId) =>
-              updateExperience({ coverMediaId: mediaId, coverImageUrl: null }),
-            )
-          }
-          device={device}
-          uploadingMedia={uploadingMedia}
-          onUploadImage={uploadInvitationImage}
-          onChooseTemplate={() => setTemplateOpen(true)}
-          onOpenWorkflow={() => {
-            setInspectorOpen(false);
-            setWorkflowOpen(true);
-          }}
-          onResolveCheck={resolveReadinessCheck}
-          onPublish={requestPublish}
-          preflight={preflight}
-          preflightBusy={preflightBusy}
-          preflightError={preflightError}
-          canPublish={canPublish}
-          onPreflightAction={runPreflightAction}
-          onPreviewReveal={openRevealPreview}
-        />
+        {renderInspector()}
       </Drawer>
 
       <EditorRevealPreview
@@ -1910,6 +1984,59 @@ export default function InvitationEditorPage() {
   );
 }
 
+function EditorMobileQuickBar({
+  activeTab,
+  inspectorOpen,
+  onSections,
+  onContent,
+  onDesign,
+  onExperience,
+}: {
+  activeTab: InspectorTab;
+  inspectorOpen: boolean;
+  onSections: () => void;
+  onContent: () => void;
+  onDesign: () => void;
+  onExperience: () => void;
+}) {
+  const actions = [
+    ["Secțiuni", LayoutPanelLeft, onSections, false],
+    ["Editează", PencilLine, onContent, inspectorOpen && activeTab === "content"],
+    ["Stil", Palette, onDesign, inspectorOpen && activeTab === "design"],
+    [
+      "Deschidere",
+      PlayCircle,
+      onExperience,
+      inspectorOpen && activeTab === "experience",
+    ],
+  ] as const;
+
+  return (
+    <nav
+      className="grid shrink-0 grid-cols-4 border-b border-line bg-surface md:hidden"
+      aria-label="Instrumente rapide pentru invitație"
+    >
+      {actions.map(([label, Icon, onClick, active]) => (
+        <button
+          key={label}
+          type="button"
+          onClick={onClick}
+          aria-pressed={active || undefined}
+          className={cn(
+            "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 border-b-2 px-1 text-[11px] font-semibold transition-colors",
+            active
+              ? "border-brand bg-brand-softer/60 text-brand-strong"
+              : "border-transparent text-muted hover:bg-subtle hover:text-ink",
+          )}
+        >
+          <Icon className="size-4" aria-hidden />
+          <span className="truncate">{label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function EditorJourneyBar({
   activeTab,
   choosingStyle,
@@ -2152,6 +2279,7 @@ function CreativeRail({
 }
 
 function Inspector({
+  compact = false,
   tab,
   onTabChange,
   selected,
@@ -2180,6 +2308,7 @@ function Inspector({
   onPreflightAction,
   onPreviewReveal,
 }: {
+  compact?: boolean;
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
   selected?: InvitationSection;
@@ -2213,7 +2342,7 @@ function Inspector({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid grid-cols-4 border-b border-line bg-surface px-2 pt-2">
+      {!compact ? <div className="grid grid-cols-4 border-b border-line bg-surface px-2 pt-2">
         {(
           [
             ["content", "Secțiune", "Editează secțiunea selectată"],
@@ -2237,8 +2366,8 @@ function Inspector({
             {label}
           </button>
         ))}
-      </div>
-      <div className="border-b border-line px-3 py-2 sm:hidden">
+      </div> : null}
+      {!compact ? <div className="border-b border-line px-3 py-2 sm:hidden">
         <Button
           className="w-full"
           variant="ghost"
@@ -2248,10 +2377,11 @@ function Inspector({
           <SlidersHorizontal className="size-4" aria-hidden />
           Sincronizare și versiuni
         </Button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      </div> : null}
+      <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto">
         {tab === "content" && selected && (
           <SectionInspector
+            compact={compact}
             section={selected}
             selectedContentKey={selectedContentKey}
             device={device}
@@ -2488,6 +2618,7 @@ function PreflightPanel({
 }
 
 function SectionInspector({
+  compact = false,
   section,
   selectedContentKey,
   device,
@@ -2497,6 +2628,7 @@ function SectionInspector({
   onUpdateContent,
   onUpdateContentMany,
 }: {
+  compact?: boolean;
   section: InvitationSection;
   selectedContentKey: string | null;
   device: Device;
@@ -2513,7 +2645,7 @@ function SectionInspector({
   const activeContentKey =
     selectedContentKey ?? fields.find((field) => field.direct)?.path ?? null;
   return (
-    <div className="space-y-5 p-4">
+    <div className={cn(compact ? "space-y-3 p-3" : "space-y-5 p-4")}>
       <div className="flex items-center gap-3">
         <span className="grid size-9 place-items-center rounded-lg bg-brand-softer text-brand-strong">
           {React.createElement(invitationSectionIcon(section), {
@@ -2543,6 +2675,7 @@ function SectionInspector({
       ) : null}
       {activeContentKey ? (
         <ContextualTextControls
+          compact={compact}
           section={section}
           contentKey={activeContentKey}
           device={device}
@@ -2676,6 +2809,7 @@ type TextElementStyle = {
 };
 
 function ContextualTextControls({
+  compact = false,
   section,
   contentKey,
   device,
@@ -2685,6 +2819,7 @@ function ContextualTextControls({
   onUpdateContentMany,
   onUpdateSection,
 }: {
+  compact?: boolean;
   section: InvitationSection;
   contentKey: string;
   device: InvitationDevice;
@@ -2702,6 +2837,7 @@ function ContextualTextControls({
   const [deviceScope, setDeviceScope] =
     React.useState<TextStyleDeviceScope>("all");
   const field = invitationEditableField(section, contentKey);
+  const activeScope = compact ? "element" : scope;
   const rawValue = invitationContentValue(section.content, contentKey);
   const value = text(rawValue);
   const stylesValue =
@@ -2785,7 +2921,13 @@ function ContextualTextControls({
       </div>
 
       <div className="space-y-4 p-3">
-        {tab !== "image" ? (
+        {tab !== "image" && compact ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-subtle/60 px-3 py-2 text-xs">
+            <span className="font-semibold text-ink">Elementul selectat</span>
+            <span className="text-muted">Toate dispozitivele</span>
+          </div>
+        ) : null}
+        {tab !== "image" && !compact ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex rounded-lg border border-line p-0.5">
               {(["element", "section"] as const).map((value) => (
@@ -2795,7 +2937,7 @@ function ContextualTextControls({
                   onClick={() => setScope(value)}
                   className={cn(
                     "min-h-11 rounded-md px-3 text-xs font-semibold",
-                    scope === value
+                    activeScope === value
                       ? "bg-brand text-white"
                       : "text-muted hover:bg-subtle",
                   )}
@@ -2804,7 +2946,7 @@ function ContextualTextControls({
                 </button>
               ))}
             </div>
-            {scope === "element" ? (
+            {activeScope === "element" ? (
               <div className="text-right">
                 <Select
                   aria-label="Dispozitive pentru ajustare"
@@ -2827,7 +2969,7 @@ function ContextualTextControls({
           </div>
         ) : null}
 
-        {tab === "text" && scope === "element" ? (
+        {tab === "text" && activeScope === "element" ? (
           <>
             <Field
               label={field?.label ?? "Text"}
@@ -2905,11 +3047,11 @@ function ContextualTextControls({
           </>
         ) : null}
 
-        {tab === "text" && scope === "section" ? (
+        {tab === "text" && activeScope === "section" ? (
           <SectionAlignmentControls section={section} onUpdate={onUpdateSection} />
         ) : null}
 
-        {tab === "spacing" && scope === "element" ? (
+        {tab === "spacing" && activeScope === "element" ? (
           <>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-faint">
@@ -2949,7 +3091,7 @@ function ContextualTextControls({
           </>
         ) : null}
 
-        {tab === "spacing" && scope === "section" ? (
+        {tab === "spacing" && activeScope === "section" ? (
           <>
             <SectionAlignmentControls section={section} onUpdate={onUpdateSection} />
             <NumericStepper

@@ -220,7 +220,7 @@ export function Drawer({
           className={cn(
             "absolute flex w-full flex-col bg-elevated shadow-overlay",
             mobilePlacement === "bottom"
-              ? "inset-x-0 bottom-0 max-h-[82dvh] animate-slide-in-right rounded-t-2xl border-t border-line sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:rounded-none sm:border-t-0 sm:border-l"
+              ? "inset-x-0 bottom-0 max-h-[82dvh] animate-slide-up rounded-t-2xl border-t border-line pb-[env(safe-area-inset-bottom)] sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:animate-slide-in-right sm:rounded-none sm:border-t-0 sm:border-l sm:pb-0"
               : "inset-y-0 right-0 animate-slide-in-right border-l border-line",
             widths[width],
             className,
@@ -253,7 +253,7 @@ export function Drawer({
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto">{children}</div>
           {footer && (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface px-5 py-3.5">
               {footer}
