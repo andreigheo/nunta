@@ -8,11 +8,15 @@ export function PublishedInvitation({
   token,
   onAddCalendar,
   onRsvp,
+  rsvpHref,
+  className = "shadow-pop",
 }: {
   invitation: Record<string, unknown>;
   token: string;
   onAddCalendar: () => void;
   onRsvp?: () => void;
+  rsvpHref?: string;
+  className?: string;
 }) {
   const document = record(invitation.document);
   const publishedSections = Array.isArray(document.sections)
@@ -36,7 +40,8 @@ export function PublishedInvitation({
       }
       onAddCalendar={onAddCalendar}
       onRsvp={onRsvp}
-      className="shadow-pop"
+      rsvpHref={rsvpHref}
+      className={className}
     />
   );
 }

@@ -110,6 +110,7 @@ import {
 } from "@/components/ui";
 
 type Device = InvitationDevice;
+type PublicPreviewMode = "invitation" | "rsvp" | "flow";
 
 const deviceWidths: Record<Device, number> = {
   desktop: 1440,
@@ -153,6 +154,8 @@ export default function InvitationEditorPage() {
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   const [publishOpen, setPublishOpen] = React.useState(false);
   const [canvasPreviewOpen, setCanvasPreviewOpen] = React.useState(false);
+  const [publicPreviewMode, setPublicPreviewMode] =
+    React.useState<PublicPreviewMode>("invitation");
   const [revealPreviewOpen, setRevealPreviewOpen] = React.useState(false);
   const [templateOpen, setTemplateOpen] = React.useState(false);
   const [workflowOpen, setWorkflowOpen] = React.useState(false);
@@ -174,6 +177,12 @@ export default function InvitationEditorPage() {
   >([]);
   const [syncPreview, setSyncPreview] =
     React.useState<InvitationSyncPreviewResource | null>(null);
+
+  React.useEffect(() => {
+    if (!window.matchMedia("(max-width: 639px)").matches) return;
+    const timer = window.setTimeout(() => setDevice("mobile"), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [preflight, setPreflight] =
     React.useState<InvitationPreflightResource | null>(null);
   const [preflightBusy, setPreflightBusy] = React.useState(false);
@@ -1551,19 +1560,37 @@ export default function InvitationEditorPage() {
       <Modal
         open={canvasPreviewOpen}
         onClose={() => setCanvasPreviewOpen(false)}
-        title="Previzualizarea completă"
-        description={`Invitația este randată la lățimea reală pentru ${device === "desktop" ? "desktop" : device === "tablet" ? "tabletă" : "mobil"}, fără controalele editorului.`}
+        title="Experiența publică a invitatului"
+        description="Verifică separat invitația curată, formularul RSVP și traseul dintre ele."
         size="full"
       >
+        <div className="mb-4 flex justify-center">
+          <SegmentedControl
+            ariaLabel="Suprafață publică previzualizată"
+            value={publicPreviewMode}
+            onChange={setPublicPreviewMode}
+            options={[
+              { value: "invitation", label: "Invitație" },
+              { value: "rsvp", label: "RSVP" },
+              { value: "flow", label: "Flux complet" },
+            ]}
+          />
+        </div>
         <div className="overflow-auto rounded-xl bg-sunken p-2 sm:p-4">
-          <div
-            className="mx-auto overflow-hidden rounded-xl shadow-overlay"
-            style={{ width: deviceWidths[device] }}
-          >
-            <InvitationRenderer
-              snapshot={snapshot}
-              resolveMedia={resolveMedia}
-            />
+          <div className="mx-auto" style={{ width: deviceWidths[device] }}>
+            {publicPreviewMode === "invitation" ? (
+              <div className="overflow-hidden rounded-xl shadow-overlay">
+                <InvitationRenderer
+                  snapshot={snapshot}
+                  resolveMedia={resolveMedia}
+                  rsvpHref="#preview-rsvp"
+                />
+              </div>
+            ) : publicPreviewMode === "rsvp" ? (
+              <EditorRsvpPublicPreview snapshot={snapshot} />
+            ) : (
+              <EditorGuestFlowPreview />
+            )}
           </div>
         </div>
       </Modal>
@@ -2712,6 +2739,10 @@ function ContentFields({
         {input("title", "Mesaj principal")}
         {area("subtitle", "Introducere")}
         {input("buttonLabel", "Text buton RSVP")}
+        <p className="text-xs leading-5 text-muted">
+          Butonul duce automat la pagina RSVP separată. Lasă textul gol și
+          ascunde secțiunea RSVP dacă invitația este doar informativă.
+        </p>
         <details>
           <summary className="cursor-pointer text-xs font-medium text-muted">
             Folosește o imagine dintr-un link extern
@@ -2788,6 +2819,10 @@ function ContentFields({
         {area("body", "Mesaj")}
         {input("deadline", "Termen de confirmare")}
         {input("buttonLabel", "Text buton")}
+        <p className="text-xs leading-5 text-muted">
+          În invitația publică, acest buton deschide formularul personal pe o
+          pagină separată; formularul nu este afișat în invitație.
+        </p>
       </>
     );
   if (section.type === "dress_code")
@@ -3965,6 +4000,111 @@ function InvitationCanvas({
         </div>
       )}
     />
+  );
+}
+
+function EditorRsvpPublicPreview({
+  snapshot,
+}: {
+  snapshot: InvitationEditorSnapshot;
+}) {
+  const schedule = snapshot.sections.find(
+    (section) => section.visible && section.type === "schedule",
+  );
+  const moments = array(schedule?.content.items)
+    .map((item) => text(item.title))
+    .filter(Boolean)
+    .slice(0, 3);
+  const labels = moments.length ? moments : ["Moment publicat în program"];
+
+  return (
+    <div
+      id="preview-rsvp"
+      className="mx-auto min-h-[640px] max-w-3xl bg-background px-4 py-8 text-ink sm:px-8 sm:py-12"
+    >
+      <div className="border-b border-line pb-6">
+        <Badge variant="brand">Confirmare RSVP</Badge>
+        <h2 className="mt-4 font-brand text-3xl font-semibold tracking-[-0.025em]">
+          Confirmarea invitaților
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+          În pagina publică, numele și întrebările sunt completate din linkul
+          personal al destinatarului. Invitația nu apare deasupra formularului.
+        </p>
+      </div>
+      <div className="mt-7">
+        <Progress value={0} max={labels.length} />
+        <div className="mt-7 space-y-6">
+          <section aria-labelledby="preview-rsvp-person">
+            <h3 id="preview-rsvp-person" className="font-semibold">
+              Persoană din invitație
+            </h3>
+            <div className="mt-4 space-y-4">
+              {labels.map((label) => (
+                <Field key={label} label={label}>
+                  <Select value="" disabled aria-label={`Răspuns pentru ${label}`}>
+                    <option value="">Alege răspunsul</option>
+                  </Select>
+                </Field>
+              ))}
+              <Field label="Mesaj pentru organizatori">
+                <Textarea disabled placeholder="Mesaj opțional" />
+              </Field>
+            </div>
+          </section>
+          <Button disabled>Salvează RSVP</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditorGuestFlowPreview() {
+  const stages = [
+    {
+      title: "Invitația",
+      detail: "Se deschide fără antetul aplicației, formular sau carduri operaționale.",
+      path: "/guest?token=…",
+    },
+    {
+      title: "Confirmarea RSVP",
+      detail: "Butonul din invitație duce la formularul personal al destinatarului.",
+      path: "/guest/rsvp?token=…",
+    },
+    {
+      title: "Detaliile evenimentului",
+      detail: "Programul, traseele și funcțiile live rămân într-un spațiu separat.",
+      path: "/guest/companion?token=…",
+    },
+  ];
+  return (
+    <div className="mx-auto min-h-[640px] max-w-4xl bg-background px-4 py-8 text-ink sm:px-8 sm:py-12">
+      <h2 className="font-brand text-3xl font-semibold tracking-[-0.025em]">
+        Experiența completă a invitatului
+      </h2>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+        Același token personal este păstrat între suprafețe, fără a amesteca
+        invitația vizuală cu sarcinile și informațiile operaționale.
+      </p>
+      <ol className="mt-8 divide-y divide-line border-y border-line">
+        {stages.map((stage, index) => (
+          <li key={stage.path} className="grid gap-3 py-6 sm:grid-cols-[3rem_1fr_auto] sm:items-start">
+            <span className="font-brand text-2xl font-semibold text-brand" aria-hidden>
+              {index + 1}
+            </span>
+            <div>
+              <h3 className="font-semibold">{stage.title}</h3>
+              <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
+                {stage.detail}
+              </p>
+            </div>
+            <code className="w-fit rounded-md bg-subtle px-2 py-1 text-xs text-muted">
+              {stage.path}
+            </code>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

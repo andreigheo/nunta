@@ -55,8 +55,10 @@ import type {
   CreateHousehold,
   CreateMenu,
   GuestCompanionBootstrapResource,
+  GuestInvitationBootstrapResource,
   GuestInvitationOpen,
   GuestLinkAccess,
+  GuestRsvpBootstrapResource,
   GuestRsvpRequest,
   GuestImportResource,
   GuestImportRowResource,
@@ -4295,6 +4297,14 @@ export const weddingOsApi = {
   guestBootstrap: (token: string) =>
     publicRequest<GuestCompanionBootstrapResource>(
       `/guest/bootstrap?token=${encodeURIComponent(token)}`,
+    ),
+  guestInvitation: (token: string) =>
+    publicRequest<GuestInvitationBootstrapResource>(
+      `/guest/invitation?token=${encodeURIComponent(token)}`,
+    ),
+  guestRsvpBootstrap: (token: string) =>
+    publicRequest<GuestRsvpBootstrapResource>(
+      `/guest/rsvp/bootstrap?token=${encodeURIComponent(token)}`,
     ),
   markGuestInvitationOpen: (input: GuestInvitationOpen) =>
     publicRequest<{

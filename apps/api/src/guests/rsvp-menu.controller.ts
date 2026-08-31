@@ -52,6 +52,16 @@ export class GuestCompanionController {
     return this.service.bootstrap(guestToken(token));
   }
 
+  @Get("invitation")
+  async invitation(@Query("token") token: string | undefined) {
+    return this.service.invitationBootstrap(guestToken(token));
+  }
+
+  @Get("rsvp/bootstrap")
+  async rsvpBootstrap(@Query("token") token: string | undefined) {
+    return this.service.rsvpBootstrap(guestToken(token));
+  }
+
   @Get("rsvp")
   async rsvp(@Query("token") token: string | undefined) {
     return this.service.guestRsvp(guestToken(token));

@@ -100,6 +100,35 @@ describe("cinematic reveal open reporting", () => {
     expect(markup).not.toContain("Deschide plicul");
   });
 
+  it("can keep the public invitation free of the replay control", () => {
+    const settings: CinematicRevealSettings = {
+      enabled: true,
+      style: "envelope",
+      persistenceKey: "invitation:clean",
+      recipientLabel: "Pentru invitați",
+      message: "O invitație pentru voi",
+      monogram: "S",
+      panelColor: "#3B183F",
+      backgroundColor: "#F7F7F3",
+      accentColor: "#F06449",
+      textColor: "#FFF9FF",
+      accentTextColor: "#19151D",
+      coverMediaId: "",
+      coverImageUrl: "",
+      texture: "paper",
+      durationMs: 1400,
+    };
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        TestableCinematicReveal,
+        { settings, shouldAutoReveal: false, showReplay: false },
+        React.createElement("main", null, "Invitația curată"),
+      ),
+    );
+    expect(markup).toContain("Invitația curată");
+    expect(markup).not.toContain("Revede introducerea");
+  });
+
   it("embeds the envelope without locking the page as a guest dialog", () => {
     const settings: CinematicRevealSettings = {
       enabled: true,
