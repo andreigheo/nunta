@@ -1113,8 +1113,7 @@ test("control room — păstrează proporția corpului din concept pe toate lă�
     await page.goto("/");
 
     const body = await page
-      .locator("section#produs > div")
-      .nth(1)
+      .locator('#produs [class*="controlBody"]')
       .boundingBox();
 
     expect(body, `control body @ ${width}px`).not.toBeNull();
@@ -1137,8 +1136,7 @@ test("bara control room — păstrează densitatea compactă din concept", async
       .getByRole("navigation", { name: "Module produs prezentate" })
       .boundingBox();
     const controlBody = await page
-      .locator("section#produs > div")
-      .nth(1)
+      .locator('#produs [class*="controlBody"]')
       .boundingBox();
     const activeModule = await page
       .getByRole("navigation", { name: "Module produs prezentate" })
@@ -1493,7 +1491,7 @@ test("firul hero — rămâne ancorat între CTA și control room la toate lăț
   }
 
   await expect(
-    page.locator('[data-testid="hero-thread"] path'),
+    page.locator('[data-testid="hero-thread"] svg').first().locator("path"),
   ).toHaveAttribute("d", "M0 0 C0 56 14 70 53 70 C124 70 202 14 260 14");
 
   await page.setViewportSize({ width: 820, height: 900 });
