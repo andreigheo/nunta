@@ -29,6 +29,10 @@ export function HeroThread() {
     )
       return;
 
+    let measureFrame: number | null = null;
+    let chargeFrame: number | null = null;
+    let active = true;
+
     const update = () => {
       const heroRect = hero.getBoundingClientRect();
       const startRect = start.getBoundingClientRect();
@@ -40,6 +44,11 @@ export function HeroThread() {
       thread.style.setProperty("--thread-top", `${startRect.bottom - heroRect.top}px`);
       thread.style.setProperty("--thread-width", `${Math.max(0, endX - startX)}px`);
       thread.dataset.ready = "true";
+
+      if (end.dataset.showcaseView !== "invitation") {
+        thread.dataset.charging = "false";
+        return;
+      }
 
       const charge = end.querySelector<HTMLElement>("[data-hero-thread-charge]");
       if (!charge) {
@@ -87,32 +96,40 @@ export function HeroThread() {
 
       if (thread.dataset.charging !== "true") {
         thread.dataset.charging = "prepared";
-        window.requestAnimationFrame(() => {
-          thread.dataset.charging = "true";
+        chargeFrame = window.requestAnimationFrame(() => {
+          if (active) thread.dataset.charging = "true";
         });
       }
+    };
+
+    const measureSettledInvitation = () => {
+      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
+      if (chargeFrame !== null) window.cancelAnimationFrame(chargeFrame);
+      thread.dataset.charging = "false";
+      measureFrame = window.requestAnimationFrame(() => {
+        measureFrame = window.requestAnimationFrame(update);
+      });
     };
 
     const observer = new ResizeObserver(update);
     observer.observe(hero);
     observer.observe(start);
     observer.observe(end);
-    const mutationObserver = new MutationObserver(() => {
-      update();
-      window.requestAnimationFrame(update);
-      window.setTimeout(update, 560);
-    });
+    const mutationObserver = new MutationObserver(measureSettledInvitation);
     mutationObserver.observe(end, {
       attributes: true,
       attributeFilter: ["data-showcase-view"],
-      childList: true,
-      subtree: true,
     });
     window.addEventListener("resize", update);
-    void document.fonts.ready.then(update);
+    void document.fonts.ready.then(() => {
+      if (active) update();
+    });
     update();
 
     return () => {
+      active = false;
+      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
+      if (chargeFrame !== null) window.cancelAnimationFrame(chargeFrame);
       observer.disconnect();
       mutationObserver.disconnect();
       window.removeEventListener("resize", update);

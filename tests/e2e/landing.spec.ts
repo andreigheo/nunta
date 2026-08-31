@@ -495,6 +495,7 @@ test("Hero-ul trece din dashboard în invitația Sarbato fără salt de layout",
   await expect(
     showcase.getByRole("heading", { name: "Gala de toamnă" }),
   ).toBeVisible();
+  await expect(showcase.locator("[data-hero-thread-charge]")).toBeHidden();
   const completeInvitation = showcase.getByTestId("hero-complete-invitation");
   await expect(completeInvitation).toContainText("Programul serii");
   await expect(completeInvitation).toContainText("Locația evenimentului");
@@ -540,19 +541,30 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
   await expect(showcase).toHaveAttribute("data-showcase-view", "morphing", {
     timeout: 5_000,
   });
+  const heroThread = page.getByTestId("hero-thread");
+  await expect(heroThread).toHaveAttribute("data-charging", "false");
   await expect(showcase).toHaveAttribute("data-showcase-view", "invitation", {
     timeout: 3_000,
   });
 
   const phone = showcase.getByTestId("hero-invitation-phone");
   await expect(phone).toBeVisible();
+  await expect(showcase.locator("[data-hero-thread-charge]")).toBeVisible();
+  await expect(heroThread).toHaveAttribute("data-charging", "true");
+  const chargePath = heroThread.locator("svg").nth(1).locator("path");
+  const initialChargePath = await chargePath.getAttribute("d");
+  const settledPhoneBox = await phone.boundingBox();
   await page.waitForTimeout(850);
   const phoneBox = await phone.boundingBox();
   const after = await showcase.boundingBox();
 
   expect(before).not.toBeNull();
   expect(after).not.toBeNull();
+  expect(settledPhoneBox).not.toBeNull();
   expect(phoneBox).not.toBeNull();
+  expect(phoneBox!.width).toBeCloseTo(settledPhoneBox!.width, 1);
+  expect(phoneBox!.height).toBeCloseTo(settledPhoneBox!.height, 1);
+  expect(await chargePath.getAttribute("d")).toBe(initialChargePath);
   expect(after!.width).toBeCloseTo(before!.width, 1);
   expect(after!.height).toBeCloseTo(before!.height, 1);
   expect(phoneBox!.width).toBeLessThan(after!.width * 0.55);
@@ -562,10 +574,7 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
     1,
   );
 
-  const heroThread = page.getByTestId("hero-thread");
-  await expect(heroThread).toHaveAttribute("data-charging", "true");
   await page.waitForTimeout(750);
-  const chargePath = heroThread.locator("svg").nth(1).locator("path");
   await expect
     .poll(() =>
       chargePath.evaluate((element) =>
