@@ -341,6 +341,9 @@ export const invitationExperienceSchema = z.object({
   panelColor: z.string().trim().max(40).default("#3b183f"),
   backgroundColor: z.string().trim().max(40).default("#f7f7f3"),
   accentColor: z.string().trim().max(40).default("#f06449"),
+  sealStyle: z
+    .enum(["monogram", "botanical", "sunburst", "knot"])
+    .default("monogram"),
   texture: z.enum(["paper", "linen", "smooth"]).default("paper"),
   monogram: z.string().trim().max(12).nullable().default(null),
   frontMessage: z.string().trim().max(160).nullable().default(null),

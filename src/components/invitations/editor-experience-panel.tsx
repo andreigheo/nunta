@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { Button, Field, Input, Select } from "@/components/ui";
 import type { InvitationExperienceSettings } from "@/lib/invitations/editor-model";
+import { invitationSealOptions } from "@/lib/invitations/seals";
 import { readableTextColor } from "./invitation-experience";
+import { WaxSeal } from "./wax-seal";
 
 export function InvitationExperiencePanel({
   experience,
@@ -148,16 +150,14 @@ export function InvitationExperiencePanel({
                     }}
                   />
                   <span
-                    className="absolute left-1/2 top-[58%] z-40 grid size-8 -translate-x-1/2 place-items-center rounded-full text-xs font-bold"
-                    style={{
-                      backgroundColor: experience.accentColor,
-                      color: readableTextColor(experience.accentColor),
-                    }}
-                    title={experience.monogram || "S"}
+                    className="absolute left-1/2 top-[53%] z-40 size-11 -translate-x-1/2"
+                    title={`Sigiliu ${invitationSealOptions.find((option) => option.id === experience.sealStyle)?.label ?? "Monogramă"}`}
                   >
-                    <span className="max-w-full break-all px-0.5 text-[9px] leading-none">
-                      {experience.monogram || "S"}
-                    </span>
+                    <WaxSeal
+                      sealStyle={experience.sealStyle}
+                      monogram={experience.monogram}
+                      color={experience.accentColor}
+                    />
                   </span>
                 </div>
               </div>
@@ -194,6 +194,52 @@ export function InvitationExperiencePanel({
               </div>
             </div>
           </div>
+
+          {experience.style === "envelope" ? (
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-semibold text-ink">
+                Sigiliul plicului
+              </legend>
+              <p className="text-xs leading-relaxed text-muted">
+                Alege matrița de ceară. Culoarea sigiliului se aplică tuturor
+                variantelor.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {invitationSealOptions.map((option) => {
+                  const active = experience.sealStyle === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => onChange({ sealStyle: option.id })}
+                      className={`min-h-24 rounded-xl border p-3 text-left outline-none transition-[border-color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                        active
+                          ? "border-brand bg-brand-softer shadow-sm"
+                          : "border-line bg-surface hover:border-brand/45 hover:bg-subtle"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <span className="size-11 shrink-0">
+                          <WaxSeal
+                            sealStyle={option.id}
+                            monogram={experience.monogram}
+                            color={experience.accentColor}
+                          />
+                        </span>
+                        <span className="text-sm font-semibold text-ink">
+                          {option.label}
+                        </span>
+                      </span>
+                      <span className="mt-2 block text-[11px] leading-snug text-muted">
+                        {option.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
 
           <div className="flex gap-2">
             <Button

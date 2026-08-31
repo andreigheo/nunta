@@ -1,3 +1,8 @@
+import {
+  isInvitationSealStyle,
+  type InvitationSealStyle,
+} from "@/lib/invitations/seals";
+
 export type CinematicRevealSettings = {
   enabled: boolean;
   style: "split_panels" | "envelope";
@@ -8,6 +13,7 @@ export type CinematicRevealSettings = {
   panelColor: string;
   backgroundColor: string;
   accentColor: string;
+  sealStyle: InvitationSealStyle;
   textColor: string;
   accentTextColor: string;
   coverMediaId: string;
@@ -98,6 +104,9 @@ export function invitationExperienceFromResource(
       "#F7F7F3",
     ),
     accentColor,
+    sealStyle: isInvitationSealStyle(experience.sealStyle)
+      ? experience.sealStyle
+      : "monogram",
     textColor: ensureReadableTextColor(panelColor, requestedTextColor),
     accentTextColor: readableTextColor(accentColor),
     coverMediaId: firstText(cover.coverMediaId, experience.coverMediaId),

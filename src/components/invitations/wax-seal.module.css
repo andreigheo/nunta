@@ -1,0 +1,83 @@
+.root {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  container-type: inline-size;
+  flex: none;
+  place-items: center;
+  isolation: isolate;
+  filter: drop-shadow(0 0.55rem 0.55rem rgb(20 7 22 / 28%));
+  transform: translateZ(0);
+}
+
+.root::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: var(--wax-color);
+  -webkit-mask: var(--wax-artwork) center / contain no-repeat;
+  mask: var(--wax-artwork) center / contain no-repeat;
+}
+
+.artwork {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0.82;
+  filter: grayscale(1) contrast(1.13) brightness(1.06);
+  mix-blend-mode: luminosity;
+  pointer-events: none;
+  user-select: none;
+}
+
+.monogram {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 51%;
+  aspect-ratio: 1;
+  place-items: center;
+  overflow-wrap: anywhere;
+  color: rgb(34 10 38 / 76%);
+  font-family: var(--font-display);
+  font-size: 27cqi;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 0.92;
+  text-align: center;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 30%);
+  mix-blend-mode: multiply;
+}
+
+.monogramCompact {
+  font-size: 20cqi;
+}
+
+.monogramLong {
+  font-size: 15cqi;
+  line-height: 0.9;
+}
+
+@supports not (font-size: 1cqi) {
+  .monogram {
+    font-size: 1.15em;
+  }
+
+  .monogramCompact {
+    font-size: 0.85em;
+  }
+
+  .monogramLong {
+    font-size: 0.65em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    transform: none;
+  }
+}

@@ -44,6 +44,7 @@ describe("cinematic reveal open reporting", () => {
       panelColor: "#3B183F",
       backgroundColor: "#F7F7F3",
       accentColor: "#F06449",
+      sealStyle: "botanical",
       textColor: "#FFF9FF",
       accentTextColor: "#19151D",
       coverMediaId: "",
@@ -64,6 +65,8 @@ describe("cinematic reveal open reporting", () => {
     expect(markup).toContain('aria-modal="true"');
     expect(markup).toContain('tabindex="-1"');
     expect(markup).toContain('data-reveal-style="envelope"');
+    expect(markup).toContain('data-seal-style="botanical"');
+    expect(markup).toContain("wax-botanical.png");
     expect(markup).toContain("Deschide plicul");
     expect(markup).toContain("Sari peste introducere");
     expect(markup).toContain("A &amp; A");
@@ -80,6 +83,7 @@ describe("cinematic reveal open reporting", () => {
       panelColor: "#3B183F",
       backgroundColor: "#180F1C",
       accentColor: "#F06449",
+      sealStyle: "monogram",
       textColor: "#FFF9FF",
       accentTextColor: "#19151D",
       coverMediaId: "",
@@ -111,6 +115,7 @@ describe("cinematic reveal open reporting", () => {
       panelColor: "#3B183F",
       backgroundColor: "#F7F7F3",
       accentColor: "#F06449",
+      sealStyle: "monogram",
       textColor: "#FFF9FF",
       accentTextColor: "#19151D",
       coverMediaId: "",
@@ -140,6 +145,7 @@ describe("cinematic reveal open reporting", () => {
       panelColor: "#3B183F",
       backgroundColor: "#F7F7F3",
       accentColor: "#F06449",
+      sealStyle: "sunburst",
       textColor: "#FFF9FF",
       accentTextColor: "#19151D",
       coverMediaId: "",
