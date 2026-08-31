@@ -125,4 +125,4 @@ Modul demo este controlat de `NEXT_PUBLIC_DEMO_MODE_ENABLED`. El folosește date
 - `docs/adr/0008-demo-api-isolation.md`
 - `docs/API_OPERATION_REGISTRY.json`
 
-Repository-ul nu are metadata Git validă; nu se inițializează și nu se publică fără o cerere separată. `pnpm-lock.yaml` este lockfile-ul canonic. `package-lock.json` este păstrat deoarece proveniența sa nu poate fi stabilită fără risc și poate fi eliminat doar într-o schimbare separată, după introducerea provenance Git.
+`pnpm-lock.yaml` este lockfile-ul canonic al monorepo-ului. Singurul lockfile npm păstrat aparține relay-ului izolat din `ops/resend-relay`, care rulează explicit `npm ci`.

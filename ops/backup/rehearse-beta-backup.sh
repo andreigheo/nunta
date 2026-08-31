@@ -28,7 +28,7 @@ destination_run="${destination_root}/$(basename "${run_root}")"
 cp "${run_root}/.verified" "${destination_run}/.verified"
 export RESTORE_OBJECT_DIRECTORY="${object_restore}"
 target_database="${BETA_RESTORE_TARGET_DATABASE:-weddingos_restore_beta}"
-ops/backup/restore-disposable.sh "${destination_run}" "${target_database}"
+/bin/bash ops/backup/restore-disposable.sh "${destination_run}" "${target_database}"
 cmp "${object_source}/proof.txt" "${object_restore}/proof.txt"
 
 BACKUP_RUN_ID="$(basename "${run_root}")" BACKUP_DESTINATION="${destination_root}" \
