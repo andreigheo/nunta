@@ -25,9 +25,10 @@
   align-items: center;
   gap: var(--hero-gap);
   width: min(100% - 3rem, 90rem);
-  min-height: 43rem;
+  min-height: clamp(30rem, 48vw, 39rem);
   margin-inline: auto;
-  padding-block: clamp(4.25rem, 7vw, 7rem);
+  padding-top: clamp(0.75rem, calc((100vw - 56.25rem) * 0.18), 3rem);
+  padding-bottom: clamp(0.75rem, calc((100vw - 56.25rem) * 0.18), 3rem);
 }
 
 .heroCopy {
@@ -170,6 +171,66 @@
   content: "";
 }
 
+.heroThreadCharge {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  overflow: visible;
+  opacity: 0;
+}
+
+.heroThreadChargePath {
+  fill: none;
+  stroke: var(--plum);
+  stroke-width: 2;
+  stroke-dasharray: var(--thread-charge-length, 1);
+  stroke-dashoffset: var(--thread-charge-length, 1);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.heroThreadChargeEnd {
+  fill: var(--paper);
+  stroke: var(--coral);
+  stroke-width: 2;
+  opacity: 0;
+  vector-effect: non-scaling-stroke;
+}
+
+.heroThread[data-charging="true"] .heroThreadCharge {
+  opacity: 1;
+}
+
+.heroThread[data-charging="true"] .heroThreadChargePath {
+  animation: hero-thread-charge 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.heroThread[data-charging="true"] .heroThreadChargeEnd {
+  animation: hero-thread-charge-end 180ms 610ms cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+
+@keyframes hero-thread-charge {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hero-thread-charge-end {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+    transform-origin: center;
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: center;
+  }
+}
+
 .controlRoom {
   position: relative;
   z-index: 1;
@@ -180,6 +241,260 @@
   background: var(--paper);
   box-shadow: 0 6px 16px rgba(59, 24, 63, 0.05);
   overflow: hidden;
+}
+
+.heroShowcaseCycle {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  isolation: isolate;
+}
+
+.heroShowcaseDashboard {
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  will-change: opacity, transform;
+  transition:
+    opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.heroShowcaseInvitation {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.6rem, 2.4cqi, 1.35rem);
+  border-radius: 0.9rem;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    opacity 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.heroShowcaseInvitation::before {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 34% 13% at 50% 88%,
+    rgb(59 24 63 / 16%),
+    transparent 72%
+  );
+  content: "";
+  filter: blur(0.45rem);
+  opacity: 0;
+  transition: opacity 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.heroPhoneShell {
+  position: relative;
+  z-index: 1;
+  height: calc(100% - clamp(1rem, 4cqi, 2.5rem));
+  max-width: calc(100% - 1rem);
+  aspect-ratio: 9 / 16.5;
+  padding: 0.36rem;
+  border-radius: clamp(1.45rem, 4cqi, 2.25rem);
+  background: #211923;
+  box-shadow:
+    0 1.15rem 2.35rem -1rem rgb(41 16 45 / 42%),
+    0 0.25rem 0.6rem rgb(41 16 45 / 20%);
+  opacity: 1;
+  transform: translate3d(0, 0.2rem, 0) scale(0.93);
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  will-change: opacity, transform;
+  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.heroPhoneScreen {
+  container: hero-phone / inline-size;
+  position: relative;
+  height: 100%;
+  border-radius: clamp(1.15rem, 3.4cqi, 1.9rem);
+  background: var(--plum);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.heroPhoneSensor,
+.heroPhoneHome {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  display: block;
+  border-radius: 999px;
+  background: #211923;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.heroPhoneSensor {
+  top: 0.58rem;
+  width: 29%;
+  height: 0.82rem;
+}
+
+.heroPhoneHome {
+  bottom: 0.68rem;
+  width: 30%;
+  height: 0.22rem;
+  background: rgb(33 25 35 / 74%);
+}
+
+.heroPhoneChargePort {
+  position: absolute;
+  z-index: 8;
+  bottom: -0.24rem;
+  left: 50%;
+  width: 0.7rem;
+  height: 0.38rem;
+  border: 2px solid var(--coral);
+  border-radius: 999px;
+  background: var(--paper);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.heroShowcaseCycle[data-showcase-view="morphing"] .heroShowcaseDashboard,
+.heroShowcaseCycle[data-showcase-view="invitation"] .heroShowcaseDashboard {
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.95);
+}
+
+.heroShowcaseCycle[data-showcase-view="morphing"] .heroShowcaseInvitation,
+.heroShowcaseCycle[data-showcase-view="invitation"] .heroShowcaseInvitation {
+  opacity: 1;
+}
+
+.heroShowcaseCycle[data-showcase-view="morphing"]
+  .heroShowcaseInvitation::before {
+  opacity: 0.2;
+}
+
+.heroShowcaseCycle[data-showcase-view="invitation"]
+  .heroShowcaseInvitation::before {
+  opacity: 1;
+}
+
+.heroShowcaseCycle[data-showcase-view="morphing"] .heroPhoneShell {
+  transform: translate3d(0, 0, 0) scale(0.97);
+}
+
+.heroShowcaseCycle[data-showcase-view="invitation"] .heroPhoneShell {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.heroShowcaseCycle[data-showcase-view="invitation"] .heroShowcaseInvitation {
+  pointer-events: auto;
+}
+
+.heroInvitationStage,
+.heroInvitationStage :global([data-reveal-variant="embedded"]),
+.heroInvitationStage :global([data-reveal-invitation]),
+.heroInvitationStage :global([data-invitation-renderer]) {
+  min-height: 0;
+  height: 100%;
+}
+
+.heroInvitationStage :global([data-reveal-transition-veil]) {
+  display: none;
+}
+
+.heroInvitationStage
+  :global([data-reveal-state="opening"] [data-reveal-invitation]) {
+  animation: hero-invitation-reveal 120ms 190ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.heroInvitationStage
+  :global([data-reveal-state="opening"] [data-reveal-style]) {
+  animation: hero-envelope-handoff 320ms cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+.heroInvitationStage
+  :global([data-reveal-state="opening"] [data-reveal-envelope]),
+.heroInvitationStage
+  :global([data-reveal-state="opening"] [data-reveal-envelope] *) {
+  animation: none !important;
+}
+
+@keyframes hero-invitation-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.3rem, 0) scale(0.992);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes hero-envelope-handoff {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  58%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+.heroInvitationStage :global([data-invitation-renderer]) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.heroInvitationStage :global([data-invitation-section="hero"]) {
+  min-height: 78% !important;
+  height: auto;
+  padding-block: 1.25rem !important;
+}
+
+.heroInvitationViewport {
+  display: grid;
+  min-height: 0;
+  height: 100%;
+  place-items: stretch;
+  background: #fffaf2;
+}
+
+.heroInvitationDocument {
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  border-radius: 0;
+  background: #fffaf2;
+  box-shadow: none;
+}
+
+.heroInvitationDocument::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@container hero-phone (max-width: 28rem) {
+  .heroInvitationStage :global([data-invitation-section="schedule"]) {
+    padding-top: 1.75rem !important;
+  }
+
+  .heroInvitationStage :global([data-invitation-section="hero"] h1) {
+    font-size: clamp(1.75rem, 12cqi, 2.75rem) !important;
+  }
+
+  .heroInvitationStage :global([data-invitation-section="hero"] h2) {
+    font-size: clamp(1.15rem, 7cqi, 1.45rem) !important;
+  }
 }
 
 .controlTopbar {
@@ -523,42 +838,134 @@
 .toneInk { color: var(--ink); }
 
 .assuranceStrip {
+  --assurance-node: var(--coral);
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.78fr) minmax(0, 2.7fr);
+  align-items: start;
+  gap: clamp(2rem, 4.2vw, 4.8rem);
   width: min(100% - 3rem, 90rem);
-  margin: clamp(1.25rem, 2.6vw, 2.4rem) auto 0;
+  min-height: clamp(7rem, 8vw, 7.5rem);
+  margin: clamp(0.55rem, 1vw, 0.9rem) auto 0;
+  padding: 0.25rem clamp(0.25rem, 1.2vw, 1rem) 0;
+}
+
+.assuranceSignature {
+  display: grid;
+  grid-template-columns: clamp(4.5rem, 6.2vw, 5.7rem) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(0.85rem, 1.35vw, 1.35rem);
+  min-width: 0;
+}
+
+.assuranceSignature h2 {
+  margin: 0;
+  color: var(--plum-dark);
+  font-family: var(--font-brand);
+  font-size: clamp(1.35rem, 1.75vw, 1.7rem);
+  font-weight: 680;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.signatureKnot {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 .assuranceList {
+  position: relative;
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.92fr 0.9fr 1fr 1fr;
-  gap: clamp(0.45rem, 0.85vw, 0.8rem);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1.25rem, 2.4vw, 2.8rem);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .assuranceItem {
-  display: flex;
+  position: relative;
   min-width: 0;
-  min-height: 2.35rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  border: 1px solid color-mix(in srgb, var(--plum) 24%, var(--line));
-  border-radius: 0.42rem;
-  padding: 0.45rem 0.55rem;
-  color: var(--plum);
-  background: color-mix(in srgb, var(--plum-soft) 28%, var(--paper));
-  font-size: clamp(0.58rem, 0.72vw, 0.68rem);
-  font-weight: 620;
-  line-height: 1.2;
-  white-space: nowrap;
 }
 
-.assuranceItem svg {
-  width: 0.82rem;
-  height: 0.82rem;
-  flex: 0 0 auto;
-  stroke-width: 1.7;
+.assuranceEntry {
+  display: grid;
+  grid-template-columns: clamp(4.25rem, 5.3vw, 5rem) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(0.65rem, 0.95vw, 0.95rem);
+  min-height: 4.7rem;
+  color: var(--plum-dark);
+}
+
+.assuranceIcon {
+  display: block;
+  min-width: 0;
+  color: var(--plum);
+}
+
+.assuranceIcon img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.assuranceCopy {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.assuranceCopy strong {
+  color: var(--plum-dark);
+  font-size: clamp(0.8rem, 0.94vw, 0.94rem);
+  font-weight: 720;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.assuranceCopy > span {
+  color: #514950;
+  font-size: clamp(0.7rem, 0.82vw, 0.8rem);
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+@media (min-width: 1181px) {
+  .assuranceSignature {
+    grid-template-columns: 6.75rem minmax(0, 1fr);
+    gap: 2.4rem;
+  }
+
+  .signatureKnot {
+    width: 7.25rem;
+    max-width: none;
+    transform: translate(-0.375rem, -0.5rem);
+  }
+
+  .assuranceItem:nth-child(1) .assuranceIcon {
+    width: 7.5rem;
+    transform: translate(-2.875rem, -0.35rem);
+  }
+
+  .assuranceItem:nth-child(2) .assuranceIcon {
+    width: 10.25rem;
+    transform: translate(-6.425rem, -0.35rem);
+  }
+
+  .assuranceItem:nth-child(3) .assuranceIcon {
+    width: 6.875rem;
+    transform: translate(-2.48rem, -0.35rem);
+  }
+
+  .assuranceItem:nth-child(1) .assuranceCopy {
+    transform: translateX(0.25rem);
+  }
+
+  .assuranceItem:nth-child(2) .assuranceCopy {
+    transform: translateX(-0.8rem);
+  }
 }
 
 .serviceMarquee {
@@ -714,7 +1121,7 @@
   max-width: 56rem;
   justify-items: center;
   margin-inline: auto;
-  padding: clamp(4.25rem, 7vw, 6.75rem) 1rem clamp(2rem, 3vw, 3rem);
+  padding: clamp(2.5rem, 4vw, 4rem) 1rem clamp(2rem, 3vw, 3rem);
   text-align: center;
 }
 
@@ -1932,8 +2339,12 @@
     height: 5rem;
   }
 
-  .controlRoom {
+  .heroShowcaseCycle {
     margin-top: 0.3rem;
+  }
+
+  .heroShowcaseCycle .controlRoom {
+    margin-top: 0;
     border-radius: 0.65rem;
   }
 
@@ -3228,6 +3639,36 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .heroShowcaseDashboard,
+  .heroShowcaseInvitation,
+  .heroPhoneShell {
+    transition: none;
+  }
+
+  .heroInvitationStage
+    :global([data-reveal-state="opening"] [data-reveal-invitation]),
+  .heroInvitationStage
+    :global([data-reveal-state="opening"] [data-reveal-style]) {
+    animation: none;
+  }
+
+  .heroThread[data-charging="true"] .heroThreadChargePath,
+  .heroThread[data-charging="true"] .heroThreadChargeEnd {
+    animation: none;
+  }
+
+  .heroThread[data-charging="true"] .heroThreadChargePath {
+    stroke-dashoffset: 0;
+  }
+
+  .heroThread[data-charging="true"] .heroThreadChargeEnd {
+    opacity: 1;
+  }
+
+  .heroShowcaseCycle[data-showcase-view="invitation"] .heroShowcaseDashboard {
+    filter: none;
+  }
+
   .primaryButton,
   .secondaryButton {
     transition: none;
@@ -3911,53 +4352,55 @@
   }
 
   .assuranceStrip {
-    position: relative;
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+    min-height: 0;
     margin-top: 0.7rem;
-    padding-bottom: 2.1rem;
+    padding: 1.1rem 0 1.3rem;
+  }
+
+  .assuranceSignature {
+    grid-template-columns: 4.25rem minmax(0, 1fr);
+    gap: 0.85rem;
+    width: min(100%, 16rem);
+  }
+
+  .assuranceSignature h2 {
+    font-size: 1.35rem;
   }
 
   .assuranceList {
-    display: flex;
-    gap: 0.55rem;
-    padding: 0.2rem 0 0.35rem;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-  }
-
-  .assuranceList::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+    padding: 0;
+    overflow: visible;
   }
 
   .assuranceItem {
-    min-width: calc((100% - 1.1rem) / 3);
-    min-height: 4.45rem;
-    flex: 0 0 calc((100% - 1.1rem) / 3);
-    align-items: flex-start;
-    justify-content: flex-start;
-    flex-direction: column;
-    gap: 0.42rem;
-    border-radius: 0.62rem;
-    padding: 0.65rem;
-    font-size: 0.69rem;
-    line-height: 1.25;
-    white-space: normal;
-    scroll-snap-align: start;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
   }
 
-  .assuranceItem svg {
-    width: 1.15rem;
-    height: 1.15rem;
+  .assuranceEntry {
+    grid-template-columns: 4.6rem minmax(0, 1fr);
+    gap: 0.85rem;
+    min-height: 4.35rem;
+    padding: 0.2rem 0;
+    text-align: left;
   }
 
-  .assuranceStrip::after {
-    position: absolute;
-    right: 0.1rem;
-    bottom: 0.35rem;
-    color: var(--plum);
-    content: "Glisează  \2192";
-    font-size: 0.7rem;
-    font-weight: 650;
+  .assuranceCopy {
+    gap: 0.22rem;
+  }
+
+  .assuranceCopy strong {
+    font-size: 0.86rem;
+  }
+
+  .assuranceCopy > span {
+    font-size: 0.76rem;
   }
 
   .serviceMarquee {
@@ -3969,20 +4412,21 @@
   }
 
   .storyIntro {
-    justify-items: start;
-    margin: 0;
-    padding: 2.55rem 0 2.6rem 2.65rem;
-    text-align: left;
+    width: 100%;
+    justify-items: center;
+    margin-inline: auto;
+    padding: 2.55rem 1rem 2.6rem;
+    text-align: center;
   }
 
   .storyIntro h2 {
-    max-width: 17ch;
+    max-width: 16ch;
     font-size: clamp(1.9rem, 9.2vw, 2.55rem);
     line-height: 1.02;
   }
 
   .storyIntro p {
-    max-width: 29ch;
+    max-width: 34ch;
     margin-top: 0.8rem;
     font-size: 0.93rem;
     line-height: 1.45;
@@ -4383,6 +4827,141 @@
   }
 }
 
+@media (min-width: 700px) and (max-width: 820px) {
+  .assuranceStrip {
+    gap: 1.15rem;
+    border: 1px solid #e7dfe4;
+    border-radius: 1rem;
+    padding: 1.2rem 1.25rem 1.3rem;
+    background: #fff;
+    box-shadow: 0 0.35rem 1.1rem rgb(59 24 63 / 5%);
+  }
+
+  .assuranceSignature {
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+
+  .assuranceList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .assuranceItem {
+    border: 1px solid #eee7eb;
+    border-radius: 0.78rem;
+    background: #fdfcfc;
+  }
+
+  .assuranceEntry {
+    min-height: 9.2rem;
+    grid-template-columns: 1fr;
+    align-content: center;
+    justify-items: center;
+    gap: 0.45rem;
+    padding: 0.8rem 0.65rem;
+    text-align: center;
+  }
+
+  .assuranceIcon {
+    display: grid;
+    width: min(7.4rem, 100%);
+    min-height: 3.8rem;
+    align-items: center;
+  }
+
+  .assuranceCopy {
+    justify-items: center;
+  }
+}
+
+@media (max-width: 699px) {
+  .assuranceStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border: 0;
+    border-radius: 0;
+    margin-top: 0.75rem;
+    padding: 0.8rem 0 0.65rem;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .assuranceSignature {
+    min-height: 9.35rem;
+    width: 100%;
+    grid-template-columns: 1fr;
+    align-content: center;
+    justify-items: center;
+    gap: 0.35rem;
+    border-right: 1px solid #e9dfe6;
+    border-bottom: 1px solid #e9dfe6;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+  }
+
+  .assuranceSignature h2 {
+    max-width: 9ch;
+    font-size: 1.18rem;
+    line-height: 1.04;
+  }
+
+  .signatureKnot {
+    width: 5.8rem;
+  }
+
+  .assuranceList {
+    display: contents;
+  }
+
+  .assuranceItem {
+    min-height: 9.35rem;
+  }
+
+  .assuranceItem:nth-child(1) {
+    border-bottom: 1px solid #e9dfe6;
+  }
+
+  .assuranceItem:nth-child(2) {
+    border-right: 1px solid #e9dfe6;
+  }
+
+  .assuranceEntry {
+    min-height: 100%;
+    grid-template-columns: 1fr;
+    align-content: center;
+    justify-items: center;
+    gap: 0.38rem;
+    padding: 0.75rem 0.55rem;
+    text-align: center;
+  }
+
+  .assuranceIcon {
+    display: grid;
+    width: min(7rem, 100%);
+    min-height: 3.55rem;
+    align-items: center;
+  }
+
+  .assuranceCopy {
+    justify-items: center;
+    gap: 0.25rem;
+  }
+
+  .assuranceCopy strong {
+    max-width: 14ch;
+    font-size: 0.84rem;
+    line-height: 1.2;
+  }
+
+  .assuranceCopy > span {
+    max-width: 17ch;
+    font-size: 0.7rem;
+    line-height: 1.35;
+  }
+}
+
 @media (max-width: 350px) {
   .hero,
   .assuranceStrip,
@@ -4396,8 +4975,12 @@
   }
 
   .assuranceItem {
-    min-width: calc((100% - 0.55rem) / 2);
-    flex-basis: calc((100% - 0.55rem) / 2);
+    min-width: 0;
+  }
+
+  .assuranceEntry {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
   }
 
   .storySurface {

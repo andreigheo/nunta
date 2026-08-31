@@ -440,7 +440,7 @@ test("landing reference 864 — geometria hero rămâne fidelă conceptului", as
   await capture(page, testInfo, "landing-control-room-reference-864");
 });
 
-test("rândul de avantaje — reproduce cele șase capsule aprobate", async ({
+test("Semnătura Sarbato — reproduce cele trei promisiuni aprobate", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 864, height: 900 });
@@ -451,15 +451,16 @@ test("rândul de avantaje — reproduce cele șase capsule aprobate", async ({
   const items = page.getByTestId("assurance-item");
 
   await expect(strip).toBeVisible();
-  await expect(items).toHaveCount(6);
+  await expect(
+    strip.getByRole("heading", { name: "Începe în ritmul tău." }),
+  ).toBeVisible();
+  await expect(items).toHaveCount(3);
   await expect(items).toHaveText([
-    "Pentru orice eveniment",
-    "Direct în browser",
-    "Acces pe roluri",
-    "Fără instalare",
-    "Module conectate",
-    "Status în timp real",
+    "Îl încerci fără presiune.Plan gratuit, fără card.",
+    "Știi de la început.Costul este clar înainte de plată.",
+    "Rămâi pentru că îți place.Poți anula oricând.",
   ]);
+  await expect(strip.getByRole("link")).toHaveCount(0);
   await expect(page.getByTestId("service-marquee")).toBeVisible();
 
   const marqueeFollowsStrip = await strip.evaluate(
@@ -473,6 +474,151 @@ test("rândul de avantaje — reproduce cele șase capsule aprobate", async ({
     elements.map((element) => Math.round(element.getBoundingClientRect().y)),
   );
   expect(new Set(rows).size).toBe(1);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("Hero-ul trece din dashboard în invitația Sarbato fără salt de layout", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const showcase = page.getByTestId("product-showcase");
+  await expect(showcase).toHaveAttribute("data-showcase-view", "dashboard");
+  const before = await showcase.boundingBox();
+
+  await expect(showcase).toHaveAttribute("data-showcase-view", "invitation", {
+    timeout: 5_000,
+  });
+  await expect(
+    showcase.getByRole("heading", { name: "Gala de toamnă" }),
+  ).toBeVisible();
+  const completeInvitation = showcase.getByTestId("hero-complete-invitation");
+  await expect(completeInvitation).toContainText("Programul serii");
+  await expect(completeInvitation).toContainText("Locația evenimentului");
+  await expect(completeInvitation).toContainText("Vii alături de noi?");
+
+  const invitationDocument = completeInvitation.locator(
+    "[data-invitation-renderer]",
+  );
+  const invitationScroll = await invitationDocument.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(invitationScroll.scrollHeight).toBeGreaterThan(
+    invitationScroll.clientHeight,
+  );
+
+  await invitationDocument.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(
+    completeInvitation.getByRole("heading", { name: "Vii alături de noi?" }),
+  ).toBeVisible();
+  const after = await showcase.boundingBox();
+
+  expect(before).not.toBeNull();
+  expect(after).not.toBeNull();
+  expect(after!.width).toBeCloseTo(before!.width, 1);
+  expect(after!.height).toBeCloseTo(before!.height, 1);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("Dashboardul se transformă în telefon, iar invitația lasă controlul userului", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  await dismissCookieBanner(page);
+
+  const showcase = page.getByTestId("product-showcase");
+  await expect(showcase).toHaveAttribute("data-showcase-view", "dashboard");
+  const before = await showcase.boundingBox();
+
+  await expect(showcase).toHaveAttribute("data-showcase-view", "morphing", {
+    timeout: 5_000,
+  });
+  await expect(showcase).toHaveAttribute("data-showcase-view", "invitation", {
+    timeout: 3_000,
+  });
+
+  const phone = showcase.getByTestId("hero-invitation-phone");
+  await expect(phone).toBeVisible();
+  await page.waitForTimeout(850);
+  const phoneBox = await phone.boundingBox();
+  const after = await showcase.boundingBox();
+
+  expect(before).not.toBeNull();
+  expect(after).not.toBeNull();
+  expect(phoneBox).not.toBeNull();
+  expect(after!.width).toBeCloseTo(before!.width, 1);
+  expect(after!.height).toBeCloseTo(before!.height, 1);
+  expect(phoneBox!.width).toBeLessThan(after!.width * 0.55);
+  expect(phoneBox!.height).toBeGreaterThan(after!.height * 0.85);
+  expect(phoneBox!.x + phoneBox!.width / 2).toBeCloseTo(
+    after!.x + after!.width / 2,
+    1,
+  );
+
+  const heroThread = page.getByTestId("hero-thread");
+  await expect(heroThread).toHaveAttribute("data-charging", "true");
+  await page.waitForTimeout(750);
+  const chargePath = heroThread.locator("svg").nth(1).locator("path");
+  await expect
+    .poll(() =>
+      chargePath.evaluate((element) =>
+        Number.parseFloat(getComputedStyle(element).strokeDashoffset),
+      ),
+    )
+    .toBeCloseTo(0, 1);
+
+  const chargeEndBox = await heroThread.locator("circle").boundingBox();
+  const chargePortBox = await showcase
+    .locator("[data-hero-thread-charge]")
+    .boundingBox();
+  expect(chargeEndBox).not.toBeNull();
+  expect(chargePortBox).not.toBeNull();
+  expect(chargeEndBox!.x + chargeEndBox!.width / 2).toBeCloseTo(
+    chargePortBox!.x + chargePortBox!.width / 2,
+    1,
+  );
+  expect(chargeEndBox!.y + chargeEndBox!.height / 2).toBeCloseTo(
+    chargePortBox!.y + chargePortBox!.height / 2,
+    1,
+  );
+
+  const completeInvitation = showcase.getByTestId("hero-complete-invitation");
+  await expect(completeInvitation).toHaveAttribute(
+    "data-auto-scroll",
+    "running",
+    {
+      timeout: 7_000,
+    },
+  );
+  const invitationDocument = showcase.locator("[data-invitation-renderer]");
+  const scrollBefore = await invitationDocument.evaluate(
+    (element) => element.scrollTop,
+  );
+  await page.waitForTimeout(400);
+  const scrollAfter = await invitationDocument.evaluate(
+    (element) => element.scrollTop,
+  );
+  expect(scrollAfter).toBeGreaterThan(scrollBefore);
+
+  await invitationDocument.dispatchEvent("pointerdown");
+  await expect(completeInvitation).toHaveAttribute(
+    "data-auto-scroll",
+    "stopped",
+  );
+
+  await invitationDocument.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(
+    showcase.getByRole("heading", { name: "Vii alături de noi?" }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 

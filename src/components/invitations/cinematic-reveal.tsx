@@ -276,6 +276,7 @@ export function CinematicReveal({
       ref={rootRef}
       className={cn(styles.root, embedded && styles.embedded)}
       data-reveal-variant={variant}
+      data-reveal-state={state}
       style={
         {
           "--reveal-panel": settings.panelColor,
@@ -307,7 +308,11 @@ export function CinematicReveal({
         {children}
       </div>
       {settings.enabled && state === "opening" ? (
-        <div className={styles.transitionVeil} aria-hidden />
+        <div
+          className={styles.transitionVeil}
+          data-reveal-transition-veil
+          aria-hidden
+        />
       ) : null}
       {settings.enabled && state !== "open" ? (
         <div

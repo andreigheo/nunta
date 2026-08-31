@@ -264,12 +264,21 @@ export const productFirstControlRoom = {
 } as const;
 
 export const assuranceItems = [
-  "Pentru orice eveniment",
-  "Direct în browser",
-  "Acces pe roluri",
-  "Fără instalare",
-  "Module conectate",
-  "Status în timp real",
+  {
+    title: "Îl încerci fără presiune.",
+    detail: "Plan gratuit, fără card.",
+    accent: "coral",
+  },
+  {
+    title: "Știi de la început.",
+    detail: "Costul este clar înainte de plată.",
+    accent: "sun",
+  },
+  {
+    title: "Rămâi pentru că îți place.",
+    detail: "Poți anula oricând.",
+    accent: "sage",
+  },
 ] as const;
 
 export const serviceMarquee = [
