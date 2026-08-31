@@ -63,7 +63,7 @@ export const navGroups: NavGroup[] = [
         icon: LayoutDashboard,
         capability: "planning.read",
       },
-      { label: "Planul nunții", href: "/plan", icon: ListChecks, capability: "planning.read" },
+      { label: "Planul evenimentului", href: "/plan", icon: ListChecks, capability: "planning.read" },
       { label: "Buget", href: "/budget", icon: Wallet, capability: "budget.read" },
     ],
   },
@@ -130,7 +130,7 @@ export const navGroups: NavGroup[] = [
   },
   {
     id: "after",
-    label: "După nuntă",
+    label: "După eveniment",
     items: [
       { label: "După eveniment", href: "/post-wedding", icon: Gift, capability: "gallery.read" },
       { label: "Recenzii", href: "/reviews", icon: MessageSquareHeart, capability: "review.read" },

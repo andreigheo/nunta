@@ -81,7 +81,7 @@ test("E2E 1 — Generate and apply plan", async ({ page }) => {
     page.getByRole("button", { name: "Verifică propunerea" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Verifică propunerea" }).click();
-  await expect(page.getByText("Acoperire minimă")).toBeVisible();
+  await expect(page.getByText("Ce include propunerea")).toBeVisible();
   await expect(
     page.getByText(/Fallback determinist|Determinist/).first(),
   ).toBeVisible();
@@ -195,7 +195,9 @@ test("E2E 3 — Planning persistence", async ({ page }) => {
   await authorizePage(page, main);
   await page.goto("/plan");
   const title = `Sarcină persistentă ${Date.now()}`;
-  await page.getByRole("button", { name: "Sarcină nouă", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Adaugă sarcină", exact: true })
+    .click();
   const dialog = page.getByRole("dialog", { name: "Sarcină nouă" });
   await dialog
     .getByPlaceholder("ex. Rezervă autocarele pentru oaspeți")
@@ -227,40 +229,27 @@ test("E2E 4 — Board transition", async ({ page }) => {
   await authorizePage(page, main);
   await page.goto("/plan");
   await page.getByPlaceholder("Caută sarcini…").fill(task.title);
-  await page.getByRole("radio", { name: "Panou" }).click();
-  const card = page.getByText(task.title, { exact: true });
-  const targetColumn = page
-    .getByText("În lucru", { exact: true })
-    .locator("..")
-    .locator("..")
-    .locator("div.border-dashed");
-  const sourceBox = await card.locator("..").boundingBox();
-  const targetBox = await targetColumn.boundingBox();
-  expect(sourceBox).not.toBeNull();
-  expect(targetBox).not.toBeNull();
-  await page.mouse.move(
-    sourceBox!.x + sourceBox!.width / 2,
-    sourceBox!.y + sourceBox!.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(
-    sourceBox!.x + sourceBox!.width / 2 + 12,
-    sourceBox!.y + sourceBox!.height / 2 + 12,
-    { steps: 4 },
-  );
-  await page.mouse.move(
-    targetBox!.x + targetBox!.width / 2,
-    targetBox!.y + targetBox!.height / 2,
-    { steps: 12 },
-  );
-  await page.mouse.up();
+  await page.getByRole("radio", { name: "După stare" }).click();
+  const card = page
+    .locator('[role="button"][aria-roledescription="sortable"]')
+    .filter({ hasText: task.title })
+    .first();
+  await card.focus();
+  await card.press("Space");
+  await card.press("ArrowRight");
+  await card.press("Space");
   await expect
     .poll(async () => (await getTask(main.api, workspaceId, task.id)).status)
     .toBe("in_progress");
   await page.reload();
   await page.getByPlaceholder("Caută sarcini…").fill(task.title);
-  await page.getByRole("radio", { name: "Panou" }).click();
-  await expect(page.getByText(task.title, { exact: true })).toBeVisible();
+  await page.getByRole("radio", { name: "După stare" }).click();
+  await expect(
+    page
+      .locator('[role="button"][aria-roledescription="sortable"]')
+      .filter({ hasText: task.title })
+      .first(),
+  ).toBeVisible();
 });
 
 test("E2E 5 — Dependency", async () => {
@@ -305,7 +294,7 @@ test("E2E 6 — Calendar projection", async ({ page }) => {
   await authorizePage(page, main);
   await page.goto("/calendar");
   await page.getByRole("radio", { name: "Agendă" }).click();
-  await page.getByText(new RegExp(task.title)).click();
+  await page.getByText(new RegExp(task.title)).last().click();
   await expect(page).toHaveURL(new RegExp(`/plan\\?task=${task.id}`));
   await expect(
     page.getByRole("heading", { name: task.title, exact: true }),
@@ -714,7 +703,9 @@ test("E2E 14 — Demo", async ({ page }) => {
   ]);
   await page.goto("/plan?demo=1");
   const taskTitle = `Task demo ${Date.now()}`;
-  await page.getByRole("button", { name: "Sarcină nouă", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Adaugă sarcină", exact: true })
+    .click();
   const taskDialog = page.getByRole("dialog", { name: "Sarcină nouă" });
   await taskDialog
     .getByPlaceholder("ex. Rezervă autocarele pentru oaspeți")

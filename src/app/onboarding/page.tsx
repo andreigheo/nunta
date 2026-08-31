@@ -473,7 +473,7 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Data nunții">
+                <Field label="Data evenimentului">
                   <Input type="date" value={values.date ?? ""} onChange={set("date")} />
                 </Field>
                 <Field label="Date alternative">

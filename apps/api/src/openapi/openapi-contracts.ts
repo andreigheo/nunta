@@ -144,6 +144,7 @@ import {
   createAccommodationRoomSchema,
   createAccommodationStaySchema,
   createSeatingPlanSchema,
+  createSeatingFloorObjectSchema,
   createSeatingTableSchema,
   createTransportPlanSchema,
   createTransportRouteSchema,
@@ -164,6 +165,7 @@ import {
   updateAccommodationRoomSchema,
   updateAccommodationStaySchema,
   updateSeatingPlanSchema,
+  updateSeatingFloorObjectSchema,
   updateSeatingSeatSchema,
   updateSeatingTableSchema,
   updateTransportPlanSchema,
@@ -580,6 +582,8 @@ const schemas: Record<string, ZodTypeAny> = {
   UpdateVenueSpace: updateVenueSpaceSchema,
   CreateSeatingPlan: createSeatingPlanSchema,
   UpdateSeatingPlan: updateSeatingPlanSchema,
+  CreateSeatingFloorObject: createSeatingFloorObjectSchema,
+  UpdateSeatingFloorObject: updateSeatingFloorObjectSchema,
   CreateSeatingTable: createSeatingTableSchema,
   UpdateSeatingTable: updateSeatingTableSchema,
   UpdateSeatingSeat: updateSeatingSeatSchema,
@@ -1416,6 +1420,14 @@ const requestByRoute: Array<[RegExp, string]> = [
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/seating-plans\/\{planId\}\/tables$/,
     "CreateSeatingTable",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/seating-plans\/\{planId\}\/floor-objects$/,
+    "CreateSeatingFloorObject",
+  ],
+  [
+    /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/seating-plans\/\{planId\}\/floor-objects\/\{objectId\}$/,
+    "UpdateSeatingFloorObject",
   ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/seating-plans\/\{planId\}\/tables\/\{tableId\}$/,

@@ -1156,6 +1156,8 @@ model WorkspaceBillingTransaction {
 model WeddingProfile {
   id             String    @id @default(uuid()) @db.Uuid
   workspaceId    String    @unique @map("workspace_id") @db.Uuid
+  eventType      String    @default("wedding") @map("event_type") @db.VarChar(40)
+  organizerName  String?   @map("organizer_name") @db.VarChar(160)
   partnerOneName String?   @map("partner_one_name") @db.VarChar(100)
   partnerTwoName String?   @map("partner_two_name") @db.VarChar(100)
   weddingDate    DateTime? @map("wedding_date") @db.Date

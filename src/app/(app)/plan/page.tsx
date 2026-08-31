@@ -257,7 +257,7 @@ export default function PlanPage() {
     );
   }, [currentWorkspace, demoMode]);
 
-  const run = async (operation: () => Promise<void>) => {
+  const run = React.useCallback(async (operation: () => Promise<void>) => {
     setBusy(true);
     setError("");
     try {
@@ -274,9 +274,11 @@ export default function PlanPage() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [toast]);
 
-  const generatePlan = async (mode: "auto" | "deterministic" = "auto") => {
+  const generatePlan = React.useCallback(async (
+    mode: "auto" | "deterministic" = "auto",
+  ) => {
     if (!currentWorkspace || demoMode) {
       toast({
         title: "Demo izolat",
@@ -351,7 +353,7 @@ export default function PlanPage() {
         variant: full.fallbackUsed ? "warning" : "success",
       });
     });
-  };
+  }, [currentWorkspace, demoMode, router, run, toast]);
 
   React.useEffect(() => {
     if (loading || automaticGenerationStarted.current) return;
@@ -368,7 +370,7 @@ export default function PlanPage() {
       if (tasks.length === 0) void generatePlan("auto");
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loading, proposal, router, tasks.length]);
+  }, [generatePlan, loading, proposal, router, tasks.length]);
 
   const createTask = async (input: CreateTask, subtasks: string[]) => {
     if (!currentWorkspace) return;
@@ -601,7 +603,7 @@ export default function PlanPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <PageHeader
-        title="Planul nunții"
+        title="Planul evenimentului"
         description="Vezi ce urmează, ce necesită atenție și cine se ocupă — fără să cauți prin toate sarcinile."
         actions={
           tasks.length === 0 ? (
@@ -699,7 +701,7 @@ export default function PlanPage() {
                 id="plan-start-title"
                 className="max-w-2xl font-brand text-2xl font-semibold tracking-[-0.02em] text-ink sm:text-3xl"
               >
-                Transformă detaliile nunții într-un plan pe care îl controlezi.
+                Transformă detaliile evenimentului într-un plan pe care îl controlezi.
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">
                 Sarbato pregătește o propunere pe baza răspunsurilor tale. Nimic

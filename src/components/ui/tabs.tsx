@@ -163,7 +163,7 @@ export function TabsContent({
       role="tabpanel"
       aria-labelledby={ariaLabelledBy ?? tabDomId(baseId, "tab", value)}
       tabIndex={tabIndex ?? 0}
-      className={cn("animate-fade-in", className)}
+      className={cn(className)}
     >
       {children}
     </div>

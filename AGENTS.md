@@ -2,7 +2,15 @@
 
 ## Product scope
 
-Sarbato is a Romanian-language, full-stack Next.js product for couples, guests, vendors, and platform operators. The canonical local checkout is `/home/andrei/weddingos-beta-operations`; the API, PostgreSQL database, worker and object-storage flows are real local services. Preserve those integrations and never replace a working backend flow with local demo state. Internal package, cookie and service identifiers may still use `weddingos`; do not rename technical contracts as part of visual-brand work.
+Sarbato is a Romanian-language, full-stack event organizer for weddings,
+baptisms, birthdays, corporate events, conferences, anniversaries, private
+parties, festivals, fundraisers and other events. The canonical native WSL
+checkout is `/home/andrei/sarbato`; the API, PostgreSQL database, worker and
+object-storage flows are real services. Preserve those integrations and never
+replace a working backend flow with local demo state. Internal package, cookie,
+role and compatibility-storage identifiers may still use `weddingos`,
+`wedding_*` or `couple_owner`; do not rename stable technical contracts without
+a rehearsed compatibility migration.
 
 The visual direction is established in `DESIGN.md`. Reuse the Sarbato tokens in `src/app/globals.css`, the primitives exported from `src/components/ui/index.ts`, and the existing Romanian copy register. Marketing and product share one identity at different intensities: Afacad Flux for brand/system headings, Inter for operational UI, and Fraunces only inside user-controlled creative invitation content. Do not introduce a parallel component system, palette, or dependency for a component already available locally.
 
@@ -65,4 +73,6 @@ Override the target with `SMOKE_BASE_URL=http://127.0.0.1:3001 npm run smoke` wh
 
 ## Repository note
 
-The parent `.git` directory is currently empty, so there is no usable commit history or rollback point. Preserve unrelated files and inspect the working tree directly; do not claim Git-based provenance until a repository is initialized.
+The native WSL checkout is a Git repository. Use a clean task-specific worktree
+for backend changes, preserve unrelated changes in `/home/andrei/sarbato`, and
+report commit, push and production deployment evidence separately.

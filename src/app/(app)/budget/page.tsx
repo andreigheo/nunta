@@ -230,7 +230,7 @@ export default function BudgetPage() {
     openEditor(
       "plan",
       {
-        name: String(budget.plan?.name ?? "Bugetul nunții"),
+        name: String(budget.plan?.name ?? "Bugetul evenimentului"),
         amount: String(
           useOnboardingTarget
             ? onboardingTarget?.amount ?? ""
@@ -464,7 +464,12 @@ export default function BudgetPage() {
 
   if (loading)
     return (
-      <div className="mx-auto max-w-7xl space-y-5" aria-busy="true" aria-label="Se încarcă bugetul">
+      <div
+        className="mx-auto max-w-7xl space-y-5"
+        role="status"
+        aria-busy="true"
+        aria-label="Se încarcă bugetul"
+      >
         <div className="h-24 animate-pulse rounded-xl bg-subtle" />
         <CardSkeleton lines={4} />
         <CardSkeleton lines={6} />
@@ -474,7 +479,7 @@ export default function BudgetPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <PageHeader
-        title="Bugetul nunții"
+        title="Bugetul evenimentului"
         description="Planifică fiecare cost, urmărește ce ai confirmat și notează separat ce ai plătit."
         actions={
           <>

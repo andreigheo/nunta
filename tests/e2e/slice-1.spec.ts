@@ -348,15 +348,19 @@ test("E2E 6 — onboarding persists, completes honestly and projects activity", 
 test("E2E 7 — demo controls stay inert and issue zero API requests", async ({
   page,
 }) => {
+  await page.context().clearCookies();
+  await page.context().addCookies([
+    {
+      name: "weddingos_demo",
+      value: "1",
+      url: origin,
+      sameSite: "Lax",
+    },
+  ]);
   const apiRequests: string[] = [];
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/"))
       apiRequests.push(request.url());
-  });
-  await page.context().clearCookies();
-  await page.goto("/sign-in");
-  await page.evaluate(() => {
-    document.cookie = "weddingos_demo=1; Path=/; Max-Age=28800; SameSite=Lax";
   });
   await page.goto("/team?demo=1");
   await expect(

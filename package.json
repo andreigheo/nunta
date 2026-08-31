@@ -23,7 +23,7 @@
     "test": "pnpm test:web && pnpm --filter @weddingos/api test && pnpm --filter @weddingos/worker test",
     "test:web": "vitest run --config vitest.web.config.ts",
     "test:integration": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:integration && env DATABASE_PURPOSE=integration pnpm --filter @weddingos/api test:integration",
-    "test:e2e": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:e2e && pnpm --filter @weddingos/api build && pnpm --filter @weddingos/worker build && playwright test",
+    "test:e2e": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:e2e && pnpm --filter @weddingos/api build && pnpm --filter @weddingos/worker build && pnpm security:gate && playwright test",
     "db:generate": "pnpm --filter @weddingos/database generate",
     "db:migrate": "pnpm --filter @weddingos/database migrate",
     "db:seed": "pnpm --filter @weddingos/database seed",
@@ -88,7 +88,8 @@
       "js-yaml@>=4.0.0 <4.3.1": "4.3.1",
       "js-yaml@>=5.0.0 <=5.2.1": "5.2.2",
       "brace-expansion@<=5.0.8": "5.0.9",
-      "nanoid@>=3.0.0 <3.3.18": "3.3.18"
+      "nanoid@>=3.0.0 <3.3.18": "3.3.18",
+      "deepmerge-ts@<8.0.0": "8.0.2"
     },
     "patchedDependencies": {
       "minimatch@3.1.5": "patches/minimatch@3.1.5.patch",

@@ -53,12 +53,18 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
   const [quickCreate, setQuickCreate] = React.useState<QuickCreateKind | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const aiPreferenceLoaded = React.useRef(false);
 
   React.useEffect(() => {
-    setAiOpen(window.sessionStorage.getItem("sarbato:copilot:open") === "true");
+    const timer = window.setTimeout(() => {
+      setAiOpen(window.sessionStorage.getItem("sarbato:copilot:open") === "true");
+      aiPreferenceLoaded.current = true;
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   React.useEffect(() => {
+    if (!aiPreferenceLoaded.current) return;
     window.sessionStorage.setItem("sarbato:copilot:open", String(aiOpen));
   }, [aiOpen]);
 

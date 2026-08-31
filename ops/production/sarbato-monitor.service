@@ -1,0 +1,13 @@
+[Unit]
+Description=Sarbato production readiness and backup monitor
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/sarbato/current/ops/production/run-vps-monitor.sh
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true

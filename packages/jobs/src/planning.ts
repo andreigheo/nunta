@@ -104,7 +104,7 @@ type TaskTemplate = {
 const phases = [
   {
     key: "foundation",
-    title: "Fundația nunții",
+    title: "Fundația evenimentului",
     description:
       "Deciziile care stabilesc dimensiunea, data și cadrul organizării.",
     startOffset: -540,
@@ -133,7 +133,7 @@ const phases = [
   },
   {
     key: "after",
-    title: "După nuntă",
+    title: "După eveniment",
     description: "Închiderea organizată a activităților de după eveniment.",
     startOffset: 1,
     endOffset: 30,
@@ -369,7 +369,7 @@ const taskTemplates: Record<(typeof phases)[number]["key"], TaskTemplate[]> = {
   after: [
     task(
       "post_wedding",
-      "Închide activitățile de după nuntă",
+      "Închide activitățile de după eveniment",
       "Planifică mulțumirile, returnările și verificările finale.",
       14,
       "low",
@@ -408,7 +408,7 @@ export class DeterministicPlanProvider implements PlanGenerationProvider {
   async generatePlan(
     input: PlanGenerationInput,
   ): Promise<PlanGenerationOutput> {
-    const exactDate = weddingDate(input.dateEvents);
+    const exactDate = eventDate(input.dateEvents);
     const flexible =
       Boolean(input.dateEvents.flexibleDate) || exactDate === null;
     const progress = input.existingProgress;
@@ -624,8 +624,8 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function weddingDate(dateEvents: Record<string, unknown>): string | null {
-  for (const key of ["date", "exactDate", "weddingDate"]) {
+function eventDate(dateEvents: Record<string, unknown>): string | null {
+  for (const key of ["date", "exactDate", "eventDate", "weddingDate"]) {
     const value = dateEvents[key];
     if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
       return value;

@@ -328,16 +328,22 @@ export default function CalendarPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
   React.useEffect(() => {
-    setCursorDate(initialCalendarDate(currentWorkspace?.weddingDate));
+    const timer = window.setTimeout(() => {
+      setCursorDate(initialCalendarDate(currentWorkspace?.weddingDate));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [currentWorkspace?.id, currentWorkspace?.weddingDate]);
   React.useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     if (query.get("create") !== "event" || !canWrite) return;
-    setSelected(null);
-    setModalOpen(true);
+    const timer = window.setTimeout(() => {
+      setSelected(null);
+      setModalOpen(true);
+    }, 0);
     query.delete("create");
     const suffix = query.size ? `?${query.toString()}` : window.location.pathname;
     window.history.replaceState(null, "", suffix);
+    return () => window.clearTimeout(timer);
   }, [canWrite]);
   React.useEffect(() => {
     const refresh = () => {

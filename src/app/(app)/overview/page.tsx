@@ -369,7 +369,7 @@ export default function OverviewPage() {
       capability: "workspace.update",
     },
     {
-      label: "Planul nunții",
+      label: "Planul evenimentului",
       description: "Sarcini și termene verificate de tine",
       complete: planning.totalTasks > 0,
       href: "/plan?generate=1",

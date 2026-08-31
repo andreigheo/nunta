@@ -55,7 +55,12 @@ export class WorkspacesService {
                 (transaction) =>
                   transaction.weddingProfile.findUnique({
                     where: { workspaceId: membership.workspaceId },
-                    select: { weddingDate: true, location: true },
+                    select: {
+                      eventType: true,
+                      organizerName: true,
+                      weddingDate: true,
+                      location: true,
+                    },
                   }),
               ),
             ] as const,
@@ -67,6 +72,9 @@ export class WorkspacesService {
       return {
         id: membership.workspace.id,
         title: membership.workspace.title,
+        eventType: eventType(profile?.eventType),
+        eventDate: dateOnly(profile?.weddingDate),
+        organizerName: profile?.organizerName ?? null,
         weddingDate: dateOnly(profile?.weddingDate),
         location: profile?.location ?? null,
         status: membership.workspace.status.toLowerCase() as
@@ -168,11 +176,16 @@ export class WorkspacesService {
         const weddingProfile = await transaction.weddingProfile.create({
           data: {
             workspaceId,
+            eventType: input.eventType ?? "wedding",
+            organizerName: input.organizerName,
             partnerOneName: input.partnerOneName,
             partnerTwoName: input.partnerTwoName,
-            weddingDate: input.weddingDate
-              ? new Date(`${input.weddingDate}T00:00:00.000Z`)
-              : undefined,
+            weddingDate:
+              (input.eventDate ?? input.weddingDate)
+                ? new Date(
+                    `${input.eventDate ?? input.weddingDate}T00:00:00.000Z`,
+                  )
+                : undefined,
             location: input.location,
             createdById: userId,
             updatedById: userId,
@@ -188,6 +201,9 @@ export class WorkspacesService {
         const response = {
           id: workspace.id,
           title: workspace.title,
+          eventType: eventType(weddingProfile.eventType),
+          eventDate: dateOnly(weddingProfile.weddingDate),
+          organizerName: weddingProfile.organizerName,
           weddingDate: dateOnly(weddingProfile.weddingDate),
           location: weddingProfile.location,
           status: "active" as const,
@@ -219,14 +235,14 @@ export class WorkspacesService {
             notification: {
               recipientUserId: userId,
               kind: "workspace",
-              title: "Spațiul nunții este pregătit",
-              body: "Continuă onboardingul pentru a salva detaliile nunții.",
+              title: "Spațiul evenimentului este pregătit",
+              body: "Continuă onboardingul pentru a salva detaliile evenimentului.",
               actionUrl: "/onboarding",
             },
             activity: {
               category: "workspace",
               action: "created",
-              summary: "Spațiul de lucru al nunții a fost creat.",
+              summary: "Spațiul de lucru al evenimentului a fost creat.",
               entityType: "Workspace",
               entityId: workspaceId,
             },
@@ -278,6 +294,12 @@ export class WorkspacesService {
         title: result.membership.workspace.title,
         status: result.membership.workspace.status.toLowerCase() as
           "active" | "archived",
+        eventType: eventType(
+          result.membership.workspace.weddingProfile?.eventType,
+        ),
+        eventDate: dateOnly(
+          result.membership.workspace.weddingProfile?.weddingDate,
+        ),
         weddingDate: dateOnly(
           result.membership.workspace.weddingProfile?.weddingDate,
         ),
@@ -351,20 +373,27 @@ export class WorkspacesService {
         if (
           input.partnerOneName !== undefined ||
           input.partnerTwoName !== undefined ||
+          input.eventType !== undefined ||
+          input.eventDate !== undefined ||
+          input.organizerName !== undefined ||
           input.weddingDate !== undefined ||
           input.location !== undefined
         ) {
           await transaction.weddingProfile.update({
             where: { workspaceId },
             data: {
+              eventType: input.eventType,
+              organizerName: input.organizerName,
               partnerOneName: input.partnerOneName,
               partnerTwoName: input.partnerTwoName,
               weddingDate:
-                input.weddingDate === undefined
+                input.eventDate === undefined && input.weddingDate === undefined
                   ? undefined
-                  : input.weddingDate === null
+                  : (input.eventDate ?? input.weddingDate) === null
                     ? null
-                    : new Date(`${input.weddingDate}T00:00:00.000Z`),
+                    : new Date(
+                        `${input.eventDate ?? input.weddingDate}T00:00:00.000Z`,
+                      ),
               location: input.location,
               updatedById: userId,
               version: { increment: 1 },
@@ -396,7 +425,7 @@ export class WorkspacesService {
             activity: {
               category: "workspace",
               action: "updated",
-              summary: "Detaliile spațiului nunții au fost actualizate.",
+              summary: "Detaliile spațiului evenimentului au fost actualizate.",
               entityType: "Workspace",
               entityId: workspaceId,
             },
@@ -405,6 +434,9 @@ export class WorkspacesService {
         return {
           id: workspace.id,
           title: workspace.title,
+          eventType: eventType(workspace.weddingProfile?.eventType),
+          eventDate: dateOnly(workspace.weddingProfile?.weddingDate),
+          organizerName: workspace.weddingProfile?.organizerName ?? null,
           weddingDate: dateOnly(workspace.weddingProfile?.weddingDate),
           location: workspace.weddingProfile?.location ?? null,
           timezone: workspace.timezone,
@@ -418,6 +450,20 @@ export class WorkspacesService {
 
 function dateOnly(value: Date | null | undefined): string | null {
   return value ? value.toISOString().slice(0, 10) : null;
+}
+
+function eventType(value: string | null | undefined) {
+  return (value ?? "wedding") as
+    | "wedding"
+    | "baptism"
+    | "birthday"
+    | "corporate"
+    | "conference"
+    | "anniversary"
+    | "private_party"
+    | "festival"
+    | "fundraiser"
+    | "other";
 }
 
 function stableJson(value: unknown): string {

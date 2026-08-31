@@ -68,6 +68,9 @@ export function WorkspaceProvider({
     const summaries: WorkspaceSummary[] = demoWorkspaces.map((item) => ({
       id: item.id,
       title: item.title,
+      eventType: "wedding",
+      eventDate: item.date,
+      organizerName: null,
       weddingDate: item.date,
       location: item.city,
       status: "active",
@@ -106,6 +109,8 @@ export function WorkspaceProvider({
         id: wedding.id,
         title: wedding.title,
         status: "active",
+        eventType: "wedding",
+        eventDate: wedding.date,
         weddingDate: wedding.date,
         timezone: "Europe/Bucharest",
         currency: wedding.currency,

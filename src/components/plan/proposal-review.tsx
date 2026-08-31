@@ -199,7 +199,7 @@ function ProposalItem({
                 {item.absoluteDueAt
                   ? `Termen ${new Date(item.absoluteDueAt).toLocaleDateString("ro-RO")}`
                   : item.relativeDueOffsetDays !== null
-                    ? `${Math.abs(item.relativeDueOffsetDays)} zile înainte de nuntă`
+                    ? `${Math.abs(item.relativeDueOffsetDays)} zile înainte de eveniment`
                     : "Fără termen"}
                 {item.suggestedOwnerType
                   ? ` · Responsabil sugerat: ${item.suggestedOwnerType}`
