@@ -59,7 +59,12 @@
 }
 
 .heroCopy {
-  max-width: 52rem;
+  max-width: var(--hero-copy-width, 52rem);
+  transform: translate3d(
+    var(--hero-copy-offset-x, 0),
+    var(--hero-copy-offset-y, 0),
+    0
+  );
 }
 
 .nocturne .heroCopy {
@@ -83,16 +88,16 @@
 
 .nocturne .heroHeading {
   max-width: 8.4ch;
-  margin-top: clamp(2rem, 7cqi, 5.5rem);
+  margin-top: var(--hero-names-gap, clamp(2rem, 7cqi, 5.5rem));
   font-weight: 500;
-  line-height: 0.78;
-  letter-spacing: -0.07em;
+  line-height: var(--hero-name-line-height, 0.78);
+  letter-spacing: var(--hero-name-tracking, -0.07em);
   text-wrap: balance;
   text-shadow: 0 0.15em 1em rgb(17 4 20 / 20%);
 }
 
-.nocturne .heroCopy > div:nth-of-type(1) {
-  margin-top: clamp(2.5rem, 8cqi, 6rem);
+.nocturne .heroMeta {
+  margin-top: var(--hero-meta-gap, clamp(2.5rem, 8cqi, 6rem));
   padding-top: 1rem;
   border-top: 1px solid rgb(255 255 255 / 38%);
   font-size: 0.78rem;
@@ -103,7 +108,7 @@
 
 .nocturne .heroSubheading {
   max-width: 16ch;
-  margin-top: 1.4rem;
+  margin-top: var(--hero-title-gap, 1.4rem);
   font-weight: 500;
   line-height: 1;
 }
@@ -261,11 +266,19 @@
 }
 
 .heroHeading {
+  margin-top: var(--hero-names-gap, 1rem);
   font-size: clamp(
     2.375rem,
     calc(10cqi * var(--invitation-heading-scale, 1)),
     var(--invitation-heading-max, 6rem)
   );
+  line-height: var(--hero-name-line-height, 0.94);
+  letter-spacing: var(--hero-name-tracking, -0.035em);
+  white-space: pre-line;
+}
+
+.heroMeta {
+  margin-top: var(--hero-meta-gap, 1.5rem);
 }
 
 .advancedHeading {
@@ -281,7 +294,16 @@
 }
 
 .heroSubheading {
+  margin-top: var(--hero-title-gap, 2rem);
   font-size: clamp(1.25rem, 4.6cqi, 1.5rem);
+}
+
+.heroSubtitle {
+  margin-top: var(--hero-subtitle-gap, 0.75rem);
+}
+
+.heroActions {
+  margin-top: var(--hero-actions-gap, 1.75rem);
 }
 
 .responsiveHeading {
@@ -400,6 +422,10 @@
 }
 
 @container invitation-canvas (max-width: 639px) {
+  .heroCopy {
+    max-width: min(100%, var(--hero-copy-width, 52rem));
+  }
+
   .artDirected,
   .artDirectedImage {
     --invitation-focal: var(--invitation-focal-mobile, var(--invitation-focal-tablet, 50% 50%));

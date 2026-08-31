@@ -139,6 +139,57 @@ describe("InvitationRenderer", () => {
     expect(markup).toContain("background-color:#F06449;color:#19151D");
   });
 
+  it("renders precise hero text positioning and exposes direct editing", () => {
+    const hero = createDefaultSection("hero", "hero-layout");
+    hero.content.names = "Ana\n& Mihai";
+    hero.content.textWidth = 560;
+    hero.content.textOffsetX = -24;
+    hero.content.textOffsetY = 36;
+    hero.content.namesLineHeight = 88;
+    hero.content.namesLetterSpacing = -2;
+    hero.content.metaGap = 42;
+    hero.style.align = "right";
+    const snapshot: InvitationEditorSnapshot = {
+      design: invitationTemplates[1].design,
+      experience: {
+        enabled: false,
+        style: "split_panels",
+        replay: "first_visit",
+        panelColor: "#3B183F",
+        backgroundColor: "#F7F7F3",
+        accentColor: "#F06449",
+        sealStyle: "monogram",
+        texture: "paper",
+        monogram: null,
+        frontMessage: null,
+        coverMediaId: null,
+        coverImageUrl: null,
+        durationMs: 1400,
+      },
+      sections: [hero],
+    };
+
+    const markup = renderToStaticMarkup(
+      React.createElement(InvitationRenderer, {
+        snapshot,
+        resolveMedia: () => "",
+        onContentChange: () => undefined,
+        onContentFocus: () => undefined,
+      }),
+    );
+
+    expect(markup).toContain("--hero-copy-width:560px");
+    expect(markup).toContain("--hero-copy-offset-x:-24px");
+    expect(markup).toContain("--hero-copy-offset-y:36px");
+    expect(markup).toContain("--hero-name-line-height:0.88");
+    expect(markup).toContain("--hero-name-tracking:-2px");
+    expect(markup).toContain("--hero-meta-gap:42px");
+    expect(markup).toContain("ml-auto");
+    expect(markup).toContain('contentEditable="true"');
+    expect(markup).toContain("Editează numele sau titlul principal");
+    expect(markup).toContain("Ana\n&amp; Mihai");
+  });
+
   it("repairs unreadable custom section and gradient color combinations", () => {
     const custom = createDefaultSection("custom", "custom-contrast");
     custom.style.tone = "custom";
