@@ -1,5 +1,6 @@
 import type {
   ApiProblem,
+  EventType,
   ApiResponse,
   ActivityList,
   ActivityExportRequest,
@@ -1212,6 +1213,10 @@ export const weddingOsApi = {
     request<{
       id: string;
       title: string;
+      eventType: EventType;
+      eventDate: string | null;
+      organizerName: string | null;
+      /** @deprecated Use eventDate. */
       weddingDate: string | null;
       location: string | null;
       timezone: string;
@@ -1232,7 +1237,13 @@ export const weddingOsApi = {
       },
     ),
   invitation: (token: string) =>
-    request<TeamInvitation & { weddingDate: string | null }>(
+    request<
+      TeamInvitation & {
+        eventDate: string | null;
+        /** @deprecated Use eventDate. */
+        weddingDate: string | null;
+      }
+    >(
       `/team-invitations/${encodeURIComponent(token)}`,
     ),
   acceptInvitation: (token: string) =>
@@ -4080,51 +4091,51 @@ export const weddingOsApi = {
       `/platform/settlements/${encodeURIComponent(settlementId)}/payout`,
       { method: "POST", idempotencyKey: crypto.randomUUID() },
     ),
-  weddingDayCommandCenter: (workspaceId: string) =>
+  eventDayCommandCenter: (workspaceId: string) =>
     request<Record<string, unknown>>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/command-center`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/command-center`,
     ),
-  weddingDayPlans: (workspaceId: string) =>
+  eventDayPlans: (workspaceId: string) =>
     request<{ items: OperationResource[] }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans`,
     ),
-  weddingDayPlan: (workspaceId: string, planId: string) =>
+  eventDayPlan: (workspaceId: string, planId: string) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}`,
     ),
-  createWeddingDayPlan: (workspaceId: string, input: Record<string, unknown>) =>
+  createEventDayPlan: (workspaceId: string, input: Record<string, unknown>) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
-  updateWeddingDayPlan: (
+  updateEventDayPlan: (
     workspaceId: string,
     planId: string,
     version: number,
     input: Record<string, unknown>,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}`,
       { method: "PATCH", body: input, ifMatch: version },
     ),
-  transitionWeddingDayPlan: (
+  transitionEventDayPlan: (
     workspaceId: string,
     planId: string,
     version: number,
     action: "publish" | "go-live" | "pause" | "complete",
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/${action}`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/${action}`,
       { method: "POST", ifMatch: version, idempotencyKey: crypto.randomUUID() },
     ),
-  weddingDayRunOfShow: (workspaceId: string, planId: string) =>
+  eventDayRunOfShow: (workspaceId: string, planId: string) =>
     request<{
       items: OperationResource[];
       dependencies: OperationResource[];
       assignments: OperationResource[];
       serverTime: string;
     }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/run-of-show`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/run-of-show`,
     ),
   createRunOfShowItem: (
     workspaceId: string,
@@ -4132,7 +4143,7 @@ export const weddingOsApi = {
     input: Record<string, unknown>,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/run-of-show/items`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/run-of-show/items`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
   transitionRunOfShowItem: (
@@ -4144,7 +4155,7 @@ export const weddingOsApi = {
     delayEstimateMinutes?: number,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/run-of-show/items/${encodeURIComponent(itemId)}/transitions`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/run-of-show/items/${encodeURIComponent(itemId)}/transitions`,
       {
         method: "POST",
         body: {
@@ -4157,20 +4168,20 @@ export const weddingOsApi = {
         ifMatch: version,
       },
     ),
-  weddingDayIncidents: (workspaceId: string, planId: string) =>
+  eventDayIncidents: (workspaceId: string, planId: string) =>
     request<{ items: OperationResource[] }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/incidents`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/incidents`,
     ),
-  createWeddingDayIncident: (
+  createEventDayIncident: (
     workspaceId: string,
     planId: string,
     input: Record<string, unknown>,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/incidents`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/incidents`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
-  transitionWeddingDayIncident: (
+  transitionEventDayIncident: (
     workspaceId: string,
     incidentId: string,
     version: number,
@@ -4178,46 +4189,46 @@ export const weddingOsApi = {
     reason?: string,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/incidents/${encodeURIComponent(incidentId)}/transitions`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/incidents/${encodeURIComponent(incidentId)}/transitions`,
       {
         method: "POST",
         body: { transition, ...(reason ? { reason } : {}) },
         ifMatch: version,
       },
     ),
-  weddingDayChecklists: (workspaceId: string, planId: string) =>
+  eventDayChecklists: (workspaceId: string, planId: string) =>
     request<{ items: OperationResource[] }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/checklists`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/checklists`,
     ),
-  createWeddingDayChecklistItem: (
+  createEventDayChecklistItem: (
     workspaceId: string,
     checklistId: string,
     input: Record<string, unknown>,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/checklists/${encodeURIComponent(checklistId)}/items`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/checklists/${encodeURIComponent(checklistId)}/items`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
-  weddingDayAnnouncements: (workspaceId: string, planId: string) =>
+  eventDayAnnouncements: (workspaceId: string, planId: string) =>
     request<{ items: OperationResource[] }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/announcements`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/announcements`,
     ),
-  createWeddingDayAnnouncement: (
+  createEventDayAnnouncement: (
     workspaceId: string,
     planId: string,
     input: Record<string, unknown>,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/plans/${encodeURIComponent(planId)}/announcements`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/plans/${encodeURIComponent(planId)}/announcements`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
-  publishWeddingDayAnnouncement: (
+  publishEventDayAnnouncement: (
     workspaceId: string,
     announcementId: string,
     version: number,
   ) =>
     request<OperationResource>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day/announcements/${encodeURIComponent(announcementId)}/publish`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day/announcements/${encodeURIComponent(announcementId)}/publish`,
       { method: "POST", ifMatch: version, idempotencyKey: crypto.randomUUID() },
     ),
   checkInSessions: (workspaceId: string) =>
@@ -4252,9 +4263,9 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/galleries`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
-  weddingDayExport: (workspaceId: string, input: Record<string, unknown>) =>
+  eventDayExport: (workspaceId: string, input: Record<string, unknown>) =>
     request<{ artifactId: string; job: BackgroundJobResource }>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/wedding-day-exports`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/event-day-exports`,
       { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
     ),
   guestMomentsForModeration: (workspaceId: string) =>
@@ -4312,9 +4323,9 @@ export const weddingOsApi = {
       method: "PUT",
       body: input,
     }),
-  guestWeddingDayLive: (token: string) =>
+  guestEventDayLive: (token: string) =>
     publicRequest<Record<string, unknown>>(
-      `/guest/wedding-day/live?token=${encodeURIComponent(token)}`,
+      `/guest/event-day/live?token=${encodeURIComponent(token)}`,
     ),
   guestCheckInCredential: (token: string) =>
     publicRequest<(OperationResource & { token: string }) | null>(

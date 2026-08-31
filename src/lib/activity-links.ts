@@ -60,6 +60,6 @@ export function activityHref(item: {
     entity.includes("checkin") ||
     entity.includes("moment")
   )
-    return "/wedding-day";
+    return "/event-day";
   return "/overview";
 }

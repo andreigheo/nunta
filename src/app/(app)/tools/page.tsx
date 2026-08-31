@@ -125,10 +125,10 @@ export default function ToolsPage() {
   const reserve = Math.round((safeBudget * safeReserve) / 100);
   const available = Math.max(0, safeBudget - reserve);
   const weddingTitle = currentWorkspace?.title ?? wedding.title;
-  const weddingDate = currentWorkspace?.weddingDate ?? null;
+  const eventDate = currentWorkspace?.eventDate ?? null;
   const days =
     dashboard?.wedding.countdownDays ??
-    (weddingDate ? daysUntil(weddingDate) : null);
+    (eventDate ? daysUntil(eventDate) : null);
 
   const copyDrinks = async () => {
     const summary = `Necesar estimativ pentru ${safeGuests} invitați: ${waterBottles} sticle apă, ${wineBottles} sticle vin, ${sparklingBottles} sticle spumant și ${softDrinkLitres} litri băuturi răcoritoare.`;

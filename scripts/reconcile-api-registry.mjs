@@ -81,9 +81,12 @@ const active = {
   "WORKSPACE.CREATE": {
     body: [
       "title",
+      "eventType",
+      "eventDate?",
+      "organizerName?",
       "partnerOneName?",
       "partnerTwoName?",
-      "weddingDate?",
+      "weddingDate? (deprecated alias)",
       "location?",
       "locale?",
       "timezone?",
@@ -98,9 +101,12 @@ const active = {
   "WORKSPACE.UPDATE": {
     body: [
       "title?",
+      "eventType?",
+      "eventDate?",
+      "organizerName?",
       "partnerOneName?",
       "partnerTwoName?",
-      "weddingDate?",
+      "weddingDate? (deprecated alias)",
       "location?",
       "locale?",
       "timezone?",

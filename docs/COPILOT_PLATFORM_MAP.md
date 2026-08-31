@@ -8,17 +8,17 @@ O suprafață nu este considerată controlabilă până când operația are adap
 
 ## Rezumat
 
-- Pagini: **81**
+- Pagini: **83**
 - Operații API: **690**
-- Domenii API: **130**
+- Domenii API: **129**
 - Operații executabile prin propunere: **44**
-- Operații disponibile pentru citire contextuală: **232**
-- Operații explicate, dar neexecutate direct: **358**
-- Operații excluse intenționat: **56**
+- Operații disponibile pentru citire contextuală: **231**
+- Operații explicate, dar neexecutate direct: **357**
+- Operații excluse intenționat: **58**
 - Operații neclasificate: **0**
 - Operații de citire candidate: **247**
-- Modificări numai prin propunere/aprobare: **402**
-- Operații doar ghidate, fără execuție directă: **41**
+- Modificări numai prin propunere/aprobare: **401**
+- Operații doar ghidate, fără execuție directă: **42**
 
 ## Domenii API
 
@@ -33,10 +33,10 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | activity-exports                    |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
 | allergy-issues                      |    2 |      1 |         1 |            0 | menu.read_allergies, menu.resolve_allergies                                                                                                                                                                                    |
 | auth                                |   13 |      2 |         8 |            3 | —                                                                                                                                                                                                                              |
-| automation-executions               |    2 |      2 |         0 |            0 | automation.view_executions                                                                                                                                                                                                     |
+| automation-executions               |    3 |      2 |         1 |            0 | automation.approve, automation.view_executions                                                                                                                                                                                 |
 | automation-rules                    |    6 |      3 |         3 |            0 | automation.execute, automation.read, automation.write                                                                                                                                                                          |
 | automation-templates                |    1 |      1 |         0 |            0 | automation.read                                                                                                                                                                                                                |
-| automations                         |    7 |      2 |         5 |            0 | automation.activate, automation.pause, automation.read, automation.write                                                                                                                                                       |
+| automations                         |    8 |      2 |         6 |            0 | automation.activate, automation.execute, automation.pause, automation.read, automation.write                                                                                                                                   |
 | beta                                |    8 |      3 |         5 |            0 | —                                                                                                                                                                                                                              |
 | billing                             |    3 |      1 |         2 |            0 | workspace.billing.manage, workspace.billing.read                                                                                                                                                                               |
 | bookings                            |    4 |      2 |         2 |            0 | booking.read, booking.transition, booking.write                                                                                                                                                                                |
@@ -49,7 +49,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | check-in                            |   18 |      3 |         4 |           11 | check_in.manage_devices, check_in.manage_sessions, check_in.offline_sync, check_in.read, check_in.write                                                                                                                        |
 | commercial-exports                  |    1 |      0 |         1 |            0 | budget.export                                                                                                                                                                                                                  |
 | contingency-plans                   |   10 |      2 |         8 |            0 | contingency.activate, contingency.approve, contingency.complete, contingency.read, contingency.write                                                                                                                           |
-| contracts                           |    9 |      3 |         6 |            0 | contract.acknowledge, contract.export, contract.read, contract.review, contract.write                                                                                                                                          |
+| contracts                           |   11 |      4 |         6 |            1 | contract.acknowledge, contract.export, contract.read, contract.review, contract.write, signature.create                                                                                                                        |
 | copilot                             |   24 |      8 |        16 |            0 | copilot.create_proposal, copilot.execute_proposals, copilot.read, copilot.review_proposals, copilot.use, workspace.update                                                                                                      |
 | creative-state                      |    2 |      1 |         1 |            0 | invitation.read, invitation.write                                                                                                                                                                                              |
 | dashboard                           |    1 |      1 |         0 |            0 | planning.read                                                                                                                                                                                                                  |
@@ -57,6 +57,8 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | deletion-requests                   |    1 |      0 |         0 |            1 | —                                                                                                                                                                                                                              |
 | document-folders                    |    4 |      1 |         3 |            0 | —                                                                                                                                                                                                                              |
 | documents                           |   12 |      4 |         8 |            0 | —                                                                                                                                                                                                                              |
+| event-day                           |   36 |      9 |        27 |            0 | announcement.publish, announcement.read, announcement.write, incident.read, incident.resolve, incident.write, wedding_day.go_live, wedding_day.manage_contacts, wedding_day.publish, wedding_day.transition, wedding_day.write |
+| event-day-exports                   |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
 | expenses                            |    4 |      1 |         3 |            0 | expense.read, expense.write                                                                                                                                                                                                    |
 | galleries                           |    6 |      1 |         5 |            0 | gallery.publish, gallery.read, gallery.write                                                                                                                                                                                   |
 | guest                               |   15 |      9 |         6 |            0 | —                                                                                                                                                                                                                              |
@@ -104,7 +106,6 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | rsvp-submissions                    |    1 |      0 |         1 |            0 | rsvp.override                                                                                                                                                                                                                  |
 | search                              |    1 |      1 |         0 |            0 | planning.read                                                                                                                                                                                                                  |
 | seating-plans                       |   26 |      5 |        21 |            0 | seating.assign, seating.export, seating.generate_suggestion, seating.publish, seating.write                                                                                                                                    |
-| secure-commerce                     |    4 |      2 |         2 |            0 | signature.create, signature.read                                                                                                                                                                                               |
 | signature-envelopes                 |    9 |      4 |         0 |            5 | signature.cancel, signature.create, signature.download_evidence, signature.send, signature.sign                                                                                                                                |
 | signature-signing-sessions          |    2 |      0 |         0 |            2 | —                                                                                                                                                                                                                              |
 | status                              |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
@@ -119,7 +120,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | vendor-availability                 |    4 |      1 |         3 |            0 | —                                                                                                                                                                                                                              |
 | vendor-balance                      |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | vendor-bookings                     |    3 |      2 |         1 |            0 | —                                                                                                                                                                                                                              |
-| vendor-contracts                    |    5 |      2 |         3 |            0 | —                                                                                                                                                                                                                              |
+| vendor-contracts                    |    7 |      3 |         4 |            0 | signature.read                                                                                                                                                                                                                 |
 | vendor-data-exports                 |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
 | vendor-deletion-requests            |    1 |      0 |         0 |            1 | —                                                                                                                                                                                                                              |
 | vendor-entitlements                 |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
@@ -150,10 +151,8 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | vendor-usage                        |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | venue-spaces                        |    5 |      2 |         3 |            0 | seating.write                                                                                                                                                                                                                  |
 | webhooks                            |    6 |      0 |         5 |            1 | —                                                                                                                                                                                                                              |
-| wedding-day                         |   36 |      9 |        27 |            0 | announcement.publish, announcement.read, announcement.write, incident.read, incident.resolve, incident.write, wedding_day.go_live, wedding_day.manage_contacts, wedding_day.publish, wedding_day.transition, wedding_day.write |
-| wedding-day-exports                 |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
 | weekly-digests                      |    2 |      1 |         1 |            0 | copilot.read, copilot.use                                                                                                                                                                                                      |
-| workspaces                          |    5 |      1 |         4 |            0 | automation.approve, automation.execute, workspace.update                                                                                                                                                                       |
+| workspaces                          |    3 |      1 |         2 |            0 | workspace.update                                                                                                                                                                                                               |
 
 ## Suprafețe UI
 
@@ -185,6 +184,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | /create-account                 | organizer  | GUIDE_ONLY                |
 | /design-studio                  | organizer  | GUIDE_ONLY                |
 | /documents                      | organizer  | GUIDE_ONLY                |
+| /event-day                      | organizer  | GUIDE_ONLY                |
 | /expired-link                   | organizer  | GUIDE_ONLY                |
 | /favorites                      | organizer  | GUIDE_ONLY                |
 | /forgot-password                | public     | INTENTIONALLY_UNSUPPORTED |
@@ -204,6 +204,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | /overview                       | organizer  | GUIDE_ONLY                |
 | /payments                       | organizer  | GUIDE_ONLY                |
 | /plan                           | organizer  | GUIDE_ONLY                |
+| /post-event                     | organizer  | GUIDE_ONLY                |
 | /post-wedding                   | organizer  | GUIDE_ONLY                |
 | /privacy                        | organizer  | GUIDE_ONLY                |
 | /provider/checkout/:checkoutId  | organizer  | GUIDE_ONLY                |

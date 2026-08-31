@@ -40,7 +40,7 @@ import { InvitationCampaignService } from "../guests/invitation-campaign.service
 import { RsvpMenuService } from "../guests/rsvp-menu.service";
 import { OperationsService } from "../operations/operations.service";
 import { PlanningService } from "../planning/planning.service";
-import { WeddingDayService } from "../wedding-day/wedding-day.service";
+import { EventDayService } from "../event-day/event-day.service";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -58,8 +58,8 @@ export class IntelligenceService {
     @Inject(OperationsService) private readonly operations: OperationsService,
     @Inject(InvitationCampaignService)
     private readonly invitations: InvitationCampaignService,
-    @Inject(WeddingDayService)
-    private readonly weddingDay: WeddingDayService,
+    @Inject(EventDayService)
+    private readonly eventDay: EventDayService,
   ) {}
 
   conversations(
@@ -1292,7 +1292,7 @@ export class IntelligenceService {
       return resourceReference("Campaign", row);
     }
     if (actionType === "CREATE_WEDDING_DAY_INCIDENT") {
-      const row = await this.weddingDay.createIncident(
+      const row = await this.eventDay.createIncident(
         userId,
         workspaceId,
         stringValue(payload.planId, ""),
@@ -1303,7 +1303,7 @@ export class IntelligenceService {
       return resourceReference("WeddingDayIncident", row);
     }
     if (actionType === "CREATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT") {
-      const row = await this.weddingDay.createAnnouncement(
+      const row = await this.eventDay.createAnnouncement(
         userId,
         workspaceId,
         stringValue(payload.planId, ""),
@@ -1313,7 +1313,7 @@ export class IntelligenceService {
       return resourceReference("WeddingDayAnnouncement", row);
     }
     if (actionType === "UPDATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT") {
-      const row = await this.weddingDay.updateAnnouncement(
+      const row = await this.eventDay.updateAnnouncement(
         userId,
         workspaceId,
         targetId!,

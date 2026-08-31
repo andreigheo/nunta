@@ -1351,6 +1351,8 @@ export const teamListSchema = z.object({
 export type TeamList = z.infer<typeof teamListSchema>;
 
 export const publicTeamInvitationSchema = teamInvitationSchema.extend({
+  eventDate: z.string().date().nullable(),
+  /** @deprecated Use eventDate. */
   weddingDate: z.string().date().nullable(),
 });
 export const invitationAcceptedSchema = z.object({
@@ -1757,7 +1759,7 @@ export type SemanticEvent = z.infer<typeof semanticEventSchema>;
 
 export * from "./planning";
 export * from "./secure-commerce";
-export * from "./wedding-day";
+export * from "./event-day";
 export * from "./intelligence";
 export * from "./copilot-actions";
 export * from "./platform";

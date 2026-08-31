@@ -87,7 +87,7 @@ test("S10C E2E 01 — full demo isolation has zero API traffic", async ({
   });
   await page.goto("/team?demo=1");
   await page.goto("/activity?demo=1");
-  await page.goto("/wedding-day?demo=1");
+  await page.goto("/event-day?demo=1");
   expect(calls).toEqual([]);
 });
 

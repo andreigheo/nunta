@@ -146,15 +146,15 @@ const activeAdapters = new Map(
       "UPDATE_CAMPAIGN_DRAFT",
     ],
     [
-      "post:/api/v1/workspaces/:workspaceId/wedding-day/plans/:planId/incidents",
+      "post:/api/v1/workspaces/:workspaceId/event-day/plans/:planId/incidents",
       "CREATE_WEDDING_DAY_INCIDENT",
     ],
     [
-      "post:/api/v1/workspaces/:workspaceId/wedding-day/plans/:planId/announcements",
+      "post:/api/v1/workspaces/:workspaceId/event-day/plans/:planId/announcements",
       "CREATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT",
     ],
     [
-      "patch:/api/v1/workspaces/:workspaceId/wedding-day/announcements/:announcementId",
+      "patch:/api/v1/workspaces/:workspaceId/event-day/announcements/:announcementId",
       "UPDATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT",
     ],
   ].map(([id, actionType]) => [id, { actionType, adapterStatus: "ACTIVE" }]),
@@ -204,7 +204,7 @@ function pagePersona(route) {
 
 function routeString(argument) {
   if (!argument?.trim()) return "";
-  return argument.trim().match(/^["'`]([^"'`]*)["'`]$/)?.[1] ?? "";
+  return argument.trim().match(/^(?:\[\s*)?["'`]([^"'`]*)["'`]/)?.[1] ?? "";
 }
 
 function joinRoute(prefix, suffix) {
@@ -214,6 +214,13 @@ function joinRoute(prefix, suffix) {
     .replace(/\/+/, "/")
     .replace(/^\//, "");
   return `/${route}`.replace(/\/$/, "") || "/";
+}
+
+function compatibilitySortKey(endpoint) {
+  return `${endpoint.domain}:${endpoint.route}:${endpoint.verb}`.replaceAll(
+    "event-day",
+    "wedding-day",
+  );
 }
 
 function domainFor(file, route) {
@@ -432,9 +439,7 @@ const endpoints = (
 )
   .flat()
   .sort((left, right) =>
-    `${left.domain}:${left.route}:${left.verb}`.localeCompare(
-      `${right.domain}:${right.route}:${right.verb}`,
-    ),
+    compatibilitySortKey(left).localeCompare(compatibilitySortKey(right)),
   );
 
 await writeOrCheck(tsOutput, renderTypeScript(pages, endpoints));

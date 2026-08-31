@@ -135,7 +135,7 @@ const pageContexts: Record<string, { label: string; suggestions: string[] }> = {
       "Ce contracte sau termene cer atenție?",
     ],
   },
-  "/wedding-day": {
+  "/event-day": {
     label: "Ziua evenimentului",
     suggestions: [
       "Rezumă starea operațională de azi",

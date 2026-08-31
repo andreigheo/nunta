@@ -187,11 +187,12 @@ try {
       currency: "RON",
       createdById: owner.id,
       updatedById: owner.id,
-      weddingProfile: {
+      eventProfile: {
         create: {
+          eventType: "wedding",
           partnerOneName: "Olivia",
           partnerTwoName: "Paul",
-          weddingDate: new Date("2027-09-12T00:00:00.000Z"),
+          eventDate: new Date("2027-09-12T00:00:00.000Z"),
           location: "Chișinău",
           createdById: owner.id,
           updatedById: owner.id,
@@ -199,12 +200,12 @@ try {
       },
     },
   });
-  await prisma.weddingProfile.upsert({
+  await prisma.eventProfile.upsert({
     where: { workspaceId },
     update: {
       partnerOneName: "Olivia",
       partnerTwoName: "Paul",
-      weddingDate: new Date("2027-09-12T00:00:00.000Z"),
+      eventDate: new Date("2027-09-12T00:00:00.000Z"),
       location: "Chișinău",
       updatedById: owner.id,
     },
@@ -212,7 +213,7 @@ try {
       workspaceId,
       partnerOneName: "Olivia",
       partnerTwoName: "Paul",
-      weddingDate: new Date("2027-09-12T00:00:00.000Z"),
+      eventDate: new Date("2027-09-12T00:00:00.000Z"),
       location: "Chișinău",
       createdById: owner.id,
       updatedById: owner.id,

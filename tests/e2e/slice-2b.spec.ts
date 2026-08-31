@@ -597,7 +597,7 @@ test("E2E 12 — creative workspace, moodboard upload/download and post-event wo
   ).toBe(412);
 
   const closeTask = `Mulțumiri E2E ${Date.now()}`;
-  await page.goto("/post-wedding");
+  await page.goto("/post-event");
   await page.getByRole("button", { name: "Adaugă un pas" }).click();
   const taskDialog = page.getByRole("dialog", { name: "Pas post-eveniment" });
   await taskDialog.getByLabel("Titlu").fill(closeTask);
@@ -666,13 +666,13 @@ test("E2E 13 — all organizer surfaces render without runtime or backend failur
     "/contingency-plans",
     "/automations",
     "/tools",
-    "/wedding-day",
+    "/event-day",
     "/moments",
     "/reviews",
     "/archive",
     "/design-studio",
     "/moodboards",
-    "/post-wedding",
+    "/post-event",
   ];
 
   for (const route of routes) {

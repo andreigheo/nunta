@@ -1030,7 +1030,7 @@ model Workspace {
   createdAt               DateTime                        @default(now()) @map("created_at")
   updatedAt               DateTime                        @updatedAt @map("updated_at")
   version                 Int                             @default(1)
-  weddingProfile          WeddingProfile?
+  eventProfile            EventProfile?
   memberships             WorkspaceMembership[]
   invitations             TeamInvitation[]
   auditEvents             AuditEvent[]
@@ -1153,14 +1153,14 @@ model WorkspaceBillingTransaction {
   @@map("workspace_billing_transactions")
 }
 
-model WeddingProfile {
+model EventProfile {
   id             String    @id @default(uuid()) @db.Uuid
   workspaceId    String    @unique @map("workspace_id") @db.Uuid
   eventType      String    @default("wedding") @map("event_type") @db.VarChar(40)
   organizerName  String?   @map("organizer_name") @db.VarChar(160)
   partnerOneName String?   @map("partner_one_name") @db.VarChar(100)
   partnerTwoName String?   @map("partner_two_name") @db.VarChar(100)
-  weddingDate    DateTime? @map("wedding_date") @db.Date
+  eventDate      DateTime? @map("wedding_date") @db.Date
   location       String?   @db.VarChar(160)
   createdById    String    @map("created_by") @db.Uuid
   updatedById    String    @map("updated_by") @db.Uuid

@@ -169,7 +169,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = React.useState(true);
   const [compare, setCompare] = React.useState<string[]>([]);
   const [quoteVendor, setQuoteVendor] = React.useState<Vendor | null>(null);
-  const workspaceEventDate = currentWorkspace?.weddingDate?.slice(0, 10) ?? "";
+  const workspaceEventDate = currentWorkspace?.eventDate?.slice(0, 10) ?? "";
   const [quoteDate, setQuoteDate] = React.useState("");
   const [quoteGuestCount, setQuoteGuestCount] = React.useState("");
   const [quoteBudget, setQuoteBudget] = React.useState("");

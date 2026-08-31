@@ -31,12 +31,12 @@ import {
   createGalleryCollectionSchema,
   createGuestMomentSchema,
   createRunOfShowItemSchema,
-  createWeddingDayAnnouncementSchema,
-  createWeddingDayChecklistItemSchema,
-  createWeddingDayChecklistSchema,
-  createWeddingDayContactSchema,
-  createWeddingDayIncidentSchema,
-  createWeddingDayPlanSchema,
+  createEventDayAnnouncementSchema,
+  createEventDayChecklistItemSchema,
+  createEventDayChecklistSchema,
+  createEventDayContactSchema,
+  createEventDayIncidentSchema,
+  createEventDayPlanSchema,
   galleryItemsSchema,
   guestCheckInCommandSchema,
   guestMomentReportSchema,
@@ -48,16 +48,16 @@ import {
   updateCheckInStationSchema,
   updateGalleryCollectionSchema,
   updateRunOfShowItemSchema,
-  updateWeddingDayAnnouncementSchema,
-  updateWeddingDayChecklistItemSchema,
-  updateWeddingDayContactSchema,
-  updateWeddingDayPlanSchema,
+  updateEventDayAnnouncementSchema,
+  updateEventDayChecklistItemSchema,
+  updateEventDayContactSchema,
+  updateEventDayPlanSchema,
   validateCheckInCredentialSchema,
-  weddingDayChecklistTransitionSchema,
-  weddingDayDecisionSchema,
-  weddingDayIncidentTransitionSchema,
-  weddingDayIncidentUpdateSchema,
-  weddingDayExportSchema,
+  eventDayChecklistTransitionSchema,
+  eventDayDecisionSchema,
+  eventDayIncidentTransitionSchema,
+  eventDayIncidentUpdateSchema,
+  eventDayExportSchema,
 } from "@weddingos/contracts";
 import { CurrentAuth } from "../auth/current-auth.decorator";
 import { SessionAuthGuard } from "../auth/session-auth.guard";
@@ -70,19 +70,19 @@ import { problem } from "../common/problem";
 import { parseUuid, parseWithSchema } from "../common/validation";
 import { RequireCapability } from "../workspaces/capability.decorator";
 import { CapabilityGuard } from "../workspaces/capability.guard";
-import { WeddingDayService } from "./wedding-day.service";
+import { EventDayService } from "./event-day.service";
 
-@ApiTags("wedding-day")
+@ApiTags("event-day")
 @ApiCookieAuth()
 @UseGuards(SessionAuthGuard, CapabilityGuard)
 @RequireCapability("wedding_day.read")
 @Controller("api/v1/workspaces/:workspaceId")
-export class WeddingDayController {
+export class EventDayController {
   constructor(
-    @Inject(WeddingDayService) private readonly service: WeddingDayService,
+    @Inject(EventDayService) private readonly service: EventDayService,
   ) {}
 
-  @Get("wedding-day/plans")
+  @Get(["event-day/plans", "wedding-day/plans"])
   async plans(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
@@ -94,7 +94,7 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans")
+  @Post(["event-day/plans", "wedding-day/plans"])
   @RequireCapability("wedding_day.write")
   async createPlan(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -107,13 +107,13 @@ export class WeddingDayController {
       auth.userId,
       uuid(workspaceId),
       idempotencyKey(key),
-      parseWithSchema(createWeddingDayPlanSchema, body),
+      parseWithSchema(createEventDayPlanSchema, body),
       request.correlationId,
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Get("wedding-day/plans/:planId")
+  @Get(["event-day/plans/:planId", "wedding-day/plans/:planId"])
   async plan(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
@@ -128,7 +128,7 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Patch("wedding-day/plans/:planId")
+  @Patch(["event-day/plans/:planId", "wedding-day/plans/:planId"])
   @RequireCapability("wedding_day.write")
   async updatePlan(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -143,13 +143,16 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(planId),
       requiredVersion(ifMatch),
-      parseWithSchema(updateWeddingDayPlanSchema, body),
+      parseWithSchema(updateEventDayPlanSchema, body),
       request.correlationId,
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/plans/:planId/publish")
+  @Post([
+    "event-day/plans/:planId/publish",
+    "wedding-day/plans/:planId/publish",
+  ])
   @RequireCapability("wedding_day.publish")
   publishPlan(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -170,7 +173,10 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/go-live")
+  @Post([
+    "event-day/plans/:planId/go-live",
+    "wedding-day/plans/:planId/go-live",
+  ])
   @RequireCapability("wedding_day.go_live")
   goLive(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -191,7 +197,7 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/pause")
+  @Post(["event-day/plans/:planId/pause", "wedding-day/plans/:planId/pause"])
   @RequireCapability("wedding_day.go_live")
   pause(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -212,7 +218,10 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/complete")
+  @Post([
+    "event-day/plans/:planId/complete",
+    "wedding-day/plans/:planId/complete",
+  ])
   @RequireCapability("wedding_day.go_live")
   completePlan(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -254,7 +263,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Get("wedding-day/plans/:planId/run-of-show")
+  @Get([
+    "event-day/plans/:planId/run-of-show",
+    "wedding-day/plans/:planId/run-of-show",
+  ])
   async runOfShow(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
@@ -271,7 +283,10 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/run-of-show/items")
+  @Post([
+    "event-day/plans/:planId/run-of-show/items",
+    "wedding-day/plans/:planId/run-of-show/items",
+  ])
   @RequireCapability("wedding_day.write")
   async createRunItem(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -292,7 +307,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Patch("wedding-day/run-of-show/items/:itemId")
+  @Patch([
+    "event-day/run-of-show/items/:itemId",
+    "wedding-day/run-of-show/items/:itemId",
+  ])
   @RequireCapability("wedding_day.write")
   async updateRunItem(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -313,7 +331,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/run-of-show/items/:itemId/transitions")
+  @Post([
+    "event-day/run-of-show/items/:itemId/transitions",
+    "wedding-day/run-of-show/items/:itemId/transitions",
+  ])
   @RequireCapability("wedding_day.transition")
   async transitionRunItem(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -334,7 +355,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Delete("wedding-day/run-of-show/items/:itemId")
+  @Delete([
+    "event-day/run-of-show/items/:itemId",
+    "wedding-day/run-of-show/items/:itemId",
+  ])
   @RequireCapability("wedding_day.write")
   async deleteRunItem(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -354,7 +378,10 @@ export class WeddingDayController {
     );
   }
 
-  @Put("wedding-day/plans/:planId/run-of-show/order")
+  @Put([
+    "event-day/plans/:planId/run-of-show/order",
+    "wedding-day/plans/:planId/run-of-show/order",
+  ])
   @RequireCapability("wedding_day.write")
   async reorder(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -375,7 +402,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Put("wedding-day/run-of-show/items/:itemId/dependencies")
+  @Put([
+    "event-day/run-of-show/items/:itemId/dependencies",
+    "wedding-day/run-of-show/items/:itemId/dependencies",
+  ])
   @RequireCapability("wedding_day.write")
   async dependencies(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -396,7 +426,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Get("wedding-day/plans/:planId/checklists")
+  @Get([
+    "event-day/plans/:planId/checklists",
+    "wedding-day/plans/:planId/checklists",
+  ])
   async checklists(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
@@ -413,7 +446,10 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/checklists")
+  @Post([
+    "event-day/plans/:planId/checklists",
+    "wedding-day/plans/:planId/checklists",
+  ])
   @RequireCapability("wedding_day.write")
   async createChecklist(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -428,12 +464,15 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(planId),
       idempotencyKey(key),
-      parseWithSchema(createWeddingDayChecklistSchema, body),
+      parseWithSchema(createEventDayChecklistSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/checklists/:checklistId/items")
+  @Post([
+    "event-day/checklists/:checklistId/items",
+    "wedding-day/checklists/:checklistId/items",
+  ])
   @RequireCapability("wedding_day.write")
   async createChecklistItem(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -448,12 +487,15 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(checklistId),
       idempotencyKey(key),
-      parseWithSchema(createWeddingDayChecklistItemSchema, body),
+      parseWithSchema(createEventDayChecklistItemSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Patch("wedding-day/checklist-items/:itemId")
+  @Patch([
+    "event-day/checklist-items/:itemId",
+    "wedding-day/checklist-items/:itemId",
+  ])
   @RequireCapability("wedding_day.write")
   async updateChecklistItem(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -468,12 +510,15 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(itemId),
       requiredVersion(ifMatch),
-      parseWithSchema(updateWeddingDayChecklistItemSchema, body),
+      parseWithSchema(updateEventDayChecklistItemSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/checklist-items/:itemId/transitions")
+  @Post([
+    "event-day/checklist-items/:itemId/transitions",
+    "wedding-day/checklist-items/:itemId/transitions",
+  ])
   @RequireCapability("wedding_day.transition")
   async transitionChecklistItem(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -483,7 +528,7 @@ export class WeddingDayController {
     @Body() body: unknown,
     @Req() request: WeddingOsRequest,
   ) {
-    const input = parseWithSchema(weddingDayChecklistTransitionSchema, body);
+    const input = parseWithSchema(eventDayChecklistTransitionSchema, body);
     const data = await this.service.updateChecklistItem(
       auth.userId,
       uuid(workspaceId),
@@ -495,7 +540,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Get("wedding-day/plans/:planId/incidents")
+  @Get([
+    "event-day/plans/:planId/incidents",
+    "wedding-day/plans/:planId/incidents",
+  ])
   @RequireCapability("incident.read")
   async incidents(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -514,7 +562,10 @@ export class WeddingDayController {
     );
   }
 
-  @Get("wedding-day/plans/:planId/contacts")
+  @Get([
+    "event-day/plans/:planId/contacts",
+    "wedding-day/plans/:planId/contacts",
+  ])
   @RequireCapability("wedding_day.manage_contacts")
   async contacts(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -528,7 +579,10 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/contacts")
+  @Post([
+    "event-day/plans/:planId/contacts",
+    "wedding-day/plans/:planId/contacts",
+  ])
   @RequireCapability("wedding_day.manage_contacts")
   async createContact(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -543,12 +597,12 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(planId),
       idempotencyKey(key),
-      parseWithSchema(createWeddingDayContactSchema, body),
+      parseWithSchema(createEventDayContactSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Patch("wedding-day/contacts/:contactId")
+  @Patch(["event-day/contacts/:contactId", "wedding-day/contacts/:contactId"])
   @RequireCapability("wedding_day.manage_contacts")
   async updateContact(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -563,12 +617,12 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(contactId),
       requiredVersion(ifMatch),
-      parseWithSchema(updateWeddingDayContactSchema, body),
+      parseWithSchema(updateEventDayContactSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Delete("wedding-day/contacts/:contactId")
+  @Delete(["event-day/contacts/:contactId", "wedding-day/contacts/:contactId"])
   @RequireCapability("wedding_day.manage_contacts")
   async deleteContact(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -588,7 +642,10 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/incidents")
+  @Post([
+    "event-day/plans/:planId/incidents",
+    "wedding-day/plans/:planId/incidents",
+  ])
   @RequireCapability("incident.write")
   async createIncident(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -603,13 +660,13 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(planId),
       idempotencyKey(key),
-      parseWithSchema(createWeddingDayIncidentSchema, body),
+      parseWithSchema(createEventDayIncidentSchema, body),
       request.correlationId,
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Get("wedding-day/incidents/:incidentId")
+  @Get(["event-day/incidents/:incidentId", "wedding-day/incidents/:incidentId"])
   @RequireCapability("incident.read")
   async incident(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -626,7 +683,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/incidents/:incidentId/updates")
+  @Post([
+    "event-day/incidents/:incidentId/updates",
+    "wedding-day/incidents/:incidentId/updates",
+  ])
   @RequireCapability("incident.write")
   async incidentUpdate(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -641,12 +701,15 @@ export class WeddingDayController {
         auth.userId,
         uuid(workspaceId),
         uuid(incidentId),
-        parseWithSchema(weddingDayIncidentUpdateSchema, body),
+        parseWithSchema(eventDayIncidentUpdateSchema, body),
       ),
     );
   }
 
-  @Post("wedding-day/incidents/:incidentId/transitions")
+  @Post([
+    "event-day/incidents/:incidentId/transitions",
+    "wedding-day/incidents/:incidentId/transitions",
+  ])
   @RequireCapability("incident.resolve")
   async transitionIncident(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -661,13 +724,16 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(incidentId),
       requiredVersion(ifMatch),
-      parseWithSchema(weddingDayIncidentTransitionSchema, body),
+      parseWithSchema(eventDayIncidentTransitionSchema, body),
       request.correlationId,
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/incidents/:incidentId/decisions")
+  @Post([
+    "event-day/incidents/:incidentId/decisions",
+    "wedding-day/incidents/:incidentId/decisions",
+  ])
   @RequireCapability("incident.write")
   async decision(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -682,13 +748,16 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(incidentId),
       idempotencyKey(key),
-      parseWithSchema(weddingDayDecisionSchema, body),
+      parseWithSchema(eventDayDecisionSchema, body),
       request.correlationId,
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Get("wedding-day/plans/:planId/announcements")
+  @Get([
+    "event-day/plans/:planId/announcements",
+    "wedding-day/plans/:planId/announcements",
+  ])
   @RequireCapability("announcement.read")
   async announcements(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -706,7 +775,10 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day/plans/:planId/announcements")
+  @Post([
+    "event-day/plans/:planId/announcements",
+    "wedding-day/plans/:planId/announcements",
+  ])
   @RequireCapability("announcement.write")
   async createAnnouncement(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -721,12 +793,15 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(planId),
       idempotencyKey(key),
-      parseWithSchema(createWeddingDayAnnouncementSchema, body),
+      parseWithSchema(createEventDayAnnouncementSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Patch("wedding-day/announcements/:announcementId")
+  @Patch([
+    "event-day/announcements/:announcementId",
+    "wedding-day/announcements/:announcementId",
+  ])
   @RequireCapability("announcement.write")
   async updateAnnouncement(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -741,12 +816,15 @@ export class WeddingDayController {
       uuid(workspaceId),
       uuid(announcementId),
       requiredVersion(ifMatch),
-      parseWithSchema(updateWeddingDayAnnouncementSchema, body),
+      parseWithSchema(updateEventDayAnnouncementSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/announcements/:announcementId/publish")
+  @Post([
+    "event-day/announcements/:announcementId/publish",
+    "wedding-day/announcements/:announcementId/publish",
+  ])
   @RequireCapability("announcement.publish")
   async publishAnnouncement(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -767,7 +845,10 @@ export class WeddingDayController {
     return apiResponse(request, data, { version: versionOf(data) });
   }
 
-  @Post("wedding-day/announcements/:announcementId/cancel")
+  @Post([
+    "event-day/announcements/:announcementId/cancel",
+    "wedding-day/announcements/:announcementId/cancel",
+  ])
   @RequireCapability("announcement.publish")
   async cancelAnnouncement(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -1179,7 +1260,7 @@ export class WeddingDayController {
     );
   }
 
-  @Get("wedding-day/command-center")
+  @Get(["event-day/command-center", "wedding-day/command-center"])
   async commandCenter(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
@@ -1191,8 +1272,8 @@ export class WeddingDayController {
     );
   }
 
-  @Post("wedding-day-exports")
-  async exportWeddingDay(
+  @Post(["event-day-exports", "wedding-day-exports"])
+  async exportEventDay(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
     @Headers("idempotency-key") key: string | undefined,
@@ -1201,23 +1282,33 @@ export class WeddingDayController {
   ) {
     return apiResponse(
       request,
-      await this.service.exportWeddingDay(
+      await this.service.exportEventDay(
         auth.userId,
         uuid(workspaceId),
         idempotencyKey(key),
-        parseWithSchema(weddingDayExportSchema, body),
+        parseWithSchema(eventDayExportSchema, body),
         request.correlationId,
       ),
     );
   }
 
-  @Sse("wedding-day/live")
+  @Sse("event-day/live")
   stream(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
     @Headers("last-event-id") lastId: string | undefined,
   ) {
     return this.service.organizerStream(auth.userId, uuid(workspaceId), lastId);
+  }
+
+  /** @deprecated Use GET /event-day/live. */
+  @Sse("wedding-day/live")
+  legacyStream(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("last-event-id") lastId: string | undefined,
+  ) {
+    return this.stream(auth, workspaceId, lastId);
   }
 
   @Get("guest-moments")
@@ -1412,24 +1503,33 @@ export class WeddingDayController {
   }
 }
 
-@ApiTags("guest-wedding-day")
+@ApiTags("guest-event-day")
 @Controller("api/v1/guest")
-export class GuestWeddingDayController {
+export class GuestEventDayController {
   constructor(
-    @Inject(WeddingDayService) private readonly service: WeddingDayService,
+    @Inject(EventDayService) private readonly service: EventDayService,
   ) {}
 
-  @Get("wedding-day/live")
+  @Get(["event-day/live", "wedding-day/live"])
   live(@Query("token") token: string | undefined) {
     return this.service.guestLive(guestToken(token));
   }
 
-  @Sse("wedding-day/live/stream")
+  @Sse("event-day/live/stream")
   stream(
     @Query("token") token: string | undefined,
     @Headers("last-event-id") lastId: string | undefined,
   ) {
     return this.service.guestStream(guestToken(token), lastId);
+  }
+
+  /** @deprecated Use GET /event-day/live/stream. */
+  @Sse("wedding-day/live/stream")
+  legacyStream(
+    @Query("token") token: string | undefined,
+    @Headers("last-event-id") lastId: string | undefined,
+  ) {
+    return this.stream(token, lastId);
   }
 
   @Get("check-in/credential")

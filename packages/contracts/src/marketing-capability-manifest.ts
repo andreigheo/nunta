@@ -27,8 +27,8 @@ export const marketingCapabilityManifest = {
   weddingDay: {
     status: "implemented",
     requiredOperations: [
-      "GET /api/v1/workspaces/{workspaceId}/wedding-day/plans",
-      "GET /api/v1/workspaces/{workspaceId}/wedding-day/command-center",
+      "GET /api/v1/workspaces/{workspaceId}/event-day/plans",
+      "GET /api/v1/workspaces/{workspaceId}/event-day/command-center",
     ],
   },
 } as const;

@@ -906,14 +906,17 @@
       "domain": "workspace_team_onboarding_billing",
       "method": "POST",
       "route": "/api/v1/workspaces",
-      "purpose": "Create wedding workspace and owner membership atomically",
+      "purpose": "Create event workspace and owner membership atomically",
       "request": {
         "path": [],
         "body": [
           "title",
+          "eventType",
+          "eventDate?",
+          "organizerName?",
           "partnerOneName?",
           "partnerTwoName?",
-          "weddingDate?",
+          "weddingDate? (deprecated alias)",
           "location?",
           "locale?",
           "timezone?",
@@ -1011,16 +1014,19 @@
       "domain": "workspace_team_onboarding_billing",
       "method": "PATCH",
       "route": "/api/v1/workspaces/:workspaceId",
-      "purpose": "Update wedding configuration with impact preview/version",
+      "purpose": "Update event configuration with impact preview/version",
       "request": {
         "path": [
           ":workspaceId"
         ],
         "body": [
           "title?",
+          "eventType?",
+          "eventDate?",
+          "organizerName?",
           "partnerOneName?",
           "partnerTwoName?",
-          "weddingDate?",
+          "weddingDate? (deprecated alias)",
           "location?",
           "locale?",
           "timezone?",
@@ -10733,7 +10739,7 @@
       "id": "OPS.WEDDING_DAY_GET",
       "domain": "creative_ops_post",
       "method": "GET",
-      "route": "/v1/workspaces/:workspaceId/wedding-day",
+      "route": "/v1/workspaces/:workspaceId/event-day",
       "purpose": "Read run sheet/incidents/payments/contacts/offline manifest",
       "request": {
         "path": [
@@ -19950,8 +19956,8 @@
     "canonicalPrefix": "/api/v1",
     "activeOperationCount": 75,
     "controllers": [
-      "WeddingDayController",
-      "GuestWeddingDayController"
+      "EventDayController",
+      "GuestEventDayController"
     ],
     "operationFamilies": {
       "plan": "versioned plan draft, immutable publish, live/pause/complete and command center",

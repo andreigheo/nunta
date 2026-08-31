@@ -451,7 +451,7 @@ export class PlatformService {
           await tx.workspace.findMany({
             include: {
               _count: { select: { memberships: true } },
-              weddingProfile: true,
+              eventProfile: true,
             },
             orderBy: { createdAt: "desc" },
             take: 100,
@@ -463,7 +463,7 @@ export class PlatformService {
           timezone: row.timezone,
           createdAt: row.createdAt.toISOString(),
           membershipCount: row._count.memberships,
-          weddingDate: row.weddingProfile?.weddingDate?.toISOString() ?? null,
+          weddingDate: row.eventProfile?.eventDate?.toISOString() ?? null,
           version: row.version,
         })),
       }),
@@ -477,7 +477,7 @@ export class PlatformService {
       async (tx) => {
         const row = await tx.workspace.findUnique({
           where: { id: workspaceId },
-          include: { memberships: true, weddingProfile: true },
+          include: { memberships: true, eventProfile: true },
         });
         if (!row) this.notFound("Workspace-ul nu există.");
         return this.safe({

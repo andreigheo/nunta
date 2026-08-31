@@ -225,7 +225,7 @@ export default function OnboardingPage() {
           setValues((values) => ({
             ...values,
             title: values.title || current.title,
-            date: values.date || current.weddingDate || "",
+            date: values.date || current.eventDate || "",
             city: values.city || current.location || "",
           }));
           const draft = await weddingOsApi.onboarding(current.id);
@@ -254,7 +254,7 @@ export default function OnboardingPage() {
         title: values.title?.trim() || `${values.partnerOne} & ${values.partnerTwo}`,
         partnerOneName: values.partnerOne,
         partnerTwoName: values.partnerTwo,
-        ...(values.date ? { weddingDate: values.date } : {}),
+        ...(values.date ? { eventDate: values.date } : {}),
         ...(values.venueAddress?.trim() || values.city?.trim() || values.region
           ? { location: values.venueAddress?.trim() || values.city?.trim() || values.region }
           : {}),

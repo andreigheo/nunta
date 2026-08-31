@@ -665,6 +665,12 @@ const schemas: Record<string, ZodTypeAny> = {
   UpdatePayment: updatePaymentSchema,
   PaymentTransition: paymentTransitionSchema,
   CommercialExport: commercialExportSchema,
+  EventDayExport: weddingDayExportSchema,
+  EventDayExportResponse: z.object({
+    artifactId: z.string().uuid(),
+    job: backgroundJobSchema,
+  }),
+  // Deprecated component names kept for generated clients built from v1.
   WeddingDayExport: weddingDayExportSchema,
   WeddingDayExportResponse: z.object({
     artifactId: z.string().uuid(),
@@ -731,6 +737,21 @@ const schemas: Record<string, ZodTypeAny> = {
   SettlementCalculation: settlementCalculationSchema,
   TrustMonetizationResource: trustMonetizationResourceSchema,
   TrustMonetizationList: trustMonetizationListSchema,
+  CreateEventDayPlan: createWeddingDayPlanSchema,
+  UpdateEventDayPlan: updateWeddingDayPlanSchema,
+  CreateEventDayChecklist: createWeddingDayChecklistSchema,
+  CreateEventDayChecklistItem: createWeddingDayChecklistItemSchema,
+  UpdateEventDayChecklistItem: updateWeddingDayChecklistItemSchema,
+  EventDayChecklistTransition: weddingDayChecklistTransitionSchema,
+  CreateEventDayContact: createWeddingDayContactSchema,
+  UpdateEventDayContact: updateWeddingDayContactSchema,
+  CreateEventDayIncident: createWeddingDayIncidentSchema,
+  EventDayIncidentTransition: weddingDayIncidentTransitionSchema,
+  EventDayIncidentUpdate: weddingDayIncidentUpdateSchema,
+  EventDayDecision: weddingDayDecisionSchema,
+  CreateEventDayAnnouncement: createWeddingDayAnnouncementSchema,
+  UpdateEventDayAnnouncement: updateWeddingDayAnnouncementSchema,
+  // Deprecated component names kept for generated clients built from v1.
   CreateWeddingDayPlan: createWeddingDayPlanSchema,
   UpdateWeddingDayPlan: updateWeddingDayPlanSchema,
   CreateRunOfShowItem: createRunOfShowItemSchema,
@@ -1055,11 +1076,11 @@ const requestByRoute: Array<[RegExp, string]> = [
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans$/,
-    "CreateWeddingDayPlan",
+    "CreateEventDayPlan",
   ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans\/\{planId\}$/,
-    "UpdateWeddingDayPlan",
+    "UpdateEventDayPlan",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans\/\{planId\}\/run-of-show\/items$/,
@@ -1083,51 +1104,51 @@ const requestByRoute: Array<[RegExp, string]> = [
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans\/\{planId\}\/checklists$/,
-    "CreateWeddingDayChecklist",
+    "CreateEventDayChecklist",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/checklists\/\{checklistId\}\/items$/,
-    "CreateWeddingDayChecklistItem",
+    "CreateEventDayChecklistItem",
   ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/checklist-items\/\{itemId\}$/,
-    "UpdateWeddingDayChecklistItem",
+    "UpdateEventDayChecklistItem",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/checklist-items\/\{itemId\}\/transitions$/,
-    "WeddingDayChecklistTransition",
+    "EventDayChecklistTransition",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans\/\{planId\}\/contacts$/,
-    "CreateWeddingDayContact",
+    "CreateEventDayContact",
   ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/contacts\/\{contactId\}$/,
-    "UpdateWeddingDayContact",
+    "UpdateEventDayContact",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans\/\{planId\}\/incidents$/,
-    "CreateWeddingDayIncident",
+    "CreateEventDayIncident",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/incidents\/\{incidentId\}\/updates$/,
-    "WeddingDayIncidentUpdate",
+    "EventDayIncidentUpdate",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/incidents\/\{incidentId\}\/transitions$/,
-    "WeddingDayIncidentTransition",
+    "EventDayIncidentTransition",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/incidents\/\{incidentId\}\/decisions$/,
-    "WeddingDayDecision",
+    "EventDayDecision",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans\/\{planId\}\/announcements$/,
-    "CreateWeddingDayAnnouncement",
+    "CreateEventDayAnnouncement",
   ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/announcements\/\{announcementId\}$/,
-    "UpdateWeddingDayAnnouncement",
+    "UpdateEventDayAnnouncement",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/check-in\/sessions$/,
@@ -1183,7 +1204,7 @@ const requestByRoute: Array<[RegExp, string]> = [
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day-exports$/,
-    "WeddingDayExport",
+    "EventDayExport",
   ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/galleries\/\{galleryId\}$/,
@@ -1944,7 +1965,7 @@ const responseByRoute: Array<[RegExp, string]> = [
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day-exports$/,
-    "WeddingDayExportResponse",
+    "EventDayExportResponse",
   ],
   [
     /GET \/api\/v1\/workspaces\/\{workspaceId\}\/wedding-day\/plans$/,
@@ -2373,8 +2394,14 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
         method
       ] as OperationObject | undefined;
       if (!operation) continue;
-      const route = `${method.toUpperCase()} ${path}`;
+      const route = compatibilityRoute(`${method.toUpperCase()} ${path}`);
       operation.operationId ??= operationId(method, path);
+      if (path.includes("/wedding-day")) {
+        operation.deprecated = true;
+        (operation as OperationObject & Record<string, unknown>)[
+          "x-canonical-path"
+        ] = path.replace("/wedding-day", "/event-day");
+      }
       operation.responses ??= {};
       for (const status of Object.keys(operation.responses)) {
         if (/^2\d\d$/.test(status)) delete operation.responses[status];
@@ -2591,6 +2618,10 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
     }
   }
   return document;
+}
+
+function compatibilityRoute(route: string): string {
+  return route.replace("/event-day", "/wedding-day");
 }
 
 function matchContract(

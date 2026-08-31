@@ -395,7 +395,7 @@ describe("Slice 7 trust and monetization OpenAPI surface", () => {
   }, 60_000);
 });
 
-describe("Slice 8 Wedding Day OpenAPI surface", () => {
+describe("Slice 8 event-day OpenAPI surface", () => {
   it("publishes concrete secured contracts for operations, check-in and guest media", async () => {
     const testingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -418,7 +418,7 @@ describe("Slice 8 Wedding Day OpenAPI surface", () => {
           }),
       );
       const slice8 = operations.filter(({ path }) =>
-        /wedding-day|check-in|guest-moments|galleries|\/api\/v1\/guest\/(moments|gallery)/.test(
+        /event-day|wedding-day|check-in|guest-moments|galleries|\/api\/v1\/guest\/(moments|gallery)/.test(
           path,
         ),
       );
@@ -430,15 +430,16 @@ describe("Slice 8 Wedding Day OpenAPI surface", () => {
           ),
         ),
       ).toBe(true);
+      expect(document.components?.schemas?.CreateEventDayPlan).toBeDefined();
       expect(document.components?.schemas?.CreateWeddingDayPlan).toBeDefined();
       expect(document.components?.schemas?.GuestCheckInCommand).toBeDefined();
       expect(document.components?.schemas?.CreateGuestMoment).toBeDefined();
 
       const createPlan =
-        document.paths["/api/v1/workspaces/{workspaceId}/wedding-day/plans"]
+        document.paths["/api/v1/workspaces/{workspaceId}/event-day/plans"]
           ?.post;
       expect(JSON.stringify(createPlan?.requestBody)).toContain(
-        "CreateWeddingDayPlan",
+        "CreateEventDayPlan",
       );
       expect(JSON.stringify(createPlan?.parameters)).toContain(
         "Idempotency-Key",
@@ -452,11 +453,19 @@ describe("Slice 8 Wedding Day OpenAPI surface", () => {
 
       const updateItem =
         document.paths[
-          "/api/v1/workspaces/{workspaceId}/wedding-day/run-of-show/items/{itemId}"
+          "/api/v1/workspaces/{workspaceId}/event-day/run-of-show/items/{itemId}"
         ]?.patch;
       expect(JSON.stringify(updateItem?.parameters)).toContain("If-Match");
       expect(JSON.stringify(updateItem?.requestBody)).toContain(
         "UpdateRunOfShowItem",
+      );
+
+      const legacyCreatePlan = document.paths[
+        "/api/v1/workspaces/{workspaceId}/wedding-day/plans"
+      ]?.post as (Record<string, unknown> & typeof createPlan) | undefined;
+      expect(legacyCreatePlan?.deprecated).toBe(true);
+      expect(legacyCreatePlan?.["x-canonical-path"]).toBe(
+        "/api/v1/workspaces/{workspaceId}/event-day/plans",
       );
 
       const offline =

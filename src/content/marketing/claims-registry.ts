@@ -26,7 +26,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
     id: "hero-title",
     statement: "Tot evenimentul, într-un singur fir.",
     support:
-      "Setul de module conectate: /plan, /invitations, /rsvp, /guests, /seating, /menus, /transport, /accommodation, /marketplace, /requests, /offers, /contracts, /budget, /wedding-day",
+      "Setul de module conectate: /plan, /invitations, /rsvp, /guests, /seating, /menus, /transport, /accommodation, /marketplace, /requests, /offers, /contracts, /budget, /event-day",
     status: "implemented",
     limitation:
       "Afirmație de poziționare despre continuitatea dintre module; nu promite automatizare totală.",
@@ -36,7 +36,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
     statement:
       "Plan, oameni, furnizori, buget și ziua evenimentului — conectate într-un singur spațiu.",
     support:
-      "/invitations/editor, /rsvp, /guests, /marketplace + /offers, /budget, /wedding-day",
+      "/invitations/editor, /rsvp, /guests, /marketplace + /offers, /budget, /event-day",
     status: "implemented",
   },
   {
@@ -142,7 +142,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
     id: "event-day-command",
     statement:
       "Când începe evenimentul, echipa vede ce se întâmplă, ce urmează și ce trebuie pregătit: Acum/Urmează, desfășurător, checklisturi, check-in și incidente.",
-    support: "/wedding-day (command center cu stări, check-in, incidente)",
+    support: "/event-day (command center cu stări, check-in, incidente)",
     status: "partial",
     limitation:
       "Responsabilitatea este planificată în /plan și roluri de echipă; desfășurătorul nu afișează un responsabil per moment. Nu se revendică compunere de anunțuri, decizii structurate sau integrări live externe.",
