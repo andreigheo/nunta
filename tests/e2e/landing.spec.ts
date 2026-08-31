@@ -495,6 +495,7 @@ test("Hero-ul trece din dashboard în invitația Sarbato fără salt de layout",
   await expect(
     showcase.getByRole("heading", { name: "Gala de toamnă" }),
   ).toBeVisible();
+  await expect(showcase.locator("[data-hero-thread-charge]")).toBeHidden();
   const completeInvitation = showcase.getByTestId("hero-complete-invitation");
   await expect(completeInvitation).toContainText("Programul serii");
   await expect(completeInvitation).toContainText("Locația evenimentului");
@@ -540,19 +541,45 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
   await expect(showcase).toHaveAttribute("data-showcase-view", "morphing", {
     timeout: 5_000,
   });
+  const heroThread = page.getByTestId("hero-thread");
+  await expect(heroThread).toHaveAttribute("data-charging", "false");
   await expect(showcase).toHaveAttribute("data-showcase-view", "invitation", {
     timeout: 3_000,
   });
 
   const phone = showcase.getByTestId("hero-invitation-phone");
   await expect(phone).toBeVisible();
+  const embeddedReveal = showcase.locator('[data-reveal-variant="embedded"]');
+  await expect(embeddedReveal).toHaveCSS("overflow", "hidden");
+  const invitationLayer = showcase.locator("[data-reveal-invitation]");
+  await expect(invitationLayer).toHaveCSS("transform", "none");
+  const screenCenter = await phone
+    .locator(":scope > div")
+    .evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return bounds.x + bounds.width / 2;
+    });
+  const invitationCenter = await invitationLayer.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.x + bounds.width / 2;
+  });
+  expect(invitationCenter).toBeCloseTo(screenCenter, 1);
+  await expect(showcase.locator("[data-hero-thread-charge]")).toBeVisible();
+  await expect(heroThread).toHaveAttribute("data-charging", "true");
+  const chargePath = heroThread.locator("svg").nth(1).locator("path");
+  const initialChargePath = await chargePath.getAttribute("d");
+  const settledPhoneBox = await phone.boundingBox();
   await page.waitForTimeout(850);
   const phoneBox = await phone.boundingBox();
   const after = await showcase.boundingBox();
 
   expect(before).not.toBeNull();
   expect(after).not.toBeNull();
+  expect(settledPhoneBox).not.toBeNull();
   expect(phoneBox).not.toBeNull();
+  expect(phoneBox!.width).toBeCloseTo(settledPhoneBox!.width, 1);
+  expect(phoneBox!.height).toBeCloseTo(settledPhoneBox!.height, 1);
+  expect(await chargePath.getAttribute("d")).toBe(initialChargePath);
   expect(after!.width).toBeCloseTo(before!.width, 1);
   expect(after!.height).toBeCloseTo(before!.height, 1);
   expect(phoneBox!.width).toBeLessThan(after!.width * 0.55);
@@ -562,10 +589,7 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
     1,
   );
 
-  const heroThread = page.getByTestId("hero-thread");
-  await expect(heroThread).toHaveAttribute("data-charging", "true");
   await page.waitForTimeout(750);
-  const chargePath = heroThread.locator("svg").nth(1).locator("path");
   await expect
     .poll(() =>
       chargePath.evaluate((element) =>
@@ -1089,8 +1113,7 @@ test("control room — păstrează proporția corpului din concept pe toate lă�
     await page.goto("/");
 
     const body = await page
-      .locator("section#produs > div")
-      .nth(1)
+      .locator('#produs [class*="controlBody"]')
       .boundingBox();
 
     expect(body, `control body @ ${width}px`).not.toBeNull();
@@ -1113,8 +1136,7 @@ test("bara control room — păstrează densitatea compactă din concept", async
       .getByRole("navigation", { name: "Module produs prezentate" })
       .boundingBox();
     const controlBody = await page
-      .locator("section#produs > div")
-      .nth(1)
+      .locator('#produs [class*="controlBody"]')
       .boundingBox();
     const activeModule = await page
       .getByRole("navigation", { name: "Module produs prezentate" })
@@ -1469,7 +1491,7 @@ test("firul hero — rămâne ancorat între CTA și control room la toate lăț
   }
 
   await expect(
-    page.locator('[data-testid="hero-thread"] path'),
+    page.locator('[data-testid="hero-thread"] svg').first().locator("path"),
   ).toHaveAttribute("d", "M0 0 C0 56 14 70 53 70 C124 70 202 14 260 14");
 
   await page.setViewportSize({ width: 820, height: 900 });
