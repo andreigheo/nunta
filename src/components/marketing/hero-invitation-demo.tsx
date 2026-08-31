@@ -12,6 +12,8 @@ import {
 import styles from "./product-first-control-room.module.css";
 
 const heroInvitationSnapshot = createHeroInvitationSnapshot();
+const heroInvitationAutoRevealDelayMs = 1300;
+const heroInvitationSettleMs = 650;
 const heroInvitationReveal = invitationExperienceFromResource(
   {
     id: "marketing-hero-invitation",
@@ -21,7 +23,13 @@ const heroInvitationReveal = invitationExperienceFromResource(
   "tine",
 );
 
-export function HeroInvitationDemo() {
+export function HeroInvitationDemo({
+  onPresentationComplete,
+  onUserInteraction,
+}: {
+  onPresentationComplete: () => void;
+  onUserInteraction: () => void;
+}) {
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const [autoScrollState, setAutoScrollState] = React.useState<
     "waiting" | "running" | "stopped" | "complete" | "disabled"
@@ -49,6 +57,7 @@ export function HeroInvitationDemo() {
       cancelled = true;
       window.cancelAnimationFrame(animationFrame);
       setAutoScrollState("stopped");
+      onUserInteraction();
     };
 
     const interactionEvents: Array<keyof HTMLElementEventMap> = [
@@ -66,6 +75,7 @@ export function HeroInvitationDemo() {
       const distance = scroller.scrollHeight - scroller.clientHeight;
       if (distance <= 0) {
         setAutoScrollState("complete");
+        onPresentationComplete();
         return;
       }
 
@@ -82,11 +92,16 @@ export function HeroInvitationDemo() {
           animationFrame = window.requestAnimationFrame(advance);
         } else {
           setAutoScrollState("complete");
+          onPresentationComplete();
         }
       };
 
       animationFrame = window.requestAnimationFrame(advance);
-    }, heroInvitationSnapshot.experience.durationMs + 1_100);
+    },
+    heroInvitationAutoRevealDelayMs +
+      heroInvitationSnapshot.experience.durationMs +
+      heroInvitationSettleMs,
+    );
 
     return () => {
       cancelled = true;
@@ -96,13 +111,14 @@ export function HeroInvitationDemo() {
         scroller.removeEventListener(eventName, stopAutoScroll),
       );
     };
-  }, []);
+  }, [onPresentationComplete, onUserInteraction]);
 
   return (
     <div className={styles.heroInvitationStage}>
       <CinematicReveal
         settings={heroInvitationReveal}
         shouldAutoReveal
+        autoRevealDelayMs={heroInvitationAutoRevealDelayMs}
         variant="embedded"
       >
         <div
@@ -147,7 +163,7 @@ function createHeroInvitationSnapshot(): InvitationEditorSnapshot {
       monogram: "S",
       frontMessage: "O invitație pentru tine",
       coverImageUrl: "/invitation-art/nocturne-glass.webp",
-      durationMs: 1600,
+      durationMs: 3200,
     },
     sections: [
       {
