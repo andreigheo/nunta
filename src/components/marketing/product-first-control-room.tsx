@@ -11,7 +11,6 @@ import {
   CheckCheck,
   CheckCircle2,
   ChevronDown,
-  Cloud,
   CreditCard,
   Download,
   Ellipsis,
@@ -47,6 +46,8 @@ import {
   type MarketingProductProof,
 } from "@/lib/marketing/product-proof-normalizer";
 import { HeroThread } from "./hero-thread";
+import { HeroInvitationDemo } from "./hero-invitation-demo";
+import { HeroShowcaseCycle } from "./hero-showcase-cycle";
 import { FaqSection } from "./faq-section";
 import { PricingSection } from "./pricing-section";
 import { StoryThreads } from "./story-threads";
@@ -86,15 +87,6 @@ const chapterIcons = {
   commerce: ShoppingCart,
   operations: RadioTower,
 } as const;
-
-const assuranceIcons = [
-  CalendarCheck2,
-  LayoutDashboard,
-  UsersRound,
-  Cloud,
-  Columns3,
-  RadioTower,
-] as const;
 
 const toneClass = {
   plum: styles.tonePlum,
@@ -248,29 +240,87 @@ export function ProductFirstControlRoom({
 }
 
 function AssuranceStrip() {
+  const assuranceIcons = [
+    <Image
+      key="open-gate"
+      src="/marketing/signature/open-gate.png"
+      alt=""
+      width={120}
+      height={80}
+      unoptimized
+    />,
+    <Image
+      key="clear-view"
+      src="/marketing/signature/clear-view.png"
+      alt=""
+      width={164}
+      height={80}
+      unoptimized
+    />,
+    <Image
+      key="open-loop"
+      src="/marketing/signature/open-loop.png"
+      alt=""
+      width={110}
+      height={80}
+      unoptimized
+    />,
+  ] as const;
+
   return (
     <section
       id="capabilitati"
       className={styles.assuranceStrip}
-      aria-label="Avantajele Sarbato"
+      aria-labelledby="assurance-title"
       data-testid="assurance-strip"
     >
+      <div className={styles.assuranceSignature}>
+        <SignatureKnot />
+        <h2 id="assurance-title">
+          Începe în{" "}
+          <br />
+          ritmul tău.
+        </h2>
+      </div>
       <ul
         className={styles.assuranceList}
-        aria-label="Avantajele Sarbato, listă glisabilă pe mobil"
-        tabIndex={0}
+        aria-label="De ce poți începe în ritmul tău"
       >
         {assuranceItems.map((item, index) => {
-          const Icon = assuranceIcons[index];
           return (
-            <li key={item} className={styles.assuranceItem} data-testid="assurance-item">
-              <Icon aria-hidden />
-              <span>{item}</span>
+            <li
+              key={item.title}
+              className={styles.assuranceItem}
+              data-testid="assurance-item"
+              data-accent={item.accent}
+            >
+              <div className={styles.assuranceEntry}>
+                <span className={styles.assuranceIcon} aria-hidden="true">
+                  {assuranceIcons[index]}
+                </span>
+                <span className={styles.assuranceCopy}>
+                  <strong>{item.title}</strong>
+                  <span>{item.detail}</span>
+                </span>
+              </div>
             </li>
           );
         })}
       </ul>
     </section>
+  );
+}
+
+function SignatureKnot() {
+  return (
+    <Image
+      className={styles.signatureKnot}
+      src="/marketing/signature/signature-knot.png"
+      alt=""
+      width={116}
+      height={80}
+      unoptimized
+    />
   );
 }
 
@@ -312,13 +362,12 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
   const metricByKey = new Map(proof.metrics.map((metric) => [metric.key, metric]));
 
   return (
-    <section
-      id="produs"
-      className={styles.controlRoom}
-      data-hero-thread-end
-      data-testid="product-showcase"
-      aria-label="Product-first control room Sarbato"
-    >
+    <HeroShowcaseCycle
+      dashboard={
+        <section
+          className={styles.controlRoom}
+          aria-label="Product-first control room Sarbato"
+        >
       <div className={styles.controlTopbar}>
         <span className={styles.controlMark} aria-hidden>
           S
@@ -439,7 +488,10 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
           </div>
         </div>
       </div>
-    </section>
+        </section>
+      }
+      invitation={<HeroInvitationDemo />}
+    />
   );
 }
 

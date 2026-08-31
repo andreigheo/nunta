@@ -177,6 +177,51 @@ export const marketingClaims: readonly MarketingClaim[] = [
     status: "implemented",
   },
   {
+    id: "trust-free-no-card",
+    statement: "Planul gratuit nu necesită card.",
+    support: "/termeni, secțiunea Abonamente și facturare; /create-account",
+    status: "implemented",
+  },
+  {
+    id: "trust-cancel-anytime",
+    statement: "Poți anula abonamentul oricând.",
+    support:
+      "/rambursari și /termeni; portalul clientului Paddle și setările de facturare Sarbato",
+    status: "implemented",
+    limitation:
+      "Anularea produce efecte la sfârșitul perioadei curente și oprește taxările viitoare.",
+  },
+  {
+    id: "trust-price-clear-before-payment",
+    statement: "Costul este afișat înainte de confirmarea plății.",
+    support:
+      "/termeni, secțiunea Abonamente și facturare; checkout-ul Paddle afișează prețul și taxele aplicabile înainte de confirmare",
+    status: "implemented",
+  },
+  {
+    id: "trust-refunds-paddle",
+    statement: "Rambursările aprobate sunt procesate prin Paddle.",
+    support: "/rambursari, secțiunea Cum soliciți o rambursare",
+    status: "implemented",
+    limitation:
+      "Nu este o garanție necondiționată; eligibilitatea depinde de lege, motiv, utilizare și regulile Paddle.",
+  },
+  {
+    id: "trust-withdrawal-rights",
+    statement: "Drepturile legale de retragere sunt păstrate.",
+    support:
+      "/rambursari, secțiunea Dreptul de retragere și drepturile obligatorii",
+    status: "implemented",
+    limitation:
+      "Aplicarea și termenul depind de jurisdicție, natura serviciului digital și acordurile din checkout.",
+  },
+  {
+    id: "trust-card-data",
+    statement: "Datele cardului nu intră în Sarbato.",
+    support: "/rambursari; Paddle este Merchant of Record pentru abonamente",
+    status: "implemented",
+  },
+  {
     id: "pricing-paid",
     statement:
       "Plus (7 €/lună) și Pro (17 €/lună), facturate lunar prin Paddle.",
