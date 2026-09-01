@@ -478,10 +478,17 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
     .first();
   await mobileNames.scrollIntoViewIfNeeded();
   await mobileNames.click();
-  await expect(mobileNames).not.toHaveAttribute("contenteditable", /.+/);
+  await expect(mobileNames).toHaveAttribute("contenteditable", "false");
   const mobileInspector = page.locator(
     'section[aria-label="Ajustări pentru elementul selectat"]',
   );
+  await expect(mobileInspector).toBeHidden();
+  await page
+    .getByRole("navigation", {
+      name: "Instrumente rapide pentru invitație",
+    })
+    .getByRole("button", { name: "Editează", exact: true })
+    .click();
   await expect(mobileInspector).toBeVisible();
   await expect(
     mobileInspector.getByRole("combobox", {
