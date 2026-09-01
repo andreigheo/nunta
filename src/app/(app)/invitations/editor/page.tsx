@@ -604,7 +604,7 @@ export default function InvitationEditorPage() {
     const copy: InvitationSection = {
       ...source,
       id: `section-${Date.now()}`,
-      label: `${source.label} — copie`,
+      label: `${source.label}, copie`,
       content: structuredClone(source.content),
       style: { ...source.style },
     };
@@ -3973,7 +3973,7 @@ function ContentFields({
             }
           />
         </div>
-        <Field label="Poziția imaginii — orizontal">
+        <Field label="Poziția orizontală a imaginii">
           <input
             type="range"
             min="0"
@@ -3983,7 +3983,7 @@ function ContentFields({
             className="min-h-11 w-full accent-[var(--brand)]"
           />
         </Field>
-        <Field label="Poziția imaginii — vertical">
+        <Field label="Poziția verticală a imaginii">
           <input
             type="range"
             min="0"
@@ -5123,8 +5123,8 @@ function DesignInspector({
             })
           }
         >
-          <option value="display">Fraunces — editorial</option>
-          <option value="sans">Inter — modern</option>
+          <option value="display">Fraunces (editorial)</option>
+          <option value="sans">Inter (modern)</option>
         </Select>
       </Field>
       <Field label="Spațiere între secțiuni">

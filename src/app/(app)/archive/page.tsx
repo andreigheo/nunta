@@ -176,7 +176,7 @@ export default function ArchivePage() {
     <div className="mx-auto max-w-7xl space-y-5">
       <PageHeader
         title="Arhivă"
-        description="Capsula privată a nunții Ana & Mihai — amintiri, documente și oamenii care au făcut parte din poveste."
+        description="Capsula privată a nunții Ana & Mihai, cu amintiri, documente și oamenii care au făcut parte din poveste."
         meta={
           <>
             <Badge variant="success" dot>

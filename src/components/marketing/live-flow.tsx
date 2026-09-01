@@ -198,7 +198,7 @@ export function LiveFlow() {
                 data-testid="showcase-label"
                 className="mt-5 text-xs leading-5 text-muted"
               >
-                Exemplu de produs — nu reprezintă datele unui client.
+                Exemplu de produs. Nu reprezintă datele unui client.
               </p>
             </div>
           </div>

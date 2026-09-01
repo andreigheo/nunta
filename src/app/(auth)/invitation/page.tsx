@@ -18,7 +18,7 @@ const roleLabels: Record<string, string> = {
   couple_owner: "Proprietar",
   couple_partner: "Partener",
   wedding_planner: "Organizator evenimente",
-  family_collaborator: "Familie — acces limitat",
+  family_collaborator: "Familie, acces limitat",
   viewer: "Doar vizualizare",
 };
 

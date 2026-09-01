@@ -751,7 +751,7 @@ function PortfolioGrid({
         >
           <Image
             src={String(item.url)}
-            alt={String(item.altText ?? `${vendorName} — portofoliu`)}
+            alt={String(item.altText ?? `Portofoliu ${vendorName}`)}
             fill
             unoptimized
             sizes="(max-width: 640px) 50vw, 33vw"

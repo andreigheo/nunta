@@ -54,7 +54,7 @@ export function HeroDashboard() {
           data-testid="showcase-label"
           className="rounded-full bg-subtle px-3 py-1.5 text-xs font-semibold text-muted"
         >
-          Exemplu de produs — nu reprezintă datele unui client.
+          Exemplu de produs. Nu reprezintă datele unui client.
         </span>
       </div>
 

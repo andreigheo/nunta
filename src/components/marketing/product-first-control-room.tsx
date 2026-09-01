@@ -458,7 +458,7 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
               const visibleValue = publishable
                 ? metric?.state === "published"
                   ? metric.value
-                  : "—"
+                  : "Nespecificat"
                 : card.demoValue;
               return (
                 <article

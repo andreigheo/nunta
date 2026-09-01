@@ -1336,10 +1336,10 @@ export function countdownValuesAt(value: string, now: number): Array<[string, st
 
 function countdownPlaceholderValues(): Array<[string, string]> {
   return [
-    ["—", "zile"],
-    ["—", "ore"],
-    ["—", "minute"],
-    ["—", "secunde"],
+    ["N/A", "zile"],
+    ["N/A", "ore"],
+    ["N/A", "minute"],
+    ["N/A", "secunde"],
   ];
 }
 

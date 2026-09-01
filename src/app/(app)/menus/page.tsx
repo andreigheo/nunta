@@ -326,7 +326,7 @@ export default function MenusPage() {
         />
         <StatCard
           label="Fără meniu"
-          value="—"
+          value="Nedisponibil"
           hint="Vizibile direct în Plan de mese"
         />
       </div>
@@ -1034,7 +1034,7 @@ function severityVariant(severity: string): "danger" | "warning" | "neutral" {
 function formatDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.valueOf())
-    ? "—"
+    ? "Dată invalidă"
     : new Intl.DateTimeFormat("ro-RO", { dateStyle: "medium" }).format(date);
 }
 function formatMoney(amountMinor: number, currency: string) {

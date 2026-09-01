@@ -147,7 +147,7 @@ export function OfflineBanner({ className }: { className?: string }) {
       )}
     >
       <WifiOff className="size-4" aria-hidden />
-      Ești offline — modificările se vor sincroniza când revii online.
+      Ești offline. Modificările se vor sincroniza când revii online.
     </div>
   );
 }

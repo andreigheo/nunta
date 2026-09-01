@@ -68,7 +68,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     <ShellProvider>
       {demoMode && (
         <div className="fixed inset-x-0 top-0 z-[100] flex items-center justify-center gap-3 bg-accent px-3 py-1 text-center text-xs font-semibold text-on-accent">
-          <span>Demo local — date izolate, fără sincronizare sau documente reale</span>
+          <span>Demo local: date izolate, fără sincronizare sau documente reale</span>
           <button
             type="button"
             className="cursor-pointer underline underline-offset-2"

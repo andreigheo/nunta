@@ -281,7 +281,7 @@ function SurfaceShell({
             dark ? "bg-white/10 text-white" : "bg-subtle text-muted",
           )}
         >
-          Exemplu de produs — nu reprezintă datele unui client.
+          Exemplu de produs. Nu reprezintă datele unui client.
         </span>
       </div>
       {children}

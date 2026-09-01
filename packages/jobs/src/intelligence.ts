@@ -281,7 +281,7 @@ export class DeterministicCopilotProvider implements CopilotProvider {
           {
             actionType: "CREATE_TASK",
             riskLevel: "LOW",
-            title: "Pasul 1 — verifică datele",
+            title: "Pasul 1: verifică datele",
             preview: {
               title: "Verifică datele și responsabilul",
               description:
@@ -292,7 +292,7 @@ export class DeterministicCopilotProvider implements CopilotProvider {
           {
             actionType: "CREATE_TASK",
             riskLevel: "LOW",
-            title: "Pasul 2 — urmărește execuția",
+            title: "Pasul 2: urmărește execuția",
             preview: {
               title: "Urmărește rezultatul și termenul",
               description:

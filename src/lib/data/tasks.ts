@@ -37,7 +37,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t-3",
-    title: "Finalizează lista de invitați — varianta 2",
+    title: "Finalizează lista de invitați, varianta 2",
     category: "Invitați",
     owner: "Ana",
     priority: "high",
@@ -60,7 +60,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t-5",
-    title: "Semnează contractul cu locația — anexa meniu",
+    title: "Semnează contractul cu locația, anexa meniu",
     category: "Contracte",
     owner: "Mihai",
     priority: "urgent",
@@ -83,7 +83,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t-7",
-    title: "Creează invitația digitală — prima variantă",
+    title: "Creează invitația digitală, prima variantă",
     category: "Invitați",
     owner: "Ana",
     priority: "medium",
@@ -116,7 +116,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t-10",
-    title: "Alege tortul — degustare cu 2 patiserii",
+    title: "Alege tortul după degustarea cu 2 patiserii",
     category: "Catering",
     owner: "Ana",
     priority: "low",
@@ -138,7 +138,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t-12",
-    title: "Validează lista cu părinții — ambele familii",
+    title: "Validează lista cu părinții ambelor familii",
     category: "Invitați",
     owner: "Mihai",
     priority: "medium",
@@ -160,7 +160,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t-14",
-    title: "Negociază pachet foto — album inclus",
+    title: "Negociază pachetul foto cu album inclus",
     category: "Furnizori",
     owner: "Mihai",
     priority: "medium",
@@ -194,7 +194,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t-17",
-    title: "Definește cronometrul zilei — draft 1",
+    title: "Definește cronometrul zilei, draft 1",
     category: "Ziua nunții",
     owner: "Elena",
     priority: "medium",

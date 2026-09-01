@@ -55,7 +55,7 @@ const boards = [
   },
   {
     id: "mb-2",
-    name: "Ceremonie — arc & alei",
+    name: "Ceremonie: arc & alei",
     items: 18,
     updated: "acum 3 zile",
     main: false,
@@ -118,7 +118,7 @@ export default function DesignStudioPage() {
     <div className="mx-auto max-w-7xl space-y-5">
       <PageHeader
         title="Studio de design"
-        description="Identitatea vizuală a evenimentului — de la paletă la materialele trimise furnizorilor."
+        description="Identitatea vizuală a evenimentului, de la paletă la materialele trimise furnizorilor."
         actions={
           <>
             <Button
@@ -128,7 +128,7 @@ export default function DesignStudioPage() {
                 toast({
                   title: "Încărcare inspirație",
                   description:
-                    "Până la 10 imagini — Copilotul extrage automat paleta.",
+                    "Până la 10 imagini. Copilotul extrage automat paleta.",
                   variant: "info",
                 })
               }
@@ -478,7 +478,7 @@ export default function DesignStudioPage() {
             <Textarea
               className="min-h-[180px]"
               defaultValue={
-                "Context: nuntă în grădină, 160 invitați, 12 septembrie 2027.\nConcept: grădină de seară elegantă — salvie, ivoriu, cupru mat.\nCerințe: arc ceremonial, 12 aranjamente mese joase, buchet mireasă (bujori șampanie), cocarde.\nConstrângeri: flori de sezon, fără floral foam, montaj până la 14:00.\nBuget orientativ: 13.000–15.000 lei."
+                "Context: nuntă în grădină, 160 invitați, 12 septembrie 2027.\nConcept: grădină de seară elegantă, cu salvie, ivoriu și cupru mat.\nCerințe: arc ceremonial, 12 aranjamente mese joase, buchet mireasă (bujori șampanie), cocarde.\nConstrângeri: flori de sezon, fără floral foam, montaj până la 14:00.\nBuget orientativ: 13.000–15.000 lei."
               }
             />
           </Field>

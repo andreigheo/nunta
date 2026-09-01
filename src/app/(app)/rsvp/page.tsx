@@ -887,7 +887,7 @@ export default function RsvpPage() {
                         </TD>
                         <TD>
                           {household.members.filter((member) => member.menuId)
-                            .length || "—"}
+                            .length || 0}
                           {household.members.some((member) => member.menuId) && (
                             <span className="text-muted">
                               /{household.members.length} alese
@@ -1052,13 +1052,13 @@ export default function RsvpPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-success-soft p-4">
               <p className="text-2xl font-semibold text-success">
-                {reminderAudience?.valid ?? "—"}
+                {reminderAudience?.valid ?? 0}
               </p>
               <p className="mt-1 text-sm text-ink">vor primi e-mail</p>
             </div>
             <div className="rounded-xl bg-subtle p-4">
               <p className="text-2xl font-semibold text-ink">
-                {reminderAudience?.invalid ?? "—"}
+                {reminderAudience?.invalid ?? 0}
               </p>
               <p className="mt-1 text-sm text-muted">nu pot fi contactați</p>
             </div>
@@ -1343,7 +1343,7 @@ function LogisticsSummary({
   const accommodation = household.members.filter(
     (member) => member.needsAccommodation,
   ).length;
-  if (!transport && !accommodation) return <>—</>;
+  if (!transport && !accommodation) return <>Nespecificat</>;
   return (
     <span className="flex flex-wrap gap-2 text-xs text-muted">
       {transport > 0 && (
@@ -1519,9 +1519,9 @@ function formatDeadline(value: string | null) {
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return "—";
+  if (!value) return "Nespecificat";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "Dată invalidă";
   return new Intl.DateTimeFormat("ro-RO", {
     day: "numeric",
     month: "short",

@@ -164,7 +164,7 @@ function TaskModalContent({ open, onClose, onCreate, members = [] }: TaskModalPr
           </div>
         </div>
         <div className="sm:col-span-2 flex flex-col gap-2.5">
-          <Checkbox checked={values.private === "on"} onCheckedChange={(checked) => setValues((current) => ({ ...current, private: checked ? "on" : "" }))} label="Privată — vizibilă numai persoanelor autorizate" />
+          <Checkbox checked={values.private === "on"} onCheckedChange={(checked) => setValues((current) => ({ ...current, private: checked ? "on" : "" }))} label="Privată. Vizibilă numai persoanelor autorizate" />
           <p className="text-xs text-faint">Sarcinile recurente și atașamentele sunt planificate pentru o etapă viitoare.</p>
         </div>
       </div>

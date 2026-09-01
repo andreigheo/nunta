@@ -1687,7 +1687,7 @@ export default function SeatingPage() {
         open={tableInspectorOpen && Boolean(selectedTable)}
         onClose={() => setTableInspectorOpen(false)}
         title={selectedTable ? `Gestionează ${selectedTable.label}` : "Masă"}
-        description="Invitați, meniuri, locuri și setările mesei — fără să micșorăm planul sălii."
+        description="Invitați, meniuri, locuri și setările mesei, fără să micșorăm planul sălii."
         size="xl"
       >
         {selectedTable && (

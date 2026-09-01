@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { ProductFirstControlRoom } from "@/components/marketing/product-first-control-room";
 import { getMarketingProductProof } from "@/lib/marketing/product-proof";
 
-const title = "Sarbato — tot evenimentul, într-un singur fir";
+const title = "Sarbato: tot evenimentul, într-un singur fir";
 const description =
-  "Plan, oameni, furnizori, buget și ziua evenimentului — conectate într-un singur spațiu pentru organizatori.";
+  "Plan, oameni, furnizori, buget și ziua evenimentului. Toate conectate într-un singur spațiu pentru organizatori.";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 export const dynamic = "force-dynamic";

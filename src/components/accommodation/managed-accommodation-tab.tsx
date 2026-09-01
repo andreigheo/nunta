@@ -579,7 +579,11 @@ export function ManagedAccommodationTab() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Badge variant="brand">{allocations}/{totalCapacity || "—"} persoane</Badge>
+                  <Badge variant="brand">
+                    {totalCapacity
+                      ? `${allocations}/${totalCapacity} persoane`
+                      : `${allocations} persoane, capacitate nespecificată`}
+                  </Badge>
                   {canWrite ? <Button size="icon-sm" variant="ghost" aria-label="Editează sejurul" onClick={openEditStay}><Pencil className="size-4" /></Button> : null}
                   {canWrite && stay.status !== "published" ? <Button size="icon-sm" variant="ghost" aria-label="Șterge sejurul" onClick={() => setDeleteStay(stay)}><Trash2 className="size-4 text-danger" /></Button> : null}
                 </div>

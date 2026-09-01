@@ -787,7 +787,7 @@ export function AICopilot() {
                       {copilotResourceLabel(source.resourceType)}
                     </span>
                     {source.excerpt
-                      ? ` — ${formatCopilotAnswerForDisplay(source.excerpt)}`
+                      ? `: ${formatCopilotAnswerForDisplay(source.excerpt)}`
                       : ""}
                   </li>
                 ))}

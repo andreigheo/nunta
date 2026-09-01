@@ -34,7 +34,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "hero-lead",
     statement:
-      "Plan, oameni, furnizori, buget și ziua evenimentului — conectate într-un singur spațiu.",
+      "Plan, oameni, furnizori, buget și ziua evenimentului. Toate conectate într-un singur spațiu.",
     support:
       "/invitations/editor, /rsvp, /guests, /marketplace + /offers, /budget, /event-day",
     status: "implemented",

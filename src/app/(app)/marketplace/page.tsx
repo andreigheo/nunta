@@ -329,7 +329,7 @@ export default function MarketplacePage() {
     }
     try {
       const created = await weddingOsApi.createRfq(currentWorkspace.id, {
-        title: `Cerere ofertă — ${quoteVendor.name}`,
+        title: `Cerere ofertă: ${quoteVendor.name}`,
         category: categoryCode(quoteVendor.category),
         description:
           quoteMessage.trim() ||
@@ -536,7 +536,7 @@ export default function MarketplacePage() {
       <Modal
         open={!!quoteVendor}
         onClose={() => setQuoteVendor(null)}
-        title={`Cerere de ofertă — ${quoteVendor?.name}`}
+        title={`Cerere de ofertă: ${quoteVendor?.name}`}
         description="Furnizorul primește detaliile evenimentului și răspunde în medie în 24h"
         footer={
           <>

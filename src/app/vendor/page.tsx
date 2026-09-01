@@ -251,7 +251,7 @@ export default function VendorPortalPage() {
             {can("vendor.rfq.read") ? <Metric icon={Inbox} label="Cereri primite" value={rfqs.length} href={`/vendor/requests?organization=${active.id}`} /> : null}
             {can("vendor.booking.read") ? <Metric icon={CalendarClock} label="Rezervări" value={bookings.length} href={`/vendor/bookings?organization=${active.id}`} /> : null}
             {can("vendor.contract.read") ? <Metric icon={FileSignature} label="Contracte" value={contracts.length} href={`/vendor/contracts?organization=${active.id}`} /> : null}
-            {can("vendor.review.read") ? <Metric icon={Star} label="Rating verificat" value={record(monetization.reviews).averageScaled ? (Number(record(monetization.reviews).averageScaled) / 100).toFixed(1) : "—"} href={`/vendor/reviews?organization=${active.id}`} /> : null}
+            {can("vendor.review.read") ? <Metric icon={Star} label="Rating verificat" value={record(monetization.reviews).averageScaled ? (Number(record(monetization.reviews).averageScaled) / 100).toFixed(1) : "Nicio evaluare"} href={`/vendor/reviews?organization=${active.id}`} /> : null}
             {can("vendor.subscription.read") ? <Metric icon={CreditCard} label="Abonament" value={String(record(monetization.subscription).planKey ?? "FREE")} href={`/vendor/billing?organization=${active.id}`} /> : null}
           </div>
         )}

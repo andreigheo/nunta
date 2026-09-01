@@ -299,8 +299,8 @@ export function EditorWorkflowPanel({
 }
 
 function compactValue(value: unknown) {
-  if (typeof value === "string") return value || "—";
-  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") return value || "Nespecificat";
+  if (value === null || value === undefined) return "Nespecificat";
   if (Array.isArray(value)) {
     if (!value.length) return "listă goală";
     const visible = value.slice(0, 3).map((item) => compactItem(item));
@@ -312,7 +312,7 @@ function compactValue(value: unknown) {
 }
 
 function compactItem(value: unknown) {
-  if (!value || typeof value !== "object") return String(value ?? "—");
+  if (!value || typeof value !== "object") return String(value ?? "Nespecificat");
   const item = value as Record<string, unknown>;
   const time = stringValue(item.time);
   const title =
@@ -324,7 +324,7 @@ function compactItem(value: unknown) {
     stringValue(item.address) ||
     stringValue(item.detail) ||
     stringValue(item.body);
-  const summary = [time, title, detail].filter(Boolean).join(" — ");
+  const summary = [time, title, detail].filter(Boolean).join(" · ");
   if (summary) return summary;
   const values = Object.values(item)
     .filter(
@@ -332,7 +332,7 @@ function compactItem(value: unknown) {
         typeof entry === "string" || typeof entry === "number",
     )
     .slice(0, 3);
-  return values.length ? values.join(" — ") : "detalii actualizate";
+  return values.length ? values.join(" · ") : "detalii actualizate";
 }
 
 function stringValue(value: unknown) {
