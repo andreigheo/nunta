@@ -23,14 +23,14 @@
   --line: #ded8df;
   --line-strong: #c9c0cc;
 
-  /* Brand — Sarbato plum */
+  /* Brand: Sarbato plum */
   --brand: #3b183f;
   --brand-strong: #29102d;
   --brand-soft: #e8dce9;
   --brand-softer: #f3ecf4;
   --on-brand: #fff9ff;
 
-  /* Accent — Sarbato coral */
+  /* Accent: Sarbato coral */
   --accent: #f06449;
   --accent-strong: #9d3021;
   --accent-soft: #fde9e5;
@@ -621,7 +621,7 @@
 
 /* Hardware chassis for the hero phone. 18px + a flat ink fill aliased at
    the corners; a real device needs a larger concentric radius, a metal
-   lip, and the clip on the screen well — not on the housing. */
+   lip, and the clip on the screen well, not on the housing. */
 .mkt-phone-device {
   --phone-radius: 1.375rem;
   --phone-bezel: 0.3125rem;

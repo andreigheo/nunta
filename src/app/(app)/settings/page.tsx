@@ -318,8 +318,8 @@ function GeneralSettings() {
               </Field>
               <Field label="Monedă">
                 <Select value={currency} onChange={(event) => setCurrency(event.target.value)} aria-label="Monedă">
-                  <option value="RON">RON — leu</option>
-                  <option value="EUR">EUR — euro</option>
+                  <option value="RON">RON (leu)</option>
+                  <option value="EUR">EUR (euro)</option>
                 </Select>
               </Field>
             </div>
@@ -521,8 +521,8 @@ function formatBytes(value: number) {
 }
 
 function formatEntitlement(key: string, value: boolean | number | undefined) {
-  if (typeof value === "boolean") return value ? "Inclus" : "—";
-  if (typeof value !== "number") return "—";
+  if (typeof value === "boolean") return value ? "Inclus" : "Neinclus";
+  if (typeof value !== "number") return "Nespecificat";
   if (key === "STORAGE_BYTES") return formatBytes(value);
   return value.toLocaleString("ro-RO");
 }
@@ -991,7 +991,7 @@ function AppearanceSettings() {
       <Card>
         <CardHeader><div><CardTitle>Limbă și afișare</CardTitle><CardDescription>Preferințe locale pentru date și densitate.</CardDescription></div></CardHeader>
         <CardContent className="space-y-4">
-          <Field label="Limbă" htmlFor="appearance-language"><Select id="appearance-language" value={language} onChange={(event) => setLanguage(event.target.value)}><option value="ro-RO">Română</option><option value="en-US" disabled>English — în curând</option></Select></Field>
+          <Field label="Limbă" htmlFor="appearance-language"><Select id="appearance-language" value={language} onChange={(event) => setLanguage(event.target.value)}><option value="ro-RO">Română</option><option value="en-US" disabled>English (în curând)</option></Select></Field>
           <Field label="Densitatea interfeței" htmlFor="appearance-density">
             <Select id="appearance-density" value={density} onChange={(event) => setDensity(event.target.value)}>
               <option value="comfortable">Confortabilă</option>

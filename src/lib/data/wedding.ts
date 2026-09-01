@@ -42,13 +42,13 @@ export const teamMembers: TeamMember[] = [
 ];
 
 export const upcomingEvents: CalendarEvent[] = [
-  { id: "ev-1", title: "Degustare meniu — Conacul Ambient", type: "vendor", date: "2026-07-25", time: "12:00", location: "Cristian, Brașov" },
-  { id: "ev-2", title: "Avans fotograf — rata 2", type: "payment", date: "2026-08-01" },
+  { id: "ev-1", title: "Degustare meniu la Conacul Ambient", type: "vendor", date: "2026-07-25", time: "12:00", location: "Cristian, Brașov" },
+  { id: "ev-2", title: "Avans fotograf, rata 2", type: "payment", date: "2026-08-01" },
   { id: "ev-3", title: "Ședință online cu DJ Marius Tone", type: "meeting", date: "2026-07-21", time: "18:30" },
   { id: "ev-4", title: "Termen ofertă florar", type: "contract", date: "2026-07-28" },
-  { id: "ev-5", title: "Probă rochie — a doua ajustare", type: "meeting", date: "2026-08-08", time: "11:00", location: "Atelier Mira, Brașov" },
+  { id: "ev-5", title: "Probă rochie, a doua ajustare", type: "meeting", date: "2026-08-08", time: "11:00", location: "Atelier Mira, Brașov" },
   { id: "ev-6", title: "Deadline RSVP invitați", type: "guest", date: "2027-06-15" },
-  { id: "ev-7", title: "Finalizare listă invitați — varianta finală", type: "task", date: "2026-09-01" },
+  { id: "ev-7", title: "Finalizare listă invitați, varianta finală", type: "task", date: "2026-09-01" },
   { id: "ev-8", title: "Ziua nunții", type: "wedding", date: "2027-09-12", location: "Conacul Ambient, Cristian" },
 ];
 

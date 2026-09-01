@@ -412,7 +412,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
                 <Select value={effectiveSort} onChange={(event) => setSort(event.target.value as DiscoverySort)}>
                   <option value="distance">Distanță față de centru</option>
                   <option value="price" disabled={!priceSortAvailable}>
-                    {priceSortAvailable ? "Preț public comparabil" : "Preț — lipsesc date comparabile"}
+                    {priceSortAvailable ? "Preț public comparabil" : "Preț: lipsesc date comparabile"}
                   </option>
                 </Select>
               </Field>

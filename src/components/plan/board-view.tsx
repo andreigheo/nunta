@@ -187,7 +187,7 @@ export function BoardView({
     const { active, over } = event;
     if (!over) return;
     const taskId = active.id as string;
-    // Dropped over a column or over another card — resolve target status
+    // Dropped over a column or over another card; resolve target status
     const overId = over.id as string;
     const overColumn = boardColumns.find((c) => c.id === overId)?.id;
     const overTask = tasks.find((t) => t.id === overId);

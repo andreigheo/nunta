@@ -604,7 +604,7 @@ export default function PlanPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <PageHeader
         title="Planul evenimentului"
-        description="Vezi ce urmează, ce necesită atenție și cine se ocupă — fără să cauți prin toate sarcinile."
+        description="Vezi ce urmează, ce necesită atenție și cine se ocupă, fără să cauți prin toate sarcinile."
         actions={
           tasks.length === 0 ? (
             <Button

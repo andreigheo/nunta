@@ -431,7 +431,7 @@ export const nonDelegableCapabilityKeys = [
   "workspace.billing.manage",
 ] as const satisfies readonly CapabilityKey[];
 
-// Slice 7 — verified marketplace trust and vendor monetization.
+// Slice 7: verified marketplace trust and vendor monetization.
 export const reviewCriterionRatingsSchema = z.object({
   QUALITY: z.number().int().min(1).max(5),
   COMMUNICATION: z.number().int().min(1).max(5),

@@ -153,7 +153,7 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
   );
 }
 
-/** Compact icon button that cycles themes — used in the sidebar footer. */
+/** Compact icon button that cycles themes, used in the sidebar footer. */
 export function ThemeCycleButton({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
   const order: ThemePreference[] = ["light", "dark", "system"];

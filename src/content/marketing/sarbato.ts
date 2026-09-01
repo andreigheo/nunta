@@ -43,7 +43,7 @@ export const productFirstControlRoom = {
   category: "Sistem de operare pentru organizatori",
   title: "Tot evenimentul, într-un singur fir.",
   titleLines: ["Tot evenimentul,", "într-un singur fir."],
-  lead: "Plan, oameni, furnizori, buget și ziua evenimentului — conectate într-un singur spațiu.",
+  lead: "Plan, oameni, furnizori, buget și ziua evenimentului. Toate conectate într-un singur spațiu.",
   previewLabel: "Previzualizare produs",
   flowTitle: "Firul evenimentului",
   stages: [
@@ -109,7 +109,7 @@ export const productFirstControlRoom = {
   ],
   solutionsIntro: {
     title: "De la plan la ziua evenimentului, fără rupturi.",
-    lead: "Sarbato aduce planul, invitații, furnizorii, bugetul și coordonarea din ziua evenimentului într-un singur sistem. Vezi ce urmează, cine se ocupă și ce are nevoie de atenție — fără să pierzi firul.",
+    lead: "Sarbato aduce planul, invitațiile, furnizorii, bugetul și coordonarea din ziua evenimentului într-un singur sistem. Vezi ce urmează, cine se ocupă și ce are nevoie de atenție, fără să pierzi firul.",
   },
   chapters: {
     planning: {
@@ -144,7 +144,7 @@ export const productFirstControlRoom = {
     },
     commerce: {
       id: "furnizori",
-      title: "Furnizori, buget, logistică — tot conectat.",
+      title: "Furnizori, buget și logistică. Totul conectat.",
       lead: "Compari oferte, gestionezi contracte și plăți, urmărești bugetul și ții logistica sub control.",
       link: "Vezi furnizorii și bugetul",
       vendorsTitle: "Furnizori",

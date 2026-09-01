@@ -18,7 +18,7 @@ export default function SessionExpiredPage() {
       </span>
       <AuthHeading
         title="Sesiunea a expirat"
-        subtitle="Ai fost deconectat automat după o perioadă de inactivitate. Datele tale sunt în siguranță — reconectează-te pentru a continua."
+        subtitle="Ai fost deconectat automat după o perioadă de inactivitate. Datele tale sunt în siguranță. Reconectează-te pentru a continua."
       />
       <div className="space-y-2.5">
         <AuthActionLink href={signInHref}>

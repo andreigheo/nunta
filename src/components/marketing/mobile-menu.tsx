@@ -9,7 +9,7 @@ import { CtaLink } from "./section";
 
 /**
  * Navigația mobilă: buton hamburger + Drawer (focus trap, Escape,
- * restaurare focus — implementate de primitiva din ui/modal.tsx).
+ * restaurare focus, implementate de primitiva din ui/modal.tsx).
  */
 export function MobileMenu() {
   const [open, setOpen] = React.useState(false);

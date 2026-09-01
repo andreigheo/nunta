@@ -735,7 +735,7 @@ const initialItems: BoardItem[] = [
   {
     id: "i-9",
     kind: "vendor",
-    label: "Atelier Floral Iris — stil compatibil",
+    label: "Atelier Floral Iris, stil compatibil",
     category: "Flori",
     source: "Marketplace",
   },
@@ -840,7 +840,7 @@ export default function MoodboardsPage() {
           }
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {["Grădină de seară", "Ceremonie — arc & alei", "Mese & lumini"].map(
+          {["Grădină de seară", "Ceremonie: arc & alei", "Mese & lumini"].map(
             (name, i) => (
               <Card key={name} interactive onClick={() => setBoardOpen(true)}>
                 <div className="grid h-32 grid-cols-3 gap-0.5 overflow-hidden rounded-t-xl">
@@ -940,7 +940,7 @@ export default function MoodboardsPage() {
                 toast({
                   title: "Imagine generată de AI",
                   description:
-                    "„Arc ceremonial în stil grădină englezească, tonuri șampanie” — adăugată pe canvas.",
+                    "„Arc ceremonial în stil grădină englezească, tonuri șampanie” a fost adăugată pe canvas.",
                   variant: "success",
                 });
               }}

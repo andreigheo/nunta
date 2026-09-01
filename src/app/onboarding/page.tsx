@@ -379,7 +379,7 @@ export default function OnboardingPage() {
         <p className="mt-1.5 text-[15px] text-muted">{steps[step - 1].hint}</p>
 
         <div className="mt-7">
-          {/* ---------------- Step 1 — Couple ---------------- */}
+          {/* ---------------- Step 1: Couple ---------------- */}
           {step === 1 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Numele partenerului 1" required>
@@ -469,7 +469,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ---------------- Step 2 — Date & events ---------------- */}
+          {/* ---------------- Step 2: Date & events ---------------- */}
           {step === 2 && (
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -507,7 +507,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ---------------- Step 3 — Location ---------------- */}
+          {/* ---------------- Step 3: Location ---------------- */}
           {step === 3 && (
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -542,7 +542,7 @@ export default function OnboardingPage() {
               )}
               <Field label="Cât de flexibili sunteți cu locația?">
                 <Select value={values.locationFlex ?? "fix"} onChange={set("locationFlex")}>
-                  <option value="fix">Fixă — nu ne schimbăm</option>
+                  <option value="fix">Fixă: nu ne schimbăm</option>
                   <option value="open">Deschiși la sugestii în zonă</option>
                   <option value="searching">Încă căutăm</option>
                 </Select>
@@ -551,7 +551,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ---------------- Step 4 — Guests ---------------- */}
+          {/* ---------------- Step 4: Guests ---------------- */}
           {step === 4 && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <Field label="Invitați estimați (total)" required>
@@ -573,12 +573,12 @@ export default function OnboardingPage() {
                 <Input inputMode="numeric" placeholder="58" value={values.accommodation ?? ""} onChange={set("accommodation")} />
               </Field>
               <p className="col-span-full text-[13px] text-faint">
-                Estimările pot fi ajustate oricând — ele calibrează calculatoarele și recomandările Copilotului.
+                Estimările pot fi ajustate oricând. Ele calibrează calculatoarele și recomandările Copilotului.
               </p>
             </div>
           )}
 
-          {/* ---------------- Step 5 — Budget ---------------- */}
+          {/* ---------------- Step 5: Budget ---------------- */}
           {step === 5 && (
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -587,16 +587,16 @@ export default function OnboardingPage() {
                 </Field>
                 <Field label="Monedă">
                   <Select value={values.currency} onChange={set("currency")}>
-                    <option value="RON">RON — leu românesc</option>
-                    <option value="EUR">EUR — euro</option>
+                    <option value="RON">RON (leu românesc)</option>
+                    <option value="EUR">EUR (euro)</option>
                   </Select>
                 </Field>
               </div>
               <Field label="Cât de flexibil este bugetul?">
                 <Select value={values.flexibility} onChange={set("flexibility")}>
-                  <option value="strict">Strict — nu depășim</option>
-                  <option value="moderat">Moderat — +5–10% pentru ce contează</option>
-                  <option value="flexibil">Flexibil — prioritizăm experiența</option>
+                  <option value="strict">Strict: nu depășim</option>
+                  <option value="moderat">Moderat: +5–10% pentru ce contează</option>
+                  <option value="flexibil">Flexibil: prioritizăm experiența</option>
                 </Select>
               </Field>
               <Field label="Cine contribuie?">
@@ -633,7 +633,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ---------------- Step 6 — Style ---------------- */}
+          {/* ---------------- Step 6: Style ---------------- */}
           {step === 6 && (
             <div className="space-y-5">
               <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
@@ -677,10 +677,10 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ---------------- Step 7 — Progress ---------------- */}
+          {/* ---------------- Step 7: Progress ---------------- */}
           {step === 7 && (
             <div className="space-y-3">
-              <p className="text-sm text-muted">Bifează ce ați rezolvat deja — Copilotul nu vă va mai sugera acești pași.</p>
+              <p className="text-sm text-muted">Bifează ce ați rezolvat deja. Copilotul nu vă va mai sugera acești pași.</p>
               {[
                 ["venue", "Locația este rezervată"],
                 ["photo", "Fotograful este contractat"],
@@ -702,14 +702,14 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ---------------- Step 8 — Preferences ---------------- */}
+          {/* ---------------- Step 8: Preferences ---------------- */}
           {step === 8 && (
             <div className="space-y-5">
               <Field label="Cât de proactiv să fie Copilotul AI?">
                 <Select value={values.aiLevel} onChange={set("aiLevel")}>
-                  <option value="minimal">Minimal — doar când îl întreb</option>
-                  <option value="echilibrat">Echilibrat — sugestii relevante</option>
-                  <option value="proactiv">Proactiv — planifică și anticipează</option>
+                  <option value="minimal">Minimal: doar când îl întreb</option>
+                  <option value="echilibrat">Echilibrat: sugestii relevante</option>
+                  <option value="proactiv">Proactiv: planifică și anticipează</option>
                 </Select>
               </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -304,7 +304,7 @@ export function Topbar() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label={`Notificări — ${unread} necitite`}
+          aria-label={`Notificări: ${unread} necitite`}
           onClick={() => shell.setNotificationsOpen(true)}
           className="relative size-11 shrink-0 sm:size-10"
         >

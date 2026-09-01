@@ -555,7 +555,7 @@ export default function EventDayPage() {
               {data.plan.title}
             </h1>
             <p className="mt-1 text-sm text-on-brand/75">
-              Programul, echipa și incidentele — sincronizate într-o singură
+              Programul, echipa și incidentele, sincronizate într-o singură
               vedere
             </p>
           </div>
@@ -564,7 +564,7 @@ export default function EventDayPage() {
               className="text-2xl font-semibold tabular-nums"
               aria-live="polite"
             >
-              {clock || "—"}
+              {clock || "N/A"}
             </p>
             {statusAction && (
               <Button

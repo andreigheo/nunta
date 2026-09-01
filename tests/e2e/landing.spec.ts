@@ -98,7 +98,7 @@ test("landing desktop — Product-first control room V1", async ({
 
   await page.goto("/");
   await expect(page).toHaveTitle(
-    "Sarbato — tot evenimentul, într-un singur fir",
+    "Sarbato: tot evenimentul, într-un singur fir",
   );
   await expect(
     page.getByRole("heading", {
@@ -162,7 +162,7 @@ test("landing desktop — Product-first control room V1", async ({
   );
   await expect(page.locator("#invitatii")).toContainText("Status RSVP");
   await expect(page.locator("#furnizori")).toContainText(
-    "Furnizori, buget, logistică — tot conectat.",
+    "Furnizori, buget și logistică. Totul conectat.",
   );
   await expect(page.locator("#ziua-evenimentului")).toContainText(
     "Comanda evenimentului",
@@ -739,7 +739,7 @@ test("intro soluții — deschide clar cele patru zone ale produsului", async ({
 
   await expect(heading).toBeVisible();
   await expect(solutions).toContainText(
-    "Sarbato aduce planul, invitații, furnizorii, bugetul și coordonarea din ziua evenimentului într-un singur sistem.",
+    "Sarbato aduce planul, invitațiile, furnizorii, bugetul și coordonarea din ziua evenimentului într-un singur sistem.",
   );
 
   const order = await solutions.evaluate((element) => ({

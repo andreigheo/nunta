@@ -89,7 +89,7 @@ describe("InvitationRenderer", () => {
     expect(markup).not.toContain("2027-09-20T20:59:00.000Z");
     expect(markup).toContain("rounded-full");
     expect(markup).toContain('role="timer"');
-    expect(markup).toContain("—");
+    expect(markup).toContain("N/A");
 
     const publicMarkup = renderToStaticMarkup(
       React.createElement(InvitationRenderer, {
@@ -334,7 +334,7 @@ describe("InvitationRenderer", () => {
       ["02", "minute"],
       ["03", "secunde"],
     ]);
-    expect(countdownValuesAt("invalid", 0)[0]).toEqual(["—", "zile"]);
+    expect(countdownValuesAt("invalid", 0)[0]).toEqual(["N/A", "zile"]);
   });
 
   it("turns connected ISO values into deterministic guest-facing times and deadlines", () => {

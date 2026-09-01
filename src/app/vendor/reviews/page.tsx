@@ -155,7 +155,7 @@ export default function VendorReviewsPage() {
           value={
             summary.overallAverageScaled
               ? (Number(summary.overallAverageScaled) / 100).toFixed(1)
-              : "—"
+              : "Nicio evaluare"
           }
         />
         <Metric
