@@ -686,10 +686,56 @@ test("Hero-ul reia la infinit dashboardul după prezentarea completă a invitaț
     "complete",
     { timeout: 20_000 },
   );
+  const fadeObservation = await heroThread.evaluate(
+    (element) =>
+      new Promise<{
+        startDashOffset: number;
+        endDashOffset: number;
+        startOpacity: number;
+        endOpacity: number;
+      }>((resolve) => {
+        const path = element.querySelectorAll("svg")[1]?.querySelector("path");
+        const charge = element.querySelectorAll("svg")[1];
+        if (!path || !charge)
+          throw new Error("Firul din hero nu este disponibil.");
+
+        const observeFade = () => {
+          if (element.dataset.charging !== "fading") return;
+          observer.disconnect();
+          const startDashOffset = Number.parseFloat(
+            getComputedStyle(path).strokeDashoffset,
+          );
+          const startOpacity = Number.parseFloat(
+            getComputedStyle(charge).opacity,
+          );
+          window.setTimeout(() => {
+            resolve({
+              startDashOffset,
+              endDashOffset: Number.parseFloat(
+                getComputedStyle(path).strokeDashoffset,
+              ),
+              startOpacity,
+              endOpacity: Number.parseFloat(getComputedStyle(charge).opacity),
+            });
+          }, 120);
+        };
+
+        const observer = new MutationObserver(observeFade);
+        observer.observe(element, {
+          attributes: true,
+          attributeFilter: ["data-charging"],
+        });
+        observeFade();
+      }),
+  );
+  expect(fadeObservation.endDashOffset).toBeCloseTo(
+    fadeObservation.startDashOffset,
+    3,
+  );
+  expect(fadeObservation.endOpacity).toBeLessThan(fadeObservation.startOpacity);
   await expect(showcase).toHaveAttribute("data-showcase-view", "returning", {
     timeout: 4_000,
   });
-  await expect(heroThread).toHaveAttribute("data-charging", "retracting");
   const returnMotion = await showcase.evaluate((element) => {
     const [dashboard, invitation] = Array.from(
       element.children,
