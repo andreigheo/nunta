@@ -99,6 +99,16 @@ import {
   invitationPreflightGuide,
   type InvitationPreflightAction,
 } from "@/lib/invitations/preflight-actions";
+import {
+  clampInvitationCanvasZoom,
+  invitationCanvasZoomMax,
+  invitationCanvasZoomMin,
+  invitationZoomPreferenceKey,
+  parseInvitationZoomPreferences,
+  resolveInvitationCanvasFitZoom,
+  serializeInvitationZoomPreferences,
+  type InvitationCanvasZoom,
+} from "@/lib/invitations/editor-zoom";
 import { cn } from "@/lib/utils";
 import { InvitationExperiencePanel } from "@/components/invitations/editor-experience-panel";
 import { EditorRevealPreview } from "@/components/invitations/editor-reveal-preview";
@@ -138,8 +148,6 @@ const deviceWidths: Record<Device, number> = {
   mobile: 390,
 };
 
-/** Fit is an explicit preview action and never the editor's opening state. */
-const canvasFitFloor = 0.25;
 type InspectorTab = "content" | "design" | "experience" | "publish";
 type LeftPanelTab = "blocks" | "layers";
 type EditorViewport = "mobile" | "tablet" | "desktop" | "studio";
@@ -252,8 +260,26 @@ export default function InvitationEditorPage() {
   const editRevisionRef = React.useRef(0);
   const canvasScrollRef = React.useRef<HTMLDivElement>(null);
   const scrollRequestRef = React.useRef<string | null>(null);
-  const [zoom, setZoom] = React.useState<"fit" | number>(1);
+  const zoomAnchorRef = React.useRef<number | null>(null);
+  const [zoomPreferences, setZoomPreferences] = React.useState<
+    Partial<Record<Device, InvitationCanvasZoom>>
+  >({});
   const [canvasViewportWidth, setCanvasViewportWidth] = React.useState(0);
+  const zoom = zoomPreferences[device] ?? "fit";
+
+  React.useEffect(() => {
+    let preferences: Partial<Record<Device, InvitationCanvasZoom>> = {};
+    try {
+      preferences = parseInvitationZoomPreferences(
+        window.localStorage.getItem(invitationZoomPreferenceKey),
+      );
+    } catch {
+      // Private browsing or storage policies can disable localStorage.
+    }
+    const timer = window.setTimeout(() => setZoomPreferences(preferences), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const canWrite =
     bootstrap?.membership.capabilities.includes("invitation.write") ?? false;
   const canPublish =
@@ -1224,25 +1250,55 @@ export default function InvitationEditorPage() {
     setAddOpen(true);
   };
 
-  const activeCanvasWidth =
-    device === "mobile" && mobileEditor && canvasViewportWidth > 0
-      ? Math.max(320, Math.min(deviceWidths.mobile, canvasViewportWidth))
-      : deviceWidths[device];
-  const fitZoom =
-    canvasViewportWidth > 0
-      ? Math.min(
-          1,
-          Math.max(canvasFitFloor, canvasViewportWidth / activeCanvasWidth),
-        )
-      : 1;
+  const activeCanvasWidth = deviceWidths[device];
+  const fitZoom = resolveInvitationCanvasFitZoom(
+    canvasViewportWidth,
+    activeCanvasWidth,
+  );
   const canvasZoom = zoom === "fit" ? fitZoom : zoom;
   const canvasWidth = activeCanvasWidth * canvasZoom;
   const canvasOverflows =
     canvasViewportWidth > 0 && canvasWidth > canvasViewportWidth + 1;
-  const stepZoom = (delta: number) =>
-    setZoom(
-      Math.min(1.5, Math.max(0.25, Math.round((canvasZoom + delta) * 100) / 100)),
+
+  const rememberZoom = (nextZoom: InvitationCanvasZoom) => {
+    const nextPreferences = {
+      ...zoomPreferences,
+      [device]: nextZoom,
+    };
+    setZoomPreferences(nextPreferences);
+    try {
+      window.localStorage.setItem(
+        invitationZoomPreferenceKey,
+        serializeInvitationZoomPreferences(nextPreferences),
+      );
+    } catch {
+      // The editor remains fully usable when browser storage is unavailable.
+    }
+  };
+
+  const updateCanvasZoom = (nextZoom: InvitationCanvasZoom) => {
+    const container = canvasScrollRef.current;
+    if (container) {
+      zoomAnchorRef.current =
+        (container.scrollLeft + container.clientWidth / 2) /
+        Math.max(container.scrollWidth, 1);
+    }
+    rememberZoom(nextZoom);
+  };
+
+  React.useLayoutEffect(() => {
+    const anchor = zoomAnchorRef.current;
+    const container = canvasScrollRef.current;
+    if (anchor === null || !container) return;
+    zoomAnchorRef.current = null;
+    container.scrollLeft = Math.max(
+      0,
+      anchor * container.scrollWidth - container.clientWidth / 2,
     );
+  }, [canvasWidth]);
+
+  const stepZoom = (delta: number) =>
+    updateCanvasZoom(clampInvitationCanvasZoom(canvasZoom + delta));
   const renderInspector = (compact = false) => (
     <Inspector
       compact={compact}
@@ -1601,66 +1657,66 @@ export default function InvitationEditorPage() {
           />
           <div
             ref={canvasScrollRef}
+            data-testid="invitation-canvas-scroll"
             className="min-h-0 flex-1 overflow-auto px-3 py-5 sm:p-8"
           >
+            <div
+              data-testid="invitation-zoom-toolbar"
+              className="sticky left-0 top-0 z-20 mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sunken px-1 text-xs text-faint"
+            >
+              <span className="hidden shrink-0 lg:inline">
+                {Math.round(activeCanvasWidth)} px
+                {canvasOverflows ? " · derulează lateral" : " · încadrat"}
+              </span>
+              <div className="mx-auto flex shrink-0 items-center gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Micșorează previzualizarea"
+                  disabled={canvasZoom <= invitationCanvasZoomMin}
+                  onClick={() => stepZoom(-0.1)}
+                >
+                  <Minus className="size-3.5" aria-hidden />
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => updateCanvasZoom(1)}
+                  aria-label="Revino la dimensiunea reală de 100%"
+                  className={cn(
+                    "min-h-8 min-w-[4.5rem] cursor-pointer rounded-md px-2 font-medium tabular-nums hover:bg-surface hover:text-ink",
+                    zoom === 1 && "text-brand",
+                  )}
+                >
+                  {zoom === "fit" ? "Auto · " : null}
+                  {Math.round(canvasZoom * 100)}%
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Mărește previzualizarea"
+                  disabled={canvasZoom >= invitationCanvasZoomMax}
+                  onClick={() => stepZoom(0.1)}
+                >
+                  <Plus className="size-3.5" aria-hidden />
+                </Button>
+                <Button
+                  variant={zoom === "fit" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => updateCanvasZoom("fit")}
+                  aria-label="Încadrează automat previzualizarea în spațiul disponibil"
+                >
+                  <Maximize2 className="size-3.5" aria-hidden />
+                  <span className="hidden min-[360px]:inline">Încadrează</span>
+                </Button>
+              </div>
+              <span className="hidden shrink-0 xl:inline">
+                {snapshot.sections.filter((section) => section.visible).length}{" "}
+                secțiuni vizibile
+              </span>
+            </div>
             {/* `w-fit min-w-full` keeps the canvas centered while it fits and
                 makes both edges reachable once it is wider than the panel. */}
             <div className="mx-auto flex w-fit min-w-full flex-col">
-              <div
-                className="mx-auto flex min-w-0 items-center justify-between gap-3 px-1 pb-2 text-xs text-faint"
-                style={{ width: canvasWidth }}
-              >
-                <span className="shrink-0">
-                  {Math.round(activeCanvasWidth)} px
-                  {canvasOverflows ? (
-                    <span className="hidden sm:inline"> · derulează lateral</span>
-                  ) : null}
-                </span>
-                <div className="flex shrink-0 items-center gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Micșorează previzualizarea"
-                    disabled={canvasZoom <= 0.25}
-                    onClick={() => stepZoom(-0.1)}
-                  >
-                    <Minus className="size-3.5" aria-hidden />
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => setZoom(1)}
-                    aria-label="Revino la dimensiunea reală de 100%"
-                    className={cn(
-                      "min-h-8 cursor-pointer rounded-md px-2 font-medium tabular-nums hover:bg-surface hover:text-ink",
-                      zoom === 1 && "text-brand",
-                    )}
-                  >
-                    {Math.round(canvasZoom * 100)}%
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Mărește previzualizarea"
-                    disabled={canvasZoom >= 1.5}
-                    onClick={() => stepZoom(0.1)}
-                  >
-                    <Plus className="size-3.5" aria-hidden />
-                  </Button>
-                  <Button
-                    variant={zoom === "fit" ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setZoom("fit")}
-                    aria-label="Potrivește temporar previzualizarea în spațiul disponibil"
-                  >
-                    <Maximize2 className="size-3.5" aria-hidden />
-                    <span className="hidden min-[360px]:inline">Potrivește</span>
-                  </Button>
-                </div>
-                <span className="hidden shrink-0 sm:inline">
-                  {snapshot.sections.filter((section) => section.visible).length}{" "}
-                  secțiuni vizibile
-                </span>
-              </div>
               <div
                 className="mx-auto shrink-0"
                 style={{ width: activeCanvasWidth, zoom: canvasZoom }}
