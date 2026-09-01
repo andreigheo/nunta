@@ -44,6 +44,24 @@ export type InvitationDecorationLayer = {
   opacity: number;
   color?: string;
   visibleOn: InvitationDevice[];
+  locked?: boolean;
+  hidden?: boolean;
+  zIndex?: number;
+  groupId?: string | null;
+};
+
+export type InvitationTextElementStyle = {
+  fontSize?: number;
+  letterSpacing?: number;
+  lineHeight?: number;
+  offsetX?: number;
+  offsetY?: number;
+  width?: number;
+  align?: "left" | "center" | "right";
+  locked?: boolean;
+  hidden?: boolean;
+  zIndex?: number;
+  groupId?: string | null;
 };
 
 export type InvitationArtDirection = Record<

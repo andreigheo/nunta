@@ -15,12 +15,67 @@
   --editable-offset-y: var(--editable-offset-y-desktop, var(--editable-offset-y-all, 0px));
   --editable-width: var(--editable-width-desktop, var(--editable-width-all, auto));
   --editable-align: var(--editable-align-desktop, var(--editable-align-all, inherit));
+  --editable-display: var(--editable-display-desktop, var(--editable-display-all, inline-block));
+  --editable-z-index: var(--editable-z-index-desktop, var(--editable-z-index-all, 10));
+  position: relative;
+  z-index: var(--editable-z-index);
+  display: var(--editable-display);
   width: var(--editable-width);
   font-size: var(--editable-font-size);
   line-height: var(--editable-line-height);
   letter-spacing: var(--editable-letter-spacing);
   text-align: var(--editable-align);
   transform: translate3d(var(--editable-offset-x), var(--editable-offset-y), 0);
+}
+
+.editorText {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.editorText[contenteditable="plaintext-only"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.editorTextSelected {
+  outline: 2px solid rgb(240 100 73 / 88%);
+  outline-offset: 4px;
+  background: rgb(255 255 255 / 12%);
+  box-shadow: 0 0 0 1px rgb(25 21 29 / 18%);
+}
+
+.editorTextLocked {
+  outline-style: dashed;
+}
+
+.editorGuides {
+  position: absolute;
+  z-index: 55;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.editorGuideVertical,
+.editorGuideHorizontal {
+  position: absolute;
+  display: block;
+  background: #f06449;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 70%);
+}
+
+.editorGuideVertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.editorGuideHorizontal {
+  right: 0;
+  left: 0;
+  height: 1px;
 }
 
 @container invitation-canvas (max-width: 780px) {
@@ -32,6 +87,8 @@
     --editable-offset-y: var(--editable-offset-y-tablet, var(--editable-offset-y-all, 0px));
     --editable-width: var(--editable-width-tablet, var(--editable-width-all, auto));
     --editable-align: var(--editable-align-tablet, var(--editable-align-all, inherit));
+    --editable-display: var(--editable-display-tablet, var(--editable-display-all, inline-block));
+    --editable-z-index: var(--editable-z-index-tablet, var(--editable-z-index-all, 10));
   }
 }
 
@@ -44,6 +101,8 @@
     --editable-offset-y: var(--editable-offset-y-mobile, var(--editable-offset-y-tablet, var(--editable-offset-y-all, 0px)));
     --editable-width: var(--editable-width-mobile, var(--editable-width-tablet, var(--editable-width-all, auto)));
     --editable-align: var(--editable-align-mobile, var(--editable-align-tablet, var(--editable-align-all, inherit)));
+    --editable-display: var(--editable-display-mobile, var(--editable-display-tablet, var(--editable-display-all, inline-block)));
+    --editable-z-index: var(--editable-z-index-mobile, var(--editable-z-index-tablet, var(--editable-z-index-all, 10)));
   }
 }
 
@@ -386,15 +445,6 @@
 .decoratedSection {
   position: relative;
   overflow: hidden;
-}
-
-.decoratedSection > :not(.decorationLayer) {
-  position: relative;
-  z-index: 2;
-}
-
-.decorationLayer {
-  z-index: 1;
 }
 
 .decorationTablet,
