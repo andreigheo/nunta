@@ -493,13 +493,12 @@ test("Hero-ul trece din dashboard în invitația Sarbato fără salt de layout",
     timeout: 5_000,
   });
   await expect(
-    showcase.getByRole("heading", { name: "Gala de toamnă" }),
+    showcase.getByRole("heading", { name: "THE ASSEMBLY / 2026" }),
   ).toBeVisible();
   await expect(showcase.locator("[data-hero-thread-charge]")).toBeHidden();
   const completeInvitation = showcase.getByTestId("hero-complete-invitation");
   await expect(completeInvitation).toContainText("Programul serii");
-  await expect(completeInvitation).toContainText("Locația evenimentului");
-  await expect(completeInvitation).toContainText("Vii alături de noi?");
+  await expect(completeInvitation).toContainText("Locul tău este rezervat");
 
   const invitationDocument = completeInvitation.locator(
     "[data-invitation-renderer]",
@@ -516,7 +515,9 @@ test("Hero-ul trece din dashboard în invitația Sarbato fără salt de layout",
     element.scrollTop = element.scrollHeight;
   });
   await expect(
-    completeInvitation.getByRole("heading", { name: "Vii alături de noi?" }),
+    completeInvitation.getByRole("heading", {
+      name: "Locul tău este rezervat",
+    }),
   ).toBeVisible();
   const after = await showcase.boundingBox();
 
@@ -655,7 +656,9 @@ test("Dashboardul se transformă în telefon, iar invitația lasă controlul use
     element.scrollTop = element.scrollHeight;
   });
   await expect(
-    showcase.getByRole("heading", { name: "Vii alături de noi?" }),
+    showcase.getByRole("heading", {
+      name: "Locul tău este rezervat",
+    }),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });

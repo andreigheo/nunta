@@ -1,0 +1,403 @@
+.invitation {
+  --assembly-ink: #110d12;
+  --assembly-plum: #29122e;
+  --assembly-coral: #f05d49;
+  --assembly-paper: #f7f5f2;
+  --assembly-sage: #77a991;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--assembly-ink);
+  color: var(--assembly-paper);
+  font-family: var(--font-sans), sans-serif;
+  scrollbar-width: none;
+  container: assembly-invitation / inline-size;
+}
+
+.invitation::-webkit-scrollbar {
+  display: none;
+}
+
+.invitation h2,
+.invitation h3,
+.invitation p,
+.invitation figure {
+  margin: 0;
+}
+
+.cover,
+.program,
+.rsvp {
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.scene {
+  position: relative;
+  overflow: hidden;
+}
+
+.scene img {
+  position: absolute;
+  left: 50%;
+  width: auto;
+  max-width: none;
+  height: 600%;
+  user-select: none;
+  transform: translateX(-50%);
+}
+
+.scene_stage img {
+  top: 0;
+}
+
+.scene_arrival img {
+  top: -100%;
+}
+
+.scene_keynote img {
+  top: -200%;
+}
+
+.scene_dinner img {
+  top: -300%;
+}
+
+.scene_performance img {
+  top: -400%;
+}
+
+.scene_venue img {
+  top: -500%;
+}
+
+.cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(24px, 8cqi, 40px) clamp(20px, 7cqi, 36px)
+    clamp(28px, 9cqi, 46px);
+  background: var(--assembly-ink);
+}
+
+.cover > .scene {
+  position: absolute;
+  z-index: -3;
+  inset: 0;
+}
+
+.cover > .scene img {
+  left: 62%;
+}
+
+.coverShade {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgb(12 8 13 / 96%) 0%, rgb(12 8 13 / 72%) 43%, rgb(12 8 13 / 8%) 78%),
+    linear-gradient(180deg, transparent 45%, rgb(12 8 13 / 94%) 100%);
+}
+
+.coverContent {
+  position: relative;
+  z-index: 2;
+  max-width: 88%;
+}
+
+.coverContent h2 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  color: var(--assembly-paper);
+  font-family: var(--font-brand), sans-serif;
+  font-size: clamp(47px, 16cqi, 76px);
+  font-weight: 790;
+  line-height: 0.73;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.coverContent h2 span {
+  display: block;
+}
+
+.coverContent h2 span:nth-child(2) span {
+  display: inline;
+  margin-left: 0.05em;
+  color: var(--assembly-coral);
+}
+
+.promise {
+  margin-top: clamp(28px, 9cqi, 46px) !important;
+  color: rgb(247 245 242 / 92%);
+  font-size: clamp(11px, 3.4cqi, 15px);
+  font-weight: 460;
+  line-height: 1.45;
+  letter-spacing: -0.02em;
+}
+
+.promise span {
+  display: block;
+  white-space: nowrap;
+}
+
+.coverDetails {
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  padding-top: clamp(66px, 22cqi, 110px);
+  text-transform: uppercase;
+}
+
+.coverDetails p:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45em;
+  color: rgb(247 245 242 / 90%);
+  font-size: clamp(6.5px, 2.4cqi, 10px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.coverDetails i {
+  width: 3px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--assembly-coral);
+}
+
+.coverDetails p:last-child {
+  margin-top: clamp(15px, 5cqi, 24px);
+  color: var(--assembly-coral);
+  font-size: clamp(9px, 2.9cqi, 12px);
+  font-weight: 700;
+  letter-spacing: 0.11em;
+}
+
+.coverThread {
+  position: absolute;
+  z-index: 1;
+  right: -4%;
+  bottom: 22%;
+  left: -4%;
+  width: 108%;
+  height: clamp(64px, 22cqi, 108px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.coverThread path,
+.rsvpThread path {
+  fill: none;
+  stroke: var(--assembly-coral);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.program {
+  min-height: 100%;
+  padding: clamp(30px, 10cqi, 50px) 0 0 clamp(22px, 7cqi, 36px);
+  background:
+    radial-gradient(circle at 0 20%, rgb(96 42 100 / 46%), transparent 38%),
+    linear-gradient(145deg, #321436, #170b1b 72%);
+}
+
+.program h3 {
+  padding-right: clamp(18px, 6cqi, 30px);
+  font-family: var(--font-brand), sans-serif;
+  font-size: clamp(25px, 8cqi, 38px);
+  font-weight: 760;
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+
+.program ol {
+  margin: clamp(24px, 8cqi, 40px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.program li {
+  display: grid;
+  min-height: clamp(112px, 37cqi, 178px);
+  grid-template-columns: 40% 60%;
+}
+
+.programLabel {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding-top: clamp(17px, 5.5cqi, 27px);
+}
+
+.programLabel p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38em;
+  align-items: baseline;
+  padding-right: 8px;
+  font-size: clamp(8px, 2.5cqi, 11px);
+  font-weight: 650;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.programLabel strong {
+  color: var(--assembly-coral);
+  font-size: clamp(13px, 4.2cqi, 18px);
+}
+
+.programLabel i {
+  position: absolute;
+  top: clamp(27px, 8.4cqi, 41px);
+  right: 0;
+  width: 100%;
+  height: 1px;
+  background: var(--assembly-coral);
+  transform: translateX(84%);
+}
+
+.programLabel i::after {
+  position: absolute;
+  top: 50%;
+  right: 16%;
+  width: 8px;
+  aspect-ratio: 1;
+  border: 2px solid var(--assembly-coral);
+  border-radius: 50%;
+  background: var(--assembly-plum);
+  content: "";
+  transform: translate(50%, -50%);
+}
+
+.program li > .scene {
+  min-height: 100%;
+}
+
+.program li > .scene::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(25 11 29 / 18%), transparent 28%);
+  content: "";
+  pointer-events: none;
+}
+
+.rsvp {
+  display: flex;
+  align-items: flex-end;
+  min-height: 112%;
+  padding: clamp(32px, 10cqi, 52px) clamp(22px, 7cqi, 36px);
+  background: var(--assembly-plum);
+}
+
+.rsvp > .scene {
+  position: absolute;
+  z-index: -3;
+  inset: 0;
+}
+
+.rsvp > .scene img {
+  left: -112%;
+}
+
+.rsvpShade {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(26 10 30 / 97%) 0%, rgb(26 10 30 / 85%) 48%, rgb(26 10 30 / 8%) 100%);
+}
+
+.rsvpThread {
+  position: absolute;
+  z-index: -1;
+  top: -3%;
+  right: -3%;
+  width: 47%;
+  height: 106%;
+  pointer-events: none;
+}
+
+.rsvpContent {
+  position: relative;
+  z-index: 1;
+  width: min(78%, 24rem);
+}
+
+.rsvpContent h3 {
+  max-width: 8ch;
+  font-family: var(--font-brand), sans-serif;
+  font-size: clamp(37px, 12cqi, 58px);
+  font-weight: 790;
+  line-height: 0.83;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.rsvpContent > p {
+  max-width: 27ch;
+  margin-top: clamp(18px, 6cqi, 28px);
+  color: rgb(247 245 242 / 86%);
+  font-size: clamp(11px, 3.5cqi, 15px);
+  line-height: 1.45;
+}
+
+.rsvpContent button {
+  min-height: clamp(43px, 14cqi, 58px);
+  margin-top: clamp(20px, 7cqi, 32px);
+  padding: 0 clamp(18px, 6cqi, 28px);
+  border: 0;
+  border-radius: 0;
+  background: var(--assembly-coral);
+  color: white;
+  font: inherit;
+  font-size: clamp(10px, 3.1cqi, 13px);
+  font-weight: 720;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 1;
+}
+
+.rsvpContent small {
+  display: block;
+  margin-top: clamp(22px, 7cqi, 34px);
+  color: rgb(247 245 242 / 72%);
+  font-size: clamp(8px, 2.5cqi, 10px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rsvpContent small span {
+  color: var(--assembly-sage);
+  font-weight: 700;
+}
+
+@container assembly-invitation (max-width: 245px) {
+  .cover,
+  .rsvp {
+    padding-inline: 18px;
+  }
+
+  .program {
+    padding-left: 18px;
+  }
+
+  .coverContent h2 {
+    font-size: 42px;
+  }
+
+  .program li {
+    grid-template-columns: 43% 57%;
+  }
+}
