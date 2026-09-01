@@ -188,13 +188,14 @@ function SortableSectionRow({
           {...listeners}
           disabled={structuralLocked}
           aria-label={`Mută secțiunea ${section.label}`}
-          className="grid size-7 shrink-0 place-items-center rounded-md text-faint enabled:cursor-grab enabled:hover:bg-surface enabled:hover:text-ink enabled:active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+          className="grid size-11 shrink-0 place-items-center rounded-md text-faint enabled:cursor-grab enabled:hover:bg-surface enabled:hover:text-ink enabled:active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
         >
           <GripVertical className="size-3.5" aria-hidden />
         </button>
         <button
+          type="button"
           onClick={() => onSelect(section.id)}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 py-1 text-left"
+          className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2.5 py-1 text-left"
         >
           <span
             className={cn(
@@ -219,6 +220,7 @@ function SortableSectionRow({
           </span>
         </button>
         <button
+          type="button"
           onClick={() => onToggle(section)}
           className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink"
           aria-label={
@@ -235,36 +237,40 @@ function SortableSectionRow({
       {active && (
         <div className="flex items-center justify-end gap-0.5 border-t border-brand/10 px-2 py-1">
           <button
+            type="button"
             onClick={() => onMove(section.id, -1)}
             disabled={structuralLocked || index === 0}
             className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Mută mai sus"
           >
-            <ChevronUp className="size-3.5" />
+            <ChevronUp className="size-3.5" aria-hidden />
           </button>
           <button
+            type="button"
             onClick={() => onMove(section.id, 1)}
             disabled={structuralLocked || index === total - 1}
             className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Mută mai jos"
           >
-            <ChevronDown className="size-3.5" />
+            <ChevronDown className="size-3.5" aria-hidden />
           </button>
           <button
+            type="button"
             onClick={() => onDuplicate(section.id)}
             disabled={structuralLocked}
             className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Duplică secțiunea"
           >
-            <Copy className="size-3.5" />
+            <Copy className="size-3.5" aria-hidden />
           </button>
           <button
+            type="button"
             onClick={() => onRemove(section.id)}
             disabled={structuralLocked}
             className="grid size-11 cursor-pointer place-items-center rounded-md text-faint hover:bg-danger-soft hover:text-danger disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="Șterge secțiunea"
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 className="size-3.5" aria-hidden />
           </button>
         </div>
       )}

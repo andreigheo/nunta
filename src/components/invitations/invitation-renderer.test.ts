@@ -240,6 +240,44 @@ describe("InvitationRenderer", () => {
     expect(publicMarkup).toContain("--editable-font-size-mobile:18px");
   });
 
+  it("uses inspector activation instead of tiny inline fields when direct editing is disabled", () => {
+    const hero = createDefaultSection("hero", "hero-mobile-editor");
+    const snapshot: InvitationEditorSnapshot = {
+      design: invitationTemplates[1].design,
+      experience: {
+        enabled: false,
+        style: "split_panels",
+        replay: "first_visit",
+        panelColor: "#3B183F",
+        backgroundColor: "#F7F7F3",
+        accentColor: "#F06449",
+        sealStyle: "monogram",
+        texture: "paper",
+        monogram: null,
+        frontMessage: null,
+        coverMediaId: null,
+        coverImageUrl: null,
+        durationMs: 1400,
+      },
+      sections: [hero],
+    };
+
+    const markup = renderToStaticMarkup(
+      React.createElement(InvitationRenderer, {
+        snapshot,
+        resolveMedia: () => "",
+        onContentChange: () => undefined,
+        onContentFocus: () => undefined,
+        inlineEditing: false,
+      }),
+    );
+
+    expect(markup).not.toContain('contentEditable="plaintext-only"');
+    expect(markup).toContain('role="button"');
+    expect(markup).toContain("în inspector");
+    expect(markup).toContain('data-invitation-content-key="names"');
+  });
+
   it("repairs unreadable custom section and gradient color combinations", () => {
     const custom = createDefaultSection("custom", "custom-contrast");
     custom.style.tone = "custom";
