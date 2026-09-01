@@ -415,13 +415,19 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
   ).toBe(true);
 
   await page.goto("/invitations/editor");
-  await page
-    .getByRole("button", { name: "Deschiderea: Plic, panouri sau direct" })
-    .click();
+  const studioTools = page.getByRole("complementary", {
+    name: "Instrumentele studioului",
+  });
+  await expect(studioTools).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Structura invitației" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Inspectorul invitației" }),
+  ).toBeVisible();
+  await studioTools.getByRole("button", { name: "Plic" }).click();
   await page.getByRole("button", { name: /^Plic animat/ }).click();
-  await page
-    .getByRole("button", { name: "Personalizează stilul vizual" })
-    .click();
+  await studioTools.getByRole("button", { name: "Design" }).click();
   await expect(page.getByText("Paleta invitației")).toBeVisible();
   const initialPaletteSize = await page
     .getByLabel(/^Modifică culoarea \d+$/)
