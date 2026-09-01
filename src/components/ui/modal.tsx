@@ -108,7 +108,7 @@ export function Modal({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
+      <div className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-6">
         <div
           className="absolute inset-0 animate-fade-in bg-[var(--overlay)] backdrop-blur-[2px]"
           onClick={onClose}
@@ -203,7 +203,7 @@ export function Drawer({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50">
+      <div className="fixed inset-0 z-[120]">
         <div
           className="absolute inset-0 animate-fade-in bg-[var(--overlay)] backdrop-blur-[2px]"
           onClick={onClose}

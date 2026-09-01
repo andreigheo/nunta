@@ -58,6 +58,7 @@ export type InvitationRendererProps = {
     mode?: "direct" | "structured",
   ) => void;
   activeContent?: { sectionId: string; key: string } | null;
+  inlineEditing?: boolean;
   renderSectionFrame?: InvitationSectionFrame;
   className?: string;
   emptyState?: React.ReactNode;
@@ -77,6 +78,7 @@ export function InvitationRenderer({
   onContentChange,
   onContentFocus,
   activeContent,
+  inlineEditing = true,
   renderSectionFrame,
   className,
   emptyState,
@@ -120,6 +122,7 @@ export function InvitationRenderer({
             onContentChange={onContentChange}
             onContentFocus={onContentFocus}
             activeContent={activeContent}
+            inlineEditing={inlineEditing}
             defaultTimeZone={defaultTimeZone}
           />
         );
@@ -152,6 +155,7 @@ type InvitationSectionViewProps = {
   onContentChange?: InvitationRendererProps["onContentChange"];
   onContentFocus?: InvitationRendererProps["onContentFocus"];
   activeContent?: InvitationRendererProps["activeContent"];
+  inlineEditing?: boolean;
   defaultTimeZone?: string;
 };
 
@@ -199,6 +203,7 @@ function InvitationSectionContent({
   onContentChange,
   onContentFocus,
   activeContent,
+  inlineEditing,
   defaultTimeZone,
 }: InvitationSectionViewProps) {
   const content = section.content;
@@ -220,30 +225,46 @@ function InvitationSectionContent({
     paddingBlock: sectionPadding(section.style.padding, design.spacing),
   };
   const buttonClass = invitationButtonClass(design);
-  const edit = (key: string, fallback = "") => (
-    <InvitationText
-      value={text(invitationContentValue(content, key), fallback)}
-      onCommit={
-        onContentChange
-          ? (value) => onContentChange(section.id, key, value)
-          : undefined
-      }
-      onFocus={
-        onContentFocus
-          ? () => onContentFocus(section.id, key, "direct")
-          : undefined
-      }
-      label={
-        invitationEditableField(section, key)?.label ??
-        invitationTextLabel(section.type, key)
-      }
-      contentKey={key}
-      style={invitationEditableTextStyle(content, key)}
-      active={
-        activeContent?.sectionId === section.id && activeContent.key === key
-      }
-    />
-  );
+  const editorMode = Boolean(onContentFocus);
+  const edit = (key: string, fallback = "") => {
+    const value = text(invitationContentValue(content, key), fallback);
+    const label =
+      invitationEditableField(section, key)?.label ??
+      invitationTextLabel(section.type, key);
+    const active =
+      activeContent?.sectionId === section.id && activeContent.key === key;
+    const style = invitationEditableTextStyle(content, key);
+    if (onContentFocus && inlineEditing === false)
+      return (
+        <InvitationStructuredText
+          value={value}
+          label={label}
+          contentKey={key}
+          style={style}
+          active={active}
+          onActivate={() => onContentFocus(section.id, key, "structured")}
+        />
+      );
+    return (
+      <InvitationText
+        value={value}
+        onCommit={
+          onContentChange
+            ? (nextValue) => onContentChange(section.id, key, nextValue)
+            : undefined
+        }
+        onFocus={
+          onContentFocus
+            ? () => onContentFocus(section.id, key, "direct")
+            : undefined
+        }
+        label={label}
+        contentKey={key}
+        style={style}
+        active={active}
+      />
+    );
+  };
   const inspect = (key: string, value: string) => (
     <InvitationStructuredText
       value={value}
@@ -347,6 +368,7 @@ function InvitationSectionContent({
               inverted={isImmersive}
               onRsvp={onRsvp}
               href={rsvpHref}
+              editorMode={editorMode}
             />
           ) : null}
           {onAddCalendar ? (
@@ -520,7 +542,7 @@ function InvitationSectionContent({
             const url = safeLink(text(item.url));
             const cardClass = cn("block border border-current/15 p-5 text-left transition-colors", radiusClass(design.radius), url && "hover:bg-black/[.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current");
             const card = <><MapPin className="size-5" style={{ color: design.accent }} aria-hidden /><p className="mt-4 text-sm font-semibold">{edit(`items.${index}.name`)}</p><p className="mt-1 text-xs leading-relaxed opacity-65">{edit(`items.${index}.address`)}</p>{url ? <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold underline underline-offset-4">Deschide harta<ExternalLink className="size-3" aria-hidden /></span> : null}</>;
-            return url ? <a key={index} href={url} target="_blank" rel="noreferrer" className={cardClass}>{card}</a> : <div key={index} className={cardClass}>{card}</div>;
+            return url && !editorMode ? <a key={index} href={url} target="_blank" rel="noreferrer" className={cardClass}>{card}</a> : <div key={index} className={cardClass}>{card}</div>;
           })}
         </div>
       </section>
@@ -541,7 +563,7 @@ function InvitationSectionContent({
           Până pe{" "}
           {inspect("deadline", deadline)}
         </p>
-        {text(content.buttonLabel) ? <RsvpAction label={edit("buttonLabel")} className={cn("mt-7", buttonClass)} design={design} inverted={section.style.tone === "accent" || section.style.tone === "dark"} onRsvp={onRsvp} href={rsvpHref} /> : null}
+        {text(content.buttonLabel) ? <RsvpAction label={edit("buttonLabel")} className={cn("mt-7", buttonClass)} design={design} inverted={section.style.tone === "accent" || section.style.tone === "dark"} onRsvp={onRsvp} href={rsvpHref} editorMode={editorMode} /> : null}
       </section>
     );
   }
@@ -583,7 +605,7 @@ function InvitationSectionContent({
       <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
         <SectionHeading section={section} design={design} className={headingClass}>{edit("title")}</SectionHeading>
         <div className={cn("mt-7 divide-y divide-current/15 border-y border-current/15 text-left", center && "mx-auto max-w-2xl", right && "ml-auto max-w-2xl")}>
-          {array(content.items).map((item, index) => <details key={index} className="group py-4"><summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{edit(`items.${index}.question`)}</summary><p className="pb-2 text-xs leading-relaxed opacity-70">{edit(`items.${index}.answer`)}</p></details>)}
+          {array(content.items).map((item, index) => editorMode ? <div key={index} className="py-4"><p className="min-h-11 py-2 text-sm font-semibold">{edit(`items.${index}.question`)}</p><p className="pb-2 text-xs leading-relaxed opacity-70">{edit(`items.${index}.answer`)}</p></div> : <details key={index} className="group py-4"><summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{edit(`items.${index}.question`)}</summary><p className="pb-2 text-xs leading-relaxed opacity-70">{edit(`items.${index}.answer`)}</p></details>)}
         </div>
       </section>
     );
@@ -599,7 +621,7 @@ function InvitationSectionContent({
           {array(content.items).map((item, index) => {
             const url = safeLink(text(item.url));
             const inner = <><div><p className="text-sm font-semibold">{edit(`items.${index}.name`)}</p><p className="mt-1 text-xs leading-relaxed opacity-70">{edit(`items.${index}.detail`)}</p></div>{url ? <ExternalLink className="size-4 shrink-0 opacity-60" aria-hidden /> : null}</>;
-            return url ? <a key={index} href={url} target="_blank" rel="noreferrer" className="flex min-h-14 items-center justify-between gap-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{inner}</a> : <div key={index} className="flex min-h-14 items-center justify-between gap-4 py-3">{inner}</div>;
+            return url && !editorMode ? <a key={index} href={url} target="_blank" rel="noreferrer" className="flex min-h-14 items-center justify-between gap-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{inner}</a> : <div key={index} className="flex min-h-14 items-center justify-between gap-4 py-3">{inner}</div>;
           })}
         </div>
       </section>
@@ -611,7 +633,7 @@ function InvitationSectionContent({
       <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
         <Gift className={cn("size-5 opacity-70", center && "mx-auto", right && "ml-auto")} aria-hidden />
         <GenericSectionBody section={section} design={design} headingClass={headingClass} edit={edit} />
-        <ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} />
+        <ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} editorMode={editorMode} />
       </section>
     );
   }
@@ -621,7 +643,7 @@ function InvitationSectionContent({
     return (
       <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
         <GenericSectionBody section={section} design={design} headingClass={headingClass} edit={edit} />
-        {text(content.name) || phone ? <div className={cn("mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold", center && "justify-center", right && "justify-end")}><Phone className="size-4" aria-hidden /><span>{edit("name")}</span>{text(content.name) && phone ? <span aria-hidden>·</span> : null}{phone ? <a href={`tel:${phone.replace(/[^+\d]/g, "")}`} className="underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{inspect("phone", phone)}</a> : null}</div> : null}
+        {text(content.name) || phone ? <div className={cn("mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold", center && "justify-center", right && "justify-end")}><Phone className="size-4" aria-hidden /><span>{edit("name")}</span>{text(content.name) && phone ? <span aria-hidden>·</span> : null}{phone ? editorMode ? <span className="underline underline-offset-4">{inspect("phone", phone)}</span> : <a href={`tel:${phone.replace(/[^+\d]/g, "")}`} className="underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current">{inspect("phone", phone)}</a> : null}</div> : null}
       </section>
     );
   }
@@ -648,14 +670,14 @@ function InvitationSectionContent({
     if (blockKind === "media_text") {
       const image = resolveMedia(text(content.mediaId), text(content.url));
       const mediaRight = text(content.mediaPosition, "left") === "right";
-      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><div className={cn("mx-auto max-w-4xl items-center gap-7", styles.mediaTextGrid)}><InvitationImage src={image} alt={text(content.alt)} className={cn("aspect-[4/5]", radiusClass(design.radius), mediaRight && styles.mediaTextRightImage)} artDirection={advancedArtDirection} /><div className={cn("text-left", mediaRight && styles.mediaTextRightCopy)}><h2 className={cn(headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2><p className="mt-4 whitespace-pre-line text-sm leading-relaxed opacity-75">{edit("body")}</p><ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} /></div></div></section>;
+      return <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}><div className={cn("mx-auto max-w-4xl items-center gap-7", styles.mediaTextGrid)}><InvitationImage src={image} alt={text(content.alt)} className={cn("aspect-[4/5]", radiusClass(design.radius), mediaRight && styles.mediaTextRightImage)} artDirection={advancedArtDirection} /><div className={cn("text-left", mediaRight && styles.mediaTextRightCopy)}><h2 className={cn(headingClass, styles.advancedHeading, styles.artDirected)} style={{ ...advancedArtStyle, ...sectionHeadingStyle(section, design) }}>{edit("title")}</h2><p className="mt-4 whitespace-pre-line text-sm leading-relaxed opacity-75">{edit("body")}</p><ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} editorMode={editorMode} /></div></div></section>;
     }
   }
 
   return (
     <section id={sectionAnchor(section)} className={commonClass} style={commonStyle}>
       <GenericSectionBody section={section} design={design} headingClass={headingClass} edit={edit} />
-      <ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} />
+      <ExternalAction content={content} label={edit("buttonLabel")} className={cn("mt-6", buttonClass)} design={design} inverted={isInverted(section)} editorMode={editorMode} />
     </section>
   );
 }
@@ -687,7 +709,7 @@ function InvitationText({ value, onCommit, onFocus, label, contentKey, active = 
     ) : (
       <>{value}</>
     );
-  return <span className={cn(styles.editableText, "inline-block min-w-4 cursor-text whitespace-pre-wrap rounded-sm outline-none transition-[background-color,box-shadow] hover:bg-white/10 focus:bg-white/15 focus:ring-2 focus:ring-current/40", active && "bg-white/15 ring-2 ring-current/40")} style={style} contentEditable="plaintext-only" suppressContentEditableWarning role="textbox" aria-label={`Editează ${lowercaseFirst(label)}`} title={`Editează ${lowercaseFirst(label)}`} data-invitation-content-key={contentKey} onFocus={onFocus} onClick={(event) => { event.preventDefault(); event.stopPropagation(); }} onBlur={(event) => { const next = editableInvitationText(event.currentTarget); if (next !== value) onCommit(next); }} onPaste={(event) => { event.preventDefault(); const pasted = event.clipboardData.getData("text/plain"); const selection = window.getSelection(); if (!selection?.rangeCount) return; const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(pasted); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); }} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.textContent = value; event.currentTarget.blur(); return; } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.blur(); } }}>{value}</span>;
+  return <span className={cn(styles.editableText, "inline-block min-w-4 cursor-text whitespace-pre-wrap rounded-sm outline-none transition-[background-color,box-shadow] hover:bg-white/10 focus:bg-white/15 focus:ring-2 focus:ring-current/40", active && "bg-white/15 ring-2 ring-current/40")} style={style} contentEditable="plaintext-only" suppressContentEditableWarning role="textbox" aria-label={`Editează ${lowercaseFirst(label)}`} title={`Editează ${lowercaseFirst(label)}`} data-invitation-content-key={contentKey} onFocus={onFocus} onClick={(event) => { event.preventDefault(); event.stopPropagation(); }} onBlur={(event) => { const next = editableInvitationText(event.currentTarget); if (next !== value) onCommit(next); }} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.textContent = value; event.currentTarget.blur(); return; } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.blur(); } }}>{value}</span>;
 }
 
 function editableInvitationText(element: HTMLElement) {
@@ -834,17 +856,19 @@ function InvitationCountdown({
   );
 }
 
-function RsvpAction({ label, className, design, inverted, onRsvp, href }: { label: React.ReactNode; className: string; design: InvitationDesign; inverted: boolean; onRsvp?: () => void; href?: string }) {
+function RsvpAction({ label, className, design, inverted, onRsvp, href, editorMode = false }: { label: React.ReactNode; className: string; design: InvitationDesign; inverted: boolean; onRsvp?: () => void; href?: string; editorMode?: boolean }) {
   const style = invitationButtonStyle(design, inverted);
+  if (editorMode) return <span className={className} style={style}>{label}</span>;
   if (href) return <a href={href} className={className} style={style}>{label}</a>;
   if (onRsvp) return <button type="button" onClick={onRsvp} className={className} style={style}>{label}</button>;
   return <a href="#confirmare-invitatie" className={className} style={style}>{label}</a>;
 }
 
-function ExternalAction({ content, label, className, design, inverted }: { content: Record<string, unknown>; label?: React.ReactNode; className: string; design: InvitationDesign; inverted: boolean }) {
+function ExternalAction({ content, label, className, design, inverted, editorMode = false }: { content: Record<string, unknown>; label?: React.ReactNode; className: string; design: InvitationDesign; inverted: boolean; editorMode?: boolean }) {
   const labelText = text(content.buttonLabel);
   const url = safeLink(text(content.url));
   if (!labelText || !url) return null;
+  if (editorMode) return <span className={className} style={invitationButtonStyle(design, inverted)}>{label ?? labelText}<ExternalLink className="ml-2 size-3.5" aria-hidden /></span>;
   return <a href={url} target="_blank" rel="noreferrer" className={className} style={invitationButtonStyle(design, inverted)}>{label ?? labelText}<ExternalLink className="ml-2 size-3.5" aria-hidden /></a>;
 }
 
@@ -854,7 +878,7 @@ function InvitationImage({ src, alt, className, focalX = 50, focalY = 50, artDir
   // a user-provided remote URL, so a native img avoids an unsafe wildcard in
   // Next image configuration while retaining object-position controls.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} className={cn("size-full object-cover", artDirection && styles.artDirectedImage, className)} style={artDirection ? invitationArtDirectionStyle(artDirection) : { objectPosition: `${focalX}% ${focalY}%` }} loading="lazy" decoding="async" />;
+  return <img src={src} alt={alt} width={1440} height={900} className={cn("size-full object-cover", artDirection && styles.artDirectedImage, className)} style={artDirection ? invitationArtDirectionStyle(artDirection) : { objectPosition: `${focalX}% ${focalY}%` }} loading="lazy" decoding="async" />;
 }
 
 function heroCopyStyle(content: Record<string, unknown>): React.CSSProperties {
@@ -992,6 +1016,8 @@ function InvitationDecorations({
                 key={key}
                 src={source}
                 alt=""
+                width={320}
+                height={320}
                 className={cn(layerClass, "h-auto object-contain")}
                 style={layerStyle}
                 loading="lazy"

@@ -8,6 +8,8 @@ import {
   AlignRight,
   ArrowLeft,
   Check,
+  ChevronsDown,
+  ChevronsUp,
   CircleHelp,
   Image as ImageIcon,
   ImagePlus,
@@ -201,6 +203,11 @@ export default function InvitationEditorPage() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [sectionsOpen, setSectionsOpen] = React.useState(false);
   const [inspectorOpen, setInspectorOpen] = React.useState(false);
+  const [mobileInspectorExpanded, setMobileInspectorExpanded] =
+    React.useState(false);
+  const [sectionToRemove, setSectionToRemove] =
+    React.useState<InvitationSection | null>(null);
+  const [leaveOpen, setLeaveOpen] = React.useState(false);
   const editorViewport = useEditorViewport();
   const [uploadingMedia, setUploadingMedia] = React.useState(false);
   const [mediaPreviews, setMediaPreviews] = React.useState<
@@ -619,6 +626,17 @@ export default function InvitationEditorPage() {
     setSelectedId(
       sections[Math.max(0, index - 1)]?.id ?? sections[0]?.id ?? "",
     );
+  };
+
+  const requestRemoveSection = (id: string) => {
+    if (structureLockedByVariant()) return;
+    const section = snapshot.sections.find((item) => item.id === id);
+    if (!section) return;
+    if (snapshot.sections.length === 1) {
+      toast({ title: "Păstrează cel puțin o secțiune", variant: "warning" });
+      return;
+    }
+    setSectionToRemove(section);
   };
 
   const addSection = (type: InvitationSectionType) => {
@@ -1283,7 +1301,10 @@ export default function InvitationEditorPage() {
           variant="ghost"
           size="icon-sm"
           aria-label="Înapoi la invitații"
-          onClick={() => router.push("/invitations")}
+          onClick={() => {
+            if (dirty) setLeaveOpen(true);
+            else router.push("/invitations");
+          }}
         >
           <ArrowLeft className="size-4" aria-hidden />
         </Button>
@@ -1320,6 +1341,13 @@ export default function InvitationEditorPage() {
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <span className="sr-only" role="status" aria-live="polite">
+            {saving
+              ? "Se salvează invitația"
+              : dirty
+                ? "Invitația are modificări nesalvate"
+                : "Invitația este salvată"}
+          </span>
           <Tooltip content={permanentStructure && structurePanelOpen ? "Ascunde structura" : "Arată structura"}>
             <span className="hidden md:inline-flex">
               <Button
@@ -1388,14 +1416,32 @@ export default function InvitationEditorPage() {
             <PanelRight className="size-4" aria-hidden />
           </Button>
           <Button
+            className="relative"
             variant="outline"
             size="icon-sm"
-            aria-label="Salvează ciorna invitației"
+            aria-label={
+              saving
+                ? "Se salvează ciorna invitației"
+                : dirty
+                  ? "Salvează ciorna invitației, sunt modificări nesalvate"
+                  : "Ciorna invitației este salvată"
+            }
             loading={saving}
             disabled={!canWrite || demoMode}
             onClick={() => void saveDraft()}
           >
             <Save className="size-3.5" aria-hidden />
+            <span
+              className={cn(
+                "absolute right-1 top-1 size-1.5 rounded-full",
+                saving
+                  ? "animate-pulse bg-info motion-reduce:animate-none"
+                  : dirty
+                    ? "bg-warning"
+                    : "bg-success",
+              )}
+              aria-hidden
+            />
           </Button>
           <Button
             size="sm"
@@ -1430,7 +1476,7 @@ export default function InvitationEditorPage() {
           />
         ) : null}
 
-        {permanentStructure && structurePanelOpen ? <aside className="flex w-[210px] shrink-0 flex-col border-r border-line bg-surface 2xl:w-[240px]" aria-label="Structura invitației">
+        {permanentStructure && structurePanelOpen ? <aside className="hidden w-[210px] shrink-0 flex-col border-r border-line bg-surface lg:flex 2xl:w-[240px]" aria-label="Structura invitației">
           <CreativeRail
             tab={leftPanelTab}
             onTabChange={setLeftPanelTab}
@@ -1443,7 +1489,7 @@ export default function InvitationEditorPage() {
               updateSection(section.id, { visible: !section.visible })
             }
             onDuplicate={duplicateSection}
-            onRemove={removeSection}
+            onRemove={requestRemoveSection}
             onAddSection={addSection}
             onAddAdvanced={addAdvancedSection}
             structuralLocked={Boolean(activeVariantId)}
@@ -1611,6 +1657,7 @@ export default function InvitationEditorPage() {
                       setInspectorOpen(true);
                   }}
                   onUpdateSection={updateSection}
+                  inlineEditing={!mobileEditor}
                   onUpdateContent={(sectionId, key, value) => {
                     const section = snapshot.sections.find(
                       (item) => item.id === sectionId,
@@ -1630,7 +1677,12 @@ export default function InvitationEditorPage() {
           </div>
           {mobileEditor && inspectorOpen ? (
             <section
-              className="flex h-[min(46dvh,26rem)] shrink-0 flex-col border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
+              className={cn(
+                "flex shrink-0 flex-col border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]",
+                mobileInspectorExpanded
+                  ? "h-[min(72dvh,40rem)]"
+                  : "h-[min(46dvh,26rem)]",
+              )}
               aria-label="Ajustări pentru elementul selectat"
             >
               <div className="flex min-h-12 shrink-0 items-center gap-3 border-b border-line px-3">
@@ -1656,7 +1708,29 @@ export default function InvitationEditorPage() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => setInspectorOpen(false)}
+                  onClick={() =>
+                    setMobileInspectorExpanded((expanded) => !expanded)
+                  }
+                  aria-label={
+                    mobileInspectorExpanded
+                      ? "Micșorează panoul de ajustări"
+                      : "Extinde panoul de ajustări"
+                  }
+                  aria-pressed={mobileInspectorExpanded}
+                >
+                  {mobileInspectorExpanded ? (
+                    <ChevronsDown className="size-4" aria-hidden />
+                  ) : (
+                    <ChevronsUp className="size-4" aria-hidden />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => {
+                    setInspectorOpen(false);
+                    setMobileInspectorExpanded(false);
+                  }}
                   aria-label="Închide ajustările"
                 >
                   <X className="size-4" aria-hidden />
@@ -1670,7 +1744,7 @@ export default function InvitationEditorPage() {
         </section>
 
         {permanentInspector && inspectorPanelOpen ? (
-          <aside className="flex w-[300px] shrink-0 flex-col border-l border-line bg-surface 2xl:w-[330px]" aria-label="Inspectorul invitației">
+          <aside className="hidden w-[300px] shrink-0 flex-col border-l border-line bg-surface xl:flex 2xl:w-[330px]" aria-label="Inspectorul invitației">
             {renderInspector()}
           </aside>
         ) : null}
@@ -1695,7 +1769,7 @@ export default function InvitationEditorPage() {
             updateSection(section.id, { visible: !section.visible })
           }
           onDuplicate={duplicateSection}
-          onRemove={removeSection}
+          onRemove={requestRemoveSection}
           onAdd={() => setAddOpen(true)}
           structuralLocked={Boolean(activeVariantId)}
         />
@@ -1988,6 +2062,33 @@ export default function InvitationEditorPage() {
       </Modal>
 
       <ConfirmDialog
+        open={leaveOpen}
+        onClose={() => setLeaveOpen(false)}
+        onConfirm={() => router.push("/invitations")}
+        title="Ieși fără să salvezi?"
+        description="Modificările nesalvate din invitație se vor pierde. Rămâi în editor dacă vrei să le verifici sau să le salvezi."
+        confirmLabel="Ieși din editor"
+        destructive
+      />
+
+      <ConfirmDialog
+        open={Boolean(sectionToRemove)}
+        onClose={() => setSectionToRemove(null)}
+        onConfirm={() => {
+          if (sectionToRemove) removeSection(sectionToRemove.id);
+          setSectionToRemove(null);
+        }}
+        title="Ștergi această secțiune?"
+        description={
+          sectionToRemove
+            ? `Secțiunea „${sectionToRemove.label}” va fi eliminată din ciornă. Poți anula apoi modificarea din istoricul editorului.`
+            : "Secțiunea va fi eliminată din ciornă."
+        }
+        confirmLabel="Șterge secțiunea"
+        destructive
+      />
+
+      <ConfirmDialog
         open={Boolean(variantToArchive)}
         onClose={() => setVariantToArchive(null)}
         onConfirm={() => void archiveVariant()}
@@ -2132,7 +2233,7 @@ function DesktopToolRail({
   );
 
   return (
-    <aside className="flex w-16 shrink-0 flex-col border-r border-line bg-surface" aria-label="Instrumentele studioului">
+    <aside className="hidden w-16 shrink-0 flex-col border-r border-line bg-surface lg:flex" aria-label="Instrumentele studioului">
       <nav className="flex min-h-0 flex-1 flex-col" aria-label="Instrumente editor">
         <div className="border-b border-line py-1">
           {primaryActions.map(renderAction)}
@@ -2555,6 +2656,7 @@ function Inspector({
           <SectionInspector
             compact={compact}
             section={selected}
+            design={snapshot.design}
             selectedContentKey={selectedContentKey}
             device={device}
             uploadingMedia={uploadingMedia}
@@ -2792,6 +2894,7 @@ function PreflightPanel({
 function SectionInspector({
   compact = false,
   section,
+  design,
   selectedContentKey,
   device,
   uploadingMedia,
@@ -2802,6 +2905,7 @@ function SectionInspector({
 }: {
   compact?: boolean;
   section: InvitationSection;
+  design: InvitationDesign;
   selectedContentKey: string | null;
   device: Device;
   uploadingMedia: boolean;
@@ -2827,14 +2931,19 @@ function SectionInspector({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink">{section.label}</p>
-          <p className="text-xs text-muted">Editare live în canvas</p>
+          <p className="text-xs text-muted">
+            {compact
+              ? "Editare în panou · previzualizare live"
+              : "Editare live în canvas"}
+          </p>
         </div>
         <Switch
           checked={section.visible}
           onCheckedChange={(visible) => onUpdateSection({ visible })}
+          aria-label={`Afișează secțiunea ${section.label} în invitație`}
         />
       </div>
-      {selectedContentKey ? (
+      {selectedContentKey && !compact ? (
         <div className="rounded-lg border border-brand/20 bg-brand-softer/60 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-strong">
             Element selectat
@@ -2847,8 +2956,10 @@ function SectionInspector({
       ) : null}
       {activeContentKey ? (
         <ContextualTextControls
+          key={`${section.id}:${activeContentKey}:${device}`}
           compact={compact}
           section={section}
+          design={design}
           contentKey={activeContentKey}
           device={device}
           uploadingMedia={uploadingMedia}
@@ -2983,6 +3094,7 @@ type TextElementStyle = {
 function ContextualTextControls({
   compact = false,
   section,
+  design,
   contentKey,
   device,
   uploadingMedia,
@@ -2993,6 +3105,7 @@ function ContextualTextControls({
 }: {
   compact?: boolean;
   section: InvitationSection;
+  design: InvitationDesign;
   contentKey: string;
   device: InvitationDevice;
   uploadingMedia: boolean;
@@ -3007,7 +3120,7 @@ function ContextualTextControls({
   const [tab, setTab] = React.useState<ContextualControlTab>("text");
   const [scope, setScope] = React.useState<"element" | "section">("element");
   const [deviceScope, setDeviceScope] =
-    React.useState<TextStyleDeviceScope>("all");
+    React.useState<TextStyleDeviceScope>(device);
   const field = invitationEditableField(section, contentKey);
   const activeScope = compact ? "element" : scope;
   const rawValue = invitationContentValue(section.content, contentKey);
@@ -3028,7 +3141,12 @@ function ContextualTextControls({
     deviceScope !== "all" && entry.all && typeof entry.all === "object"
       ? (entry.all as TextElementStyle)
       : {};
-  const defaults = defaultTextElementStyle(section, contentKey);
+  const defaults = defaultTextElementStyle(
+    section,
+    contentKey,
+    deviceScope === "all" ? device : deviceScope,
+    design,
+  );
   const styleValue = <K extends keyof TextElementStyle>(key: K) =>
     (scopedStyle[key] ?? inheritedStyle[key] ?? defaults[key]) as NonNullable<
       TextElementStyle[K]
@@ -3094,9 +3212,29 @@ function ContextualTextControls({
 
       <div className="space-y-4 p-3">
         {tab !== "image" && compact ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-subtle/60 px-3 py-2 text-xs">
-            <span className="font-semibold text-ink">Elementul selectat</span>
-            <span className="text-muted">Toate dispozitivele</span>
+          <div className="rounded-lg bg-subtle/60 p-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-ink">
+                Ajustezi pe
+              </span>
+              <Select
+                aria-label="Dispozitive pentru ajustare"
+                value={deviceScope}
+                onChange={(event) =>
+                  setDeviceScope(event.target.value as TextStyleDeviceScope)
+                }
+                className="min-h-10 w-auto max-w-[12rem] text-xs"
+              >
+                <option value="mobile">Doar mobil</option>
+                <option value="tablet">Doar tabletă</option>
+                <option value="desktop">Doar desktop</option>
+                <option value="all">Toate dispozitivele</option>
+              </Select>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+              Modificările rămân pe {deviceLabel(deviceScope)}. Alege „Toate”
+              numai când vrei aceeași valoare peste tot.
+            </p>
           </div>
         ) : null}
         {tab !== "image" && !compact ? (
@@ -3134,7 +3272,7 @@ function ContextualTextControls({
                   <option value="mobile">Doar mobil</option>
                 </Select>
                 <p className="mt-1 text-[10px] text-faint">
-                  Previzualizare: {device === "desktop" ? "desktop" : device === "tablet" ? "tabletă" : "mobil"}
+                  Previzualizare: {deviceLabel(device)}
                 </p>
               </div>
             ) : null}
@@ -3471,7 +3609,7 @@ function NumericStepper({
                 event.currentTarget.blur();
               }
             }}
-            className="min-h-11 w-full appearance-none bg-transparent px-3 pr-10 text-center text-sm font-semibold tabular-nums text-ink outline-none focus:bg-brand-softer/40"
+            className="min-h-11 w-full appearance-none bg-transparent px-3 pr-10 text-center text-sm font-semibold tabular-nums text-ink outline-none focus:bg-brand-softer/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
             aria-label={`${label}, valoare exactă`}
           />
           {suffix ? (
@@ -3507,22 +3645,81 @@ function NumericStepper({
 function defaultTextElementStyle(
   section: InvitationSection,
   contentKey: string,
+  device: InvitationDevice,
+  design: InvitationDesign,
 ): Required<TextElementStyle> {
   const isNames = section.type === "hero" && contentKey === "names";
-  const isHeading = contentKey === "title" || contentKey.endsWith(".title");
+  const isRootHeading = contentKey === "title";
   const isSmall =
     contentKey === "eyebrow" ||
     contentKey.includes(".detail") ||
     contentKey.includes(".answer") ||
     contentKey.includes(".caption");
+  const heroHeadingMax = numberValue(section.content.headingSize, 76);
+  const artDirection =
+    section.content.artDirection &&
+    typeof section.content.artDirection === "object"
+      ? (section.content.artDirection as Record<string, unknown>)
+      : {};
+  const deviceArt =
+    artDirection[device] && typeof artDirection[device] === "object"
+      ? (artDirection[device] as Record<string, unknown>)
+      : {};
+  const defaultHeadingScale =
+    device === "desktop" ? 100 : device === "tablet" ? 94 : 82;
+  const headingScale = numberValue(
+    deviceArt.headingScale,
+    defaultHeadingScale,
+  );
+  const responsiveNamesSize = Math.min(
+    heroHeadingMax,
+    Math.max(
+      38,
+      (deviceWidths[device] * 0.1 * headingScale) / 100,
+    ),
+  );
+  const rootHeadingSize = (() => {
+    if (section.type === "hero")
+      return device === "mobile" ? 20 : 24;
+    if (design.template === "nocturne" && section.type === "story")
+      return device === "desktop" ? 108 : device === "tablet" ? 69 : 48;
+    if (
+      design.template === "nocturne" &&
+      (section.type === "schedule" ||
+        section.type === "locations" ||
+        section.type === "rsvp")
+    )
+      return device === "desktop" ? 88 : device === "tablet" ? 58 : 44;
+    if (section.type === "countdown")
+      return device === "mobile" ? 24 : 30;
+    if (section.type === "story" || section.type === "rsvp")
+      return device === "mobile" ? 30 : 36;
+    return 30;
+  })();
+  const specialTextSize = (() => {
+    if (design.template === "nocturne" && section.type === "story") {
+      if (contentKey === "body")
+        return device === "desktop" ? 19 : device === "tablet" ? 17 : 16;
+      if (contentKey === "quote")
+        return device === "desktop" ? 32 : device === "tablet" ? 26 : 22;
+    }
+    if (
+      design.template === "nocturne" &&
+      section.type === "schedule" &&
+      contentKey.endsWith(".time")
+    )
+      return device === "desktop" ? 28 : device === "tablet" ? 23 : 20;
+    return null;
+  })();
   return {
     fontSize: isNames
-      ? numberValue(section.content.headingSize, 76)
-      : isHeading
-        ? 32
-        : isSmall
-          ? 12
-          : 14,
+      ? Math.round(responsiveNamesSize)
+      : isRootHeading
+        ? rootHeadingSize
+        : specialTextSize ??
+          (isSmall
+            ? 12
+            : 14),
     letterSpacing: isNames
       ? numberValue(section.content.namesLetterSpacing, -3)
       : 0,
@@ -3534,6 +3731,16 @@ function defaultTextElementStyle(
     width: 100,
     align: section.style.align,
   };
+}
+
+function deviceLabel(device: TextStyleDeviceScope) {
+  return device === "desktop"
+    ? "desktop"
+    : device === "tablet"
+      ? "tabletă"
+      : device === "mobile"
+        ? "mobil"
+        : "toate dispozitivele";
 }
 
 function ContentFields({
@@ -4357,7 +4564,7 @@ function ColorField({
               event.currentTarget.blur();
             }
           }}
-          className="h-full min-h-11 min-w-0 flex-1 bg-transparent font-mono text-xs uppercase text-ink outline-none"
+          className="h-full min-h-11 min-w-0 flex-1 bg-transparent font-mono text-xs uppercase text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
           aria-label={`${label} hex`}
         />
       </div>
@@ -4982,6 +5189,7 @@ function InvitationCanvas({
   snapshot,
   selectedId,
   activeContent,
+  inlineEditing,
   resolveMedia,
   onSelect,
   onContentFocus,
@@ -4991,6 +5199,7 @@ function InvitationCanvas({
   snapshot: InvitationEditorSnapshot;
   selectedId: string;
   activeContent: { sectionId: string; key: string } | null;
+  inlineEditing: boolean;
   resolveMedia: (mediaId: string, externalUrl?: string) => string;
   onSelect: (id: string) => void;
   onContentFocus: (
@@ -5011,6 +5220,7 @@ function InvitationCanvas({
       }
       onContentFocus={onContentFocus}
       activeContent={activeContent}
+      inlineEditing={inlineEditing}
       emptyState={
         <div className="grid min-h-96 place-items-center p-8 text-center text-sm opacity-60">
           Afișează sau adaugă o secțiune pentru a construi invitația.
@@ -5038,7 +5248,7 @@ function InvitationCanvas({
         >
           {selectedId === section.id && (
             <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-ink px-1.5 py-1 font-sans text-white shadow-overlay">
-              <span className="px-2 text-[10px] font-semibold">
+              <span className="max-w-24 truncate px-2 text-[10px] font-semibold">
                 {section.label}
               </span>
               <span className="h-4 w-px bg-white/20" />
@@ -5050,12 +5260,12 @@ function InvitationCanvas({
                   });
                 }}
                 className={cn(
-                  "grid size-14 place-items-center rounded-md",
+                  "grid size-11 place-items-center rounded-md",
                   section.style.align === "left" && "bg-white/15",
                 )}
                 aria-label="Aliniază la stânga"
               >
-                <AlignLeft className="size-3.5" />
+                <AlignLeft className="size-3.5" aria-hidden />
               </button>
               <button
                 onClick={(event) => {
@@ -5065,12 +5275,12 @@ function InvitationCanvas({
                   });
                 }}
                 className={cn(
-                  "grid size-14 place-items-center rounded-md",
+                  "grid size-11 place-items-center rounded-md",
                   section.style.align === "center" && "bg-white/15",
                 )}
                 aria-label="Aliniază la centru"
               >
-                <AlignCenter className="size-3.5" />
+                <AlignCenter className="size-3.5" aria-hidden />
               </button>
               <button
                 onClick={(event) => {
@@ -5080,12 +5290,12 @@ function InvitationCanvas({
                   });
                 }}
                 className={cn(
-                  "grid size-14 place-items-center rounded-md",
+                  "grid size-11 place-items-center rounded-md",
                   section.style.align === "right" && "bg-white/15",
                 )}
                 aria-label="Aliniază la dreapta"
               >
-                <AlignRight className="size-3.5" />
+                <AlignRight className="size-3.5" aria-hidden />
               </button>
             </div>
           )}

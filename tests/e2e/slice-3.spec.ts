@@ -470,6 +470,32 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
   const site = await invitationSite();
   expect(site.status).toBe("published");
   invitationVersionId = site.published!.id;
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  const mobileNames = page
+    .locator('[data-invitation-content-key="names"]')
+    .first();
+  await mobileNames.scrollIntoViewIfNeeded();
+  await mobileNames.click();
+  await expect(mobileNames).not.toHaveAttribute("contenteditable", /.+/);
+  const mobileInspector = page.locator(
+    'section[aria-label="Ajustări pentru elementul selectat"]',
+  );
+  await expect(mobileInspector).toBeVisible();
+  await expect(
+    mobileInspector.getByRole("combobox", {
+      name: "Dispozitive pentru ajustare",
+    }),
+  ).toHaveValue("mobile");
+  await mobileInspector
+    .getByRole("button", { name: "Extinde panoul de ajustări" })
+    .click();
+  await expect(
+    mobileInspector.getByRole("button", {
+      name: "Micșorează panoul de ajustări",
+    }),
+  ).toBeVisible();
 });
 
 test("E2E 4 — Create recipients", async ({ page }) => {
