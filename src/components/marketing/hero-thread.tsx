@@ -3,7 +3,10 @@
 import { useLayoutEffect, useRef } from "react";
 import styles from "./product-first-control-room.module.css";
 
-const threadRetractMs = 420;
+const threadChargeMs = 720;
+const threadFadeMs = 240;
+
+const easeOutQuint = (progress: number) => 1 - Math.pow(1 - progress, 5);
 
 export function HeroThread() {
   const threadRef = useRef<HTMLDivElement>(null);
@@ -32,9 +35,56 @@ export function HeroThread() {
       return;
 
     let measureFrame: number | null = null;
-    let chargeFrame: number | null = null;
-    let retractTimer: number | null = null;
+    let motionFrame: number | null = null;
+    let fadeTimer: number | null = null;
+    let pathLength = 0;
+    let renderedProgress = 0;
     let active = true;
+
+    const renderChargeProgress = (progress: number) => {
+      if (pathLength <= 0) return;
+
+      renderedProgress = Math.min(1, Math.max(0, progress));
+      const point = chargePath.getPointAtLength(pathLength * renderedProgress);
+
+      chargePath.style.strokeDashoffset = `${pathLength * (1 - renderedProgress)}`;
+      chargeEnd.setAttribute("cx", `${point.x}`);
+      chargeEnd.setAttribute("cy", `${point.y}`);
+      chargeEnd.style.opacity = renderedProgress > 0.002 ? "1" : "0";
+    };
+
+    const animateCharge = (
+      from: number,
+      to: number,
+      duration: number,
+      easing: (progress: number) => number,
+      onComplete?: () => void,
+    ) => {
+      if (motionFrame !== null) window.cancelAnimationFrame(motionFrame);
+
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        renderChargeProgress(to);
+        onComplete?.();
+        return;
+      }
+
+      const startedAt = performance.now();
+      const tick = (now: number) => {
+        if (!active) return;
+        const elapsed = Math.min(1, (now - startedAt) / duration);
+        const progress = from + (to - from) * easing(elapsed);
+        renderChargeProgress(progress);
+
+        if (elapsed < 1) {
+          motionFrame = window.requestAnimationFrame(tick);
+        } else {
+          motionFrame = null;
+          onComplete?.();
+        }
+      };
+
+      motionFrame = window.requestAnimationFrame(tick);
+    };
 
     const update = () => {
       const heroRect = hero.getBoundingClientRect();
@@ -52,6 +102,7 @@ export function HeroThread() {
 
       if (end.dataset.showcaseView !== "invitation") {
         thread.dataset.charging = "false";
+        renderChargeProgress(0);
         return;
       }
 
@@ -96,31 +147,48 @@ export function HeroThread() {
       chargePath.setAttribute("d", path);
       chargeEnd.setAttribute("cx", `${curveWidth}`);
       chargeEnd.setAttribute("cy", `${targetY}`);
-      const pathLength = chargePath.getTotalLength();
+      pathLength = chargePath.getTotalLength();
+      chargePath.style.strokeDasharray = `${pathLength}`;
       chargeSvg.style.setProperty("--thread-charge-length", `${pathLength}`);
+      renderChargeProgress(renderedProgress);
 
       if (thread.dataset.charging !== "true") {
-        thread.dataset.charging = "prepared";
-        chargeFrame = window.requestAnimationFrame(() => {
-          if (active) thread.dataset.charging = "true";
-        });
+        thread.dataset.charging = "true";
+        animateCharge(
+          renderedProgress,
+          1,
+          threadChargeMs,
+          easeOutQuint,
+        );
       }
     };
 
     const measureSettledInvitation = () => {
       if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
-      if (chargeFrame !== null) window.cancelAnimationFrame(chargeFrame);
-      if (retractTimer !== null) window.clearTimeout(retractTimer);
+      if (fadeTimer !== null) window.clearTimeout(fadeTimer);
 
       if (end.dataset.showcaseView === "returning") {
-        thread.dataset.charging = "retracting";
-        retractTimer = window.setTimeout(() => {
-          if (active) thread.dataset.charging = "false";
-        }, threadRetractMs);
+        if (motionFrame !== null) window.cancelAnimationFrame(motionFrame);
+        motionFrame = null;
+
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          thread.dataset.charging = "false";
+          renderChargeProgress(0);
+          return;
+        }
+
+        thread.dataset.charging = "fading";
+        fadeTimer = window.setTimeout(() => {
+          if (!active) return;
+          thread.dataset.charging = "false";
+          renderChargeProgress(0);
+          fadeTimer = null;
+        }, threadFadeMs);
         return;
       }
 
       thread.dataset.charging = "false";
+      renderChargeProgress(0);
       measureFrame = window.requestAnimationFrame(() => {
         measureFrame = window.requestAnimationFrame(update);
       });
@@ -144,8 +212,8 @@ export function HeroThread() {
     return () => {
       active = false;
       if (measureFrame !== null) window.cancelAnimationFrame(measureFrame);
-      if (chargeFrame !== null) window.cancelAnimationFrame(chargeFrame);
-      if (retractTimer !== null) window.clearTimeout(retractTimer);
+      if (motionFrame !== null) window.cancelAnimationFrame(motionFrame);
+      if (fadeTimer !== null) window.clearTimeout(fadeTimer);
       observer.disconnect();
       mutationObserver.disconnect();
       window.removeEventListener("resize", update);
