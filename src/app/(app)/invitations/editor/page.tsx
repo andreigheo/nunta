@@ -134,11 +134,11 @@ const deviceWidths: Record<Device, number> = {
 const canvasFitFloor = 0.5;
 type InspectorTab = "content" | "design" | "experience" | "publish";
 type LeftPanelTab = "blocks" | "layers";
-type EditorViewport = "mobile" | "compact" | "wide" | "expansive";
+type EditorViewport = "mobile" | "tablet" | "desktop" | "studio";
 
 function useEditorViewport() {
   const [viewport, setViewport] =
-    React.useState<EditorViewport>("wide");
+    React.useState<EditorViewport>("studio");
 
   React.useEffect(() => {
     const update = () => {
@@ -146,11 +146,11 @@ function useEditorViewport() {
       setViewport(
         width < 768
           ? "mobile"
-          : width < 1440
-            ? "compact"
-            : width < 1536
-              ? "wide"
-              : "expansive",
+          : width < 1024
+            ? "tablet"
+            : width < 1280
+              ? "desktop"
+              : "studio",
       );
     };
     update();
@@ -177,7 +177,8 @@ export default function InvitationEditorPage() {
   const [selectedContentKey, setSelectedContentKey] = React.useState<string | null>(
     "names",
   );
-  const [structurePanelOpen, setStructurePanelOpen] = React.useState(false);
+  const [structurePanelOpen, setStructurePanelOpen] = React.useState(true);
+  const [inspectorPanelOpen, setInspectorPanelOpen] = React.useState(true);
   const [device, setDevice] = React.useState<Device>("desktop");
   const [leftPanelTab, setLeftPanelTab] =
     React.useState<LeftPanelTab>("layers");
@@ -251,10 +252,11 @@ export default function InvitationEditorPage() {
   const activeVariant =
     variants.find((variant) => variant.id === activeVariantId) ?? null;
   const mobileEditor = editorViewport === "mobile";
-  const drawerInspector = editorViewport === "compact";
-  const permanentInspector =
-    editorViewport === "wide" || editorViewport === "expansive";
-  const permanentStructure = editorViewport === "expansive";
+  const drawerInspector =
+    editorViewport === "tablet" || editorViewport === "desktop";
+  const permanentInspector = editorViewport === "studio";
+  const permanentStructure =
+    editorViewport === "desktop" || editorViewport === "studio";
 
   React.useEffect(() => {
     if (!currentWorkspace || demoMode) {
@@ -626,7 +628,8 @@ export default function InvitationEditorPage() {
     setSelectedId(section.id);
     setInspectorTab("content");
     setAddOpen(false);
-    if (!permanentInspector) setInspectorOpen(true);
+    if (permanentInspector) setInspectorPanelOpen(true);
+    else setInspectorOpen(true);
   };
 
   const addAdvancedSection = (blockKind: InvitationBlockKind) => {
@@ -636,7 +639,8 @@ export default function InvitationEditorPage() {
     setSelectedId(section.id);
     setInspectorTab("content");
     setAddOpen(false);
-    if (!permanentInspector) setInspectorOpen(true);
+    if (permanentInspector) setInspectorPanelOpen(true);
+    else setInspectorOpen(true);
   };
 
   const selectVariant = async (variantId: string | null) => {
@@ -1048,7 +1052,8 @@ export default function InvitationEditorPage() {
       setPublishOpen(true);
       return;
     }
-    if (!permanentInspector) setInspectorOpen(true);
+    if (permanentInspector) setInspectorPanelOpen(true);
+    else setInspectorOpen(true);
     toast({
       title: "Mai sunt detalii de verificat",
       description:
@@ -1124,16 +1129,34 @@ export default function InvitationEditorPage() {
 
   const showInspectorTab = (tab: InspectorTab) => {
     setInspectorTab(tab);
-    if (!permanentInspector) setInspectorOpen(true);
+    if (permanentInspector) setInspectorPanelOpen(true);
+    else setInspectorOpen(true);
   };
 
-  const showInvitationStructure = () => {
+  const openInvitationStructure = (tab: LeftPanelTab = "layers") => {
+    setLeftPanelTab(tab);
+    if (permanentStructure) {
+      setStructurePanelOpen(true);
+      return;
+    }
+    setSectionsOpen(true);
+  };
+
+  const toggleInvitationStructure = () => {
     setLeftPanelTab("layers");
     if (permanentStructure) {
       setStructurePanelOpen((open) => !open);
       return;
     }
     setSectionsOpen(true);
+  };
+
+  const toggleInspector = () => {
+    if (permanentInspector) {
+      setInspectorPanelOpen((open) => !open);
+      return;
+    }
+    setInspectorOpen(true);
   };
 
   const runPreflightAction = (action: InvitationPreflightAction) => {
@@ -1302,7 +1325,7 @@ export default function InvitationEditorPage() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={showInvitationStructure}
+                onClick={toggleInvitationStructure}
                 aria-label={permanentStructure && structurePanelOpen ? "Ascunde structura invitației" : "Arată structura invitației"}
                 aria-pressed={permanentStructure ? structurePanelOpen : undefined}
               >
@@ -1355,11 +1378,12 @@ export default function InvitationEditorPage() {
             Sincronizare și versiuni
           </Button>
           <Button
-            className="hidden md:inline-flex min-[1440px]:hidden"
+            className="hidden md:inline-flex"
             variant="ghost"
             size="icon-sm"
-            onClick={() => setInspectorOpen(true)}
-            aria-label="Deschide inspectorul"
+            onClick={toggleInspector}
+            aria-label={permanentInspector && inspectorPanelOpen ? "Ascunde inspectorul" : "Deschide inspectorul"}
+            aria-pressed={permanentInspector ? inspectorPanelOpen : undefined}
           >
             <PanelRight className="size-4" aria-hidden />
           </Button>
@@ -1384,7 +1408,29 @@ export default function InvitationEditorPage() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {permanentStructure && structurePanelOpen ? <aside className="flex w-[240px] shrink-0 flex-col border-r border-line bg-surface">
+        {permanentStructure ? (
+          <DesktopToolRail
+            activeTab={inspectorTab}
+            leftPanelTab={leftPanelTab}
+            structureOpen={structurePanelOpen}
+            onStructure={() => {
+              if (structurePanelOpen && leftPanelTab === "layers") {
+                setStructurePanelOpen(false);
+                return;
+              }
+              openInvitationStructure("layers");
+            }}
+            onAddSection={() => openInvitationStructure("blocks")}
+            onTemplates={() => setTemplateOpen(true)}
+            onContent={() => showInspectorTab("content")}
+            onDesign={() => showInspectorTab("design")}
+            onExperience={() => showInspectorTab("experience")}
+            onReview={() => showInspectorTab("publish")}
+            onWorkflow={() => setWorkflowOpen(true)}
+          />
+        ) : null}
+
+        {permanentStructure && structurePanelOpen ? <aside className="flex w-[210px] shrink-0 flex-col border-r border-line bg-surface 2xl:w-[240px]" aria-label="Structura invitației">
           <CreativeRail
             tab={leftPanelTab}
             onTabChange={setLeftPanelTab}
@@ -1468,13 +1514,13 @@ export default function InvitationEditorPage() {
               </Tooltip>
             </div>
           </div>
-          <div className="hidden md:block">
+          <div className="hidden md:block lg:hidden">
             <EditorJourneyBar
               activeTab={inspectorTab}
               choosingStyle={templateOpen}
               onChooseStyle={() => setTemplateOpen(true)}
               onChooseOpening={() => showInspectorTab("experience")}
-              onEditSections={showInvitationStructure}
+              onEditSections={() => openInvitationStructure("layers")}
               onPersonalize={() => showInspectorTab("design")}
               onReview={() => showInspectorTab("publish")}
             />
@@ -1482,7 +1528,7 @@ export default function InvitationEditorPage() {
           <EditorMobileQuickBar
             activeTab={inspectorTab}
             inspectorOpen={inspectorOpen}
-            onSections={showInvitationStructure}
+            onSections={() => openInvitationStructure("layers")}
             onContent={() => showInspectorTab("content")}
             onDesign={() => showInspectorTab("design")}
             onExperience={() => showInspectorTab("experience")}
@@ -1552,17 +1598,16 @@ export default function InvitationEditorPage() {
                     setSelectedId(id);
                     setSelectedContentKey(null);
                     setInspectorTab("content");
-                    if (!permanentInspector) setInspectorOpen(true);
+                    if (permanentInspector) setInspectorPanelOpen(true);
+                    else setInspectorOpen(true);
                   }}
                   activeContent={selectedContentKey ? { sectionId: selectedId, key: selectedContentKey } : null}
                   onContentFocus={(id, key, mode) => {
                     setSelectedId(id);
                     setSelectedContentKey(key);
                     setInspectorTab("content");
-                    if (
-                      !permanentInspector &&
-                      (mode === "structured" || mobileEditor)
-                    )
+                    if (permanentInspector) setInspectorPanelOpen(true);
+                    else if (mode === "structured" || mobileEditor)
                       setInspectorOpen(true);
                   }}
                   onUpdateSection={updateSection}
@@ -1624,8 +1669,8 @@ export default function InvitationEditorPage() {
           ) : null}
         </section>
 
-        {permanentInspector ? (
-          <aside className="flex w-[330px] shrink-0 flex-col border-l border-line bg-surface">
+        {permanentInspector && inspectorPanelOpen ? (
+          <aside className="flex w-[300px] shrink-0 flex-col border-l border-line bg-surface 2xl:w-[330px]" aria-label="Inspectorul invitației">
             {renderInspector()}
           </aside>
         ) : null}
@@ -1984,6 +2029,130 @@ export default function InvitationEditorPage() {
   );
 }
 
+function DesktopToolRail({
+  activeTab,
+  leftPanelTab,
+  structureOpen,
+  onStructure,
+  onAddSection,
+  onTemplates,
+  onContent,
+  onDesign,
+  onExperience,
+  onReview,
+  onWorkflow,
+}: {
+  activeTab: InspectorTab;
+  leftPanelTab: LeftPanelTab;
+  structureOpen: boolean;
+  onStructure: () => void;
+  onAddSection: () => void;
+  onTemplates: () => void;
+  onContent: () => void;
+  onDesign: () => void;
+  onExperience: () => void;
+  onReview: () => void;
+  onWorkflow: () => void;
+}) {
+  const primaryActions = [
+    {
+      label: "Structură",
+      Icon: LayoutPanelLeft,
+      onClick: onStructure,
+      active: structureOpen && leftPanelTab === "layers",
+    },
+    {
+      label: "Secțiuni",
+      Icon: Plus,
+      onClick: onAddSection,
+      active: structureOpen && leftPanelTab === "blocks",
+    },
+    {
+      label: "Stiluri",
+      Icon: LayoutTemplate,
+      onClick: onTemplates,
+      active: false,
+    },
+  ] as const;
+  const inspectorActions = [
+    {
+      label: "Text",
+      Icon: PencilLine,
+      onClick: onContent,
+      active: activeTab === "content",
+    },
+    {
+      label: "Design",
+      Icon: Palette,
+      onClick: onDesign,
+      active: activeTab === "design",
+    },
+    {
+      label: "Plic",
+      Icon: PlayCircle,
+      onClick: onExperience,
+      active: activeTab === "experience",
+    },
+    {
+      label: "Verifică",
+      Icon: Check,
+      onClick: onReview,
+      active: activeTab === "publish",
+    },
+  ] as const;
+
+  const renderAction = ({
+    label,
+    Icon,
+    onClick,
+    active,
+  }: (typeof primaryActions)[number] | (typeof inspectorActions)[number]) => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active || undefined}
+      className={cn(
+        "group relative flex min-h-[58px] w-full cursor-pointer flex-col items-center justify-center gap-1 px-1 text-[10px] font-semibold leading-none transition-colors",
+        active
+          ? "bg-brand-softer text-brand-strong"
+          : "text-faint hover:bg-subtle hover:text-ink",
+      )}
+    >
+      {active ? (
+        <span
+          className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-brand"
+          aria-hidden
+        />
+      ) : null}
+      <Icon className="size-[18px]" strokeWidth={1.8} aria-hidden />
+      <span>{label}</span>
+    </button>
+  );
+
+  return (
+    <aside className="flex w-16 shrink-0 flex-col border-r border-line bg-surface" aria-label="Instrumentele studioului">
+      <nav className="flex min-h-0 flex-1 flex-col" aria-label="Instrumente editor">
+        <div className="border-b border-line py-1">
+          {primaryActions.map(renderAction)}
+        </div>
+        <div className="py-1">{inspectorActions.map(renderAction)}</div>
+        <div className="mt-auto border-t border-line py-1">
+          <button
+            type="button"
+            onClick={onWorkflow}
+            className="flex min-h-[58px] w-full cursor-pointer flex-col items-center justify-center gap-1 px-1 text-[10px] font-semibold leading-none text-faint transition-colors hover:bg-subtle hover:text-ink"
+          >
+            <SlidersHorizontal className="size-[18px]" strokeWidth={1.8} aria-hidden />
+            <span>Versiuni</span>
+          </button>
+        </div>
+      </nav>
+    </aside>
+  );
+}
+
 function EditorMobileQuickBar({
   activeTab,
   inspectorOpen,
@@ -2174,6 +2343,7 @@ function CreativeRail({
     <div className="flex h-full min-h-0 flex-col">
       <div className="grid grid-cols-2 border-b border-line p-2">
         <button
+          type="button"
           onClick={() => onTabChange("layers")}
           className={cn(
             "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-semibold",
@@ -2186,6 +2356,7 @@ function CreativeRail({
           Structură
         </button>
         <button
+          type="button"
           onClick={() => onTabChange("blocks")}
           className={cn(
             "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-semibold",
@@ -2195,7 +2366,7 @@ function CreativeRail({
           )}
         >
           <Plus className="size-3.5" />
-          Adaugă secțiune
+          Adaugă
         </button>
       </div>
       {structuralLocked ? (
@@ -2353,11 +2524,12 @@ function Inspector({
         ).map(([value, label, ariaLabel]) => (
           <button
             key={value}
+            type="button"
             onClick={() => onTabChange(value)}
             aria-label={ariaLabel}
             aria-current={tab === value ? "page" : undefined}
             className={cn(
-              "min-h-11 cursor-pointer border-b-2 px-2 py-2 text-xs font-semibold transition-colors",
+              "min-h-11 cursor-pointer border-b-2 px-1 py-2 text-[11px] font-semibold transition-colors 2xl:px-2 2xl:text-xs",
               tab === value
                 ? "border-brand text-brand-strong"
                 : "border-transparent text-muted hover:text-ink",
