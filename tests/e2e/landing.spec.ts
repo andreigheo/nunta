@@ -391,7 +391,16 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   const rows = await plans.evaluateAll((elements) =>
     elements.map((element) => Math.round(element.getBoundingClientRect().y)),
   );
-  expect(Math.max(...rows) - Math.min(...rows)).toBeLessThanOrEqual(2);
+  expect(rows[1]).toBeGreaterThan(rows[0]);
+  expect(rows[2]).toBeGreaterThan(rows[1]);
+  for (const plan of await plans.all()) {
+    await expect(plan).toBeVisible();
+    await expect(plan.getByRole("link", { name: /Începe/ })).toBeVisible();
+  }
+  await expect(section).toContainText("Paddle procesează abonamentul Sarbato");
+  await expect(
+    section.getByRole("link", { name: "Vezi întrebările frecvente" }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
