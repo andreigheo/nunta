@@ -185,8 +185,12 @@ describe("InvitationRenderer", () => {
     expect(markup).toContain("--hero-name-tracking:-2px");
     expect(markup).toContain("--hero-meta-gap:42px");
     expect(markup).toContain("ml-auto");
-    expect(markup).toContain('contentEditable="plaintext-only"');
-    expect(markup).toContain("Editează numele sau titlul principal");
+    expect(markup).toContain('contentEditable="false"');
+    expect(markup).toContain('role="button"');
+    expect(markup).toContain("Mută sau editează numele sau titlul principal");
+    expect(markup).toContain(
+      "Trage pentru mutare. Dublu clic pentru editarea textului.",
+    );
     expect(markup).toContain("Ana\n&amp; Mihai");
   });
 
@@ -195,7 +199,7 @@ describe("InvitationRenderer", () => {
     schedule.content.textStyles = {
       "items.0.title": {
         all: { letterSpacing: 1, offsetX: 4 },
-        mobile: { fontSize: 18 },
+        mobile: { fontSize: 18, hidden: true, zIndex: 24 },
       },
     };
     const snapshot: InvitationEditorSnapshot = {
@@ -238,6 +242,8 @@ describe("InvitationRenderer", () => {
     );
     expect(publicMarkup).toContain("--editable-letter-spacing-all:1px");
     expect(publicMarkup).toContain("--editable-font-size-mobile:18px");
+    expect(publicMarkup).toContain("--editable-display-mobile:none");
+    expect(publicMarkup).toContain("--editable-z-index-mobile:24");
   });
 
   it("uses inspector activation instead of tiny inline fields when direct editing is disabled", () => {

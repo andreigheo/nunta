@@ -2,11 +2,21 @@
 
 import * as React from "react";
 import {
+  CheckSquare2,
+  ChevronsDown,
+  ChevronsUp,
   Circle,
+  Eye,
+  EyeOff,
   ImagePlus,
   Layers3,
+  Lock,
+  Group,
+  Square,
   Trash2,
   Type,
+  Ungroup,
+  Unlock,
 } from "lucide-react";
 import { Button, Field, Input, Switch } from "@/components/ui";
 import type {
@@ -15,6 +25,15 @@ import type {
   InvitationDevice,
   InvitationSection,
 } from "@/lib/invitations/editor-model";
+import {
+  invitationTextHasOverride,
+  resolveInvitationTextStyle,
+  updateInvitationTextStyle,
+} from "@/lib/invitations/editor-elements";
+import {
+  invitationContentValue,
+  invitationEditableFields,
+} from "@/lib/invitations/editor-content";
 import { cn } from "@/lib/utils";
 
 const devices: Array<{ value: InvitationDevice; label: string }> = [
@@ -26,12 +45,16 @@ const devices: Array<{ value: InvitationDevice; label: string }> = [
 export function EditorLayerStudio({
   section,
   device,
+  selectedContentKey,
+  onSelectContentKey,
   uploading,
   onUpdateContent,
   onUploadImage,
 }: {
   section: InvitationSection;
   device: InvitationDevice;
+  selectedContentKey: string | null;
+  onSelectContentKey: (key: string | null) => void;
   uploading: boolean;
   onUpdateContent: (key: string, value: unknown) => void;
   onUploadImage: (
@@ -40,6 +63,11 @@ export function EditorLayerStudio({
   ) => Promise<void>;
 }) {
   const layers = decorationLayers(section.content.decorations);
+  const textLayers = invitationEditableFields(section).filter(
+    (field) =>
+      String(invitationContentValue(section.content, field.path) ?? "").trim(),
+  );
+  const [selectedTextKeys, setSelectedTextKeys] = React.useState<string[]>([]);
   const [selectedLayerId, setSelectedLayerId] = React.useState<string | null>(
     layers[0]?.id ?? null,
   );
@@ -84,6 +112,7 @@ export function EditorLayerStudio({
       scale: kind === "monogram" ? 100 : 70,
       rotation: 0,
       opacity: 100,
+      zIndex: layers.length + 1,
       visibleOn: ["desktop", "tablet", "mobile"],
     };
     const next = [...layers, layer];
@@ -112,20 +141,250 @@ export function EditorLayerStudio({
       [device]: { ...currentDirection, ...update },
     });
 
+  const updateTextLayer = (
+    key: string,
+    update: Parameters<typeof updateInvitationTextStyle>[3],
+  ) =>
+    onUpdateContent(
+      "textStyles",
+      updateInvitationTextStyle(section.content, key, device, update),
+    );
+
+  const groupSelectedTexts = () => {
+    if (selectedTextKeys.length < 2) return;
+    const groupId = `text-group-${Date.now().toString(36)}`;
+    let nextTextStyles = section.content.textStyles;
+    for (const key of selectedTextKeys) {
+      nextTextStyles = updateInvitationTextStyle(
+        { ...section.content, textStyles: nextTextStyles },
+        key,
+        "all",
+        { groupId },
+      );
+    }
+    onUpdateContent("textStyles", nextTextStyles);
+    setSelectedTextKeys([selectedTextKeys[0]]);
+  };
+
+  const ungroupSelectedText = () => {
+    const firstKey = selectedTextKeys[0] ?? selectedContentKey;
+    if (!firstKey) return;
+    const groupId = resolveInvitationTextStyle(
+      section.content,
+      firstKey,
+      device,
+    ).groupId;
+    if (!groupId) return;
+    let nextTextStyles = section.content.textStyles;
+    for (const field of textLayers) {
+      if (
+        resolveInvitationTextStyle(section.content, field.path, device)
+          .groupId !== groupId
+      )
+        continue;
+      nextTextStyles = updateInvitationTextStyle(
+        { ...section.content, textStyles: nextTextStyles },
+        field.path,
+        "all",
+        { groupId: null },
+      );
+    }
+    onUpdateContent("textStyles", nextTextStyles);
+    setSelectedTextKeys([]);
+  };
+
+  const selectedGroupId = (() => {
+    const key = selectedTextKeys[0] ?? selectedContentKey;
+    return key
+      ? resolveInvitationTextStyle(section.content, key, device).groupId
+      : null;
+  })();
+
   return (
     <div className="space-y-4 border-t border-line pt-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">
             <Layers3 className="size-4 text-brand" aria-hidden />
-            Straturi decorative
+            Straturi în secțiune
           </p>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Elementele stau în zona sigură și se adaptează separat pe fiecare
-            dispozitiv. Maximum 8 pe secțiune.
+            Textele și decorațiunile au aceeași ordine vizuală. Selectează,
+            blochează sau ascunde fără să cauți elementul în canvas.
           </p>
         </div>
-        <span className="text-xs tabular-nums text-faint">{layers.length}/8</span>
+        <span className="text-xs tabular-nums text-faint">
+          {textLayers.length + layers.length} straturi
+        </span>
+      </div>
+
+      <div className="space-y-1 rounded-xl border border-line bg-surface p-1.5">
+        {textLayers.map((field) => {
+          const style = resolveInvitationTextStyle(
+            section.content,
+            field.path,
+            device,
+          );
+          const active = selectedContentKey === field.path;
+          const overridden = invitationTextHasOverride(
+            section.content,
+            field.path,
+            device,
+          );
+          return (
+            <div
+              key={field.path}
+              className={cn(
+                "rounded-lg",
+                active && "bg-brand-softer/70 ring-1 ring-brand/25",
+              )}
+            >
+              <div className="flex min-h-11 items-center gap-1">
+                <button
+                  type="button"
+                  className="grid size-11 shrink-0 place-items-center rounded-md text-muted hover:bg-subtle hover:text-brand"
+                  onClick={() =>
+                    setSelectedTextKeys((current) =>
+                      current.includes(field.path)
+                        ? current.filter((key) => key !== field.path)
+                        : [...current, field.path],
+                    )
+                  }
+                  aria-label={`${selectedTextKeys.includes(field.path) ? "Scoate" : "Selectează"} ${field.label} pentru grupare`}
+                  aria-pressed={selectedTextKeys.includes(field.path)}
+                >
+                  {selectedTextKeys.includes(field.path) ? (
+                    <CheckSquare2 className="size-4" aria-hidden />
+                  ) : (
+                    <Square className="size-4" aria-hidden />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLayerId(null);
+                    onSelectContentKey(field.path);
+                  }}
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left"
+                  aria-pressed={active}
+                >
+                  <Type className="size-3.5 shrink-0 text-brand" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">
+                    {field.label}
+                  </span>
+                  {overridden ? (
+                    <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-xs font-semibold text-brand-strong">
+                      {deviceLabel(device)}
+                    </span>
+                  ) : null}
+                  {style.groupId ? (
+                    <Group
+                      className="size-3.5 shrink-0 text-brand"
+                      aria-label="Face parte dintr-un grup"
+                    />
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  className="grid size-11 shrink-0 place-items-center rounded-md text-muted hover:bg-subtle hover:text-ink"
+                  onClick={() =>
+                    updateTextLayer(field.path, { locked: !style.locked })
+                  }
+                  aria-label={`${style.locked ? "Deblochează" : "Blochează"} ${field.label}`}
+                  aria-pressed={style.locked === true}
+                >
+                  {style.locked ? (
+                    <Lock className="size-3.5" aria-hidden />
+                  ) : (
+                    <Unlock className="size-3.5" aria-hidden />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="grid size-11 shrink-0 place-items-center rounded-md text-muted hover:bg-subtle hover:text-ink"
+                  onClick={() =>
+                    updateTextLayer(field.path, { hidden: !style.hidden })
+                  }
+                  aria-label={`${style.hidden ? "Afișează" : "Ascunde"} ${field.label}`}
+                  aria-pressed={style.hidden === true}
+                >
+                  {style.hidden ? (
+                    <EyeOff className="size-3.5" aria-hidden />
+                  ) : (
+                    <Eye className="size-3.5" aria-hidden />
+                  )}
+                </button>
+              </div>
+              {active ? (
+                <div className="flex items-center justify-between border-t border-brand/15 px-2 py-1.5">
+                  <span className="text-xs text-muted">
+                    Strat {style.zIndex ?? 10}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold text-muted hover:bg-surface hover:text-ink"
+                      onClick={() =>
+                        updateTextLayer(field.path, {
+                          zIndex: Math.max(0, (style.zIndex ?? 10) - 1),
+                        })
+                      }
+                    >
+                      <ChevronsDown className="size-3" aria-hidden />
+                      În spate
+                    </button>
+                    <button
+                      type="button"
+                      className="flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold text-muted hover:bg-surface hover:text-ink"
+                      onClick={() =>
+                        updateTextLayer(field.path, {
+                          zIndex: Math.min(60, (style.zIndex ?? 10) + 1),
+                        })
+                      }
+                    >
+                      <ChevronsUp className="size-3" aria-hidden />
+                      În față
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+        {selectedTextKeys.length > 1 ? (
+          <div className="flex items-center justify-between gap-2 border-t border-line px-2 pt-2">
+            <span className="text-xs text-muted">
+              {selectedTextKeys.length} texte selectate
+            </span>
+            <button
+              type="button"
+              className="flex min-h-11 items-center gap-2 rounded-lg bg-brand px-3 text-xs font-semibold text-on-brand"
+              onClick={groupSelectedTexts}
+            >
+              <Group className="size-3.5" aria-hidden />
+              Grupează
+            </button>
+          </div>
+        ) : selectedGroupId ? (
+          <div className="flex items-center justify-between gap-2 border-t border-line px-2 pt-2">
+            <span className="text-xs text-muted">Element într-un grup</span>
+            <button
+              type="button"
+              className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-brand hover:bg-brand-softer"
+              onClick={ungroupSelectedText}
+            >
+              <Ungroup className="size-3.5" aria-hidden />
+              Degrupează
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <p className="text-xs font-semibold text-ink">Adaugă decorațiune</p>
+        <span className="text-xs tabular-nums text-faint">
+          {layers.length}/8
+        </span>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -178,10 +437,13 @@ export function EditorLayerStudio({
             {layers.map((layer) => (
               <button
                 key={layer.id}
-                onClick={() => setSelectedLayerId(layer.id)}
+                onClick={() => {
+                  setSelectedLayerId(layer.id);
+                  onSelectContentKey(null);
+                }}
                 className={cn(
                   "min-h-11 shrink-0 rounded-lg border px-3 text-xs font-medium",
-                  selected?.id === layer.id
+                  selected?.id === layer.id && selectedContentKey === null
                     ? "border-brand bg-brand-softer text-brand-strong"
                     : "border-line text-muted hover:border-line-strong",
                 )}
@@ -191,7 +453,7 @@ export function EditorLayerStudio({
             ))}
           </div>
 
-          {selected && (
+          {selected && selectedContentKey === null && (
             <div className="space-y-3 rounded-xl bg-subtle/60 p-3">
               <div className="flex items-center gap-2">
                 <Input
@@ -321,6 +583,51 @@ export function EditorLayerStudio({
                 value={selected.opacity}
                 onChange={(opacity) => updateSelected({ opacity })}
               />
+              <RangeField
+                label={`Ordine strat ${selected.zIndex ?? layers.indexOf(selected) + 1}`}
+                min={0}
+                max={60}
+                value={selected.zIndex ?? layers.indexOf(selected) + 1}
+                onChange={(zIndex) => updateSelected({ zIndex })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className={cn(
+                    "flex min-h-11 items-center justify-center gap-2 rounded-lg border text-xs font-semibold",
+                    selected.locked
+                      ? "border-brand bg-brand-softer text-brand-strong"
+                      : "border-line text-muted",
+                  )}
+                  onClick={() => updateSelected({ locked: !selected.locked })}
+                  aria-pressed={selected.locked === true}
+                >
+                  {selected.locked ? (
+                    <Lock className="size-3.5" aria-hidden />
+                  ) : (
+                    <Unlock className="size-3.5" aria-hidden />
+                  )}
+                  {selected.locked ? "Blocat" : "Deblocat"}
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex min-h-11 items-center justify-center gap-2 rounded-lg border text-xs font-semibold",
+                    selected.hidden
+                      ? "border-warning bg-warning-soft text-warning"
+                      : "border-line text-muted",
+                  )}
+                  onClick={() => updateSelected({ hidden: !selected.hidden })}
+                  aria-pressed={selected.hidden === true}
+                >
+                  {selected.hidden ? (
+                    <EyeOff className="size-3.5" aria-hidden />
+                  ) : (
+                    <Eye className="size-3.5" aria-hidden />
+                  )}
+                  {selected.hidden ? "Ascuns" : "Vizibil"}
+                </button>
+              </div>
               <div>
                 <p className="text-xs font-medium text-ink">Vizibil pe</p>
                 <div className="mt-2 grid grid-cols-3 gap-2">
@@ -359,8 +666,8 @@ export function EditorLayerStudio({
         </>
       ) : (
         <p className="rounded-lg bg-subtle px-3 py-2 text-xs text-muted">
-          Adaugă o monogramă, o formă sau o imagine transparentă. Conținutul
-          invitației rămâne mereu deasupra și accesibil.
+          Adaugă o monogramă, o formă sau o imagine transparentă. Poziția în
+          strat stabilește dacă elementul stă în fața sau în spatele textelor.
         </p>
       )}
 

@@ -11,10 +11,13 @@ import {
   ChevronsDown,
   ChevronsUp,
   CircleHelp,
+  Eye,
+  EyeOff,
   Image as ImageIcon,
   ImagePlus,
   LayoutPanelLeft,
   LayoutTemplate,
+  Lock,
   Maximize2,
   Minus,
   Monitor,
@@ -31,6 +34,7 @@ import {
   Tablet,
   Trash2,
   Undo2,
+  Unlock,
   X,
 } from "lucide-react";
 import type {
@@ -69,7 +73,13 @@ import {
   type InvitationBlockKind,
   type InvitationSection,
   type InvitationSectionType,
+  type InvitationTextElementStyle,
 } from "@/lib/invitations/editor-model";
+import {
+  invitationTextHasOverride,
+  resolveInvitationTextStyle,
+  updateInvitationTextStyle,
+} from "@/lib/invitations/editor-elements";
 import {
   commitInvitationHistory,
   createInvitationHistory,
@@ -128,12 +138,8 @@ const deviceWidths: Record<Device, number> = {
   mobile: 390,
 };
 
-/**
- * Below this scale the invitation text stops being readable, so "fit" stops
- * shrinking and the canvas scrolls sideways instead of showing an unusable
- * thumbnail of the desktop layout.
- */
-const canvasFitFloor = 0.5;
+/** Fit is an explicit preview action and never the editor's opening state. */
+const canvasFitFloor = 0.25;
 type InspectorTab = "content" | "design" | "experience" | "publish";
 type LeftPanelTab = "blocks" | "layers";
 type EditorViewport = "mobile" | "tablet" | "desktop" | "studio";
@@ -246,7 +252,7 @@ export default function InvitationEditorPage() {
   const editRevisionRef = React.useRef(0);
   const canvasScrollRef = React.useRef<HTMLDivElement>(null);
   const scrollRequestRef = React.useRef<string | null>(null);
-  const [zoom, setZoom] = React.useState<"fit" | number>("fit");
+  const [zoom, setZoom] = React.useState<"fit" | number>(1);
   const [canvasViewportWidth, setCanvasViewportWidth] = React.useState(0);
   const canWrite =
     bootstrap?.membership.capabilities.includes("invitation.write") ?? false;
@@ -1135,8 +1141,17 @@ export default function InvitationEditorPage() {
             `[data-invitation-content-key="${cssAttributeValue(selectedContentKey)}"]`,
           )
         : section;
-      target?.scrollIntoView({
-        block: "center",
+      if (!target) return;
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const nextTop =
+        container.scrollTop +
+        targetRect.top -
+        containerRect.top -
+        container.clientHeight / 2 +
+        targetRect.height / 2;
+      container.scrollTo({
+        top: Math.max(0, nextTop),
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
           ? "auto"
           : "smooth",
@@ -1209,15 +1224,19 @@ export default function InvitationEditorPage() {
     setAddOpen(true);
   };
 
+  const activeCanvasWidth =
+    device === "mobile" && mobileEditor && canvasViewportWidth > 0
+      ? Math.max(320, Math.min(deviceWidths.mobile, canvasViewportWidth))
+      : deviceWidths[device];
   const fitZoom =
     canvasViewportWidth > 0
       ? Math.min(
           1,
-          Math.max(canvasFitFloor, canvasViewportWidth / deviceWidths[device]),
+          Math.max(canvasFitFloor, canvasViewportWidth / activeCanvasWidth),
         )
       : 1;
   const canvasZoom = zoom === "fit" ? fitZoom : zoom;
-  const canvasWidth = deviceWidths[device] * canvasZoom;
+  const canvasWidth = activeCanvasWidth * canvasZoom;
   const canvasOverflows =
     canvasViewportWidth > 0 && canvasWidth > canvasViewportWidth + 1;
   const stepZoom = (delta: number) =>
@@ -1231,6 +1250,7 @@ export default function InvitationEditorPage() {
       onTabChange={setInspectorTab}
       selected={selected}
       selectedContentKey={selectedContentKey}
+      onSelectContentKey={setSelectedContentKey}
       snapshot={snapshot}
       readiness={readiness}
       site={site}
@@ -1504,7 +1524,7 @@ export default function InvitationEditorPage() {
             <div className="hidden items-center gap-2 sm:flex">
               <span className="size-2 rounded-full bg-success" aria-hidden />
               <span className="text-xs text-muted">
-                Previzualizare live · clic pe text pentru editare
+                Trage textele pentru a le muta · dublu clic pentru editare
               </span>
             </div>
             <SegmentedControl
@@ -1591,7 +1611,7 @@ export default function InvitationEditorPage() {
                 style={{ width: canvasWidth }}
               >
                 <span className="shrink-0">
-                  {deviceWidths[device]} px
+                  {Math.round(activeCanvasWidth)} px
                   {canvasOverflows ? (
                     <span className="hidden sm:inline"> · derulează lateral</span>
                   ) : null}
@@ -1608,11 +1628,11 @@ export default function InvitationEditorPage() {
                   </Button>
                   <button
                     type="button"
-                    onClick={() => setZoom("fit")}
-                    aria-label="Potrivește previzualizarea pe lățime"
+                    onClick={() => setZoom(1)}
+                    aria-label="Revino la dimensiunea reală de 100%"
                     className={cn(
                       "min-h-8 cursor-pointer rounded-md px-2 font-medium tabular-nums hover:bg-surface hover:text-ink",
-                      zoom === "fit" && "text-brand",
+                      zoom === 1 && "text-brand",
                     )}
                   >
                     {Math.round(canvasZoom * 100)}%
@@ -1626,6 +1646,15 @@ export default function InvitationEditorPage() {
                   >
                     <Plus className="size-3.5" aria-hidden />
                   </Button>
+                  <Button
+                    variant={zoom === "fit" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setZoom("fit")}
+                    aria-label="Potrivește temporar previzualizarea în spațiul disponibil"
+                  >
+                    <Maximize2 className="size-3.5" aria-hidden />
+                    <span className="hidden min-[360px]:inline">Potrivește</span>
+                  </Button>
                 </div>
                 <span className="hidden shrink-0 sm:inline">
                   {snapshot.sections.filter((section) => section.visible).length}{" "}
@@ -1634,10 +1663,12 @@ export default function InvitationEditorPage() {
               </div>
               <div
                 className="mx-auto shrink-0"
-                style={{ width: deviceWidths[device], zoom: canvasZoom }}
+                style={{ width: activeCanvasWidth, zoom: canvasZoom }}
               >
                 <InvitationCanvas
                   snapshot={snapshot}
+                  device={device}
+                  canvasScale={canvasZoom}
                   selectedId={selectedId}
                   resolveMedia={resolveMedia}
                   onSelect={(id) => {
@@ -1653,11 +1684,63 @@ export default function InvitationEditorPage() {
                     setSelectedContentKey(key);
                     setInspectorTab("content");
                     if (permanentInspector) setInspectorPanelOpen(true);
-                    else if (mode === "structured" || mobileEditor)
-                      setInspectorOpen(true);
+                    else if (mode === "structured") setInspectorOpen(true);
                   }}
                   onUpdateSection={updateSection}
-                  inlineEditing={!mobileEditor}
+                  onMoveContent={(sectionId, key, position) => {
+                    const section = snapshot.sections.find(
+                      (item) => item.id === sectionId,
+                    );
+                    if (!section) return;
+                    const movedStyle = resolveInvitationTextStyle(
+                      section.content,
+                      key,
+                      device,
+                    );
+                    const deltaX = position.offsetX - (movedStyle.offsetX ?? 0);
+                    const deltaY = position.offsetY - (movedStyle.offsetY ?? 0);
+                    let nextTextStyles = updateInvitationTextStyle(
+                      section.content,
+                      key,
+                      device,
+                      position,
+                    );
+                    if (movedStyle.groupId) {
+                      for (const field of invitationEditableFields(section)) {
+                        if (field.path === key) continue;
+                        const groupedStyle = resolveInvitationTextStyle(
+                          section.content,
+                          field.path,
+                          device,
+                        );
+                        if (
+                          groupedStyle.groupId !== movedStyle.groupId ||
+                          groupedStyle.locked
+                        )
+                          continue;
+                        nextTextStyles = updateInvitationTextStyle(
+                          { ...section.content, textStyles: nextTextStyles },
+                          field.path,
+                          device,
+                          {
+                            offsetX: (groupedStyle.offsetX ?? 0) + deltaX,
+                            offsetY: (groupedStyle.offsetY ?? 0) + deltaY,
+                          },
+                        );
+                      }
+                    }
+                    updateSection(
+                      sectionId,
+                      {
+                        content: {
+                          ...section.content,
+                          textStyles: nextTextStyles,
+                        },
+                      },
+                      null,
+                    );
+                  }}
+                  inlineEditing
                   onUpdateContent={(sectionId, key, value) => {
                     const section = snapshot.sections.find(
                       (item) => item.id === sectionId,
@@ -2556,6 +2639,7 @@ function Inspector({
   onTabChange,
   selected,
   selectedContentKey,
+  onSelectContentKey,
   snapshot,
   readiness,
   site,
@@ -2585,6 +2669,7 @@ function Inspector({
   onTabChange: (tab: InspectorTab) => void;
   selected?: InvitationSection;
   selectedContentKey: string | null;
+  onSelectContentKey: (key: string | null) => void;
   snapshot: InvitationEditorSnapshot;
   readiness: ReturnType<typeof invitationReadiness>;
   site: InvitationSiteResource | null;
@@ -2658,6 +2743,7 @@ function Inspector({
             section={selected}
             design={snapshot.design}
             selectedContentKey={selectedContentKey}
+            onSelectContentKey={onSelectContentKey}
             device={device}
             uploadingMedia={uploadingMedia}
             onUploadImage={onUploadImage}
@@ -2896,6 +2982,7 @@ function SectionInspector({
   section,
   design,
   selectedContentKey,
+  onSelectContentKey,
   device,
   uploadingMedia,
   onUploadImage,
@@ -2907,6 +2994,7 @@ function SectionInspector({
   section: InvitationSection;
   design: InvitationDesign;
   selectedContentKey: string | null;
+  onSelectContentKey: (key: string | null) => void;
   device: Device;
   uploadingMedia: boolean;
   onUploadImage: (
@@ -2969,6 +3057,16 @@ function SectionInspector({
           onUpdateSection={onUpdateSection}
         />
       ) : null}
+      <EditorLayerStudio
+        key={`layers:${section.id}`}
+        section={section}
+        device={device}
+        selectedContentKey={selectedContentKey}
+        onSelectContentKey={onSelectContentKey}
+        uploading={uploadingMedia}
+        onUpdateContent={onUpdateContent}
+        onUploadImage={onUploadImage}
+      />
       <details className="rounded-xl border border-line bg-subtle/30 p-3">
         <summary className="cursor-pointer text-sm font-semibold text-ink">
           Toate câmpurile secțiunii
@@ -3068,28 +3166,16 @@ function SectionInspector({
           onUpdateContentMany={onUpdateContentMany}
         />
       </div>
-      <EditorLayerStudio
-        section={section}
-        device={device}
-        uploading={uploadingMedia}
-        onUpdateContent={onUpdateContent}
-        onUploadImage={onUploadImage}
-      />
     </div>
   );
 }
 
 type ContextualControlTab = "text" | "spacing" | "image";
 type TextStyleDeviceScope = "all" | InvitationDevice;
-type TextElementStyle = {
-  fontSize?: number;
-  letterSpacing?: number;
-  lineHeight?: number;
-  offsetX?: number;
-  offsetY?: number;
-  width?: number;
-  align?: "left" | "center" | "right";
-};
+type TextElementStyle = InvitationTextElementStyle;
+type DefaultTextElementStyle = Required<
+  Omit<TextElementStyle, "locked" | "hidden" | "zIndex" | "groupId">
+>;
 
 function ContextualTextControls({
   compact = false,
@@ -3147,11 +3233,25 @@ function ContextualTextControls({
     deviceScope === "all" ? device : deviceScope,
     design,
   );
-  const styleValue = <K extends keyof TextElementStyle>(key: K) =>
-    (scopedStyle[key] ?? inheritedStyle[key] ?? defaults[key]) as NonNullable<
+  const styleValue = <K extends keyof TextElementStyle>(key: K) => {
+    const fallback = defaults[
+      key as keyof DefaultTextElementStyle
+    ] as TextElementStyle[K] | undefined;
+    return (scopedStyle[key] ?? inheritedStyle[key] ?? fallback) as NonNullable<
       TextElementStyle[K]
     >;
+  };
   const changed = (key: keyof TextElementStyle) => scopedStyle[key] !== undefined;
+  const effectiveStyle = resolveInvitationTextStyle(
+    section.content,
+    contentKey,
+    device,
+  );
+  const hasDeviceOverride = invitationTextHasOverride(
+    section.content,
+    contentKey,
+    device,
+  );
   const updateStyle = (update: Partial<TextElementStyle>) => {
     const nextStyles = structuredClone(stylesValue);
     const nextEntry =
@@ -3211,6 +3311,38 @@ function ContextualTextControls({
       </div>
 
       <div className="space-y-4 p-3">
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-subtle/60 px-3 py-2">
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-ink">
+              {field?.label ?? "Element text"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted">
+              {hasDeviceOverride
+                ? `Poziție personalizată pe ${deviceLabel(device)}`
+                : `Moștenește poziția pe ${deviceLabel(device)}`}
+            </p>
+          </div>
+          {hasDeviceOverride && deviceScope === device ? (
+            <button
+              type="button"
+              className="min-h-9 shrink-0 rounded-md px-2 text-xs font-semibold text-brand hover:bg-surface"
+              onClick={() => resetStyle()}
+            >
+              Șterge override
+            </button>
+          ) : (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-1 text-xs font-semibold",
+                hasDeviceOverride
+                  ? "bg-brand-soft text-brand-strong"
+                  : "bg-surface text-muted",
+              )}
+            >
+              {hasDeviceOverride ? "Override" : "Moștenit"}
+            </span>
+          )}
+        </div>
         {tab !== "image" && compact ? (
           <div className="rounded-lg bg-subtle/60 p-2.5">
             <div className="flex items-center justify-between gap-3">
@@ -3231,7 +3363,7 @@ function ContextualTextControls({
                 <option value="all">Toate dispozitivele</option>
               </Select>
             </div>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+            <p className="mt-1.5 text-xs leading-relaxed text-muted">
               Modificările rămân pe {deviceLabel(deviceScope)}. Alege „Toate”
               numai când vrei aceeași valoare peste tot.
             </p>
@@ -3271,7 +3403,7 @@ function ContextualTextControls({
                   <option value="tablet">Doar tabletă</option>
                   <option value="mobile">Doar mobil</option>
                 </Select>
-                <p className="mt-1 text-[10px] text-faint">
+                <p className="mt-1 text-xs text-faint">
                   Previzualizare: {deviceLabel(device)}
                 </p>
               </div>
@@ -3354,6 +3486,59 @@ function ContextualTextControls({
                 ))}
               </div>
             </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold text-ink">
+                Protecție și vizibilitate
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateStyle({ locked: !effectiveStyle.locked })}
+                  className={cn(
+                    "flex min-h-11 items-center justify-center gap-2 rounded-lg border text-xs font-semibold",
+                    effectiveStyle.locked
+                      ? "border-brand bg-brand-softer text-brand-strong"
+                      : "border-line text-muted",
+                  )}
+                  aria-pressed={effectiveStyle.locked === true}
+                >
+                  {effectiveStyle.locked ? (
+                    <Lock className="size-3.5" aria-hidden />
+                  ) : (
+                    <Unlock className="size-3.5" aria-hidden />
+                  )}
+                  {effectiveStyle.locked ? "Blocat" : "Deblocat"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateStyle({ hidden: !effectiveStyle.hidden })}
+                  className={cn(
+                    "flex min-h-11 items-center justify-center gap-2 rounded-lg border text-xs font-semibold",
+                    effectiveStyle.hidden
+                      ? "border-warning bg-warning-soft text-warning"
+                      : "border-line text-muted",
+                  )}
+                  aria-pressed={effectiveStyle.hidden === true}
+                >
+                  {effectiveStyle.hidden ? (
+                    <EyeOff className="size-3.5" aria-hidden />
+                  ) : (
+                    <Eye className="size-3.5" aria-hidden />
+                  )}
+                  {effectiveStyle.hidden ? "Ascuns" : "Vizibil"}
+                </button>
+              </div>
+            </div>
+            <NumericStepper
+              label="Ordinea stratului"
+              value={effectiveStyle.zIndex ?? 10}
+              min={0}
+              max={60}
+              step={1}
+              changed={changed("zIndex")}
+              onChange={(zIndex) => updateStyle({ zIndex })}
+              onReset={() => resetStyle("zIndex")}
+            />
           </>
         ) : null}
 
@@ -3647,7 +3832,7 @@ function defaultTextElementStyle(
   contentKey: string,
   device: InvitationDevice,
   design: InvitationDesign,
-): Required<TextElementStyle> {
+): DefaultTextElementStyle {
   const isNames = section.type === "hero" && contentKey === "names";
   const isRootHeading = contentKey === "title";
   const isSmall =
@@ -5187,6 +5372,8 @@ function DesignInspector({
 
 function InvitationCanvas({
   snapshot,
+  device,
+  canvasScale,
   selectedId,
   activeContent,
   inlineEditing,
@@ -5195,8 +5382,11 @@ function InvitationCanvas({
   onContentFocus,
   onUpdateSection,
   onUpdateContent,
+  onMoveContent,
 }: {
   snapshot: InvitationEditorSnapshot;
+  device: InvitationDevice;
+  canvasScale: number;
   selectedId: string;
   activeContent: { sectionId: string; key: string } | null;
   inlineEditing: boolean;
@@ -5209,6 +5399,11 @@ function InvitationCanvas({
   ) => void;
   onUpdateSection: (id: string, update: Partial<InvitationSection>) => void;
   onUpdateContent: (sectionId: string, key: string, value: unknown) => void;
+  onMoveContent: (
+    sectionId: string,
+    key: string,
+    position: { offsetX: number; offsetY: number },
+  ) => void;
 }) {
   return (
     <InvitationRenderer
@@ -5221,6 +5416,9 @@ function InvitationCanvas({
       onContentFocus={onContentFocus}
       activeContent={activeContent}
       inlineEditing={inlineEditing}
+      editorDevice={device}
+      canvasScale={canvasScale}
+      onContentMove={onMoveContent}
       emptyState={
         <div className="grid min-h-96 place-items-center p-8 text-center text-sm opacity-60">
           Afișează sau adaugă o secțiune pentru a construi invitația.

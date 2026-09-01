@@ -17,9 +17,11 @@ import {
   stringArray,
   text,
   type InvitationDesign,
+  type InvitationDevice,
   type InvitationEditorSnapshot,
   type InvitationSection,
 } from "@/lib/invitations/editor-model";
+import { resolveInvitationTextStyle } from "@/lib/invitations/editor-elements";
 import {
   invitationContentValue,
   invitationEditableField,
@@ -59,6 +61,13 @@ export type InvitationRendererProps = {
   ) => void;
   activeContent?: { sectionId: string; key: string } | null;
   inlineEditing?: boolean;
+  editorDevice?: InvitationDevice;
+  canvasScale?: number;
+  onContentMove?: (
+    sectionId: string,
+    key: string,
+    position: { offsetX: number; offsetY: number },
+  ) => void;
   renderSectionFrame?: InvitationSectionFrame;
   className?: string;
   emptyState?: React.ReactNode;
@@ -79,11 +88,15 @@ export function InvitationRenderer({
   onContentFocus,
   activeContent,
   inlineEditing = true,
+  editorDevice = "desktop",
+  canvasScale = 1,
+  onContentMove,
   renderSectionFrame,
   className,
   emptyState,
   articleRef,
 }: InvitationRendererProps) {
+  const [editorGuide, setEditorGuide] = React.useState<EditorGuide | null>(null);
   const visibleSections = snapshot.sections.filter((section) => section.visible);
   const { design } = snapshot;
   const defaultTimeZone = invitationTimeZone(snapshot.sections);
@@ -123,6 +136,13 @@ export function InvitationRenderer({
             onContentFocus={onContentFocus}
             activeContent={activeContent}
             inlineEditing={inlineEditing}
+            editorDevice={editorDevice}
+            canvasScale={canvasScale}
+            onContentMove={onContentMove}
+            editorGuide={
+              editorGuide?.sectionId === section.id ? editorGuide : null
+            }
+            onEditorGuideChange={setEditorGuide}
             defaultTimeZone={defaultTimeZone}
           />
         );
@@ -156,7 +176,18 @@ type InvitationSectionViewProps = {
   onContentFocus?: InvitationRendererProps["onContentFocus"];
   activeContent?: InvitationRendererProps["activeContent"];
   inlineEditing?: boolean;
+  editorDevice: InvitationDevice;
+  canvasScale: number;
+  onContentMove?: InvitationRendererProps["onContentMove"];
+  editorGuide: EditorGuide | null;
+  onEditorGuideChange: (guide: EditorGuide | null) => void;
   defaultTimeZone?: string;
+};
+
+type EditorGuide = {
+  sectionId: string;
+  x?: number;
+  y?: number;
 };
 
 export function InvitationSectionView(props: InvitationSectionViewProps) {
@@ -183,6 +214,9 @@ export function InvitationSectionView(props: InvitationSectionViewProps) {
       "data-invitation-section": props.section.type,
     },
     element.props.children,
+    props.editorGuide ? (
+      <EditorAlignmentGuides guide={props.editorGuide} />
+    ) : null,
     array(props.section.content.decorations).length ? (
       <InvitationDecorations
         section={props.section}
@@ -204,6 +238,10 @@ function InvitationSectionContent({
   onContentFocus,
   activeContent,
   inlineEditing,
+  editorDevice,
+  canvasScale,
+  onContentMove,
+  onEditorGuideChange,
   defaultTimeZone,
 }: InvitationSectionViewProps) {
   const content = section.content;
@@ -234,6 +272,7 @@ function InvitationSectionContent({
     const active =
       activeContent?.sectionId === section.id && activeContent.key === key;
     const style = invitationEditableTextStyle(content, key);
+    const interaction = resolveInvitationTextStyle(content, key, editorDevice);
     if (onContentFocus && inlineEditing === false)
       return (
         <InvitationStructuredText
@@ -262,6 +301,21 @@ function InvitationSectionContent({
         contentKey={key}
         style={style}
         active={active}
+        device={editorDevice}
+        canvasScale={canvasScale}
+        offsetX={interaction.offsetX ?? 0}
+        offsetY={interaction.offsetY ?? 0}
+        locked={interaction.locked === true}
+        onMove={
+          onContentMove
+            ? (position) => onContentMove(section.id, key, position)
+            : undefined
+        }
+        onGuideChange={(guide) =>
+          onEditorGuideChange(
+            guide ? { sectionId: section.id, ...guide } : null,
+          )
+        }
       />
     );
   };
@@ -702,14 +756,307 @@ function SectionHeading({ section, design, className, children }: { section: Inv
   return <h2 className={cn("text-3xl", className)} style={sectionHeadingStyle(section, design)}>{children}</h2>;
 }
 
-function InvitationText({ value, onCommit, onFocus, label, contentKey, active = false, style }: { value: string; onCommit?: (value: string) => void; onFocus?: () => void; label: string; contentKey?: string; active?: boolean; style?: React.CSSProperties }) {
+function InvitationText({ value, onCommit, onFocus, label, contentKey, active = false, style, device = "desktop", canvasScale = 1, offsetX = 0, offsetY = 0, locked = false, onMove, onGuideChange }: { value: string; onCommit?: (value: string) => void; onFocus?: () => void; label: string; contentKey?: string; active?: boolean; style?: React.CSSProperties; device?: InvitationDevice; canvasScale?: number; offsetX?: number; offsetY?: number; locked?: boolean; onMove?: (position: { offsetX: number; offsetY: number }) => void; onGuideChange?: (guide: { x?: number; y?: number } | null) => void }) {
   if (!onCommit)
     return Object.keys(style ?? {}).length ? (
       <span className={styles.editableText} style={style}>{value}</span>
     ) : (
       <>{value}</>
     );
-  return <span className={cn(styles.editableText, "inline-block min-w-4 cursor-text whitespace-pre-wrap rounded-sm outline-none transition-[background-color,box-shadow] hover:bg-white/10 focus:bg-white/15 focus:ring-2 focus:ring-current/40", active && "bg-white/15 ring-2 ring-current/40")} style={style} contentEditable="plaintext-only" suppressContentEditableWarning role="textbox" aria-label={`Editează ${lowercaseFirst(label)}`} title={`Editează ${lowercaseFirst(label)}`} data-invitation-content-key={contentKey} onFocus={onFocus} onClick={(event) => { event.preventDefault(); event.stopPropagation(); }} onBlur={(event) => { const next = editableInvitationText(event.currentTarget); if (next !== value) onCommit(next); }} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.textContent = value; event.currentTarget.blur(); return; } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.blur(); } }}>{value}</span>;
+  return <EditableInvitationText value={value} onCommit={onCommit} onFocus={onFocus} label={label} contentKey={contentKey} active={active} style={style} device={device} canvasScale={canvasScale} offsetX={offsetX} offsetY={offsetY} locked={locked} onMove={onMove} onGuideChange={onGuideChange} />;
+}
+
+function EditableInvitationText({ value, onCommit, onFocus, label, contentKey, active, style, device, canvasScale, offsetX, offsetY, locked, onMove, onGuideChange }: { value: string; onCommit: (value: string) => void; onFocus?: () => void; label: string; contentKey?: string; active: boolean; style?: React.CSSProperties; device: InvitationDevice; canvasScale: number; offsetX: number; offsetY: number; locked: boolean; onMove?: (position: { offsetX: number; offsetY: number }) => void; onGuideChange?: (guide: { x?: number; y?: number } | null) => void }) {
+  const ref = React.useRef<HTMLSpanElement>(null);
+  const [editing, setEditing] = React.useState(false);
+  const dragRef = React.useRef<DragState | null>(null);
+
+  React.useEffect(() => {
+    if (!editing) return;
+    const node = ref.current;
+    if (!node) return;
+    node.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [editing]);
+
+  const stopDrag = (commit: boolean) => {
+    const node = ref.current;
+    const drag = dragRef.current;
+    if (!node || !drag) return;
+    dragRef.current = null;
+    onGuideChange?.(null);
+    if (commit && drag.moved) {
+      onMove?.({ offsetX: drag.nextX, offsetY: drag.nextY });
+      window.requestAnimationFrame(() => {
+        if (ref.current) ref.current.style.transform = "";
+      });
+    } else {
+      node.style.transform = "";
+    }
+  };
+
+  return (
+    <span
+      ref={ref}
+      className={cn(
+        styles.editableText,
+        styles.editorText,
+        "min-w-4 whitespace-pre-wrap rounded-sm outline-none transition-[background-color,box-shadow]",
+        editing ? "cursor-text" : locked ? "cursor-default" : "cursor-move",
+        active && styles.editorTextSelected,
+        active && !editing && !locked && "touch-none",
+        locked && styles.editorTextLocked,
+      )}
+      style={style}
+      contentEditable={editing ? "plaintext-only" : false}
+      suppressContentEditableWarning
+      role={editing ? "textbox" : "button"}
+      tabIndex={0}
+      aria-label={`${locked ? "Selectează" : "Mută sau editează"} ${lowercaseFirst(label)}`}
+      aria-pressed={!editing ? active : undefined}
+      title={
+        locked
+          ? `${label} este blocat. Deblochează-l din Straturi.`
+          : "Trage pentru mutare. Dublu clic pentru editarea textului."
+      }
+      data-invitation-content-key={contentKey}
+      data-invitation-content-label={label}
+      data-invitation-content-selected={active ? "true" : undefined}
+      data-invitation-content-locked={locked ? "true" : undefined}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onFocus?.();
+        setEditing(true);
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!dragRef.current?.moved) onFocus?.();
+      }}
+      onPointerDown={(event) => {
+        if (editing || !onMove || locked || event.button !== 0) {
+          onFocus?.();
+          return;
+        }
+        if (event.pointerType === "touch" && !active) {
+          onFocus?.();
+          return;
+        }
+        const node = event.currentTarget;
+        const section = node.closest<HTMLElement>("[data-invitation-section]");
+        if (!section) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onFocus?.();
+        node.setPointerCapture(event.pointerId);
+        const elementRect = node.getBoundingClientRect();
+        const sectionRect = section.getBoundingClientRect();
+        const otherRects = Array.from(
+          section.querySelectorAll<HTMLElement>("[data-invitation-content-key]"),
+        )
+          .filter((entry) => entry !== node && entry.offsetParent !== null)
+          .map((entry) => entry.getBoundingClientRect());
+        dragRef.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          originX: offsetX,
+          originY: offsetY,
+          nextX: offsetX,
+          nextY: offsetY,
+          moved: false,
+          elementRect,
+          sectionRect,
+          otherRects,
+          scale: Math.max(0.25, canvasScale),
+          device,
+        };
+      }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        const rawDx = event.clientX - drag.startX;
+        const rawDy = event.clientY - drag.startY;
+        if (!drag.moved && Math.hypot(rawDx, rawDy) < 3) return;
+        drag.moved = true;
+        event.preventDefault();
+        const snappedX = snapDragAxis(
+          drag.elementRect.left,
+          drag.elementRect.right,
+          rawDx,
+          [
+            drag.sectionRect.left + 24 * drag.scale,
+            drag.sectionRect.left + drag.sectionRect.width / 2,
+            drag.sectionRect.right - 24 * drag.scale,
+            ...drag.otherRects.flatMap((rect) => [
+              rect.left,
+              rect.left + rect.width / 2,
+              rect.right,
+            ]),
+          ],
+          event.pointerType === "touch" ? 10 : 6,
+        );
+        const snappedY = snapDragAxis(
+          drag.elementRect.top,
+          drag.elementRect.bottom,
+          rawDy,
+          [
+            drag.sectionRect.top + 24 * drag.scale,
+            drag.sectionRect.top + drag.sectionRect.height / 2,
+            drag.sectionRect.bottom - 24 * drag.scale,
+            ...drag.otherRects.flatMap((rect) => [
+              rect.top,
+              rect.top + rect.height / 2,
+              rect.bottom,
+            ]),
+          ],
+          event.pointerType === "touch" ? 10 : 6,
+        );
+        drag.nextX = Math.round(drag.originX + snappedX.delta / drag.scale);
+        drag.nextY = Math.round(drag.originY + snappedY.delta / drag.scale);
+        event.currentTarget.style.transform = `translate3d(${drag.nextX}px, ${drag.nextY}px, 0)`;
+        onGuideChange?.({
+          x:
+            snappedX.target === undefined
+              ? undefined
+              : ((snappedX.target - drag.sectionRect.left) /
+                  drag.sectionRect.width) *
+                100,
+          y:
+            snappedY.target === undefined
+              ? undefined
+              : ((snappedY.target - drag.sectionRect.top) /
+                  drag.sectionRect.height) *
+                100,
+        });
+      }}
+      onPointerUp={(event) => {
+        if (dragRef.current?.pointerId !== event.pointerId) return;
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        stopDrag(true);
+      }}
+      onPointerCancel={() => stopDrag(false)}
+      onLostPointerCapture={() => {
+        if (dragRef.current) stopDrag(true);
+      }}
+      onBlur={(event) => {
+        if (!editing) return;
+        const next = editableInvitationText(event.currentTarget);
+        setEditing(false);
+        if (next !== value) onCommit(next);
+      }}
+      onKeyDown={(event) => {
+        if (editing) {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.currentTarget.textContent = value;
+            event.currentTarget.blur();
+          } else if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          setEditing(true);
+          return;
+        }
+        if (
+          !locked &&
+          onMove &&
+          ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
+            event.key,
+          )
+        ) {
+          event.preventDefault();
+          const step = event.shiftKey ? 10 : 1;
+          onMove({
+            offsetX:
+              offsetX +
+              (event.key === "ArrowLeft"
+                ? -step
+                : event.key === "ArrowRight"
+                  ? step
+                  : 0),
+            offsetY:
+              offsetY +
+              (event.key === "ArrowUp"
+                ? -step
+                : event.key === "ArrowDown"
+                  ? step
+                  : 0),
+          });
+        }
+      }}
+    >
+      {value}
+    </span>
+  );
+}
+
+type DragState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+  nextX: number;
+  nextY: number;
+  moved: boolean;
+  elementRect: DOMRect;
+  sectionRect: DOMRect;
+  otherRects: DOMRect[];
+  scale: number;
+  device: InvitationDevice;
+};
+
+function snapDragAxis(
+  start: number,
+  end: number,
+  delta: number,
+  targets: number[],
+  distance: number,
+) {
+  const anchors = [start + delta, start + (end - start) / 2 + delta, end + delta];
+  let best: { difference: number; target: number } | null = null;
+  for (const anchor of anchors) {
+    for (const target of targets) {
+      const difference = target - anchor;
+      if (
+        Math.abs(difference) <= distance &&
+        (!best || Math.abs(difference) < Math.abs(best.difference))
+      )
+        best = { difference, target };
+    }
+  }
+  return best
+    ? { delta: delta + best.difference, target: best.target }
+    : { delta, target: undefined };
+}
+
+function EditorAlignmentGuides({ guide }: { guide: EditorGuide }) {
+  return (
+    <span className={styles.editorGuides} aria-hidden>
+      {guide.x !== undefined ? (
+        <span
+          className={styles.editorGuideVertical}
+          style={{ left: `${guide.x}%` }}
+        />
+      ) : null}
+      {guide.y !== undefined ? (
+        <span
+          className={styles.editorGuideHorizontal}
+          style={{ top: `${guide.y}%` }}
+        />
+      ) : null}
+    </span>
+  );
 }
 
 function editableInvitationText(element: HTMLElement) {
@@ -741,6 +1088,8 @@ type InvitationEditableTextStyle = {
   offsetY?: number;
   width?: number;
   align?: "left" | "center" | "right";
+  hidden?: boolean;
+  zIndex?: number;
 };
 
 function invitationEditableTextStyle(
@@ -771,6 +1120,12 @@ function invitationEditableTextStyle(
       variables[`--editable-width-${suffix}`] = `${style.width}%`;
     if (style.align)
       variables[`--editable-align-${suffix}`] = style.align;
+    if (typeof style.zIndex === "number")
+      variables[`--editable-z-index-${suffix}`] = style.zIndex;
+    if (typeof style.hidden === "boolean")
+      variables[`--editable-display-${suffix}`] = style.hidden
+        ? "none"
+        : "inline-block";
   };
   write("all");
   write("desktop");
@@ -992,11 +1347,13 @@ function InvitationDecorations({
               device === "mobile") &&
             !artDirection[device].hideDecorations,
         );
+        if (layer.hidden === true) return [];
         const layerStyle: React.CSSProperties = {
           left: `${clampNumber(layer.x, 4, 96, 50)}%`,
           top: `${clampNumber(layer.y, 4, 96, 50)}%`,
           width: `${clampNumber(layer.scale, 25, 200, 100) * 0.96}px`,
           opacity: clampNumber(layer.opacity, 0, 100, 100) / 100,
+          zIndex: clampNumber(layer.zIndex, 0, 60, index + 1),
           transform: `translate(-50%, -50%) rotate(${clampNumber(layer.rotation, -180, 180, 0)}deg)`,
         };
         const color = validColor(text(layer.color, "#FFFFFF"));
