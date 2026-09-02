@@ -415,6 +415,38 @@ test("E2E 3 — Create and publish invitation", async ({ page }) => {
   ).toBe(true);
 
   await page.goto("/invitations/editor");
+  const zoomLevel = page.getByRole("button", {
+    name: "Revino la dimensiunea reală de 100%",
+  });
+  await expect(zoomLevel).toHaveText(/^Auto · \d+%$/);
+  await expect(zoomLevel).not.toHaveText("100%");
+  const canvasViewport = await page
+    .getByTestId("invitation-canvas-scroll")
+    .boundingBox();
+  const zoomToolbar = await page
+    .getByTestId("invitation-zoom-toolbar")
+    .boundingBox();
+  expect(canvasViewport).not.toBeNull();
+  expect(zoomToolbar).not.toBeNull();
+  expect(zoomToolbar!.x).toBeGreaterThanOrEqual(canvasViewport!.x);
+  expect(zoomToolbar!.x + zoomToolbar!.width).toBeLessThanOrEqual(
+    canvasViewport!.x + canvasViewport!.width + 1,
+  );
+  await page.getByRole("button", { name: "Mărește previzualizarea" }).click();
+  await expect(zoomLevel).not.toHaveText(/^Auto/);
+  const preferredDesktopZoom = await zoomLevel.textContent();
+  await page.reload();
+  await expect(zoomLevel).toHaveText(preferredDesktopZoom!);
+  await page.getByRole("radio", { name: "Previzualizare tabletă" }).click();
+  await expect(zoomLevel).toHaveText(/^Auto · \d+%$/);
+  await page.getByRole("radio", { name: "Previzualizare desktop" }).click();
+  await expect(zoomLevel).toHaveText(preferredDesktopZoom!);
+  await page
+    .getByRole("button", {
+      name: "Încadrează automat previzualizarea în spațiul disponibil",
+    })
+    .click();
+  await expect(zoomLevel).toHaveText(/^Auto · \d+%$/);
   const studioTools = page.getByRole("complementary", {
     name: "Instrumentele studioului",
   });
