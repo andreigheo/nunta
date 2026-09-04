@@ -206,26 +206,6 @@ export function ProductFirstControlRoom({
       <section id="despre" className={styles.finalCta} aria-labelledby="control-room-close">
         <h2 id="control-room-close">{copy.close.title}</h2>
         <div className={styles.finalActions}>
-          <span className={styles.finalThread} aria-hidden>
-            <svg
-              aria-hidden
-              focusable="false"
-              preserveAspectRatio="none"
-              viewBox="0 0 100 100"
-            >
-              <defs>
-                <linearGradient id="final-thread-stroke" x1="0" x2="1" y1="0" y2="0">
-                  <stop offset="0" stopColor="var(--final-border)" />
-                  <stop offset="0.22" stopColor="var(--plum)" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M 0 100 H 44 C 61 100 68 88 68 62 C 68 22 77 0 94 0 H 100"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-            <i />
-          </span>
           <Link className={styles.primaryButton} href={primaryCta.href}>
             {primaryCta.label}
           </Link>

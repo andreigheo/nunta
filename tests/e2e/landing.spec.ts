@@ -1187,55 +1187,6 @@ test("comanda evenimentului — reproduce programul, echipa și furnizorii din c
   await expectNoHorizontalOverflow(page);
 });
 
-test("firul CTA final — unește bordura bannerului cu primul buton", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-
-  for (const width of [821, 864, 940, 941, 1024, 1214, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto("/");
-    await dismissCookieBanner(page);
-
-    const cta = page.locator("#despre");
-    const primary = cta.getByRole("link", { name: "Începe organizarea" });
-    const thread = cta.locator('[class*="finalThread"]');
-    const node = thread.locator("i");
-
-    await expect(thread, `firul final @ ${width}px`).toBeVisible();
-    await expect(thread.locator("path")).toHaveCount(1);
-
-    const ctaBox = await cta.boundingBox();
-    const primaryBox = await primary.boundingBox();
-    const threadBox = await thread.boundingBox();
-    const nodeBox = await node.boundingBox();
-    expect(ctaBox).not.toBeNull();
-    expect(primaryBox).not.toBeNull();
-    expect(threadBox).not.toBeNull();
-    expect(nodeBox).not.toBeNull();
-
-    const nodeCenterX = nodeBox!.x + nodeBox!.width / 2;
-    const nodeCenterY = nodeBox!.y + nodeBox!.height / 2;
-    const buttonCenterY = primaryBox!.y + primaryBox!.height / 2;
-    const threadBottom = threadBox!.y + threadBox!.height;
-    const ctaBottom = ctaBox!.y + ctaBox!.height;
-
-    expect(Math.abs(nodeCenterX - (primaryBox!.x + 1))).toBeLessThan(0.6);
-    expect(Math.abs(nodeCenterY - buttonCenterY)).toBeLessThan(0.6);
-    expect(Math.abs(threadBottom - ctaBottom)).toBeLessThan(0.6);
-    expect(nodeBox!.width).toBeGreaterThanOrEqual(8);
-    expect(nodeBox!.width).toBeLessThanOrEqual(9);
-    expect(Math.abs(nodeBox!.width - nodeBox!.height)).toBeLessThan(0.1);
-    expect(threadBox!.width).toBeGreaterThanOrEqual(99);
-    expect(threadBox!.width).toBeLessThanOrEqual(121);
-    await expectNoHorizontalOverflow(page);
-  }
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator("#despre [class*='finalThread']")).toBeHidden();
-  await expectNoHorizontalOverflow(page);
-});
-
 test("control room — păstrează proporția corpului din concept pe toate lățimile split", async ({
   page,
 }) => {
