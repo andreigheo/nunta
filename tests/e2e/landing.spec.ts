@@ -141,7 +141,7 @@ test("landing desktop — Product-first control room V1", async ({
   ).toHaveAttribute("href", "/create-account");
   await expect(
     page.getByRole("link", { name: "Vezi produsul" }).first(),
-  ).toHaveAttribute("href", "#produs");
+  ).toHaveAttribute("href", "/produs");
   await expect(
     page.getByRole("link", { name: "Autentificare" }).first(),
   ).toHaveAttribute("href", "/sign-in");
@@ -201,7 +201,8 @@ test("landing mobil — meniu, ordine și adaptare", async ({
   await expect(mobileNav).toBeVisible();
   await mobileNav.getByRole("link", { name: "Produs" }).click();
   await expect(mobileNav).toBeHidden();
-  await expect(page).toHaveURL(/#produs$/);
+  await expect(page).toHaveURL(/\/produs$/);
+  await page.goto("/");
 
   for (const id of sectionIds)
     await expect(page.locator(`#${id}`)).toHaveCount(1);
@@ -262,7 +263,7 @@ test("footer — grupează toate destinațiile reale ale landingului", async ({
   expect(hrefs).toEqual(
     expect.arrayContaining([
       "/",
-      "/#produs",
+      "/produs",
       "/#solutii",
       "/#planificare",
       "/#invitatii",
@@ -288,8 +289,7 @@ test("footer — grupează toate destinațiile reale ale landingului", async ({
   expect(hrefs).not.toContain("#abonamente");
 
   await footer.getByRole("link", { name: "Produs", exact: true }).click();
-  await expect(page).toHaveURL(/\/#produs$/);
-  await expect(page.locator("#produs")).toBeVisible();
+  await expect(page).toHaveURL(/\/produs$/);
   await expectNoHorizontalOverflow(page);
 });
 

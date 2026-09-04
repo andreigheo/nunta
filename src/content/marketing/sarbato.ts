@@ -22,7 +22,7 @@ export const primaryCta: Cta = {
 
 export const secondaryCta: Cta = {
   label: "Vezi produsul",
-  href: "#produs",
+  href: "/produs",
 };
 
 export const signInCta: Cta = {
