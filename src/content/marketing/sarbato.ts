@@ -22,7 +22,7 @@ export const primaryCta: Cta = {
 
 export const secondaryCta: Cta = {
   label: "Vezi produsul",
-  href: "#produs",
+  href: "/produs",
 };
 
 export const signInCta: Cta = {
@@ -31,11 +31,11 @@ export const signInCta: Cta = {
 };
 
 export const headerNav = [
-  { label: "Produs", href: "#produs" },
-  { label: "Soluții", href: "#solutii" },
-  { label: "Prețuri", href: "#abonamente" },
-  { label: "Întrebări", href: "#intrebari" },
-  { label: "Despre noi", href: "#despre" },
+  { label: "Produs", href: "/produs" },
+  { label: "Soluții", href: "/#solutii" },
+  { label: "Prețuri", href: "/#abonamente" },
+  { label: "Întrebări", href: "/#intrebari" },
+  { label: "Despre noi", href: "/#despre" },
 ] as const;
 
 export const productFirstControlRoom = {
@@ -686,7 +686,7 @@ export const footer = {
     {
       title: "Explorează",
       links: [
-        { label: "Produs", href: "/#produs" },
+        { label: "Produs", href: "/produs" },
         { label: "Soluții", href: "/#solutii" },
         { label: "Prețuri", href: "/#abonamente" },
         { label: "Întrebări", href: "/#intrebari" },
