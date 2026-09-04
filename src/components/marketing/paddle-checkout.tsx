@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, CreditCard, RefreshCw, ShieldCheck } from "lucide-react";
 import { loadPaddle, type PaddleEnvironment } from "@/lib/paddle";
+import { trackMarketingEvent } from "@/lib/marketing/google-measurement";
 
 type PublicPaddleConfiguration = {
   enabled: boolean;
@@ -37,6 +38,9 @@ export function PaddleCheckout({ transactionId }: { transactionId: string | null
         payload.data.clientToken,
         payload.data.environment,
       );
+      trackMarketingEvent("begin_checkout", {
+        checkout_provider: "paddle",
+      });
       paddle.Checkout.open({
         transactionId,
         settings: {

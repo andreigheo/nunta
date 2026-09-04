@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ArrowUpRight, Send } from "lucide-react";
+import { trackMarketingEvent } from "@/lib/marketing/google-measurement";
 
 type ContactFormCopy = {
   eyebrow: string;
@@ -27,6 +28,13 @@ export function ContactForm({
   copy: ContactFormCopy;
 }) {
   const [prepared, setPrepared] = React.useState(false);
+  const [started, setStarted] = React.useState(false);
+
+  function handleStart() {
+    if (started) return;
+    setStarted(true);
+    trackMarketingEvent("contact_form_start");
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,13 +48,14 @@ export function ContactForm({
     const body = [`Nume: ${name}`, `Email: ${email}`, "", message].join("\n");
 
     setPrepared(true);
+    trackMarketingEvent("contact_mailto_opened", { contact_topic: topic });
     window.location.assign(
       `mailto:${destination}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
     );
   }
 
   return (
-    <form className="contactForm" onSubmit={handleSubmit}>
+    <form className="contactForm" onFocus={handleStart} onSubmit={handleSubmit}>
       <div className="contactFormHeading">
         <div>
           <p>{copy.eyebrow}</p>

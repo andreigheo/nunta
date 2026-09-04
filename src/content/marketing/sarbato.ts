@@ -560,12 +560,19 @@ export const pricing = {
       price: "0 €",
       cadence: "fără card",
       description: "Pentru primul pas și organizarea de bază a evenimentului.",
-      features: [
-        "Plan, calendar, buget, invitație și RSVP",
-        "Până la 50 de invitați și 2 colaboratori",
-        "5 acțiuni AI și 250 MB de stocare",
+      highlights: [
+        { value: "50", label: "invitați" },
+        { value: "2", label: "colaboratori" },
+        { value: "5", label: "acțiuni AI / lună" },
+        { value: "250 MB", label: "stocare" },
       ],
-      status: "Disponibil",
+      features: [
+        "Plan, calendar și buget într-un singur spațiu",
+        "Studio de invitații, RSVP și livrare e-mail",
+        "Descoperire cazare pentru invitați",
+        "200 de livrări e-mail pe lună",
+      ],
+      status: "Fără card",
       cta: { label: "Începe gratuit", href: routes.createAccount },
       featured: false,
     },
@@ -575,12 +582,20 @@ export const pricing = {
       cadence: "pe lună",
       description:
         "Pentru organizarea completă, logistica invitaților și coordonarea furnizorilor.",
-      features: [
-        "Până la 200 de invitați și 5 colaboratori",
-        "Mese, transport, cazare și documente",
-        "5 automatizări, 30 acțiuni AI și 2 GB",
+      highlights: [
+        { value: "200", label: "invitați" },
+        { value: "5", label: "colaboratori" },
+        { value: "30", label: "acțiuni AI / lună" },
+        { value: "2 GB", label: "stocare" },
       ],
-      status: "Disponibil în cont",
+      features: [
+        "Tot ce include planul Gratuit",
+        "Mese, transport și cazare gestionate complet",
+        "Coordonarea furnizorilor și documentelor",
+        "Exporturi avansate și 5 automatizări active",
+        "2.000 de livrări e-mail pe lună",
+      ],
+      status: "Recomandat",
       cta: { label: "Începe cu Plus", href: routes.createAccount },
       featured: true,
     },
@@ -589,12 +604,22 @@ export const pricing = {
       price: "39 €",
       cadence: "pe lună",
       description: "Pentru coordonare operațională avansată.",
-      features: [
-        "Până la 500 de invitați și 15 colaboratori",
-        "Riscuri, Plan B, check-in și ziua evenimentului",
-        "25 automatizări, 150 acțiuni AI și 10 GB",
+      highlights: [
+        { value: "500", label: "invitați" },
+        { value: "15", label: "colaboratori" },
+        { value: "150", label: "acțiuni AI / lună" },
+        { value: "10 GB", label: "stocare" },
       ],
-      status: "Disponibil în cont",
+      features: [
+        "Tot ce include planul Plus",
+        "Riscuri și planuri de rezervă",
+        "Check-in și operațiuni în ziua evenimentului",
+        "Semnături electronice externe",
+        "25 de automatizări active",
+        "10.000 de livrări e-mail pe lună",
+        "Suport prioritar",
+      ],
+      status: "Avansat",
       cta: { label: "Începe cu Pro", href: routes.createAccount },
       featured: false,
     },
@@ -602,7 +627,7 @@ export const pricing = {
   boundary:
     "Paddle procesează abonamentul Sarbato. Plățile dintre organizatori și furnizori rămân directe și separate.",
   checkoutNote:
-    "Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
+    "Facturare lunară. Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
 } as const;
 
 export const trust = {

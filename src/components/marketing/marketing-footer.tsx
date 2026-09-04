@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUp } from "lucide-react";
 import { footer } from "@/content/marketing/sarbato";
 import { BrandMark } from "./brand-mark";
+import { CookieSettingsButton } from "./cookie-settings-button";
 import styles from "./marketing-footer.module.css";
 
 export function MarketingFooter() {
@@ -48,6 +49,7 @@ export function MarketingFooter() {
                 {link.label}
               </Link>
             ))}
+            <CookieSettingsButton className={styles.cookieSettingsButton} />
           </nav>
           <a className={styles.backToTop} href="#continut">
             Sus

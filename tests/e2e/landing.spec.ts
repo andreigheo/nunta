@@ -324,6 +324,78 @@ test("contact — oferă un formular accesibil și contact direct", async ({
   await expectNoHorizontalOverflow(page);
 });
 
+test("analytics — Google Tag Manager se încarcă numai după acord", async ({
+  page,
+}) => {
+  const googleRequests: string[] = [];
+  await page.addInitScript(() => window.localStorage.clear());
+  await page.route("https://www.googletagmanager.com/**", async (route) => {
+    googleRequests.push(route.request().url());
+    await route.abort();
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Acceptă analytics" })).toBeVisible();
+  expect(googleRequests).toEqual([]);
+
+  await page.getByRole("button", { name: "Acceptă analytics" }).click();
+  await expect.poll(() => googleRequests.length).toBe(1);
+  expect(googleRequests[0]).toContain("id=GTM-59ST3B86");
+
+  const consentCommands = await page.evaluate(() =>
+    window.dataLayer?.map((item) => {
+      if (
+        item &&
+        typeof item === "object" &&
+        "length" in item &&
+        typeof item.length === "number"
+      ) {
+        return Array.from(item as ArrayLike<unknown>);
+      }
+      return item;
+    }),
+  );
+  expect(consentCommands).toEqual(
+    expect.arrayContaining([
+      expect.arrayContaining([
+        "consent",
+        "update",
+        expect.objectContaining({
+          analytics_storage: "granted",
+          ad_storage: "denied",
+          ad_user_data: "denied",
+          ad_personalization: "denied",
+        }),
+      ]),
+    ]),
+  );
+});
+
+test("analytics — refuzul persistă și setările rămân accesibile", async ({
+  page,
+}) => {
+  const googleRequests: string[] = [];
+  await page.route("https://www.googletagmanager.com/**", async (route) => {
+    googleRequests.push(route.request().url());
+    await route.abort();
+  });
+
+  await page.goto("/");
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload();
+  await page.getByRole("button", { name: "Doar esențiale" }).click();
+  await page.reload();
+  expect(googleRequests).toEqual([]);
+  await expect(
+    page.getByRole("button", { name: "Acceptă analytics" }),
+  ).toBeHidden();
+
+  await page.getByRole("button", { name: "Setări cookie" }).click();
+  await expect(
+    page.getByRole("button", { name: "Acceptă analytics" }),
+  ).toBeVisible();
+});
+
 test("întrebări și răspunsuri — clarifică produsul și funcționează din tastatură", async ({
   page,
 }) => {
@@ -378,20 +450,25 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   await expect(plans).toHaveCount(3);
   await expect(plans.nth(0)).toContainText("Gratuit");
   await expect(plans.nth(0)).toContainText("0 €");
-  await expect(plans.nth(0)).toContainText(
-    "Până la 50 de invitați și 2 colaboratori",
-  );
+  await expect(plans.nth(0)).toContainText("50");
+  await expect(plans.nth(0)).toContainText("2");
+  await expect(plans.nth(0)).toContainText("5");
+  await expect(plans.nth(0)).toContainText("acțiuni AI / lună");
+  await expect(plans.nth(0)).toContainText("200 de livrări e-mail pe lună");
   await expect(plans.nth(1)).toContainText("Plus");
   await expect(plans.nth(1)).toContainText("19 €");
-  await expect(plans.nth(1)).toContainText(
-    "Până la 200 de invitați și 5 colaboratori",
-  );
+  await expect(plans.nth(1)).toContainText("30");
+  await expect(plans.nth(1)).toContainText("acțiuni AI / lună");
+  await expect(plans.nth(1)).toContainText("5 automatizări active");
+  await expect(plans.nth(1)).toContainText("2.000 de livrări e-mail pe lună");
   await expect(plans.nth(1)).toHaveAttribute("data-featured", "true");
   await expect(plans.nth(2)).toContainText("Pro");
   await expect(plans.nth(2)).toContainText("39 €");
-  await expect(plans.nth(2)).toContainText(
-    "Până la 500 de invitați și 15 colaboratori",
-  );
+  await expect(plans.nth(2)).toContainText("150");
+  await expect(plans.nth(2)).toContainText("acțiuni AI / lună");
+  await expect(plans.nth(2)).toContainText("25 de automatizări active");
+  await expect(plans.nth(2)).toContainText("10.000 de livrări e-mail pe lună");
+  await expect(plans.nth(2)).toContainText("Suport prioritar");
   await expect(section.getByRole("link", { name: /Începe/ })).toHaveCount(3);
   for (const link of await section
     .getByRole("link", { name: /Începe/ })
@@ -400,7 +477,7 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   }
   await expect(section).toContainText("Paddle procesează abonamentul Sarbato");
   await expect(section).toContainText(
-    "Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
+    "Facturare lunară. Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
   );
   await expectNoHorizontalOverflow(page);
 
