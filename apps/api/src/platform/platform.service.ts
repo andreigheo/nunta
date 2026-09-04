@@ -639,7 +639,7 @@ export class PlatformService {
       async (tx) => ({
         items: (
           await tx.platformSupportCase.findMany({
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ priorityRank: "desc" }, { createdAt: "asc" }],
             take: 100,
           })
         ).map((row) => this.safe(row)),
@@ -672,6 +672,7 @@ export class PlatformService {
             subject: input.subject,
             description: input.description,
             priority: input.priority,
+            priorityRank: supportPriorityRank(input.priority),
             workspaceId: input.workspaceId,
             vendorOrganizationId: input.vendorOrganizationId,
           },
@@ -2688,4 +2689,8 @@ export class PlatformService {
   private notFound(detail: string): never {
     problem("NOT_FOUND", HttpStatus.NOT_FOUND, "Not found", detail);
   }
+}
+
+function supportPriorityRank(priority: string) {
+  return { LOW: 0, NORMAL: 10, HIGH: 20, URGENT: 30 }[priority] ?? 10;
 }

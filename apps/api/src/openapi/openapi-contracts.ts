@@ -14,6 +14,7 @@ import {
   createSessionRequestSchema,
   createTeamInvitationRequestSchema,
   createWorkspaceRequestSchema,
+  createWorkspaceSupportCaseSchema,
   currentUserSchema,
   emailVerificationRequestSchema,
   emailVerificationSchema,
@@ -460,6 +461,7 @@ const schemas: Record<string, ZodTypeAny> = {
   WorkspaceSummary: workspaceSummarySchema,
   WorkspaceMutation: workspaceMutationSchema,
   CreateWorkspaceRequest: createWorkspaceRequestSchema,
+  CreateWorkspaceSupportCase: createWorkspaceSupportCaseSchema,
   UpdateWorkspaceRequest: updateWorkspaceRequestSchema,
   WorkspaceBootstrap: workspaceBootstrapSchema,
   TeamMember: teamMemberSchema,
@@ -898,6 +900,10 @@ const requestByRoute: Array<[RegExp, string]> = [
     "PlatformReason",
   ],
   [/POST \/api\/v1\/platform\/support-cases$/, "CreateSupportCase"],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/billing\/support-cases$/,
+    "CreateWorkspaceSupportCase",
+  ],
   [
     /POST \/api\/v1\/platform\/support-cases\/\{caseId\}\/transitions$/,
     "SupportCaseTransition",

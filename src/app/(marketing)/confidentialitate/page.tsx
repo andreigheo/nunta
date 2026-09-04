@@ -11,7 +11,7 @@ const sections = [
   {
     title: "Cine răspunde pentru date",
     body: [
-      "Sarbato este operat de Andrei Vilcu, vânzător individual, sub brandul Sarbato. Pentru întrebări sau cereri privind datele personale ne poți contacta la andreivilcuro@gmail.com.",
+      "Sarbato este operat de Andrei Vilcu, vânzător individual, sub brandul Sarbato. Pentru întrebări sau cereri privind datele personale ne poți contacta la hello@sarbato.space.",
       "Această politică se aplică site-ului sarbato.space, conturilor Sarbato și funcțiilor platformei.",
     ],
   },
@@ -55,7 +55,7 @@ const sections = [
     title: "Drepturile tale",
     body: [
       "Poți solicita accesul, corectarea, ștergerea, restricționarea sau portabilitatea datelor și te poți opune anumitor prelucrări. Atunci când prelucrarea se bazează pe consimțământ, îl poți retrage pentru viitor.",
-      "Pentru o cerere, scrie la andreivilcuro@gmail.com. Este posibil să cerem informații rezonabile pentru verificarea identității și vom răspunde în termenul prevăzut de lege.",
+      "Pentru o cerere, scrie la hello@sarbato.space. Este posibil să cerem informații rezonabile pentru verificarea identității și vom răspunde în termenul prevăzut de lege.",
       "Ai dreptul să depui o plângere la Autoritatea Națională de Supraveghere a Prelucrării Datelor cu Caracter Personal sau la autoritatea competentă din țara ta.",
     ],
   },

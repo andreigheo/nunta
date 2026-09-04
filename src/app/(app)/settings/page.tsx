@@ -495,6 +495,7 @@ const entitlementRows = [
   { key: "MAX_GUESTS", label: "Invitați" },
   { key: "MAX_COLLABORATORS", label: "Colaboratori" },
   { key: "AI_ACTIONS_MONTHLY", label: "Acțiuni AI / lună" },
+  { key: "EMAIL_DELIVERIES_MONTHLY", label: "Livrări e-mail / lună" },
   { key: "MAX_ACTIVE_AUTOMATIONS", label: "Automatizări active" },
   { key: "STORAGE_BYTES", label: "Stocare" },
   { key: "ADVANCED_LOGISTICS", label: "Mese, transport și cazare" },
@@ -510,6 +511,7 @@ const usageLabels: Record<string, string> = {
   MAX_GUESTS: "Invitați activi",
   MAX_COLLABORATORS: "Colaboratori și invitații",
   AI_ACTIONS_MONTHLY: "Acțiuni AI luna aceasta",
+  EMAIL_DELIVERIES_MONTHLY: "Livrări e-mail luna aceasta",
   MAX_ACTIVE_AUTOMATIONS: "Automatizări active",
   STORAGE_BYTES: "Stocare utilizată",
 };
@@ -528,6 +530,7 @@ function formatEntitlement(key: string, value: boolean | number | undefined) {
 }
 
 function BillingSettings() {
+  const searchParams = useSearchParams();
   const { currentWorkspace, bootstrap } = useWorkspace();
   const { toast } = useToast();
   const [billing, setBilling] = React.useState<
@@ -540,6 +543,13 @@ function BillingSettings() {
   const [loading, setLoading] = React.useState(true);
   const [busyPlan, setBusyPlan] =
     React.useState<WorkspaceSubscriptionPlanKey | null>(null);
+  const [supportType, setSupportType] = React.useState<
+    "ACCOUNT_ACCESS" | "BILLING" | "BUG" | "SECURITY" | "OTHER"
+  >("BILLING");
+  const [supportSubject, setSupportSubject] = React.useState("");
+  const [supportDescription, setSupportDescription] = React.useState("");
+  const [supportBusy, setSupportBusy] = React.useState(false);
+  const checkoutConfirmed = React.useRef(false);
   const canManage =
     bootstrap?.membership.capabilities.includes("workspace.billing.manage") ??
     false;
@@ -564,6 +574,44 @@ function BillingSettings() {
     const timeoutId = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timeoutId);
   }, [load]);
+
+  React.useEffect(() => {
+    if (
+      searchParams.get("checkout") !== "success" ||
+      !currentWorkspace ||
+      checkoutConfirmed.current
+    )
+      return;
+    let cancelled = false;
+    let attempts = 0;
+    let timeoutId: number | undefined;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
+        if (cancelled) return;
+        setBilling(next);
+        if (next.subscription.status === "ACTIVE") {
+          checkoutConfirmed.current = true;
+          toast({
+            title: "Abonamentul este activ",
+            description: "Drepturile planului au fost alocate workspace-ului.",
+            variant: "success",
+          });
+          return;
+        }
+      } catch {
+        // The normal billing card still exposes an explicit retry action.
+      }
+      if (!cancelled && attempts < 30)
+        timeoutId = window.setTimeout(() => void poll(), 2_000);
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [currentWorkspace, searchParams, toast]);
 
   const choosePlan = async (plan: WorkspaceSubscriptionPlanKey) => {
     if (!currentWorkspace || !billing || !canManage) return;
@@ -612,6 +660,38 @@ function BillingSettings() {
     }
   };
 
+  const submitSupportCase = async () => {
+    if (!currentWorkspace) return;
+    setSupportBusy(true);
+    try {
+      const created = await weddingOsApi.createWorkspaceSupportCase(
+        currentWorkspace.id,
+        {
+          type: supportType,
+          subject: supportSubject,
+          description: supportDescription,
+        },
+      );
+      setSupportSubject("");
+      setSupportDescription("");
+      toast({
+        title: "Cererea a fost trimisă",
+        description: created.prioritySupport
+          ? "Cazul a intrat în coada prioritară Pro."
+          : "Cazul a intrat în coada normală de suport.",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Cererea nu a putut fi trimisă",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setSupportBusy(false);
+    }
+  };
+
   if (loading) return <CardSkeleton lines={6} />;
   if (!billing)
     return (
@@ -629,6 +709,36 @@ function BillingSettings() {
 
   return (
     <div className="space-y-5">
+      {billing.subscription.status === "PAST_DUE" && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="py-4 text-sm text-amber-950">
+            Plata abonamentului nu a fost confirmată. Funcțiile planului rămân
+            active până la{" "}
+            {billing.subscription.gracePeriodEndAt
+              ? formatDateLong(billing.subscription.gracePeriodEndAt)
+              : "încheierea perioadei de grație"}
+            , apoi workspace-ul trece automat la limitele planului Gratuit.
+          </CardContent>
+        </Card>
+      )}
+      {billing.emailHealth.state !== "healthy" && (
+        <Card
+          className={
+            billing.emailHealth.state === "paused"
+              ? "border-red-300 bg-red-50"
+              : "border-amber-300 bg-amber-50"
+          }
+        >
+          <CardContent className="py-4 text-sm text-ink">
+            Rata de respingere a e-mailurilor este{" "}
+            {(billing.emailHealth.bounceRate * 100).toFixed(1)}% în ultimele 30
+            de zile.
+            {billing.emailHealth.state === "paused"
+              ? " Campaniile noi sunt oprite până la curățarea listei."
+              : " Verifică adresele înainte ca trimiterile să fie oprite la 4%."}
+          </CardContent>
+        </Card>
+      )}
       <div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -769,10 +879,72 @@ function BillingSettings() {
                       style={{ width: `${percent}%` }}
                     />
                   </div>
+                  {key === "EMAIL_DELIVERIES_MONTHLY" && percent >= 70 ? (
+                    <p className="mt-2 text-xs text-amber-700">
+                      {percent >= 90
+                        ? "Aproape de limita lunară."
+                        : "Ai consumat peste 70% din limita lunară."}
+                    </p>
+                  ) : null}
                 </div>
               );
             })}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Contactează suportul</CardTitle>
+            <CardDescription>
+              Cazurile deschise pe Pro intră automat în coada prioritară, fără
+              să pierdă prioritatea dacă planul se schimbă ulterior.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Categorie">
+            <Select
+              value={supportType}
+              onChange={(event) =>
+                setSupportType(event.target.value as typeof supportType)
+              }
+            >
+              <option value="BILLING">Abonament și plată</option>
+              <option value="ACCOUNT_ACCESS">Acces la cont</option>
+              <option value="BUG">Problemă tehnică</option>
+              <option value="SECURITY">Securitate</option>
+              <option value="OTHER">Altceva</option>
+            </Select>
+          </Field>
+          <Field label="Subiect">
+            <Input
+              value={supportSubject}
+              minLength={3}
+              maxLength={240}
+              onChange={(event) => setSupportSubject(event.target.value)}
+            />
+          </Field>
+          <Field label="Descriere">
+            <textarea
+              className="min-h-28 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+              value={supportDescription}
+              minLength={3}
+              maxLength={4000}
+              onChange={(event) => setSupportDescription(event.target.value)}
+            />
+          </Field>
+          <Button
+            loading={supportBusy}
+            disabled={
+              supportSubject.trim().length < 3 ||
+              supportDescription.trim().length < 3
+            }
+            onClick={() => void submitSupportCase()}
+          >
+            Trimite cererea
+          </Button>
         </CardContent>
       </Card>
 

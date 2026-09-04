@@ -58,6 +58,9 @@ export const problemCodes = [
   "REVIEW_ALREADY_EXISTS",
   "ENTITLEMENT_REQUIRED",
   "USAGE_LIMIT_REACHED",
+  "CAMPAIGN_ALREADY_ACTIVE",
+  "RECIPIENT_FREQUENCY_LIMIT_REACHED",
+  "CAMPAIGN_DELIVERY_PAUSED",
   "SUBSCRIPTION_EVENT_INVALID",
   "BILLING_NOT_CONFIGURED",
   "PADDLE_CHECKOUT_UNAVAILABLE",
@@ -1212,6 +1215,7 @@ export const workspaceBootstrapSchema = z.object({
     ]),
     entitlements: z.record(z.union([z.boolean(), z.number()])),
     currentPeriodEnd: z.string().datetime().nullable(),
+    gracePeriodEndAt: z.string().datetime().nullable(),
     cancelAtPeriodEnd: z.boolean(),
   }),
 });
@@ -1291,6 +1295,12 @@ export const workspaceBillingOverviewSchema = z.object({
   subscription: workspaceBootstrapSchema.shape.subscription,
   transactions: z.array(workspaceBillingTransactionSchema),
   usage: workspaceSubscriptionUsageSchema,
+  emailHealth: z.object({
+    attempted: z.number().int().nonnegative(),
+    bounced: z.number().int().nonnegative(),
+    bounceRate: z.number().nonnegative(),
+    state: z.enum(["healthy", "warning", "paused"]),
+  }),
   rolePolicy: z.array(workspaceSubscriptionRolePolicySchema),
 });
 export type WorkspaceBillingOverview = z.infer<
@@ -1302,6 +1312,15 @@ export const createWorkspaceSubscriptionCheckoutSchema = z.object({
 });
 export type CreateWorkspaceSubscriptionCheckout = z.infer<
   typeof createWorkspaceSubscriptionCheckoutSchema
+>;
+
+export const createWorkspaceSupportCaseSchema = z.object({
+  type: z.enum(["ACCOUNT_ACCESS", "BILLING", "BUG", "SECURITY", "OTHER"]),
+  subject: z.string().trim().min(3).max(240),
+  description: z.string().trim().min(3).max(4000),
+});
+export type CreateWorkspaceSupportCase = z.infer<
+  typeof createWorkspaceSupportCaseSchema
 >;
 
 export const overrideInputSchema = z

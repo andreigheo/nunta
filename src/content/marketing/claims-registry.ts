@@ -224,7 +224,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "pricing-paid",
     statement:
-      "Plus (7 €/lună) și Pro (17 €/lună), facturate lunar prin Paddle.",
+      "Plus (19 €/lună) și Pro (39 €/lună), facturate lunar prin Paddle.",
     support:
       "/settings?tab=billing; catalogul Paddle Live și endpoint-urile workspace billing",
     status: "implemented",

@@ -17,6 +17,7 @@ import { DatabaseService } from "../common/database.service";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
 import { mapJob } from "../jobs/jobs.service";
+import { WorkspaceEntitlementService } from "../workspace-billing/workspace-entitlement.service";
 import {
   invitationMediaReferences,
   resolveInvitationVariant,
@@ -34,6 +35,8 @@ export class InvitationCampaignService {
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AsyncService) private readonly asyncEvents: AsyncService,
+    @Inject(WorkspaceEntitlementService)
+    private readonly entitlements: WorkspaceEntitlementService,
     @Inject(API_ENVIRONMENT) environment: ApiEnvironment,
   ) {
     this.webUrl = environment.WEB_URL;
@@ -1735,6 +1738,22 @@ export class InvitationCampaignService {
           }
           if (!queuedRecipients)
             validation("Campaign has no valid e-mail recipients");
+          const otherActiveCampaign = await tx.campaign.findFirst({
+            where: {
+              workspaceId,
+              id: { not: campaign.id },
+              status: { in: ["QUEUED", "SCHEDULED", "SENDING"] },
+            },
+            select: { id: true },
+          });
+          if (otherActiveCampaign)
+            problem(
+              "CAMPAIGN_ALREADY_ACTIVE",
+              HttpStatus.CONFLICT,
+              "Există deja o campanie activă",
+              "Așteaptă finalizarea campaniei active înainte de a porni alta.",
+            );
+          await this.assertWorkspaceEmailHealth(tx, workspaceId);
           const availableAt =
             transition === "SCHEDULE"
               ? new Date(scheduledAt ?? "")
@@ -1744,6 +1763,21 @@ export class InvitationCampaignService {
             (Number.isNaN(availableAt.getTime()) || availableAt <= new Date())
           )
             validation("A future schedule time is required");
+          const pendingRecipients = await tx.campaignRecipient.findMany({
+            where: { campaignId: campaign.id, status: "PENDING" },
+            select: { id: true, address: true },
+          });
+          await this.assertRecipientFrequencyCap(
+            tx,
+            workspaceId,
+            pendingRecipients.map((recipient) => recipient.address),
+          );
+          await this.entitlements.reserveEmailDeliveries(
+            tx,
+            workspaceId,
+            pendingRecipients.map((recipient) => recipient.id),
+            availableAt,
+          );
           const jobId = await this.asyncEvents.record(tx, {
             eventName:
               transition === "SCHEDULE"
@@ -1812,11 +1846,21 @@ export class InvitationCampaignService {
           where: { id: campaign.id },
           data: { status: next, version: { increment: 1 } },
         });
-        if (transition === "CANCEL")
+        if (transition === "CANCEL") {
+          const pending = await tx.campaignRecipient.findMany({
+            where: { campaignId, status: { in: ["PENDING", "QUEUED"] } },
+            select: { id: true },
+          });
+          await this.entitlements.releaseEmailDeliveries(
+            tx,
+            workspaceId,
+            pending.map((recipient) => recipient.id),
+          );
           await tx.campaignRecipient.updateMany({
             where: { campaignId, status: { in: ["PENDING", "QUEUED"] } },
             data: { status: "CANCELLED", version: { increment: 1 } },
           });
+        }
         const response = { campaign: await this.mapCampaign(tx, updated) };
         await saveReplay(
           tx,
@@ -1831,6 +1875,63 @@ export class InvitationCampaignService {
       },
       { timeout: 60_000, maxWait: 10_000 },
     );
+  }
+
+  private async assertRecipientFrequencyCap(
+    tx: Transaction,
+    workspaceId: string,
+    addresses: string[],
+  ) {
+    const normalized = [
+      ...new Set(addresses.map((address) => address.trim().toLowerCase())),
+    ];
+    if (!normalized.length) return;
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1_000);
+    const recent = await tx.campaignRecipient.groupBy({
+      by: ["address"],
+      where: {
+        workspaceId,
+        address: { in: normalized },
+        sentAt: { gte: since },
+        status: { in: ["SENT", "DELIVERED", "OPENED"] },
+      },
+      _count: { address: true },
+    });
+    const blocked = recent.find((item) => item._count.address >= 5);
+    if (blocked)
+      problem(
+        "RECIPIENT_FREQUENCY_LIMIT_REACHED",
+        HttpStatus.TOO_MANY_REQUESTS,
+        "Un destinatar a atins limita de frecvență",
+        "Nu trimitem mai mult de 5 mesaje comerciale aceluiași destinatar în 24 de ore.",
+      );
+  }
+
+  private async assertWorkspaceEmailHealth(
+    tx: Transaction,
+    workspaceId: string,
+  ) {
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const [attempted, bounced] = await Promise.all([
+      tx.campaignRecipient.count({
+        where: { workspaceId, sentAt: { gte: since } },
+      }),
+      tx.campaignRecipient.count({
+        where: {
+          workspaceId,
+          sentAt: { gte: since },
+          status: "FAILED",
+          failureCode: "PROVIDER_REPORTED",
+        },
+      }),
+    ]);
+    if (attempted >= 25 && bounced / attempted >= 0.04)
+      problem(
+        "CAMPAIGN_DELIVERY_PAUSED",
+        HttpStatus.CONFLICT,
+        "Trimiterile comerciale sunt temporar oprite",
+        "Rata de respingere a depășit 4% în ultimele 30 de zile. Verifică lista de destinatari înainte de reluare.",
+      );
   }
 
   async campaignRecipients(

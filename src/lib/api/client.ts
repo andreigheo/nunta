@@ -1194,6 +1194,28 @@ export const weddingOsApi = {
       `/workspaces/${encodeURIComponent(workspaceId)}/billing/portal`,
       { method: "POST" },
     ),
+  createWorkspaceSupportCase: (
+    workspaceId: string,
+    input: {
+      type: "ACCOUNT_ACCESS" | "BILLING" | "BUG" | "SECURITY" | "OTHER";
+      subject: string;
+      description: string;
+    },
+  ) =>
+    request<{
+      id: string;
+      status: string;
+      priority: string;
+      prioritySupport: boolean;
+      createdAt: string;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/billing/support-cases`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   publicAggregateConsent: (workspaceId: string) =>
     request<PublicAggregateConsent>(
       `/workspaces/${encodeURIComponent(workspaceId)}/public-aggregate-consent`,

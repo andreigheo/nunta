@@ -178,6 +178,15 @@ export class PaddleService {
     return response.data;
   }
 
+  async getTransaction(transactionId: string) {
+    this.requireEnabled();
+    const response = await this.call<PaddleEnvelope<Record<string, unknown>>>(
+      `/transactions/${encodeURIComponent(transactionId)}`,
+      { method: "GET" },
+    );
+    return response.data;
+  }
+
   async createPortalSession(
     customerId: string,
     subscriptionId: string,

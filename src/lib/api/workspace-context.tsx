@@ -134,6 +134,7 @@ export function WorkspaceProvider({
         status: "FREE",
         entitlements: {},
         currentPeriodEnd: null,
+        gracePeriodEndAt: null,
         cancelAtPeriodEnd: false,
       },
     });

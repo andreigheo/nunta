@@ -271,6 +271,12 @@ export const apiEnvironmentSchema = z
       .min(5)
       .max(900)
       .default(300),
+    WORKSPACE_BILLING_GRACE_HOURS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(168)
+      .default(72),
     PAYOUT_PROVIDER: z.enum(["fake", "configured", "disabled"]).default("fake"),
     PAYOUT_PROVIDER_URL: z.preprocess(
       emptyToUndefined,

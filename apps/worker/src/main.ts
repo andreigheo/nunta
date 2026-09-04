@@ -3658,6 +3658,11 @@ async function processCampaignDelivery(
           where: { id: currentCampaignRecipient.id },
           data: { status: "CANCELLED", version: { increment: 1 } },
         });
+        await releaseCampaignEmailReservation(
+          transaction,
+          snapshot.workspace_id!,
+          currentCampaignRecipient.id,
+        );
         await finalizeCampaignIfSettled(
           transaction,
           snapshot,
@@ -3708,6 +3713,11 @@ async function processCampaignDelivery(
           publishedVersion.document,
           publishedVersion.settings,
         ),
+      );
+      await consumeCampaignEmailReservation(
+        transaction,
+        snapshot.workspace_id!,
+        currentCampaignRecipient.id,
       );
       await transaction.deliveryAttempt.upsert({
         where: {
@@ -3788,6 +3798,76 @@ async function processCampaignDelivery(
     },
     { timeout: 60_000, maxWait: 10_000 },
   );
+}
+
+async function consumeCampaignEmailReservation(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  campaignRecipientId: string,
+) {
+  await transaction.$executeRaw`SELECT pg_advisory_xact_lock(
+    hashtextextended(${`sarbato-email-quota:${workspaceId}`}, 0)
+  )`;
+  const reservation = await transaction.workspaceUsageReservation.findUnique({
+    where: {
+      workspaceId_metric_sourceType_sourceId: {
+        workspaceId,
+        metric: "EMAIL_DELIVERIES_MONTHLY",
+        sourceType: "campaign_recipient",
+        sourceId: campaignRecipientId,
+      },
+    },
+  });
+  if (!reservation || reservation.status === "CONSUMED") return;
+  if (reservation.status !== "RESERVED")
+    throw new PermanentJobError(
+      "Campaign delivery does not have a quota reservation",
+      "CAMPAIGN_QUOTA_RESERVATION_MISSING",
+    );
+  await transaction.workspaceUsageReservation.update({
+    where: { id: reservation.id },
+    data: { status: "CONSUMED", consumedAt: new Date() },
+  });
+  await transaction.workspaceUsagePeriod.update({
+    where: { id: reservation.periodId },
+    data: {
+      reserved: { decrement: reservation.amount },
+      consumed: { increment: reservation.amount },
+      version: { increment: 1 },
+    },
+  });
+}
+
+async function releaseCampaignEmailReservation(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  campaignRecipientId: string,
+) {
+  await transaction.$executeRaw`SELECT pg_advisory_xact_lock(
+    hashtextextended(${`sarbato-email-quota:${workspaceId}`}, 0)
+  )`;
+  const reservation = await transaction.workspaceUsageReservation.findUnique({
+    where: {
+      workspaceId_metric_sourceType_sourceId: {
+        workspaceId,
+        metric: "EMAIL_DELIVERIES_MONTHLY",
+        sourceType: "campaign_recipient",
+        sourceId: campaignRecipientId,
+      },
+    },
+  });
+  if (!reservation || reservation.status !== "RESERVED") return;
+  await transaction.workspaceUsageReservation.update({
+    where: { id: reservation.id },
+    data: { status: "RELEASED", releasedAt: new Date() },
+  });
+  await transaction.workspaceUsagePeriod.update({
+    where: { id: reservation.periodId },
+    data: {
+      reserved: { decrement: reservation.amount },
+      version: { increment: 1 },
+    },
+  });
 }
 
 function normalizeCampaignAddress(value: string): string {
@@ -8469,12 +8549,18 @@ async function failConsumer(
             version: { increment: 1 },
           },
         });
-        if (failedRecipient.count)
+        if (failedRecipient.count) {
+          await releaseCampaignEmailReservation(
+            transaction,
+            snapshot.workspace_id!,
+            recipient.id,
+          );
           await finalizeCampaignIfSettled(
             transaction,
             snapshot,
             recipient.campaignId,
           );
+        }
       }
     }
     if (terminal && snapshot.consumer_name === "rfq_delivery") {

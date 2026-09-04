@@ -59,8 +59,8 @@ describe("Sarbato workspace subscriptions", () => {
       "PRO",
     ]);
     expect(workspacePlan("FREE").amountMinor).toBe(0);
-    expect(workspacePlan("PLUS").amountMinor).toBe(700);
-    expect(workspacePlan("PRO").amountMinor).toBe(1700);
+    expect(workspacePlan("PLUS").amountMinor).toBe(1900);
+    expect(workspacePlan("PRO").amountMinor).toBe(3900);
     expect(
       WORKSPACE_SUBSCRIPTION_PLANS.every(
         (plan) => plan.currency === "EUR" && plan.interval === "month",
@@ -226,9 +226,28 @@ describe("Sarbato workspace subscriptions", () => {
     expect(minimumPlanForCapability("campaign.send")).toBeNull();
   });
 
-  it("falls back to Free for incomplete, paused and canceled subscriptions", () => {
+  it("keeps paid access for exactly the configured past-due grace window", () => {
+    const now = new Date("2026-09-04T12:00:00.000Z");
     expect(effectiveWorkspacePlanKey("PRO", "ACTIVE")).toBe("PRO");
-    expect(effectiveWorkspacePlanKey("PLUS", "PAST_DUE")).toBe("PLUS");
+    expect(
+      effectiveWorkspacePlanKey(
+        "PLUS",
+        "PAST_DUE",
+        new Date("2026-09-07T12:00:00.000Z"),
+        now,
+      ),
+    ).toBe("PLUS");
+    expect(
+      effectiveWorkspacePlanKey(
+        "PLUS",
+        "PAST_DUE",
+        new Date("2026-09-07T11:59:59.999Z"),
+        new Date("2026-09-07T12:00:00.000Z"),
+      ),
+    ).toBe("FREE");
+    expect(effectiveWorkspacePlanKey("PLUS", "PAST_DUE", null, now)).toBe(
+      "FREE",
+    );
     expect(effectiveWorkspacePlanKey("PRO", "INCOMPLETE")).toBe("FREE");
     expect(effectiveWorkspacePlanKey("PRO", "PAUSED")).toBe("FREE");
     expect(effectiveWorkspacePlanKey("PRO", "CANCELED")).toBe("FREE");
@@ -347,6 +366,26 @@ describe("Sarbato workspace subscriptions", () => {
       status: "ACTIVE",
       providerPriceId: "pri_pro123",
     });
+    const pastDue = subscriptionUpdate(
+      {
+        event_id: "evt_sub_past_due",
+        event_type: "subscription.past_due",
+        occurred_at: "2026-09-04T12:00:00.000Z",
+        payloadHash: "c".repeat(64),
+        data: { status: "past_due" },
+      },
+      "PRO",
+      "pri_pro123",
+      "ctm_123",
+      "sub_123",
+      72,
+      { pastDueAt: null, gracePeriodEndAt: null },
+    );
+    expect(pastDue).toMatchObject({
+      status: "PAST_DUE",
+      pastDueAt: new Date("2026-09-04T12:00:00.000Z"),
+      gracePeriodEndAt: new Date("2026-09-07T12:00:00.000Z"),
+    });
     const canceled = subscriptionUpdate(
       {
         event_id: "evt_sub_canceled",
@@ -361,6 +400,21 @@ describe("Sarbato workspace subscriptions", () => {
       "sub_123",
     );
     expect(canceled).toMatchObject({ planKey: "FREE", status: "CANCELED" });
+  });
+
+  it("publishes the agreed recipient delivery quotas and Pro-only priority support", () => {
+    expect(workspacePlan("FREE").entitlements.EMAIL_DELIVERIES_MONTHLY).toBe(
+      200,
+    );
+    expect(workspacePlan("PLUS").entitlements.EMAIL_DELIVERIES_MONTHLY).toBe(
+      2_000,
+    );
+    expect(workspacePlan("PRO").entitlements.EMAIL_DELIVERIES_MONTHLY).toBe(
+      10_000,
+    );
+    expect(workspacePlan("FREE").entitlements.PRIORITY_SUPPORT).toBe(false);
+    expect(workspacePlan("PLUS").entitlements.PRIORITY_SUPPORT).toBe(false);
+    expect(workspacePlan("PRO").entitlements.PRIORITY_SUPPORT).toBe(true);
   });
 
   it("enforces persisted plan limits and falls back to Free after cancellation", async () => {

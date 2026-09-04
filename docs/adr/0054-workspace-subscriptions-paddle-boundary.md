@@ -8,15 +8,15 @@ Stare: acceptat
 Sarbato oferă trei planuri lunare pentru workspace-ul organizatorului:
 
 - Gratuit — €0;
-- Plus — €7/lună;
-- Pro — €17/lună.
+- Plus — €19/lună;
+- Pro — €39/lună.
 
 Abonamentul aparține workspace-ului, nu unui utilizator individual. Accesul
 efectiv este intersecția dintre capabilitățile rolului și drepturile planului.
 Matricea completă de limite, funcții și roluri este menținută în
 `docs/SARBATO_SUBSCRIPTION_PLANS.md`.
 
-În cod și în API-urile providerului, sumele sunt reprezentate în unități minore: `700` înseamnă €7,00, iar `1700` înseamnă €17,00. Interfața afișează întotdeauna valoarea formatată în EUR.
+În cod și în API-urile providerului, sumele sunt reprezentate în unități minore: `1900` înseamnă €19,00, iar `3900` înseamnă €39,00. Interfața afișează întotdeauna valoarea formatată în EUR.
 
 Paddle este folosit exclusiv ca Merchant of Record pentru abonamentul SaaS Sarbato. Price ID-ul configurat este verificat prin API înainte de checkout: stare activă, EUR, interval lunar și suma exactă a planului.
 

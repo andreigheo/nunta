@@ -19,10 +19,11 @@ read-only on Pro, and a planner does not gain billing administration.
 
 | Entitlement                                                  |                      Free |                      Plus |       Pro |
 | ------------------------------------------------------------ | ------------------------: | ------------------------: | --------: |
-| Price                                                        |                        €0 |                  €7/month | €17/month |
+| Price                                                        |                        €0 |                 €19/month | €39/month |
 | Active guests                                                |                        50 |                       200 |       500 |
 | Collaborators outside the owner                              |                         2 |                         5 |        15 |
 | AI actions per calendar month                                |                         5 |                        30 |       150 |
+| Commercial e-mail recipient deliveries per calendar month    |                       200 |                     2,000 |    10,000 |
 | Active automations                                           |                         0 |                         5 |        25 |
 | Storage                                                      |                    250 MB |                      2 GB |     10 GB |
 | Plan, calendar, budget, invitation, RSVP and e-mail delivery |                       Yes |                       Yes |       Yes |
@@ -35,6 +36,7 @@ read-only on Pro, and a planner does not gain billing administration.
 | Event-day operations and check-in                            | Read-only after downgrade | Read-only after downgrade |       Yes |
 | External electronic signatures                               | Read-only after downgrade | Read-only after downgrade |       Yes |
 | Organizer-vendor payment mediation                           |                        No |                        No |        No |
+| Priority support queue                                       |                        No |                        No |       Yes |
 
 ## Roles
 
@@ -58,14 +60,26 @@ change the subscription.
 - Paid modules remain visible so existing data is not lost after a downgrade.
   Mutations return `PLAN_UPGRADE_REQUIRED` with HTTP status 402.
 - A `FREE` subscription always has Free access.
-- `ACTIVE` and `PAST_DUE` retain the recorded paid plan while Paddle performs
-  its collection flow.
+- `ACTIVE` retains the recorded paid plan. `PAST_DUE` keeps paid access for
+  exactly 72 hours from the first past-due event; after that, effective access
+  falls back to Free until Paddle confirms recovery.
 - `INCOMPLETE`, `PAUSED` and `CANCELED` use Free entitlements.
 - No downgrade deletes event data.
+- Commercial campaign quota is counted per recipient. A delivery is reserved
+  before queueing, consumed only after the e-mail provider accepts it, and
+  released on cancellation or permanent pre-accept failure. Retrying the same
+  campaign recipient does not consume the quota twice.
+- A workspace may have one active campaign at a time, and one recipient may
+  receive at most five commercial campaign messages in 24 hours.
+- Security, authentication and billing-service messages do not consume the
+  commercial campaign quota.
+- Pro support priority is captured when a case is opened and is retained for
+  that case even if the workspace later changes plan. This is queue priority,
+  not a public response-time SLA.
 
 ## Paddle boundary
 
-Paddle is Merchant of Record only for Sarbato's €7 and €17 recurring
+Paddle is Merchant of Record only for Sarbato's €19 and €39 recurring
 subscriptions. It is not used to collect, hold, route, refund or reconcile
 payments between organizers and event vendors.
 

@@ -264,6 +264,7 @@ test("footer — grupează toate destinațiile reale ale landingului", async ({
     expect.arrayContaining([
       "/",
       "/produs",
+      "/contact",
       "/#solutii",
       "/#planificare",
       "/#invitatii",
@@ -290,6 +291,36 @@ test("footer — grupează toate destinațiile reale ale landingului", async ({
 
   await footer.getByRole("link", { name: "Produs", exact: true }).click();
   await expect(page).toHaveURL(/\/produs$/);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("contact — oferă un formular accesibil și contact direct", async ({
+  page,
+}) => {
+  await page.goto("/contact");
+
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Spune-ne ce pregătești. Pornim de la întrebarea ta.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Nume")).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveAttribute("type", "email");
+  await expect(page.getByLabel("Subiect")).toBeVisible();
+  await expect(page.getByLabel("Mesaj")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Deschide mesajul în email" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "hello@sarbato.space" }),
+  ).toHaveAttribute("href", "mailto:hello@sarbato.space");
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Mesaj")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
@@ -351,13 +382,13 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
     "Până la 50 de invitați și 2 colaboratori",
   );
   await expect(plans.nth(1)).toContainText("Plus");
-  await expect(plans.nth(1)).toContainText("7 €");
+  await expect(plans.nth(1)).toContainText("19 €");
   await expect(plans.nth(1)).toContainText(
     "Până la 200 de invitați și 5 colaboratori",
   );
   await expect(plans.nth(1)).toHaveAttribute("data-featured", "true");
   await expect(plans.nth(2)).toContainText("Pro");
-  await expect(plans.nth(2)).toContainText("17 €");
+  await expect(plans.nth(2)).toContainText("39 €");
   await expect(plans.nth(2)).toContainText(
     "Până la 500 de invitați și 15 colaboratori",
   );
@@ -430,19 +461,19 @@ test("landing reference 864 — geometria hero rămâne fidelă conceptului", as
 
   expect(heading!.x).toBeGreaterThanOrEqual(23);
   expect(heading!.x).toBeLessThanOrEqual(25);
-  expect(heading!.y).toBeGreaterThanOrEqual(176);
-  expect(heading!.y).toBeLessThanOrEqual(179);
+  expect(heading!.y).toBeGreaterThanOrEqual(131);
+  expect(heading!.y).toBeLessThanOrEqual(135);
   expect(heading!.height).toBeGreaterThanOrEqual(82);
   expect(heading!.height).toBeLessThanOrEqual(86);
 
-  expect(controlRoom!.x).toBeGreaterThanOrEqual(334);
-  expect(controlRoom!.x).toBeLessThanOrEqual(337);
-  expect(controlRoom!.y).toBeGreaterThanOrEqual(77);
-  expect(controlRoom!.y).toBeLessThanOrEqual(79);
-  expect(controlRoom!.width).toBeGreaterThanOrEqual(511);
-  expect(controlRoom!.width).toBeLessThanOrEqual(514);
-  expect(controlRoom!.height).toBeGreaterThanOrEqual(393);
-  expect(controlRoom!.height).toBeLessThanOrEqual(402);
+  expect(controlRoom!.x).toBeGreaterThanOrEqual(318);
+  expect(controlRoom!.x).toBeLessThanOrEqual(321);
+  expect(controlRoom!.y).toBeGreaterThanOrEqual(84);
+  expect(controlRoom!.y).toBeLessThanOrEqual(88);
+  expect(controlRoom!.width).toBeGreaterThanOrEqual(527);
+  expect(controlRoom!.width).toBeLessThanOrEqual(530);
+  expect(controlRoom!.height).toBeGreaterThanOrEqual(409);
+  expect(controlRoom!.height).toBeLessThanOrEqual(413);
 
   expect(Math.abs(primary!.y - secondary!.y)).toBeLessThan(1);
   await expectNoHorizontalOverflow(page);

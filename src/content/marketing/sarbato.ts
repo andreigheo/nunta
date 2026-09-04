@@ -9,6 +9,7 @@ export type Cta = {
 export const routes = {
   signIn: "/sign-in",
   createAccount: "/create-account",
+  contact: "/contact",
   privacy: "/confidentialitate",
   terms: "/termeni",
   refunds: "/rambursari",
@@ -570,7 +571,7 @@ export const pricing = {
     },
     {
       name: "Plus",
-      price: "7 €",
+      price: "19 €",
       cadence: "pe lună",
       description:
         "Pentru organizarea completă, logistica invitaților și coordonarea furnizorilor.",
@@ -585,7 +586,7 @@ export const pricing = {
     },
     {
       name: "Pro",
-      price: "17 €",
+      price: "39 €",
       cadence: "pe lună",
       description: "Pentru coordonare operațională avansată.",
       features: [
@@ -676,6 +677,55 @@ export const finalCta = {
   ],
 } as const;
 
+export const contactPage = {
+  eyebrow: "Contact Sarbato",
+  title: "Spune-ne ce pregătești. Pornim de la întrebarea ta.",
+  lead: "Fie că vrei să înțelegi produsul, ai nevoie de ajutor cu accesul sau vrei să discutăm o colaborare, scrie-ne cât mai concret.",
+  email: "hello@sarbato.space",
+  directTitle: "Preferi un mesaj direct?",
+  directLead: "Poți scrie oricând pe email. Nu include parole, date de card sau alte informații sensibile.",
+  faqLabel: "Pentru răspunsuri rapide",
+  faqLink: "Vezi întrebările frecvente",
+  form: {
+    eyebrow: "Mesaj nou",
+    title: "Cu ce te putem ajuta?",
+    nameLabel: "Nume",
+    namePlaceholder: "Cum te numești",
+    emailLabel: "Email",
+    emailPlaceholder: "nume@exemplu.ro",
+    topicLabel: "Subiect",
+    topics: [
+      "Întrebare despre produs",
+      "Ajutor cu accesul",
+      "Colaborare",
+      "Altceva",
+    ],
+    messageLabel: "Mesaj",
+    messagePlaceholder:
+      "Spune-ne ce organizezi, ce vrei să rezolvi și unde ai nevoie de claritate.",
+    submitLabel: "Deschide mesajul în email",
+    note: "Butonul pregătește mesajul în aplicația ta de email. Nu îl trimitem automat.",
+    prepared: "Mesajul este pregătit. Confirmă trimiterea din aplicația ta de email.",
+  },
+  pathsTitle: "Ajută-ne să păstrăm firul scurt.",
+  pathsLead:
+    "Alege subiectul potrivit și include detaliile care ne ajută să înțelegem situația din prima.",
+  paths: [
+    {
+      title: "Produs și organizare",
+      body: "Spune-ne tipul evenimentului și ce ai vrea să coordonezi mai simplu.",
+    },
+    {
+      title: "Cont și acces",
+      body: "Include adresa contului și descrie pasul la care te-ai blocat, fără parolă.",
+    },
+    {
+      title: "Colaborări",
+      body: "Prezintă pe scurt ideea, rolul tău și forma de colaborare pe care o propui.",
+    },
+  ],
+} as const;
+
 export const footer = {
   title: "Tot evenimentul rămâne legat, până la ultimul detaliu.",
   tagline:
@@ -691,6 +741,7 @@ export const footer = {
         { label: "Prețuri", href: "/#abonamente" },
         { label: "Întrebări", href: "/#intrebari" },
         { label: "Despre noi", href: "/#despre" },
+        { label: "Contact", href: routes.contact },
       ],
     },
     {

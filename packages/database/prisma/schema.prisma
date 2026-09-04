@@ -55,9 +55,17 @@ enum WorkspaceBillingCheckoutStatus {
 }
 
 enum WorkspaceBillingEventStatus {
+  RECEIVED
+  PROCESSING
   PROCESSED
   IGNORED
   FAILED
+}
+
+enum WorkspaceUsageReservationStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
 }
 
 enum MembershipStatus {
@@ -1040,6 +1048,8 @@ model Workspace {
   billingCheckouts        WorkspaceBillingCheckout[]
   billingProviderEvents   WorkspaceBillingProviderEvent[]
   billingTransactions     WorkspaceBillingTransaction[]
+  usagePeriods            WorkspaceUsagePeriod[]
+  usageReservations       WorkspaceUsageReservation[]
   creativeState           WorkspaceCreativeState?
   copilotSettings         CopilotWorkspaceSettings?
   copilotMemories         CopilotMemory[]
@@ -1061,6 +1071,8 @@ model WorkspaceSubscription {
   providerPriceId        String?                      @map("provider_price_id") @db.VarChar(64)
   currentPeriodStart     DateTime?                    @map("current_period_start")
   currentPeriodEnd       DateTime?                    @map("current_period_end")
+  pastDueAt              DateTime?                    @map("past_due_at")
+  gracePeriodEndAt       DateTime?                    @map("grace_period_end_at")
   cancelAtPeriodEnd      Boolean                      @default(false) @map("cancel_at_period_end")
   lastProviderEventAt    DateTime?                    @map("last_provider_event_at")
   lastReconciledAt       DateTime?                    @map("last_reconciled_at")
@@ -1072,28 +1084,31 @@ model WorkspaceSubscription {
   workspace              Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([status, currentPeriodEnd])
+  @@index([status, gracePeriodEndAt])
   @@index([providerCustomerId])
   @@index([providerPriceId])
   @@map("workspace_subscriptions")
 }
 
 model WorkspaceBillingCheckout {
-  id                    String                          @id @default(uuid()) @db.Uuid
-  workspaceId           String                          @map("workspace_id") @db.Uuid
-  createdById           String                          @map("created_by") @db.Uuid
-  planKey               WorkspaceSubscriptionPlanKey    @map("plan_key")
-  provider              String                          @db.VarChar(32)
-  providerPriceId       String                          @map("provider_price_id") @db.VarChar(64)
-  providerTransactionId String?                         @unique @map("provider_transaction_id") @db.VarChar(64)
-  idempotencyKey        String                          @map("idempotency_key") @db.VarChar(200)
-  assignmentTokenHash   String                          @unique @map("assignment_token_hash") @db.Char(64)
-  status                WorkspaceBillingCheckoutStatus  @default(CREATED)
-  expiresAt             DateTime                        @map("expires_at")
-  completedAt           DateTime?                       @map("completed_at")
-  createdAt             DateTime                        @default(now()) @map("created_at")
-  updatedAt             DateTime                        @updatedAt @map("updated_at")
-  workspace             Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  providerEvents        WorkspaceBillingProviderEvent[]
+  id                     String                          @id @default(uuid()) @db.Uuid
+  workspaceId            String                          @map("workspace_id") @db.Uuid
+  createdById            String                          @map("created_by") @db.Uuid
+  planKey                WorkspaceSubscriptionPlanKey    @map("plan_key")
+  provider               String                          @db.VarChar(32)
+  providerPriceId        String                          @map("provider_price_id") @db.VarChar(64)
+  providerTransactionId  String?                         @unique @map("provider_transaction_id") @db.VarChar(64)
+  idempotencyKey         String                          @map("idempotency_key") @db.VarChar(200)
+  assignmentTokenHash    String                          @unique @map("assignment_token_hash") @db.Char(64)
+  status                 WorkspaceBillingCheckoutStatus  @default(CREATED)
+  expiresAt              DateTime                        @map("expires_at")
+  completedAt            DateTime?                       @map("completed_at")
+  lastReconciledAt       DateTime?                       @map("last_reconciled_at")
+  reconciliationAttempts Int                             @default(0) @map("reconciliation_attempts")
+  createdAt              DateTime                        @default(now()) @map("created_at")
+  updatedAt              DateTime                        @updatedAt @map("updated_at")
+  workspace              Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  providerEvents         WorkspaceBillingProviderEvent[]
 
   @@unique([workspaceId, createdById, idempotencyKey])
   @@index([workspaceId, createdAt])
@@ -1111,17 +1126,63 @@ model WorkspaceBillingProviderEvent {
   providerCustomerId     String?                     @map("provider_customer_id") @db.VarChar(64)
   providerSubscriptionId String?                     @map("provider_subscription_id") @db.VarChar(64)
   payloadHash            String                      @map("payload_hash") @db.Char(64)
+  payload                Json
+  assignmentTokenHash    String?                     @map("assignment_token_hash") @db.Char(64)
   occurredAt             DateTime                    @map("occurred_at")
   receivedAt             DateTime                    @default(now()) @map("received_at")
   processedAt            DateTime?                   @map("processed_at")
   status                 WorkspaceBillingEventStatus
+  attemptCount           Int                         @default(0) @map("attempt_count")
+  nextAttemptAt          DateTime                    @default(now()) @map("next_attempt_at")
   errorCode              String?                     @map("error_code") @db.VarChar(80)
+  errorMessage           String?                     @map("error_message") @db.VarChar(500)
   workspace              Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   checkout               WorkspaceBillingCheckout?   @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, occurredAt])
   @@index([providerSubscriptionId])
+  @@index([status, nextAttemptAt])
   @@map("workspace_billing_provider_events")
+}
+
+model WorkspaceUsagePeriod {
+  id           String                      @id @default(uuid()) @db.Uuid
+  workspaceId  String                      @map("workspace_id") @db.Uuid
+  metric       String                      @db.VarChar(80)
+  periodStart  DateTime                    @map("period_start") @db.Date
+  reserved     Int                         @default(0)
+  consumed     Int                         @default(0)
+  version      Int                         @default(1)
+  createdAt    DateTime                    @default(now()) @map("created_at")
+  updatedAt    DateTime                    @updatedAt @map("updated_at")
+  workspace    Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  reservations WorkspaceUsageReservation[]
+
+  @@unique([workspaceId, metric, periodStart])
+  @@index([workspaceId, periodStart])
+  @@map("workspace_usage_periods")
+}
+
+model WorkspaceUsageReservation {
+  id          String                          @id @default(uuid()) @db.Uuid
+  workspaceId String                          @map("workspace_id") @db.Uuid
+  periodId    String                          @map("period_id") @db.Uuid
+  metric      String                          @db.VarChar(80)
+  sourceType  String                          @map("source_type") @db.VarChar(80)
+  sourceId    String                          @map("source_id") @db.VarChar(160)
+  amount      Int                             @default(1)
+  status      WorkspaceUsageReservationStatus @default(RESERVED)
+  consumedAt  DateTime?                       @map("consumed_at")
+  releasedAt  DateTime?                       @map("released_at")
+  createdAt   DateTime                        @default(now()) @map("created_at")
+  updatedAt   DateTime                        @updatedAt @map("updated_at")
+  workspace   Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  period      WorkspaceUsagePeriod            @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, metric, sourceType, sourceId])
+  @@index([periodId, status])
+  @@index([workspaceId, createdAt])
+  @@map("workspace_usage_reservations")
 }
 
 model WorkspaceBillingTransaction {
@@ -7128,23 +7189,25 @@ model PlatformAdminAction {
 }
 
 model PlatformSupportCase {
-  id                   String    @id @default(uuid()) @db.Uuid
-  requesterUserId      String?   @map("requester_user_id") @db.Uuid
-  assignedUserId       String?   @map("assigned_user_id") @db.Uuid
-  type                 String    @db.VarChar(40)
-  status               String    @default("OPEN") @db.VarChar(40)
-  priority             String    @default("NORMAL") @db.VarChar(20)
-  subject              String    @db.VarChar(240)
-  description          String    @db.VarChar(4000)
-  workspaceId          String?   @map("workspace_id") @db.Uuid
-  vendorOrganizationId String?   @map("vendor_organization_id") @db.Uuid
-  resolvedAt           DateTime? @map("resolved_at")
-  closedAt             DateTime? @map("closed_at")
-  version              Int       @default(1)
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
+  id                   String                        @id @default(uuid()) @db.Uuid
+  requesterUserId      String?                       @map("requester_user_id") @db.Uuid
+  assignedUserId       String?                       @map("assigned_user_id") @db.Uuid
+  type                 String                        @db.VarChar(40)
+  status               String                        @default("OPEN") @db.VarChar(40)
+  priority             String                        @default("NORMAL") @db.VarChar(20)
+  priorityRank         Int                           @default(10) @map("priority_rank")
+  planKeyAtCreation    WorkspaceSubscriptionPlanKey? @map("plan_key_at_creation")
+  subject              String                        @db.VarChar(240)
+  description          String                        @db.VarChar(4000)
+  workspaceId          String?                       @map("workspace_id") @db.Uuid
+  vendorOrganizationId String?                       @map("vendor_organization_id") @db.Uuid
+  resolvedAt           DateTime?                     @map("resolved_at")
+  closedAt             DateTime?                     @map("closed_at")
+  version              Int                           @default(1)
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  updatedAt            DateTime                      @updatedAt @map("updated_at")
 
-  @@index([status, priority, createdAt])
+  @@index([status, priorityRank, createdAt])
   @@index([requesterUserId, createdAt])
   @@map("platform_support_cases")
 }
