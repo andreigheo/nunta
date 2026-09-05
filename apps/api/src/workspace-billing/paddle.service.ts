@@ -8,6 +8,13 @@ import { workspacePlan } from "./workspace-billing.catalog";
 
 type PaddleEnvelope<T> = { data: T };
 
+export class PaddleRequestOutcomeUnknownError extends Error {
+  constructor(readonly mayHaveCommitted = true) {
+    super("Paddle request outcome is unknown");
+    this.name = "PaddleRequestOutcomeUnknownError";
+  }
+}
+
 export type PaddleWebhook = {
   event_id: string;
   event_type: string;
@@ -324,17 +331,24 @@ export class PaddleService {
   }
 
   private async call<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${this.environment.PADDLE_API_KEY}`,
-        "Paddle-Version": "1",
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...init.headers,
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${this.environment.PADDLE_API_KEY}`,
+          "Paddle-Version": "1",
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...init.headers,
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new PaddleRequestOutcomeUnknownError(
+        (init.method ?? "GET").toUpperCase() !== "GET",
+      );
+    }
     const payload = (await response.json().catch(() => null)) as T | null;
     if (!response.ok || !payload)
       problem(

@@ -18,6 +18,16 @@ export type NumericWorkspaceEntitlement =
 
 @Injectable()
 export class WorkspaceEntitlementService {
+  async lockCapacity(
+    transaction: Transaction,
+    workspaceId: string,
+    key: NumericWorkspaceEntitlement,
+  ) {
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(
+      hashtextextended(${`sarbato-workspace-quota:${workspaceId}:${key}`}, 0)
+    )`;
+  }
+
   async numeric(
     transaction: Transaction,
     workspaceId: string,

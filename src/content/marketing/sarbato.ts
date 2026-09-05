@@ -614,7 +614,7 @@ export const pricing = {
         "Tot ce include planul Plus",
         "Riscuri și planuri de rezervă",
         "Check-in și operațiuni în ziua evenimentului",
-        "Semnături electronice externe",
+        "Coordonare avansată pentru echipa din teren",
         "25 de automatizări active",
         "10.000 de livrări e-mail pe lună",
         "Suport prioritar",

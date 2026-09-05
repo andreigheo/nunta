@@ -13,11 +13,17 @@ export function PublicCookiePreferences() {
 
   React.useEffect(() => {
     const timer = window.setTimeout(
-      () =>
-        setVisible(
-          window.localStorage.getItem(PUBLIC_COOKIE_PREFERENCES_STORAGE_KEY) ===
-            null,
-        ),
+      () => {
+        try {
+          setVisible(
+            window.localStorage.getItem(
+              PUBLIC_COOKIE_PREFERENCES_STORAGE_KEY,
+            ) === null,
+          );
+        } catch {
+          setVisible(true);
+        }
+      },
       0,
     );
     const openPreferences = () => setVisible(true);
@@ -29,17 +35,21 @@ export function PublicCookiePreferences() {
   }, []);
 
   const save = (analytics: boolean) => {
-    window.localStorage.setItem(
-      PUBLIC_COOKIE_PREFERENCES_STORAGE_KEY,
-      JSON.stringify({
-        essential: true,
-        preferences: false,
-        analytics,
-        marketing: false,
-        policyVersion: "2026-07-21",
-        recordedAt: new Date().toISOString(),
-      }),
-    );
+    try {
+      window.localStorage.setItem(
+        PUBLIC_COOKIE_PREFERENCES_STORAGE_KEY,
+        JSON.stringify({
+          essential: true,
+          preferences: false,
+          analytics,
+          marketing: false,
+          policyVersion: "2026-07-21",
+          recordedAt: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      // The choice still applies for this document when persistent storage is unavailable.
+    }
     window.dispatchEvent(
       new CustomEvent(ANALYTICS_CONSENT_CHANGED_EVENT, {
         detail: { analytics },

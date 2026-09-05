@@ -13,8 +13,10 @@ COPY packages/contracts packages/contracts
 ARG WEDDINGOS_BUILD_ID=unversioned
 ARG API_INTERNAL_URL=http://127.0.0.1:4000
 ARG NEXT_PUBLIC_DEMO_MODE_ENABLED=false
+ARG NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID=
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 ENV NEXT_PUBLIC_DEMO_MODE_ENABLED=$NEXT_PUBLIC_DEMO_MODE_ENABLED
+ENV NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID=$NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID
 RUN printf '%s\n' "${WEDDINGOS_BUILD_ID}" > /app/.weddingos-build-id
 RUN pnpm --filter @weddingos/contracts build && pnpm build:web --webpack
 FROM node:22.22.0-bookworm-slim AS runtime

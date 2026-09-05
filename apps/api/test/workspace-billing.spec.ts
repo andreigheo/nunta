@@ -7,11 +7,15 @@ import {
 } from "@weddingos/contracts";
 import type { Prisma } from "@weddingos/database";
 import { ProblemException } from "../src/common/problem";
-import { PaddleService } from "../src/workspace-billing/paddle.service";
+import {
+  PaddleRequestOutcomeUnknownError,
+  PaddleService,
+} from "../src/workspace-billing/paddle.service";
 import {
   billingTransactionUpdate,
   resolveEventPlan,
   subscriptionUpdate,
+  WorkspaceBillingService,
 } from "../src/workspace-billing/workspace-billing.service";
 import {
   capabilityAllowedByWorkspacePlan,
@@ -90,6 +94,22 @@ describe("Sarbato workspace subscriptions", () => {
     };
     expect(new PaddleService(incomplete).enabled).toBe(false);
     expect(new PaddleService(environment()).enabled).toBe(true);
+  });
+
+  it("does not classify a failed provider read as a possibly-created charge", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("provider unavailable"));
+    try {
+      await expect(
+        new PaddleService(environment()).getSubscription("sub_test"),
+      ).rejects.toMatchObject({
+        name: "PaddleRequestOutcomeUnknownError",
+        mayHaveCommitted: false,
+      });
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   it("maps every workspace role without granting billing management beyond the owner", () => {
@@ -182,6 +202,26 @@ describe("Sarbato workspace subscriptions", () => {
         currentProviderPriceId: null,
       }),
     ).toThrow(ProblemException);
+  });
+
+  it("accepts an allowlisted price change for the already bound Paddle subscription", () => {
+    expect(
+      resolveEventPlan({
+        eventType: "subscription.updated",
+        providerPlan: { planKey: "PRO", priceId: "pri_pro123" },
+        checkout: {
+          id: "00000000-0000-4000-8000-000000000003",
+          workspaceId: "00000000-0000-4000-8000-000000000001",
+          createdById: "00000000-0000-4000-8000-000000000002",
+          planKey: "PLUS",
+          providerPriceId: "pri_plus123",
+          assignmentTokenHash: "a".repeat(64),
+        },
+        currentPlan: "PLUS",
+        currentProviderPriceId: "pri_plus123",
+        establishedSubscription: true,
+      }),
+    ).toEqual({ planKey: "PRO", priceId: "pri_pro123" });
   });
 
   it("combines role capabilities with the workspace plan and preserves reads on downgrade", () => {
@@ -440,6 +480,145 @@ describe("Sarbato workspace subscriptions", () => {
         "MAX_GUESTS",
       ),
     ).resolves.toBe(50);
+  });
+
+  it("serializes capacity checks for one workspace and metric", async () => {
+    const transaction = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      workspaceSubscription: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ planKey: "PLUS", status: "ACTIVE" }),
+      },
+    } as unknown as Prisma.TransactionClient;
+    const entitlements = new WorkspaceEntitlementService();
+    await entitlements.lockCapacity(
+      transaction,
+      "00000000-0000-4000-8000-000000000001",
+      "MAX_GUESTS",
+    );
+    await entitlements.assertCapacity(
+      transaction,
+      "00000000-0000-4000-8000-000000000001",
+      "MAX_GUESTS",
+      199,
+    );
+    expect(transaction.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a fresh checkout after a terminal canceled subscription", async () => {
+    const checkout = {
+      id: "00000000-0000-4000-8000-000000000003",
+      providerTransactionId: null,
+    };
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      workspaceSubscription: {
+        upsert: vi.fn().mockResolvedValue({
+          status: "CANCELED",
+          providerCustomerId: "ctm_old",
+          providerSubscriptionId: "sub_old",
+        }),
+      },
+      workspaceBillingCheckout: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(checkout),
+        update: vi.fn().mockResolvedValue({
+          ...checkout,
+          providerTransactionId: "txn_new",
+        }),
+      },
+    };
+    const database = {
+      withContext: vi.fn(
+        async (
+          _context: unknown,
+          action: (transaction: typeof tx) => unknown,
+        ) => action(tx),
+      ),
+    };
+    const paddle = {
+      priceId: vi.fn().mockReturnValue("pri_pro123"),
+      createAssignmentToken: vi
+        .fn()
+        .mockReturnValue({ rawToken: "assignment", tokenHash: "a".repeat(64) }),
+      createPortalSession: vi.fn(),
+      createTransaction: vi.fn().mockResolvedValue({
+        transactionId: "txn_new",
+        checkoutUrl: "https://checkout.test/txn_new",
+        priceId: "pri_pro123",
+      }),
+    };
+    const service = new WorkspaceBillingService(
+      database as never,
+      paddle as never,
+      {} as never,
+    );
+    await expect(
+      service.startCheckout(
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000001",
+        "PRO",
+        "repurchase",
+      ),
+    ).resolves.toMatchObject({ mode: "checkout", transactionId: "txn_new" });
+    expect(paddle.createPortalSession).not.toHaveBeenCalled();
+    expect(paddle.createTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks a retry when Paddle's create outcome is unknown", async () => {
+    const statusUpdates: unknown[] = [];
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      workspaceSubscription: {
+        upsert: vi.fn().mockResolvedValue({ status: "FREE" }),
+      },
+      workspaceBillingCheckout: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockImplementation(async ({ data }) => data),
+        update: vi.fn().mockImplementation(async ({ data }) => {
+          statusUpdates.push(data);
+          return data;
+        }),
+      },
+    };
+    const database = {
+      withContext: vi.fn(
+        async (
+          _context: unknown,
+          action: (transaction: typeof tx) => unknown,
+        ) => action(tx),
+      ),
+    };
+    const paddle = {
+      priceId: vi.fn().mockReturnValue("pri_plus123"),
+      createAssignmentToken: vi
+        .fn()
+        .mockReturnValue({ rawToken: "assignment", tokenHash: "a".repeat(64) }),
+      createTransaction: vi
+        .fn()
+        .mockRejectedValue(new PaddleRequestOutcomeUnknownError()),
+    };
+    const service = new WorkspaceBillingService(
+      database as never,
+      paddle as never,
+      {} as never,
+    );
+    await expect(
+      service.startCheckout(
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000001",
+        "PLUS",
+        "unknown-outcome",
+      ),
+    ).rejects.toMatchObject({ code: "CHECKOUT_RECOVERY_PENDING" });
+    expect(statusUpdates).toEqual([
+      expect.objectContaining({ status: "RECOVERY_PENDING" }),
+    ]);
   });
 
   it("rejects legacy marketplace money movement in production", () => {

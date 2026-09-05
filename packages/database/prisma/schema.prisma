@@ -49,6 +49,7 @@ enum WorkspaceSubscriptionStatus {
 
 enum WorkspaceBillingCheckoutStatus {
   CREATED
+  RECOVERY_PENDING
   COMPLETED
   EXPIRED
   FAILED
@@ -60,6 +61,7 @@ enum WorkspaceBillingEventStatus {
   PROCESSED
   IGNORED
   FAILED
+  DEAD_LETTER
 }
 
 enum WorkspaceUsageReservationStatus {

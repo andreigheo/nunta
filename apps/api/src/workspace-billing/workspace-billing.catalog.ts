@@ -101,7 +101,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         "Până la 500 de invitați",
         "15 colaboratori și 10 GB stocare",
         "Riscuri, Plan B, check-in și comandament în ziua evenimentului",
-        "Semnături externe și 25 de automatizări active",
+        "Coordonare avansată și 25 de automatizări active",
         "150 de acțiuni AI pe lună",
         "10.000 de livrări e-mail pe lună și suport prioritar",
       ],

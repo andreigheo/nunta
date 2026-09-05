@@ -80,6 +80,10 @@ export const apiEnvironmentSchema = z
     OUTBOX_ENCRYPTION_KEY: z.string().min(32),
     OUTBOX_ENCRYPTION_KEY_ID: z.string().min(1).max(80).default("local-v1"),
     OUTBOX_DECRYPTION_KEYS: z.string().default("{}"),
+    GUEST_ACCESS_TOKEN_SECRET: z
+      .string()
+      .min(32)
+      .default("weddingos-local-guest-access-token-secret-change-production"),
     OUTBOX_COMMAND_TTL_SECONDS: z.coerce
       .number()
       .int()
@@ -494,6 +498,7 @@ export const apiEnvironmentSchema = z
           ["SESSION_SECRET", env.SESSION_SECRET],
           ["MFA_ENCRYPTION_KEY", env.MFA_ENCRYPTION_KEY],
           ["OUTBOX_ENCRYPTION_KEY", env.OUTBOX_ENCRYPTION_KEY],
+          ["GUEST_ACCESS_TOKEN_SECRET", env.GUEST_ACCESS_TOKEN_SECRET],
           ["OBJECT_STORAGE_ACCESS_KEY", env.OBJECT_STORAGE_ACCESS_KEY],
           ["OBJECT_STORAGE_SECRET_KEY", env.OBJECT_STORAGE_SECRET_KEY],
           ["SMTP_PASSWORD", env.SMTP_PASSWORD],
@@ -768,6 +773,7 @@ export const apiEnvironmentSchema = z
         ["SESSION_SECRET", env.SESSION_SECRET],
         ["MFA_ENCRYPTION_KEY", env.MFA_ENCRYPTION_KEY],
         ["OUTBOX_ENCRYPTION_KEY", env.OUTBOX_ENCRYPTION_KEY],
+        ["GUEST_ACCESS_TOKEN_SECRET", env.GUEST_ACCESS_TOKEN_SECRET],
         ["OBJECT_STORAGE_ACCESS_KEY", env.OBJECT_STORAGE_ACCESS_KEY],
         ["OBJECT_STORAGE_SECRET_KEY", env.OBJECT_STORAGE_SECRET_KEY],
         ["SMTP_PASSWORD", env.SMTP_PASSWORD],

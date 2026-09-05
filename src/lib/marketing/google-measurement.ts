@@ -15,6 +15,7 @@ declare global {
     dataLayer?: unknown[];
     __sarbatoGoogleConsentInitialized?: boolean;
     __sarbatoGoogleTagManagerLoaded?: boolean;
+    __sarbatoGoogleTagManagerLoading?: boolean;
   }
 }
 
@@ -23,8 +24,8 @@ function ensureDataLayer() {
   return window.dataLayer;
 }
 
-function googleCommand(..._args: unknown[]) {
-  ensureDataLayer().push(arguments);
+function googleCommand(...args: unknown[]) {
+  ensureDataLayer().push(args);
 }
 
 export function readAnalyticsConsent() {
@@ -63,18 +64,28 @@ export function setGoogleAnalyticsConsent(enabled: boolean) {
 export function loadGoogleTagManager(containerId: string) {
   if (
     window.__sarbatoGoogleTagManagerLoaded ||
+    window.__sarbatoGoogleTagManagerLoading ||
     !/^GTM-[A-Z0-9]+$/i.test(containerId)
   ) {
     return;
   }
 
-  window.__sarbatoGoogleTagManagerLoaded = true;
+  window.__sarbatoGoogleTagManagerLoading = true;
   ensureDataLayer().push({ event: "gtm.js", "gtm.start": Date.now() });
 
   const script = document.createElement("script");
   script.async = true;
   script.id = "sarbato-google-tag-manager";
   script.src = `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(containerId)}`;
+  script.addEventListener("load", () => {
+    window.__sarbatoGoogleTagManagerLoading = false;
+    window.__sarbatoGoogleTagManagerLoaded = true;
+  });
+  script.addEventListener("error", () => {
+    window.__sarbatoGoogleTagManagerLoading = false;
+    window.__sarbatoGoogleTagManagerLoaded = false;
+    script.remove();
+  });
   document.head.appendChild(script);
 }
 

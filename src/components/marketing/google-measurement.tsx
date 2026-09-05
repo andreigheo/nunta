@@ -9,8 +9,7 @@ import {
   trackMarketingEvent,
 } from "@/lib/marketing/google-measurement";
 
-const containerId =
-  process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID ?? "GTM-59ST3B86";
+const containerId = process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID ?? "";
 
 export function GoogleMeasurement() {
   React.useEffect(() => {

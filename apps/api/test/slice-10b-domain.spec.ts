@@ -11,6 +11,7 @@ import {
   verifyTotp,
 } from "../src/auth/mfa.crypto";
 import { CsrfService } from "../src/auth/csrf.service";
+import { MfaService } from "../src/auth/mfa.service";
 import {
   isForbiddenAddress,
   SafeOutboundHttpClient,
@@ -67,6 +68,37 @@ describe("Slice 10B closure security primitives", () => {
       codes.every((code) => /^[A-F0-9]{4}(?:-[A-F0-9]{4}){3}$/.test(code)),
     ).toBe(true);
     expect(hashMfaValue(codes[0])).not.toContain(codes[0]);
+  });
+
+  it("does not let an authenticated session replace an active MFA factor", async () => {
+    const transaction = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      mfaAuthenticator: {
+        findFirst: vi.fn().mockResolvedValue({ id: "active-factor" }),
+      },
+    };
+    const database = {
+      $transaction: vi.fn(async (action: (tx: typeof transaction) => unknown) =>
+        action(transaction),
+      ),
+    };
+    const service = new MfaService(
+      database as never,
+      { record: vi.fn() } as never,
+      {
+        MFA_ENCRYPTION_KEY: "review-encryption-key-with-enough-characters",
+        MFA_ENCRYPTION_KEY_ID: "key-v1",
+        MFA_TOTP_ISSUER: "Sarbato",
+      } as never,
+    );
+    await expect(
+      service.enroll(
+        "00000000-0000-4000-8000-000000000001",
+        "owner@example.test",
+        "Authenticator",
+        {} as never,
+      ),
+    ).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
   });
 
   it("binds CSRF tokens to a session", () => {

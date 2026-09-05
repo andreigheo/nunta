@@ -967,11 +967,26 @@ test("E2E 13 — Guest export", async () => {
 });
 
 test("E2E 14 — Campaign partial failure", async () => {
+  const previousGuestToken = guestToken;
   const subject = `Campanie partială E2E ${Date.now()}`;
   const campaign = await createCampaign(subject, "INVITATION");
   await sendCampaign(campaign.id, campaign.version);
   await waitForCampaign(campaign.id, "completed");
   const message = await waitForCampaignEmail(subject, owner.email);
+  guestToken = message.token;
+  expect(guestToken).not.toBe(previousGuestToken);
+  const anonymousApi = await playwrightRequest.newContext({ baseURL: apiUrl });
+  try {
+    expect(
+      (
+        await anonymousApi.get(
+          `/api/v1/guest/bootstrap?token=${encodeURIComponent(previousGuestToken)}`,
+        )
+      ).status(),
+    ).toBe(401);
+  } finally {
+    await anonymousApi.dispose();
+  }
   const payload = {
     eventId: `provider-${crypto.randomUUID()}`,
     messageId: message.messageId,

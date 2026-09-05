@@ -16,11 +16,14 @@ if [ ! -e "$environment_file" ]; then
   postgres_app_password="$(openssl rand -hex 24)"
   postgres_worker_password="$(openssl rand -hex 24)"
   redis_password="$(openssl rand -hex 24)"
+  storage_root_access_key="sarbato-root-$(openssl rand -hex 8)"
+  storage_root_secret_key="$(openssl rand -hex 32)"
   storage_access_key="sarbato$(openssl rand -hex 8)"
   storage_secret_key="$(openssl rand -hex 32)"
   session_secret="$(openssl rand -hex 48)"
   mfa_encryption_key="$(openssl rand -hex 48)"
   outbox_encryption_key="$(openssl rand -hex 48)"
+  guest_access_token_secret="$(openssl rand -hex 48)"
   metrics_token="$(openssl rand -hex 32)"
   resend_smtp_password="$(cat "$smtp_password_file")"
 
@@ -29,14 +32,38 @@ if [ ! -e "$environment_file" ]; then
     printf 'POSTGRES_APP_PASSWORD=%s\n' "$postgres_app_password"
     printf 'POSTGRES_WORKER_PASSWORD=%s\n' "$postgres_worker_password"
     printf 'REDIS_PASSWORD=%s\n' "$redis_password"
+    printf 'STORAGE_ROOT_ACCESS_KEY=%s\n' "$storage_root_access_key"
+    printf 'STORAGE_ROOT_SECRET_KEY=%s\n' "$storage_root_secret_key"
     printf 'STORAGE_ACCESS_KEY=%s\n' "$storage_access_key"
     printf 'STORAGE_SECRET_KEY=%s\n' "$storage_secret_key"
     printf 'SESSION_SECRET=%s\n' "$session_secret"
     printf 'MFA_ENCRYPTION_KEY=%s\n' "$mfa_encryption_key"
     printf 'OUTBOX_ENCRYPTION_KEY=%s\n' "$outbox_encryption_key"
+    printf 'GUEST_ACCESS_TOKEN_SECRET=%s\n' "$guest_access_token_secret"
     printf 'METRICS_TOKEN=%s\n' "$metrics_token"
     printf 'RESEND_SMTP_PASSWORD=%s\n' "$resend_smtp_password"
   } > "$environment_file"
+  chmod 600 "$environment_file"
+fi
+
+if ! grep -q '^GUEST_ACCESS_TOKEN_SECRET=' "$environment_file"; then
+  umask 077
+  printf 'GUEST_ACCESS_TOKEN_SECRET=%s\n' \
+    "$(openssl rand -hex 48)" >> "$environment_file"
+  chmod 600 "$environment_file"
+fi
+
+if ! grep -q '^STORAGE_ROOT_ACCESS_KEY=' "$environment_file"; then
+  umask 077
+  printf 'STORAGE_ROOT_ACCESS_KEY=sarbato-root-%s\n' \
+    "$(openssl rand -hex 8)" >> "$environment_file"
+  chmod 600 "$environment_file"
+fi
+
+if ! grep -q '^STORAGE_ROOT_SECRET_KEY=' "$environment_file"; then
+  umask 077
+  printf 'STORAGE_ROOT_SECRET_KEY=%s\n' \
+    "$(openssl rand -hex 32)" >> "$environment_file"
   chmod 600 "$environment_file"
 fi
 

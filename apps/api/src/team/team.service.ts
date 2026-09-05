@@ -165,6 +165,11 @@ export class TeamService {
             HttpStatus.CONFLICT,
             "Invitation already pending",
           );
+        await this.entitlements.lockCapacity(
+          transaction,
+          workspaceId,
+          "MAX_COLLABORATORS",
+        );
         const [activeCollaborators, pendingInvitations] = await Promise.all([
           transaction.workspaceMembership.count({
             where: {

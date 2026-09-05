@@ -2,6 +2,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   type OnModuleDestroy,
   type OnModuleInit,
 } from "@nestjs/common";
@@ -16,7 +17,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { DatabaseService } from "../common/database.service";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
-import { PaddleService, type PaddleWebhook } from "./paddle.service";
+import {
+  PaddleRequestOutcomeUnknownError,
+  PaddleService,
+  type PaddleWebhook,
+} from "./paddle.service";
 import {
   effectiveWorkspacePlanKey,
   WORKSPACE_SUBSCRIPTION_PLANS,
@@ -26,6 +31,7 @@ import {
 
 @Injectable()
 export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(WorkspaceBillingService.name);
   private eventTimer: ReturnType<typeof setInterval> | null = null;
   private reconciliationTimer: ReturnType<typeof setInterval> | null = null;
   private processingEvents = false;
@@ -39,19 +45,39 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (!this.paddle.enabled) return;
-    this.eventTimer = setInterval(() => void this.drainBillingEvents(), 2_000);
+    this.eventTimer = setInterval(
+      () =>
+        this.runScheduledTask("event-drain", () => this.drainBillingEvents()),
+      2_000,
+    );
     this.reconciliationTimer = setInterval(
-      () => void this.reconcileBillingState(),
+      () =>
+        this.runScheduledTask("reconciliation", () =>
+          this.reconcileBillingState(),
+        ),
       5 * 60_000,
     );
     this.eventTimer.unref?.();
     this.reconciliationTimer.unref?.();
-    queueMicrotask(() => void this.drainBillingEvents());
+    queueMicrotask(() =>
+      this.runScheduledTask("initial-event-drain", () =>
+        this.drainBillingEvents(),
+      ),
+    );
   }
 
   onModuleDestroy() {
     if (this.eventTimer) clearInterval(this.eventTimer);
     if (this.reconciliationTimer) clearInterval(this.reconciliationTimer);
+  }
+
+  private runScheduledTask(label: string, task: () => Promise<void>) {
+    void task().catch((error: unknown) => {
+      this.logger.error(
+        `Workspace billing ${label} failed`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    });
   }
 
   async overview(
@@ -230,7 +256,11 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
           },
           update: {},
         });
-        if (current.providerCustomerId && current.providerSubscriptionId)
+        if (
+          current.status !== "CANCELED" &&
+          current.providerCustomerId &&
+          current.providerSubscriptionId
+        )
           return {
             mode: "portal" as const,
             customerId: current.providerCustomerId,
@@ -240,7 +270,7 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
         await transaction.workspaceBillingCheckout.updateMany({
           where: {
             workspaceId,
-            status: "CREATED",
+            status: { in: ["CREATED", "RECOVERY_PENDING"] },
             expiresAt: { lte: new Date() },
           },
           data: { status: "EXPIRED" },
@@ -271,7 +301,10 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
           );
 
         const open = await transaction.workspaceBillingCheckout.findFirst({
-          where: { workspaceId, status: "CREATED" },
+          where: {
+            workspaceId,
+            status: { in: ["CREATED", "RECOVERY_PENDING"] },
+          },
           orderBy: { createdAt: "desc" },
         });
         if (open) {
@@ -325,32 +358,79 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
         reused: true,
       };
 
+    let created: {
+      transactionId: string;
+      checkoutUrl: string;
+      priceId?: string;
+    } | null = null;
     try {
-      const created = await this.paddle.createTransaction({
+      created = await this.paddle.createTransaction({
         plan,
         workspaceId,
         userId,
         checkoutId: prepared.checkout.id,
         assignmentToken: assignment.rawToken,
       });
+      const createdTransaction = created;
       await this.database.withContext({ userId, workspaceId }, (transaction) =>
         transaction.workspaceBillingCheckout.update({
           where: { id: prepared.checkout.id },
-          data: { providerTransactionId: created.transactionId },
+          data: { providerTransactionId: createdTransaction.transactionId },
         }),
       );
       return {
         mode: "checkout" as const,
-        url: created.checkoutUrl,
-        transactionId: created.transactionId,
+        url: createdTransaction.checkoutUrl,
+        transactionId: createdTransaction.transactionId,
       };
     } catch (error) {
+      if (created) {
+        try {
+          await this.database.withContext(
+            { userId, workspaceId },
+            (transaction) =>
+              transaction.workspaceBillingCheckout.update({
+                where: { id: prepared.checkout.id },
+                data: { providerTransactionId: created!.transactionId },
+              }),
+          );
+          return {
+            mode: "checkout" as const,
+            url: created.checkoutUrl,
+            transactionId: created.transactionId,
+            recovered: true,
+          };
+        } catch (persistenceError) {
+          this.logger.error(
+            `Paddle transaction ${created.transactionId} could not be persisted for checkout ${prepared.checkout.id}`,
+            persistenceError instanceof Error
+              ? persistenceError.stack
+              : undefined,
+          );
+          throw error;
+        }
+      }
+      const outcomeUnknown =
+        error instanceof PaddleRequestOutcomeUnknownError &&
+        error.mayHaveCommitted;
       await this.database.withContext({ userId, workspaceId }, (transaction) =>
         transaction.workspaceBillingCheckout.update({
           where: { id: prepared.checkout.id },
-          data: { status: "FAILED" },
+          data: outcomeUnknown
+            ? {
+                status: "RECOVERY_PENDING",
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+              }
+            : { status: "FAILED" },
         }),
       );
+      if (outcomeUnknown)
+        problem(
+          "CHECKOUT_RECOVERY_PENDING",
+          HttpStatus.CONFLICT,
+          "Confirmarea checkout-ului este în curs",
+          "Paddle nu a confirmat rezultatul. Nu reluăm plata până când starea este reconciliată.",
+        );
       throw error;
     }
   }
@@ -570,19 +650,31 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
             error instanceof Error
               ? error.message.slice(0, 500)
               : "Unknown error";
-          await this.database.withContext(
+          const failed = await this.database.withContext(
             { userId: item.actor_user_id, workspaceId: item.workspace_id },
-            (transaction) =>
-              transaction.workspaceBillingProviderEvent.update({
+            async (transaction) => {
+              const claimedEvent =
+                await transaction.workspaceBillingProviderEvent.findUnique({
+                  where: { id: item.event_id },
+                  select: { attemptCount: true },
+                });
+              const exhausted = (claimedEvent?.attemptCount ?? 10) >= 10;
+              return transaction.workspaceBillingProviderEvent.update({
                 where: { id: item.event_id },
                 data: {
-                  status: "FAILED",
+                  status: exhausted ? "DEAD_LETTER" : "FAILED",
                   errorCode: "BILLING_EVENT_PROCESSING_FAILED",
                   errorMessage: message,
                   nextAttemptAt: new Date(Date.now() + 60_000),
                 },
-              }),
+                select: { attemptCount: true, status: true },
+              });
+            },
           );
+          const log = `Workspace billing event ${item.event_id} failed on attempt ${failed.attemptCount}`;
+          if (failed.status === "DEAD_LETTER")
+            this.logger.error(`${log}; retry limit exhausted`);
+          else this.logger.warn(log);
         }
       }
     } finally {
@@ -634,6 +726,14 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
               where: { id: stored.checkoutId },
             })
           : null;
+        if (
+          subscription.providerSubscriptionId &&
+          stored.providerSubscriptionId &&
+          subscription.providerSubscriptionId !== stored.providerSubscriptionId
+        )
+          invalidBillingEvent(
+            "Abonamentul Paddle nu corespunde abonamentului deja alocat spațiului.",
+          );
         validateBillingBinding({
           custom,
           assignmentTokenHash: stored.assignmentTokenHash,
@@ -654,6 +754,10 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
           checkout,
           currentPlan: subscription.planKey,
           currentProviderPriceId: subscription.providerPriceId,
+          establishedSubscription:
+            Boolean(subscription.providerSubscriptionId) &&
+            subscription.providerSubscriptionId ===
+              stored.providerSubscriptionId,
         });
         const accounting = billingTransactionUpdate(
           event,
@@ -721,7 +825,10 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
             stored.checkoutId
           ) {
             await transaction.workspaceBillingCheckout.updateMany({
-              where: { id: stored.checkoutId, status: "CREATED" },
+              where: {
+                id: stored.checkoutId,
+                status: { in: ["CREATED", "RECOVERY_PENDING"] },
+              },
               data: { status: "COMPLETED", completedAt: stored.occurredAt },
             });
           }
@@ -755,8 +862,10 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
         try {
           const data = await this.paddle.getSubscription(item.subscription_id);
           await this.reconcileSubscription(item, data);
-        } catch {
-          // The next hourly reconciliation safely retries provider failures.
+        } catch (error) {
+          this.logger.warn(
+            `Workspace subscription reconciliation failed for ${item.subscription_id}: ${error instanceof Error ? error.message : "unknown error"}`,
+          );
         }
       }
       const checkouts = await this.database.$queryRaw<
@@ -783,8 +892,10 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
             data,
           );
           await this.enqueueBillingEvent(event);
-        } catch {
-          // Claimed checkouts become eligible again after the reconciliation interval.
+        } catch (error) {
+          this.logger.warn(
+            `Workspace checkout reconciliation failed for ${item.checkout_id}: ${error instanceof Error ? error.message : "unknown error"}`,
+          );
         }
       }
       await this.drainBillingEvents();
@@ -1102,7 +1213,19 @@ export function resolveEventPlan(input: {
   checkout: BillingCheckoutBinding | null;
   currentPlan: WorkspaceSubscriptionPlanKey;
   currentProviderPriceId: string | null;
+  establishedSubscription?: boolean;
 }): { planKey: WorkspaceSubscriptionPlanKey; priceId: string | null } {
+  if (input.establishedSubscription) {
+    if (input.providerPlan) return input.providerPlan;
+    if (input.eventType === "subscription.canceled")
+      return {
+        planKey: input.currentPlan,
+        priceId: input.currentProviderPriceId,
+      };
+    invalidBillingEvent(
+      "Prețul Paddle lipsește din evenimentul abonamentului existent.",
+    );
+  }
   if (input.checkout) {
     if (!input.providerPlan)
       invalidBillingEvent("Prețul Paddle lipsește din evenimentul checkout.");

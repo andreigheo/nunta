@@ -1,11 +1,6 @@
 import "dotenv/config";
 import "./telemetry";
-import {
-  createDecipheriv,
-  createHash,
-  createHmac,
-  randomUUID,
-} from "node:crypto";
+import { createDecipheriv, createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { createConnection } from "node:net";
 import {
@@ -33,6 +28,7 @@ import {
   parseCopilotActionPayload,
 } from "@weddingos/contracts";
 import { Prisma, PrismaClient } from "@weddingos/database";
+import { campaignGuestAccessToken } from "./guest-access-token";
 import {
   asyncEventNameSchema,
   automationRecursionAllowed,
@@ -3500,9 +3496,10 @@ async function processCampaignDelivery(
         "Campaign target has no household",
         "CAMPAIGN_HOUSEHOLD_MISSING",
       );
-    const token = createHmac("sha256", environment.OUTBOX_ENCRYPTION_KEY)
-      .update(`guest-access:v2:${invitationRecipient.id}:EMAIL`)
-      .digest("base64url");
+    const token = campaignGuestAccessToken(
+      environment.GUEST_ACCESS_TOKEN_SECRET,
+      recipient.id,
+    );
     const tokenHash = createHash("sha256").update(token).digest("hex");
     await transaction.guestAccessGrant.updateMany({
       where: {
@@ -3534,10 +3531,13 @@ async function processCampaignDelivery(
         "Deterministic campaign grant collision",
         "CAMPAIGN_GRANT_COLLISION",
       );
+    } else if (existingGrant.revokedAt || existingGrant.expiresAt) {
+      throw new PermanentJobError(
+        "Campaign guest grant was revoked or expired",
+        "CAMPAIGN_GRANT_REVOKED",
+      );
     } else if (
-      existingGrant.revokedAt ||
       existingGrant.channel !== "EMAIL" ||
-      existingGrant.expiresAt ||
       existingGrant.householdId !== householdId
     ) {
       await transaction.guestAccessGrant.update({
@@ -3545,8 +3545,6 @@ async function processCampaignDelivery(
         data: {
           channel: "EMAIL",
           householdId,
-          revokedAt: null,
-          expiresAt: null,
           version: { increment: 1 },
         },
       });

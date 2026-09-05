@@ -327,6 +327,10 @@ test("contact — oferă un formular accesibil și contact direct", async ({
 test("analytics — Google Tag Manager se încarcă numai după acord", async ({
   page,
 }) => {
+  test.skip(
+    !process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID,
+    "GTM is intentionally disabled when no environment-specific container is configured",
+  );
   const googleRequests: string[] = [];
   await page.addInitScript(() => window.localStorage.clear());
   await page.route("https://www.googletagmanager.com/**", async (route) => {
@@ -335,12 +339,16 @@ test("analytics — Google Tag Manager se încarcă numai după acord", async ({
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Acceptă analytics" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Acceptă analytics" }),
+  ).toBeVisible();
   expect(googleRequests).toEqual([]);
 
   await page.getByRole("button", { name: "Acceptă analytics" }).click();
   await expect.poll(() => googleRequests.length).toBe(1);
-  expect(googleRequests[0]).toContain("id=GTM-59ST3B86");
+  expect(googleRequests[0]).toContain(
+    `id=${process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID}`,
+  );
 
   const consentCommands = await page.evaluate(() =>
     window.dataLayer?.map((item) => {

@@ -230,6 +230,11 @@ export class IntelligenceService {
         const monthStart = new Date();
         monthStart.setUTCDate(1);
         monthStart.setUTCHours(0, 0, 0, 0);
+        await this.entitlements.lockCapacity(
+          tx,
+          workspaceId,
+          "AI_ACTIONS_MONTHLY",
+        );
         await this.entitlements.assertCapacity(
           tx,
           workspaceId,
@@ -2277,6 +2282,11 @@ export class IntelligenceService {
           input,
         );
         if (replay) return replay;
+        await this.entitlements.lockCapacity(
+          tx,
+          workspaceId,
+          "MAX_ACTIVE_AUTOMATIONS",
+        );
         await this.entitlements.assertCapacity(
           tx,
           workspaceId,

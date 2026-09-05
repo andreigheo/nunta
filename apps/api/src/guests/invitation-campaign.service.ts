@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import {
   invitationContainsStarterContent,
@@ -2998,50 +2998,16 @@ export class InvitationCampaignService {
     householdId: string,
     channel: "EMAIL" | "QR" | "MANUAL" | "WHATSAPP",
   ) {
-    const token = createHmac("sha256", this.webhookSecret)
-      .update(`guest-access:v2:${recipientId}:${channel}`)
-      .digest("base64url");
+    const token = randomBytes(32).toString("base64url");
     const tokenHash = hashToken(token);
-    const existing = await tx.guestAccessGrant.findUnique({
-      where: { tokenHash },
-    });
-    if (
-      existing &&
-      existing.workspaceId === workspaceId &&
-      existing.invitationRecipientId === recipientId &&
-      existing.channel === channel &&
-      existing.householdId === householdId &&
-      !existing.expiresAt &&
-      !existing.revokedAt
-    )
-      return { token, reused: true };
     await tx.guestAccessGrant.updateMany({
       where: {
         invitationRecipientId: recipientId,
         channel,
         revokedAt: null,
-        tokenHash: { not: tokenHash },
       },
       data: { revokedAt: new Date(), version: { increment: 1 } },
     });
-    if (existing) {
-      if (
-        existing.invitationRecipientId !== recipientId ||
-        existing.workspaceId !== workspaceId
-      )
-        throw new Error("Deterministic guest grant collision");
-      await tx.guestAccessGrant.update({
-        where: { id: existing.id },
-        data: {
-          channel,
-          householdId,
-          revokedAt: null,
-          expiresAt: null,
-          version: { increment: 1 },
-        },
-      });
-      return { token, reused: false };
-    }
     await tx.guestAccessGrant.create({
       data: {
         workspaceId,

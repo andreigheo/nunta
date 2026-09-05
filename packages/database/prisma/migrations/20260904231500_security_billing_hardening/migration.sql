@@ -1,0 +1,5 @@
+ALTER TYPE "WorkspaceBillingCheckoutStatus"
+  ADD VALUE IF NOT EXISTS 'RECOVERY_PENDING';
+
+ALTER TYPE "WorkspaceBillingEventStatus"
+  ADD VALUE IF NOT EXISTS 'DEAD_LETTER';

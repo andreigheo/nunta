@@ -30,6 +30,7 @@ x-api-environment: &api-environment
   OUTBOX_ENCRYPTION_KEY: ${OUTBOX_ENCRYPTION_KEY:?OUTBOX_ENCRYPTION_KEY is required}
   OUTBOX_ENCRYPTION_KEY_ID: production-v1
   OUTBOX_DECRYPTION_KEYS: "{}"
+  GUEST_ACCESS_TOKEN_SECRET: ${GUEST_ACCESS_TOKEN_SECRET:?GUEST_ACCESS_TOKEN_SECRET is required}
   OUTBOX_COMMAND_TTL_SECONDS: 604800
   ARTIFACT_ROOT: /var/lib/sarbato/activity-exports
   ARTIFACT_RETENTION_HOURS: 24
@@ -150,8 +151,8 @@ services:
     restart: unless-stopped
     command: ["server", "/data"]
     environment:
-      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
-      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+      MINIO_ROOT_USER: ${STORAGE_ROOT_ACCESS_KEY:?STORAGE_ROOT_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${STORAGE_ROOT_SECRET_KEY:?STORAGE_ROOT_SECRET_KEY is required}
     volumes:
       - storage-data:/data
     ports:
@@ -172,10 +173,17 @@ services:
       - >-
         mc alias set production http://storage:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
         mc mb --ignore-existing production/sarbato-production-private &&
-        mc anonymous set none production/sarbato-production-private
+        mc anonymous set none production/sarbato-production-private &&
+        mc admin user add production "$$APP_ACCESS_KEY" "$$APP_SECRET_KEY" &&
+        mc admin policy create production sarbato-app /policies/storage-app-policy.json &&
+        mc admin policy attach production sarbato-app --user "$$APP_ACCESS_KEY"
     environment:
-      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
-      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+      MINIO_ROOT_USER: ${STORAGE_ROOT_ACCESS_KEY:?STORAGE_ROOT_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${STORAGE_ROOT_SECRET_KEY:?STORAGE_ROOT_SECRET_KEY is required}
+      APP_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+      APP_SECRET_KEY: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+    volumes:
+      - ./storage-app-policy.json:/policies/storage-app-policy.json:ro
 
   clamav:
     image: clamav/clamav:1.5.3
@@ -321,6 +329,7 @@ services:
         WEDDINGOS_BUILD_ID: ${SARBATO_RELEASE_ID:-current}
         API_INTERNAL_URL: http://api:4000
         NEXT_PUBLIC_DEMO_MODE_ENABLED: "false"
+        NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID: ${NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID:?NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID is required}
     environment:
       NODE_ENV: production
       API_INTERNAL_URL: http://api:4000

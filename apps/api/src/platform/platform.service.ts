@@ -115,6 +115,7 @@ export class PlatformService {
           heartbeat,
           pendingOutbox,
           deadJobs,
+          billingDeadLetters,
           maintenance,
           latestBackup,
           latestRestore,
@@ -125,6 +126,9 @@ export class PlatformService {
           }),
           tx.backgroundJob.count({
             where: { status: { in: ["FAILED", "DEAD_LETTER"] } },
+          }),
+          tx.workspaceBillingProviderEvent.count({
+            where: { status: "DEAD_LETTER" },
           }),
           tx.platformMaintenanceWindow.findFirst({
             where: { environment: this.environment.NODE_ENV, status: "ACTIVE" },
@@ -139,7 +143,10 @@ export class PlatformService {
             this.environment.WORKER_STALE_AFTER_SECONDS * 1_000,
         );
         return {
-          status: workerHealthy ? "OPERATIONAL" : "DEGRADED",
+          status:
+            workerHealthy && billingDeadLetters === 0
+              ? "OPERATIONAL"
+              : "DEGRADED",
           environment: this.environment.NODE_ENV,
           services: {
             api: { status: "UP" },
@@ -155,6 +162,10 @@ export class PlatformService {
             jobs: {
               status: deadJobs > 0 ? "DEGRADED" : "UP",
               failedOrDeadLetter: deadJobs,
+            },
+            billingEvents: {
+              status: billingDeadLetters > 0 ? "DEGRADED" : "UP",
+              deadLetter: billingDeadLetters,
             },
           },
           maintenance: maintenance ? this.safe(maintenance) : null,

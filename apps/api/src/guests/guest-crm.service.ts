@@ -656,6 +656,7 @@ export class GuestCrmService {
           input,
         );
         if (replay) return replay;
+        await this.entitlements.lockCapacity(tx, workspaceId, "MAX_GUESTS");
         await this.entitlements.assertCapacity(
           tx,
           workspaceId,
@@ -1397,6 +1398,7 @@ export class GuestCrmService {
         assertVersion(guestImport.version, version);
         if (!["READY_FOR_REVIEW", "COMPLETED"].includes(guestImport.status))
           validation("Import is not ready to commit");
+        await this.entitlements.lockCapacity(tx, workspaceId, "MAX_GUESTS");
         const rows = await tx.guestImportRow.findMany({
           where: { importId, resultGuestId: null },
         });
