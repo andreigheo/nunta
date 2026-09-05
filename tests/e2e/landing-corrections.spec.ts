@@ -11,7 +11,7 @@ test("navigarea publică descrie destinațiile reale", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const nav = page.getByRole("navigation", { name: "Navigație principală", exact: true });
   await expect(nav.getByRole("link", { name: "Contact", exact: true })).toHaveAttribute("href", "/contact");
-  await expect(nav.getByText("Despre noi")).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Despre noi" })).toHaveAttribute("href", "/despre-noi");
   await expect(nav.locator("svg")).toHaveCount(0);
   await expect(page.getByRole("contentinfo")).toContainText("Necesită autentificare");
 

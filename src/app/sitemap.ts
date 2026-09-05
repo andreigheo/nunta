@@ -6,6 +6,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
     "",
     "/produs",
+    "/despre-noi",
     "/contact",
     "/confidentialitate",
     "/termeni",
@@ -20,4 +21,3 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: route === "" ? 1 : route === "/produs" ? 0.9 : 0.6,
   }));
 }
-

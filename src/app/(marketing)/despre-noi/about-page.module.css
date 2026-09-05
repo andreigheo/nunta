@@ -1,0 +1,646 @@
+.page {
+  --about-paper: #fbfaf8;
+  --about-plum: var(--brand);
+  --about-gold: #cb930f;
+  --about-gold-ink: #906300;
+  --about-coral: #f06449;
+  --about-coral-ink: #b13e2c;
+  --about-green: #5b9b83;
+  --about-green-ink: #367a60;
+  background: var(--about-paper);
+  color: var(--about-plum);
+  overflow: clip;
+  padding-bottom: 24px;
+}
+.page h1,
+.page h2,
+.page h3 {
+  font-family: var(--font-brand);
+  font-weight: 550;
+  letter-spacing: -0.035em;
+}
+.page p {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.page :global(.about-art-label) {
+  font: 550 29px var(--font-brand);
+  letter-spacing: -0.025em;
+}
+.hero {
+  border-bottom: 1px solid var(--line);
+}
+.heroInner {
+  max-width: 1376px;
+  margin: auto;
+  padding: 36px 32px 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.35fr);
+  align-items: center;
+  gap: 16px;
+}
+.heroCopy {
+  padding-bottom: 10px;
+}
+.heroCopy h1 {
+  font-size: clamp(2rem, 3.8vw, 3.5rem);
+  line-height: 1.16;
+}
+.heroCopy > p {
+  max-width: 39ch;
+  margin-top: 28px;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.heroCopy .actions {
+  margin-top: 40px;
+}
+.actions a {
+  min-height: 46px;
+  font-size: 0.875rem;
+}
+.heroArtwork {
+  width: 100%;
+  min-width: 0;
+}
+.heroArtwork > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.people {
+  border-bottom: 1px solid var(--line);
+  padding: 48px 32px 34px;
+}
+.sectionIntro {
+  text-align: center;
+  max-width: 900px;
+  margin: auto;
+}
+.sectionIntro h2,
+.promises > h2 {
+  font-size: clamp(1.7rem, 2.25vw, 2rem);
+  line-height: 1.2;
+}
+.sectionIntro > p {
+  max-width: 67ch;
+  margin: 14px auto 0;
+}
+.peopleFlow {
+  max-width: 1200px;
+  margin: 36px auto 0;
+  position: relative;
+}
+.peopleThread {
+  width: 100%;
+  height: 340px;
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+.roles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 42px;
+  margin: 0 58px;
+  min-height: 296px;
+}
+.role {
+  min-width: 0;
+  position: relative;
+  color: var(--about-plum);
+}
+.role[data-role="team"] {
+  color: var(--about-gold-ink);
+}
+.role[data-role="supplier"] {
+  color: var(--about-coral-ink);
+}
+.role[data-role="guest"] {
+  color: var(--about-green-ink);
+}
+.portrait {
+  height: 112px;
+  display: flex;
+  align-items: flex-end;
+}
+.portrait > svg {
+  height: 110px;
+  width: auto;
+  max-width: 100%;
+}
+.role[data-role="team"] .portrait {
+  color: var(--about-gold);
+}
+.role[data-role="supplier"] .portrait {
+  color: var(--about-coral);
+}
+.role[data-role="guest"] .portrait {
+  color: var(--about-green);
+}
+.role h3 {
+  margin-top: 23px;
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+.role p {
+  margin-top: 10px;
+  font-size: 0.875rem;
+  max-width: 23ch;
+  line-height: 1.8;
+}
+.commonPlan {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+.commonPlan > svg {
+  display: block;
+  margin: auto;
+  width: 96px;
+  height: 94px;
+}
+.commonPlan h3 {
+  font-size: 1.8rem;
+  line-height: 1.15;
+  margin-top: 5px;
+}
+.commonPlan p {
+  margin-top: 4px;
+  font-size: 0.875rem;
+}
+.promises {
+  padding: 38px 0 24px;
+}
+.promises > h2 {
+  text-align: center;
+  margin-inline: 20px;
+}
+.promiseFlow {
+  position: relative;
+  margin: 40px auto 0;
+  max-width: 1440px;
+}
+.promiseThread {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 250px;
+  pointer-events: none;
+}
+.promiseGrid {
+  margin: 0 11%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8%;
+  padding: 15px 0 40px;
+}
+.promise {
+  min-width: 0;
+  position: relative;
+}
+.promiseIcon {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border: 1px solid color-mix(in srgb, var(--about-plum) 32%, transparent);
+  border-radius: 50%;
+  background: var(--about-paper);
+  color: var(--about-plum);
+}
+.promiseIcon > svg {
+  width: 30px;
+  height: 30px;
+}
+.promise[data-tone="1"] .promiseIcon {
+  color: var(--about-gold);
+  border-color: color-mix(in srgb, var(--about-gold) 40%, transparent);
+}
+.promise[data-tone="2"] .promiseIcon {
+  color: var(--about-green);
+  border-color: color-mix(in srgb, var(--about-green) 40%, transparent);
+}
+.promise h3 {
+  font-size: 1.22rem;
+  margin-top: 17px;
+  line-height: 1.3;
+}
+.promise p {
+  font-size: 0.875rem;
+  margin-top: 10px;
+  line-height: 1.8;
+}
+.belief {
+  background: #f3eef3;
+  margin-top: 8px;
+}
+.beliefInner {
+  max-width: 1280px;
+  margin: auto;
+  display: grid;
+  grid-template-columns: 0.92fr 1.3fr;
+  align-items: center;
+  gap: 54px;
+  padding: 44px 48px;
+}
+.belief h2 {
+  max-width: 26ch;
+  font-size: clamp(1.85rem, 2.5vw, 2.35rem);
+  line-height: 1.18;
+}
+.belief p {
+  max-width: 36ch;
+  margin-top: 16px;
+}
+.beliefArtwork > svg {
+  display: block;
+  width: calc(100% + 100px);
+  height: auto;
+}
+.events {
+  position: relative;
+  text-align: center;
+  padding: 32px 32px 38px;
+  max-width: 1400px;
+  margin: auto;
+}
+.eventsThread {
+  position: absolute;
+  width: 100vw;
+  height: 60px;
+  bottom: 23px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.events h2 {
+  font-size: 1.85rem;
+  line-height: 1.2;
+  max-width: 35ch;
+  margin: 0 auto;
+}
+.events ul {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 20px;
+  margin-top: 30px;
+  padding: 0;
+}
+.events li {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.events li::after {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--about-plum);
+}
+.events li:nth-child(3n + 2)::after {
+  background: var(--about-gold);
+}
+.events li:nth-child(3n + 3)::after {
+  background: var(--about-coral);
+}
+.events li:last-child::after {
+  background: var(--about-green);
+}
+.finalCta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  max-width: 1200px;
+  width: calc(100% - 120px);
+  margin: 0 auto;
+  padding: 28px 32px;
+  border: 1px solid color-mix(in srgb, var(--about-plum) 45%, transparent);
+  border-radius: 6px;
+}
+.finalCta h2 {
+  font-size: clamp(1.8rem, 2.6vw, 2.6rem);
+  line-height: 1.08;
+}
+.finalCta h2 span {
+  display: block;
+}
+.finalThread {
+  position: absolute;
+  width: 100px;
+  height: 60px;
+  top: calc(50% - 13px);
+  right: calc(100% - 6px);
+  pointer-events: none;
+}
+@media (max-width: 1100px) and (min-width: 761px) {
+  .heroInner {
+    padding: 28px 30px;
+    gap: 8px;
+    grid-template-columns: 0.84fr 1.35fr;
+  }
+  .heroCopy h1 {
+    font-size: clamp(2rem, 3.8vw, 2.6rem);
+  }
+  .heroCopy > p {
+    font-size: 0.95rem;
+    margin-top: 22px;
+  }
+  .heroCopy .actions {
+    margin-top: 28px;
+    gap: 12px;
+  }
+  .actions a {
+    font-size: 0.8rem;
+    padding-inline: 16px;
+  }
+  .people {
+    padding: 34px 32px 24px;
+  }
+  .peopleFlow {
+    margin-top: 28px;
+  }
+  .peopleThread {
+    height: 286px;
+  }
+  .roles {
+    margin-inline: 35px;
+    gap: 25px;
+    min-height: 249px;
+    padding-bottom: 26px;
+  }
+  .portrait,
+  .portrait > svg {
+    height: 94px;
+  }
+  .role h3 {
+    margin-top: 16px;
+    font-size: 1.2rem;
+  }
+  .role p {
+    font-size: 0.75rem;
+  }
+  .commonPlan > svg {
+    width: 74px;
+    height: 72px;
+  }
+  .commonPlan h3 {
+    font-size: 1.55rem;
+  }
+  .sectionIntro h2,
+  .promises > h2 {
+    font-size: 1.65rem;
+  }
+  .sectionIntro > p {
+    font-size: 0.875rem;
+    max-width: 62ch;
+  }
+  .promises {
+    padding: 28px 0 20px;
+  }
+  .promiseFlow {
+    margin-top: 28px;
+  }
+  .promiseThread {
+    min-height: 210px;
+  }
+  .promiseGrid {
+    padding-bottom: 24px;
+  }
+  .promiseIcon {
+    width: 46px;
+    height: 46px;
+  }
+  .promiseIcon > svg {
+    width: 25px;
+    height: 25px;
+  }
+  .promise h3 {
+    font-size: 1.05rem;
+  }
+  .promise p {
+    font-size: 0.8125rem;
+  }
+  .beliefInner {
+    padding: 32px 36px;
+    gap: 24px;
+  }
+  .belief h2 {
+    font-size: 1.65rem;
+  }
+  .belief p {
+    font-size: 0.875rem;
+  }
+  .events ul {
+    gap: 10px;
+  }
+  .events li {
+    gap: 10px;
+    font-size: 0.75rem;
+  }
+  .eventsThread {
+    display: none;
+  }
+  .finalCta {
+    width: calc(100% - 80px);
+    padding-inline: 24px;
+  }
+}
+@media (max-width: 760px) {
+  .heroInner {
+    display: flex;
+    flex-direction: column;
+    padding: 32px 20px 24px;
+    gap: 12px;
+  }
+  .heroCopy {
+    width: 100%;
+    max-width: 520px;
+  }
+  .heroCopy h1 {
+    font-size: clamp(2.2rem, 7.2vw, 3rem);
+    max-width: 19ch;
+  }
+  .heroCopy > p {
+    margin-top: 20px;
+    max-width: 44ch;
+  }
+  .heroCopy .actions {
+    margin-top: 24px;
+  }
+  .actions {
+    gap: 12px;
+  }
+  .actions a {
+    padding-inline: 16px;
+  }
+  .heroArtwork {
+    max-width: 580px;
+  }
+  .people {
+    padding: 32px 20px;
+  }
+  .sectionIntro h2 {
+    max-width: 24ch;
+    margin-inline: auto;
+    font-size: 1.8rem;
+  }
+  .peopleFlow {
+    margin-top: 28px;
+  }
+  .peopleThread {
+    display: none;
+  }
+  .roles {
+    margin: 0;
+    gap: 30px 24px;
+    grid-template-columns: 1fr 1fr;
+  }
+  .portrait {
+    height: 95px;
+    border-bottom: 1px solid currentColor;
+  }
+  .portrait > svg {
+    height: 95px;
+    max-width: 100%;
+  }
+  .role h3 {
+    font-size: 1.3rem;
+    margin-top: 15px;
+  }
+  .role p {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  .commonPlan {
+    margin-top: 36px;
+    padding-top: 22px;
+    width: 100%;
+    border-top: 1px solid var(--about-green);
+  }
+  .commonPlan::before {
+    content: "";
+    width: 1px;
+    height: 22px;
+    background: var(--about-green);
+    position: absolute;
+    top: 0;
+    left: 50%;
+  }
+  .commonPlan p {
+    font-size: 1rem;
+  }
+  .promises {
+    padding-top: 32px;
+  }
+  .promiseFlow {
+    margin-top: 28px;
+  }
+  .promiseThread {
+    display: none;
+  }
+  .promiseGrid {
+    display: block;
+    margin: 0 20px;
+    padding-bottom: 0;
+  }
+  .promise {
+    padding: 0 8px 26px 82px;
+    min-height: 132px;
+  }
+  .promiseIcon {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 58px;
+    height: 58px;
+  }
+  .promise h3 {
+    margin-top: 0;
+    padding-top: 2px;
+    font-size: 1.35rem;
+  }
+  .promise p {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  .promise:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 28px;
+    top: 58px;
+    bottom: 0;
+    width: 1px;
+    background: var(--line);
+  }
+  .beliefInner {
+    display: flex;
+    flex-direction: column;
+    padding: 32px 24px;
+    gap: 20px;
+    align-items: stretch;
+  }
+  .belief h2 {
+    font-size: 1.9rem;
+    max-width: 28ch;
+  }
+  .beliefArtwork {
+    overflow: hidden;
+  }
+  .beliefArtwork > svg {
+    width: 110%;
+  }
+  .events {
+    padding: 30px 20px;
+  }
+  .eventsThread {
+    display: none;
+  }
+  .events h2 {
+    font-size: 1.7rem;
+  }
+  .events ul {
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .events li {
+    gap: 12px;
+    font-size: 0.875rem;
+  }
+  .finalCta {
+    width: calc(100% - 40px);
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px;
+    gap: 24px;
+  }
+  .finalCta h2 {
+    font-size: 1.9rem;
+  }
+  .finalCta .actions {
+    width: 100%;
+  }
+  .finalCta .actions a {
+    flex-grow: 1;
+  }
+  .finalThread {
+    width: 45px;
+    right: calc(100% - 3px);
+  }
+}

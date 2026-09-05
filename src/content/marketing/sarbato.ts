@@ -10,6 +10,7 @@ export const routes = {
   signIn: "/sign-in",
   createAccount: "/create-account",
   contact: "/contact",
+  about: "/despre-noi",
   privacy: "/confidentialitate",
   terms: "/termeni",
   refunds: "/rambursari",
@@ -36,6 +37,7 @@ export const headerNav = [
   { label: "Soluții", href: "/#solutii" },
   { label: "Prețuri", href: "/#abonamente" },
   { label: "Întrebări", href: "/#intrebari" },
+  { label: "Despre noi", href: routes.about },
   { label: "Contact", href: routes.contact },
 ] as const;
 
@@ -780,6 +782,7 @@ export const footer = {
         { label: "Prețuri", href: "/#abonamente" },
         { label: "Întrebări", href: "/#intrebari" },
         { label: "Contact", href: routes.contact },
+        { label: "Despre noi", href: routes.about },
       ],
     },
     {
