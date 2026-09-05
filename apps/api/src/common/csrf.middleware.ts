@@ -24,6 +24,7 @@ export class CsrfMiddleware implements NestMiddleware {
   ) {}
 
   use(request: WeddingOsRequest, response: Response, next: NextFunction) {
+    const originalPath = request.originalUrl.split("?", 1)[0];
     if (
       !this.environment.CSRF_ENFORCEMENT ||
       SAFE.has(request.method) ||
@@ -32,7 +33,7 @@ export class CsrfMiddleware implements NestMiddleware {
       // The exact Origin check below preserves login-CSRF protection while
       // allowing a regular HTML form to start the redirect without a header.
       (request.method === "POST" &&
-        request.path === GOOGLE_OAUTH_START_PATH &&
+        originalPath === GOOGLE_OAUTH_START_PATH &&
         request.headers.origin === this.environment.WEB_URL)
     )
       return next();

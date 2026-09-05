@@ -8,13 +8,17 @@ const webUrl = "https://sarbato.space";
 
 function request(input: {
   path?: string;
+  originalUrl?: string;
   method?: string;
   origin?: string;
   session?: string;
 }): WeddingOsRequest {
   return {
     method: input.method ?? "POST",
-    path: input.path ?? "/api/v1/auth/google",
+    // Nest mounts global middleware on a wildcard route. Express consumes that
+    // mount path, so `path` can be `/` while `originalUrl` remains canonical.
+    path: input.path ?? "/",
+    originalUrl: input.originalUrl ?? "/api/v1/auth/google",
     headers: input.origin ? { origin: input.origin } : {},
     cookies: input.session ? { sarbato_session: input.session } : {},
     requestId: "request-id",
@@ -64,7 +68,7 @@ describe("Google OAuth initiation middleware", () => {
 
     middleware.use(
       request({
-        path: "/api/v1/workspaces",
+        originalUrl: "/api/v1/workspaces",
         origin: webUrl,
         session: "active-session-token",
       }),

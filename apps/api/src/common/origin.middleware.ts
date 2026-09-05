@@ -15,8 +15,9 @@ export class OriginMiddleware implements NestMiddleware {
 
   use(request: WeddingOsRequest, response: Response, next: NextFunction) {
     const origin = request.headers.origin;
+    const originalPath = request.originalUrl.split("?", 1)[0];
     const requiresExactOrigin =
-      request.method === "POST" && request.path === GOOGLE_OAUTH_START_PATH;
+      request.method === "POST" && originalPath === GOOGLE_OAUTH_START_PATH;
     if (
       (!SAFE_METHODS.has(request.method) &&
         origin &&
