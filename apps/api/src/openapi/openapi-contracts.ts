@@ -70,6 +70,7 @@ import {
   createTaskCommentSchema,
   createTaskSchema,
   dependencyImpactSchema,
+  planProposalItemCoreSchema,
   planProposalListSchema,
   planProposalSchema,
   planningDashboardSchema,
@@ -2380,9 +2381,12 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
   document.components.schemas = Object.fromEntries(
     Object.entries(schemas).map(([name, schema]) => [
       name,
-      toOpenApiSchema(schema),
+      name === "PlanProposal" ? {} : toOpenApiSchema(schema),
     ]),
   );
+  document.components.schemas.PlanProposalItem =
+    recursivePlanProposalItemOpenApiSchema();
+  document.components.schemas.PlanProposal = planProposalOpenApiSchema();
   document.components.schemas.ApiDataResponse = {
     type: "object",
     required: ["data", "meta"],
@@ -3406,4 +3410,34 @@ function toOpenApiSchema(schema: ZodTypeAny): SchemaObject {
     target: "openApi3",
     $refStrategy: "none",
   }) as SchemaObject;
+}
+
+function recursivePlanProposalItemOpenApiSchema(): SchemaObject {
+  const schema = toOpenApiSchema(planProposalItemCoreSchema);
+  return {
+    ...schema,
+    required: [...(schema.required ?? []), "items"],
+    properties: {
+      ...schema.properties,
+      items: {
+        type: "array",
+        items: { $ref: "#/components/schemas/PlanProposalItem" },
+      },
+    },
+  };
+}
+
+function planProposalOpenApiSchema(): SchemaObject {
+  const schema = toOpenApiSchema(planProposalSchema.omit({ items: true }));
+  return {
+    ...schema,
+    required: [...(schema.required ?? []), "items"],
+    properties: {
+      ...schema.properties,
+      items: {
+        type: "array",
+        items: { $ref: "#/components/schemas/PlanProposalItem" },
+      },
+    },
+  };
 }

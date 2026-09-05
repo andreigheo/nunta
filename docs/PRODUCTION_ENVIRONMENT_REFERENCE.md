@@ -32,6 +32,13 @@ Production needs independently provisioned PostgreSQL, Redis, private object sto
 
 The metrics endpoint is `/api/v1/internal/metrics` and requires a bearer token. Health endpoints are `/health` and `/ready`; readiness is not green unless database identity, reference data, Redis and worker heartbeat are verified.
 
+Google authentication uses a confidential Web OAuth client. Production must set
+`FEATURE_GOOGLE_OAUTH_ENABLED=true`, `GOOGLE_OAUTH_CLIENT_ID` and
+`GOOGLE_OAUTH_CLIENT_SECRET`. The only production redirect URI is
+`https://sarbato.space/api/v1/auth/google/callback`; local redirect URIs must not
+be added to the production client. The client requests only `openid`, `email`
+and `profile`, and Sarbato does not persist Google access or refresh tokens.
+
 ## Current production status
 
 No external staging or production environment, domain, TLS certificate, provider credentials, off-host backup destination or external alert receiver was supplied. The Compose staging-like definition is a local rehearsal specification only.

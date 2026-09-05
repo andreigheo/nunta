@@ -427,6 +427,8 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
 
           <div
             className={styles.metricGrid}
+            role="list"
+            aria-label="Indicatori agregați"
             data-metric-source={publishable ? "aggregate" : "demo"}
             {...(publishable ? { "data-testid": "public-proof-metrics" } : {})}
           >
@@ -445,6 +447,7 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
                   key={card.key}
                   className={styles.metricCard}
                   data-metric-key={card.key}
+                  role="listitem"
                 >
                   <div className={styles.metricHeader}>
                     <span className={toneClass[card.iconTone]} aria-hidden>
@@ -802,6 +805,7 @@ function CommerceSurface() {
         <section aria-labelledby="budget-preview-title" className={styles.budgetPane}>
           <div className={styles.subpanelHeading}>
             <h3 id="budget-preview-title">{chapter.budgetTitle}</h3>
+            <span>Vezi raport</span>
           </div>
           <div className={styles.budgetSummaryExact}>
             <div>
@@ -872,6 +876,7 @@ function OperationsSurface() {
         <section aria-labelledby="schedule-preview-title">
           <div className={styles.operationsColumnHeading}>
             <h3 id="schedule-preview-title">Program</h3>
+            <span>Vezi tot</span>
           </div>
           <div className={styles.scheduleList}>
             {chapter.schedule.map(([time, item, active]) => (
@@ -889,6 +894,7 @@ function OperationsSurface() {
         <section aria-labelledby="team-preview-title">
           <div className={styles.operationsColumnHeading}>
             <h3 id="team-preview-title">Echipă</h3>
+            <span>Vezi tot</span>
           </div>
           {chapter.team.map(([name, role, state, avatar]) => (
             <div className={styles.peopleRow} key={name}>
@@ -913,6 +919,7 @@ function OperationsSurface() {
         <section aria-labelledby="field-vendors-title">
           <div className={styles.operationsColumnHeading}>
             <h3 id="field-vendors-title">Furnizori</h3>
+            <span>Vezi tot</span>
           </div>
           {chapter.vendors.map(([vendor, category, state, avatar]) => (
             <div className={styles.peopleRow} key={vendor}>

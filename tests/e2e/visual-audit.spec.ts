@@ -38,9 +38,23 @@ test("Visual audit — registration intent is clear on desktop and mobile", asyn
   });
   const desktopPage = await desktop.newPage();
   await desktopPage.goto("/create-account");
+  const googleRegistration = desktopPage.getByRole("button", {
+    name: "Continuă cu Google",
+  });
+  await expect(googleRegistration).toBeDisabled();
   await desktopPage
     .getByRole("button", { name: /Organizez un eveniment/ })
     .click();
+  await expect(googleRegistration).toBeDisabled();
+  await desktopPage.getByRole("checkbox", { name: /Accept termenii/i }).click();
+  await expect(googleRegistration).toBeEnabled();
+  const googleForm = googleRegistration.locator("xpath=ancestor::form");
+  await expect(googleForm).toHaveAttribute("action", "/api/v1/auth/google");
+  await expect(googleForm).toHaveAttribute("method", "post");
+  await expect(googleForm.locator('input[name="intent"]')).toHaveValue(
+    "EVENT_ORGANIZER",
+  );
+  await expect(googleForm.locator('input[name="terms"]')).toHaveValue("1");
   await expectNoHorizontalOverflow(desktopPage);
   await expectNoSeriousAxeViolations(desktopPage);
   await desktopPage.screenshot({
@@ -206,16 +220,19 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
   await captureGuidedSurface(page, "08-guided-overview-empty-desktop.png");
 
   await page.getByRole("button", { name: "Completează detaliile" }).click();
-  await expect(page.getByRole("heading", { name: "Cuplul" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Evenimentul", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Tipul evenimentului").selectOption("wedding");
   await page.getByLabel("Numele partenerului 1").fill("Olivia");
   await page.getByLabel("Numele partenerului 2").fill("Paul");
-  await page.getByLabel("Titlul nunții").fill("Olivia & Paul");
+  await page.getByLabel("Titlul evenimentului").fill("Olivia & Paul");
   await page.getByLabel("Cum vă numim în interfață?").fill("Olivia și Paul");
   await captureGuidedSurface(page, "09-guided-onboarding-start-desktop.png");
   await page.getByRole("button", { name: "Continuă" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Data & evenimentele" }),
+    page.getByRole("heading", { name: "Data & momentele" }),
   ).toBeVisible();
   await page.getByLabel("Data evenimentului").fill("2027-09-12");
   await page.getByRole("button", { name: "Continuă" }).click();

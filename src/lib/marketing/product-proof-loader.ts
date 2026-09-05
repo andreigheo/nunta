@@ -4,7 +4,7 @@ import {
   type MarketingProductProof,
 } from "./product-proof-normalizer";
 
-type ProofFetchInit = RequestInit & { next: { revalidate: number } };
+type ProofFetchInit = RequestInit & { next?: { revalidate: number } };
 type ProofResponse = Pick<Response, "ok" | "json">;
 type ProofFetch = (
   input: string,
@@ -35,14 +35,15 @@ export async function loadMarketingProductProof(
   const endpoint = new URL(
     `${apiBase.replace(/\/$/, "")}/api/v1/public/product-proof`,
   );
-  if (cacheNamespace) endpoint.searchParams.set("cache", cacheNamespace);
-
   try {
+    const cachePolicy = cacheNamespace
+      ? ({ cache: "no-store" as const } satisfies RequestInit)
+      : { next: { revalidate: 900 } };
     const response = await fetcher(endpoint.toString(), {
       credentials: "omit",
       headers: { Accept: "application/json" },
       signal: createTimeoutSignal(timeoutMs),
-      next: { revalidate: 900 },
+      ...cachePolicy,
     });
     if (!response.ok) return fallbackProductProof;
 

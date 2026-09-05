@@ -66,27 +66,30 @@ export const taskStatusSchema = z.enum([
   "archived",
 ]);
 
+export const planProposalItemCoreSchema = z.object({
+  id: z.string().uuid(),
+  type: proposalItemTypeSchema,
+  parentItemId: z.string().uuid().nullable(),
+  title: z.string(),
+  description: z.string().nullable(),
+  category: z.string().nullable(),
+  priority: taskPrioritySchema.nullable(),
+  relativeStartOffsetDays: z.number().int().nullable(),
+  relativeDueOffsetDays: z.number().int().nullable(),
+  absoluteStartAt: z.string().datetime().nullable(),
+  absoluteDueAt: z.string().datetime().nullable(),
+  estimatedEffortMinutes: z.number().int().positive().nullable(),
+  suggestedOwnerType: z.string().nullable(),
+  required: z.boolean(),
+  included: z.boolean(),
+  position: z.number().int(),
+  metadata: z.record(z.unknown()).nullable(),
+  version: z.number().int().positive(),
+});
+
 export const planProposalItemSchema: z.ZodType<PlanProposalItemResource> =
   z.lazy(() =>
-    z.object({
-      id: z.string().uuid(),
-      type: proposalItemTypeSchema,
-      parentItemId: z.string().uuid().nullable(),
-      title: z.string(),
-      description: z.string().nullable(),
-      category: z.string().nullable(),
-      priority: taskPrioritySchema.nullable(),
-      relativeStartOffsetDays: z.number().int().nullable(),
-      relativeDueOffsetDays: z.number().int().nullable(),
-      absoluteStartAt: z.string().datetime().nullable(),
-      absoluteDueAt: z.string().datetime().nullable(),
-      estimatedEffortMinutes: z.number().int().positive().nullable(),
-      suggestedOwnerType: z.string().nullable(),
-      required: z.boolean(),
-      included: z.boolean(),
-      position: z.number().int(),
-      metadata: z.record(z.unknown()).nullable(),
-      version: z.number().int().positive(),
+    planProposalItemCoreSchema.extend({
       items: z.array(planProposalItemSchema),
     }),
   );

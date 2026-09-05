@@ -205,6 +205,10 @@
   opacity: 1;
 }
 
+.heroThread[data-charging="fading"] .heroThreadCharge {
+  opacity: 0;
+}
+
 .controlRoom {
   position: relative;
   z-index: 1;
@@ -1404,6 +1408,7 @@
 }
 
 .productPanel {
+  position: relative;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 0.65rem;
@@ -3175,6 +3180,12 @@
   }
 }
 
+@media (min-width: 821px) and (max-width: 940px) {
+  .controlContent {
+    padding-bottom: 2.529cqi;
+  }
+}
+
 @media (max-width: 640px) {
   .hero,
   .assuranceStrip,
@@ -4190,15 +4201,22 @@
 }
 
 .demoCaption {
-  margin: 0 0 0.6rem;
+  position: absolute;
+  z-index: 2;
+  top: -0.65rem;
+  right: 1rem;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.12rem 0.48rem;
   color: var(--muted);
+  background: var(--paper);
   font-size: 0.75rem;
   line-height: 1.4;
 }
 
 .commercePanel > .demoCaption {
-  margin: 0;
-  padding: 0.7rem 1.2rem 0;
+  padding: 0.12rem 0.48rem;
 }
 
 .page button:disabled {
@@ -4743,7 +4761,7 @@
   }
 
   .commercePanel > .demoCaption {
-    padding: 0.68rem 0.68rem 0.5rem;
+    padding: 0.12rem 0.48rem;
   }
 
   .commercePanel .commerceGrid {

@@ -43,10 +43,20 @@ describe("invitation preflight guides", () => {
     ).toMatchObject({ action: { kind: "starter-section" } });
   });
 
-  it("offers no action for the blocker the editor cannot resolve", () => {
+  it("routes a missing guest moment to the screen that owns it", () => {
     const guide = invitationPreflightGuide("GUEST_EVENT_MISSING", "");
-    expect(guide.action).toEqual({ kind: "none" });
+    expect(guide.action).toEqual({
+      kind: "route",
+      href: "/event-day",
+      label: "Adaugă momentul",
+    });
     expect(guide.detail).toContain("nu se adaugă din editorul de invitații");
+  });
+
+  it("opens the media-owning section for an unavailable image", () => {
+    expect(
+      invitationPreflightGuide("INVITATION_MEDIA_UNAVAILABLE", "").action,
+    ).toEqual({ kind: "media-section", label: "Verifică imaginile" });
   });
 
   it("falls back to the server message for an unknown code", () => {

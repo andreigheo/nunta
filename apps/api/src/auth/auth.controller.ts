@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Inject,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -30,6 +32,7 @@ import { CurrentAuth } from "./current-auth.decorator";
 import { SessionAuthGuard } from "./session-auth.guard";
 import { AuthService } from "./auth.service";
 import { SessionService } from "./session.service";
+import { GoogleOAuthService } from "./google-oauth.service";
 
 @ApiTags("authentication")
 @Controller("api/v1/auth")
@@ -37,7 +40,80 @@ export class AuthController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(GoogleOAuthService)
+    private readonly googleOAuth: GoogleOAuthService,
   ) {}
+
+  @Post("google")
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async beginGoogleOAuth(
+    @Body() body: Record<string, string | undefined>,
+    @Res() response: Response,
+  ) {
+    const mode = body.mode === "register" ? "register" : "sign-in";
+    try {
+      const started = await this.googleOAuth.begin({
+        mode,
+        returnTo: body.returnTo,
+        registrationIntent:
+          body.intent === "EVENT_ORGANIZER" ||
+          body.intent === "SERVICE_PROVIDER" ||
+          body.intent === "INVITED_MEMBER"
+            ? body.intent
+            : undefined,
+        marketingConsent: body.marketing === "1",
+        termsAccepted: body.terms === "1",
+      });
+      response.cookie(
+        this.googleOAuth.flowCookieName,
+        started.cookie,
+        this.googleOAuth.flowCookieOptions(),
+      );
+      return response.redirect(HttpStatus.FOUND, started.authorizationUrl);
+    } catch (error) {
+      return response.redirect(
+        HttpStatus.SEE_OTHER,
+        this.googleOAuth.errorRedirect(this.googleOAuth.errorCode(error), mode),
+      );
+    }
+  }
+
+  @Get("google/callback")
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async completeGoogleOAuth(
+    @Query() query: Record<string, string | undefined>,
+    @Req() request: WeddingOsRequest,
+    @Res() response: Response,
+  ) {
+    const cookies = request.cookies as Record<string, string | undefined>;
+    const flowCookie = cookies?.[this.googleOAuth.flowCookieName];
+    const mode = this.googleOAuth.flowMode(flowCookie);
+    response.clearCookie(
+      this.googleOAuth.flowCookieName,
+      this.googleOAuth.clearFlowCookieOptions(),
+    );
+    try {
+      const result = await this.googleOAuth.complete(
+        { code: query.code, state: query.state, error: query.error },
+        flowCookie,
+        request,
+      );
+      response.cookie(
+        this.sessions.cookieName,
+        result.session.rawToken,
+        this.sessions.cookieOptions(result.session.expiresAt),
+      );
+      return response.redirect(
+        HttpStatus.SEE_OTHER,
+        this.googleOAuth.successRedirect(result.returnTo),
+      );
+    } catch (error) {
+      return response.redirect(
+        HttpStatus.SEE_OTHER,
+        this.googleOAuth.errorRedirect(this.googleOAuth.errorCode(error), mode),
+      );
+    }
+  }
 
   @Post("registrations")
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

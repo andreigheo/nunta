@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type {
+  EventType,
   OnboardingDraftResource,
   UpdateOnboardingDraft,
 } from "@weddingos/contracts";
@@ -36,8 +37,8 @@ import { ThemeSegmentedControl } from "@/lib/theme";
 import { apiErrorMessage, hasDemoCookie, weddingOsApi } from "@/lib/api/client";
 
 const steps = [
-  { id: 1, title: "Cuplul", hint: "Cine vă căsătoriți?" },
-  { id: 2, title: "Data & evenimentele", hint: "Când și ce sărbătoriți?" },
+  { id: 1, title: "Evenimentul", hint: "Ce organizezi și cine îl coordonează?" },
+  { id: 2, title: "Data & momentele", hint: "Când are loc și ce momente include?" },
   { id: 3, title: "Locația", hint: "Unde va avea loc?" },
   { id: 4, title: "Invitații", hint: "Câți oameni așteptați?" },
   { id: 5, title: "Bugetul", hint: "Cu ce resurse lucrați?" },
@@ -45,6 +46,26 @@ const steps = [
   { id: 7, title: "Progres existent", hint: "Ce ați rezolvat deja?" },
   { id: 8, title: "Preferințe", hint: "Cum vă ajutăm cel mai bine?" },
 ];
+
+const eventTypeOptions: Array<{ value: EventType; label: string }> = [
+  { value: "wedding", label: "Nuntă" },
+  { value: "baptism", label: "Botez" },
+  { value: "birthday", label: "Aniversare" },
+  { value: "corporate", label: "Eveniment corporate" },
+  { value: "conference", label: "Conferință" },
+  { value: "anniversary", label: "Jubileu" },
+  { value: "private_party", label: "Petrecere privată" },
+  { value: "festival", label: "Festival" },
+  { value: "fundraiser", label: "Eveniment caritabil" },
+  { value: "other", label: "Alt tip de eveniment" },
+];
+
+function eventTypeLabel(value: string | undefined) {
+  return (
+    eventTypeOptions.find((option) => option.value === value)?.label ??
+    "Eveniment"
+  );
+}
 
 const styleOptions = [
   { id: "modern", label: "Modern", icon: Sun },
@@ -82,6 +103,7 @@ export default function OnboardingPage() {
   const { toast } = useToast();
   const [step, setStep] = React.useState(1);
   const [values, setValues] = React.useState<Record<string, string>>({
+    eventType: "",
     country: "",
     region: "",
     currency: "RON",
@@ -189,7 +211,15 @@ export default function OnboardingPage() {
     return nextValues;
   };
 
-  const canContinue = step !== 1 || Boolean(values.partnerOne?.trim() && values.partnerTwo?.trim());
+  const isWedding = values.eventType === "wedding";
+  const canContinue =
+    step !== 1 ||
+    Boolean(
+      values.eventType &&
+        (isWedding
+          ? values.partnerOne?.trim() && values.partnerTwo?.trim()
+          : values.title?.trim() && values.organizerName?.trim()),
+    );
   const canSkip = [4, 5, 6].includes(step);
 
   const hydrateDraft = React.useCallback((draft: OnboardingDraftResource) => {
@@ -225,6 +255,8 @@ export default function OnboardingPage() {
           setValues((values) => ({
             ...values,
             title: values.title || current.title,
+            eventType: values.eventType || current.eventType,
+            organizerName: values.organizerName || current.organizerName || "",
             date: values.date || current.eventDate || "",
             city: values.city || current.location || "",
           }));
@@ -250,10 +282,21 @@ export default function OnboardingPage() {
     let selectedWorkspaceId = workspaceId;
     let version = draftVersion;
     if (!selectedWorkspaceId) {
+      const eventType = (values.eventType || "other") as EventType;
       const created = await weddingOsApi.createWorkspace({
-        title: values.title?.trim() || `${values.partnerOne} & ${values.partnerTwo}`,
-        partnerOneName: values.partnerOne,
-        partnerTwoName: values.partnerTwo,
+        title:
+          values.title?.trim() ||
+          (eventType === "wedding"
+            ? `${values.partnerOne} & ${values.partnerTwo}`
+            : eventTypeLabel(eventType)),
+        eventType,
+        organizerName: values.organizerName?.trim() || undefined,
+        ...(eventType === "wedding"
+          ? {
+              partnerOneName: values.partnerOne,
+              partnerTwoName: values.partnerTwo,
+            }
+          : {}),
         ...(values.date ? { eventDate: values.date } : {}),
         ...(values.venueAddress?.trim() || values.city?.trim() || values.region
           ? { location: values.venueAddress?.trim() || values.city?.trim() || values.region }
@@ -379,22 +422,47 @@ export default function OnboardingPage() {
         <p className="mt-1.5 text-[15px] text-muted">{steps[step - 1].hint}</p>
 
         <div className="mt-7">
-          {/* ---------------- Step 1: Couple ---------------- */}
+          {/* ---------------- Step 1: Event identity ---------------- */}
           {step === 1 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Numele partenerului 1" required>
-                <Input placeholder="Ana Dumitrescu" value={values.partnerOne ?? ""} onChange={set("partnerOne")} />
+              <Field label="Tipul evenimentului" required className="sm:col-span-2">
+                <Select value={values.eventType ?? ""} onChange={set("eventType")}>
+                  <option value="" disabled>
+                    Alege tipul evenimentului
+                  </option>
+                  {eventTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
               </Field>
-              <Field label="Numele partenerului 2" required>
-                <Input placeholder="Mihai Ionescu" value={values.partnerTwo ?? ""} onChange={set("partnerTwo")} />
-              </Field>
-              <Field label="Titlul nunții" hint="Apare în toată aplicația" className="sm:col-span-2">
-                <Input placeholder="Ana & Mihai" value={values.title ?? ""} onChange={set("title")} />
-              </Field>
-              <Field label="Cum vă numim în interfață?" className="sm:col-span-2">
-                <Input placeholder="Ana și Mihai" value={values.preferred ?? ""} onChange={set("preferred")} />
-              </Field>
-              <div className="sm:col-span-2">
+              {isWedding ? (
+                <>
+                  <Field label="Numele partenerului 1" required>
+                    <Input placeholder="Ana Dumitrescu" value={values.partnerOne ?? ""} onChange={set("partnerOne")} />
+                  </Field>
+                  <Field label="Numele partenerului 2" required>
+                    <Input placeholder="Mihai Ionescu" value={values.partnerTwo ?? ""} onChange={set("partnerTwo")} />
+                  </Field>
+                  <Field label="Titlul evenimentului" hint="Apare în toată aplicația" className="sm:col-span-2">
+                    <Input placeholder="Ana & Mihai" value={values.title ?? ""} onChange={set("title")} />
+                  </Field>
+                  <Field label="Cum vă numim în interfață?" className="sm:col-span-2">
+                    <Input placeholder="Ana și Mihai" value={values.preferred ?? ""} onChange={set("preferred")} />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label="Numele evenimentului" required className="sm:col-span-2">
+                    <Input placeholder="Summit Sarbato 2027" value={values.title ?? ""} onChange={set("title")} />
+                  </Field>
+                  <Field label="Organizator / persoană de contact" required className="sm:col-span-2">
+                    <Input placeholder="Andrei Popescu" value={values.organizerName ?? ""} onChange={set("organizerName")} />
+                  </Field>
+                </>
+              )}
+              {isWedding ? <div className="sm:col-span-2">
                 <p className="text-[13px] font-medium text-ink">Fotografii de profil (opțional)</p>
                 <div className="mt-2 flex gap-3">
                   {profilePhotoSlots.map((slot) => {
@@ -465,7 +533,7 @@ export default function OnboardingPage() {
                   })}
                 </div>
                 <p className="mt-2 text-xs text-faint">JPG, PNG sau WebP, maximum 10 MB.</p>
-              </div>
+              </div> : null}
             </div>
           )}
 
@@ -483,22 +551,45 @@ export default function OnboardingPage() {
               <Switch checked={toggles.flexibleDate} onCheckedChange={toggle("flexibleDate")} label="Suntem flexibili cu data" description="Copilotul poate propune date cu prețuri mai bune la furnizori." />
               <div>
                 <p className="text-[13px] font-medium text-ink">Ce momente include evenimentul?</p>
-                <div className="mt-2.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Switch checked={toggles.civil} onCheckedChange={toggle("civil")} label="Cununie civilă" />
-                  <Switch checked={toggles.religious} onCheckedChange={toggle("religious")} label="Cununie religioasă" />
-                  <Switch checked={toggles.reception} onCheckedChange={toggle("reception")} label="Petrecere / recepție" />
-                  <Switch checked={toggles.welcomeDinner} onCheckedChange={toggle("welcomeDinner")} label="Cină de bun venit" />
-                  <Switch checked={toggles.brunch} onCheckedChange={toggle("brunch")} label="Brunch a doua zi" />
-                </div>
+                {isWedding ? (
+                  <div className="mt-2.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Switch checked={toggles.civil} onCheckedChange={toggle("civil")} label="Cununie civilă" />
+                    <Switch checked={toggles.religious} onCheckedChange={toggle("religious")} label="Cununie religioasă" />
+                    <Switch checked={toggles.reception} onCheckedChange={toggle("reception")} label="Petrecere / recepție" />
+                    <Switch checked={toggles.welcomeDinner} onCheckedChange={toggle("welcomeDinner")} label="Cină de bun venit" />
+                    <Switch checked={toggles.brunch} onCheckedChange={toggle("brunch")} label="Brunch a doua zi" />
+                  </div>
+                ) : (
+                  <div className="mt-2.5 rounded-xl border border-line bg-surface p-4">
+                    <Field label="Momentul principal">
+                      <Input
+                        placeholder={eventTypeLabel(values.eventType)}
+                        value={values.primaryTitle ?? ""}
+                        onChange={set("primaryTitle")}
+                      />
+                    </Field>
+                  </div>
+                )}
                 <div className="mt-3 space-y-2">
                   {extraEvents.map((ev, i) => (
                     <div key={i} className="flex items-center gap-2 rounded-lg bg-subtle px-3 py-2 text-sm text-ink">
                       <CalendarHeart className="size-4 text-accent" aria-hidden />
-                      <span className="flex-1">{ev}</span>
-                      <button onClick={() => setExtraEvents((prev) => prev.filter((_, idx) => idx !== i))} className="cursor-pointer text-faint hover:text-danger" aria-label={`Elimină ${ev}`}>×</button>
+                      <Input
+                        aria-label={`Numele momentului ${i + 1}`}
+                        className="h-8 flex-1 border-0 bg-transparent px-1 shadow-none"
+                        value={ev}
+                        onChange={(event) =>
+                          setExtraEvents((current) =>
+                            current.map((item, index) =>
+                              index === i ? event.target.value : item,
+                            ),
+                          )
+                        }
+                      />
+                      <button type="button" onClick={() => setExtraEvents((prev) => prev.filter((_, idx) => idx !== i))} className="cursor-pointer text-faint hover:text-danger" aria-label={`Elimină momentul ${i + 1}`}>×</button>
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" onClick={() => setExtraEvents((prev) => [...prev, `Eveniment personalizat ${prev.length + 1}`])}>
+                  <Button variant="outline" size="sm" onClick={() => setExtraEvents((prev) => [...prev, `Moment personalizat ${prev.length + 1}`])}>
                     <Plus className="size-3.5" aria-hidden />
                     Adaugă alt eveniment
                   </Button>
@@ -547,7 +638,7 @@ export default function OnboardingPage() {
                   <option value="searching">Încă căutăm</option>
                 </Select>
               </Field>
-              <Switch checked={toggles.destination} onCheckedChange={toggle("destination")} label="Nuntă la destinație" description="Majoritatea invitaților vor călători și au nevoie de cazare." />
+              <Switch checked={toggles.destination} onCheckedChange={toggle("destination")} label="Eveniment la destinație" description="Majoritatea invitaților vor călători și pot avea nevoie de cazare." />
             </div>
           )}
 
@@ -601,9 +692,9 @@ export default function OnboardingPage() {
               </Field>
               <Field label="Cine contribuie?">
                 <Select value={values.contributors ?? "noi"} onChange={set("contributors")}>
-                  <option value="noi">Doar noi doi</option>
-                  <option value="familii">Noi + familiile</option>
-                  <option value="families">Mai ales familiile</option>
+                  <option value="noi">Organizatorul</option>
+                  <option value="familii">Organizatorul și familia</option>
+                  <option value="families">Mai mulți contributori</option>
                 </Select>
               </Field>
               <div>
@@ -686,7 +777,7 @@ export default function OnboardingPage() {
                 ["photo", "Fotograful este contractat"],
                 ["video", "Videograful este contractat"],
                 ["music", "Muzica / DJ-ul este ales"],
-                ["planner", "Avem wedding planner"],
+                ["planner", "Avem un coordonator de eveniment"],
                 ["catering", "Cateringul este selectat"],
                 ["invitations", "Invitațiile sunt create"],
                 ["guestlist", "Lista de invitați este începută"],
@@ -729,7 +820,7 @@ export default function OnboardingPage() {
                 </Field>
               </div>
               <Field label="Cine vă ajută la planificare?">
-                <Input placeholder="ex. sora mea, un wedding planner" value={values.helpers ?? ""} onChange={set("helpers")} />
+                <Input placeholder="ex. echipa internă, familia, un coordonator" value={values.helpers ?? ""} onChange={set("helpers")} />
               </Field>
               <Field label="Cea mai mare grijă acum">
                 <Select value={values.concern ?? "buget"} onChange={set("concern")}>
@@ -737,7 +828,7 @@ export default function OnboardingPage() {
                   <option value="timp">Să ne încadrăm în timp</option>
                   <option value="furnizori">Să găsim furnizori buni</option>
                   <option value="invitati">Organizarea invitaților</option>
-                  <option value="ziua">Coordonarea zilei nunții</option>
+                  <option value="ziua">Coordonarea zilei evenimentului</option>
                 </Select>
               </Field>
             </div>
@@ -765,7 +856,7 @@ export default function OnboardingPage() {
               </Button>
             ) : (
               <>
-                <Button className="w-full sm:w-auto" variant="outline" onClick={() => toast({ title: "Rezumat configurare", description: `${values.partnerOne || "Ana"} & ${values.partnerTwo || "Mihai"} · ${values.date || "12.09.2027"} · ${values.guestCount || 160} invitați · ${formatRON(Number(values.budget) || 180000)}`, variant: "info" })}>
+                <Button className="w-full sm:w-auto" variant="outline" onClick={() => toast({ title: "Rezumat configurare", description: `${values.title || eventTypeLabel(values.eventType)} · ${values.date || "data nealeasă"} · ${values.guestCount || 0} invitați · ${formatRON(Number(values.budget) || 0)}`, variant: "info" })}>
                   Verifică detaliile
                 </Button>
                 <Button className="col-span-2 w-full sm:w-auto" onClick={() => void complete()} disabled={saving}>
@@ -799,8 +890,8 @@ function sectionForStep(
 ): UpdateOnboardingDraft {
   const pick = (...keys: string[]) =>
     Object.fromEntries(keys.map((key) => [key, values[key] ?? ""]));
-  if (step === 1) return { couple: { confirmed: true, ...pick("partnerOne", "partnerTwo", "title", "preferred", "partnerOnePhotoId", "partnerTwoPhotoId") } };
-  if (step === 2) return { dateEvents: { confirmed: true, ...pick("date", "altDates"), civil: toggles.civil, religious: toggles.religious, reception: toggles.reception, welcomeDinner: toggles.welcomeDinner, brunch: toggles.brunch, flexibleDate: toggles.flexibleDate, extraEvents } };
+  if (step === 1) return { couple: { confirmed: true, ...pick("eventType", "organizerName", "partnerOne", "partnerTwo", "title", "preferred", "partnerOnePhotoId", "partnerTwoPhotoId") } };
+  if (step === 2) return { dateEvents: { confirmed: true, ...pick("eventType", "date", "altDates", "primaryTitle"), civil: toggles.civil, religious: toggles.religious, reception: toggles.reception, welcomeDinner: toggles.welcomeDinner, brunch: toggles.brunch, flexibleDate: toggles.flexibleDate, extraEvents: extraEvents.filter((item) => item.trim()).map((item) => item.trim()) } };
   if (step === 3) return { location: { confirmed: true, ...pick("country", "region", "city", "venue", "venueAddress", "locationFlex"), venueSelected: toggles.venueSelected, destination: toggles.destination } };
   if (step === 4) return { guests: { confirmed: true, ...pick("guestCount", "adults", "children", "local", "transport", "accommodation") } };
   if (step === 5) return { budget: { confirmed: true, ...pick("budget", "currency", "flexibility", "contributors"), priorities } };

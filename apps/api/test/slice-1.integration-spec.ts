@@ -1,4 +1,4 @@
-import type { INestApplication } from "@nestjs/common";
+import { HttpStatus, type INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import { createHash, randomUUID } from "node:crypto";
@@ -36,7 +36,9 @@ describe.sequential("Slice 1 API integration and isolation", () => {
   let slice2Outsider: TestAccount | undefined;
 
   beforeAll(async () => {
-    await cleanDatabase();
+    if (process.env.WEDDINGOS_INTEGRATION_DATABASE_PREPARED !== "true") {
+      await cleanDatabase();
+    }
     const module = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -50,6 +52,27 @@ describe.sequential("Slice 1 API integration and isolation", () => {
     await application?.close();
     await ownerDatabase.$disconnect();
     await appDatabase.$disconnect();
+  });
+
+  it("keeps Google OAuth fail-closed and starts it only through a same-origin POST", async () => {
+    await request(application.getHttpServer())
+      .get("/api/v1/auth/google")
+      .expect(404);
+    const unavailable = await request(application.getHttpServer())
+      .post("/api/v1/auth/google")
+      .set("Origin", origin)
+      .type("form")
+      .send({ mode: "sign-in" })
+      .expect(HttpStatus.SEE_OTHER);
+    expect(unavailable.headers.location).toBe(
+      `${origin}/sign-in?oauthError=unavailable`,
+    );
+    await request(application.getHttpServer())
+      .post("/api/v1/auth/google")
+      .set("Origin", "https://attacker.example")
+      .type("form")
+      .send({ mode: "register", terms: "1", intent: "EVENT_ORGANIZER" })
+      .expect(HttpStatus.FORBIDDEN);
   });
 
   it("registers, verifies through the delivered email, signs in and revokes the session", async () => {
@@ -1087,6 +1110,107 @@ describe.sequential("Slice 1 API integration and isolation", () => {
       await ownerDatabase.activityItem.count({ where: { workspaceId } }),
     ).toBe(activityCountBeforeLifecycle);
   }, 240_000);
+
+  it("materializes a general event without wedding-only defaults", async () => {
+    const { owner } = await getSlice2Accounts();
+    const workspace = await owner.agent
+      .post("/api/v1/workspaces")
+      .set("Origin", origin)
+      .set("Idempotency-Key", `conference-${randomUUID()}`)
+      .send({
+        title: "Sarbato Summit 2027",
+        eventType: "conference",
+        organizerName: "Andrei Popescu",
+        eventDate: "2027-10-14",
+      })
+      .expect(201);
+    const workspaceId = workspace.body.data.id as string;
+    const draft = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/onboarding`)
+      .expect(200);
+    const saved = await owner.agent
+      .patch(`/api/v1/workspaces/${workspaceId}/onboarding`)
+      .set("Origin", origin)
+      .set("If-Match", `"${draft.body.data.version}"`)
+      .send({
+        currentStep: 8,
+        couple: {
+          confirmed: true,
+          eventType: "conference",
+          title: "Sarbato Summit 2027",
+          organizerName: "Andrei Popescu",
+        },
+        dateEvents: {
+          confirmed: true,
+          eventType: "conference",
+          date: "2027-10-14",
+          primaryTitle: "Conferința principală",
+          extraEvents: ["Sesiune de networking"],
+        },
+        location: { confirmed: true, city: "București" },
+        guests: { confirmed: true, guestCount: "320" },
+        budget: { confirmed: true, budget: "250000", currency: "RON" },
+        style: { confirmed: true },
+        existingProgress: { confirmed: true },
+        planningPreferences: { confirmed: true },
+      })
+      .expect(200);
+
+    const completed = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/onboarding/complete`)
+      .set("Origin", origin)
+      .set("If-Match", `"${saved.body.data.version}"`)
+      .set("Idempotency-Key", `complete-conference-${randomUUID()}`)
+      .expect(201);
+
+    await expect
+      .poll(
+        async () =>
+          (
+            await ownerDatabase.backgroundJob.findUniqueOrThrow({
+              where: { id: completed.body.data.jobId as string },
+            })
+          ).status,
+        { timeout: 30_000 },
+      )
+      .toBe("COMPLETED");
+
+    expect(
+      await ownerDatabase.eventProfile.findUniqueOrThrow({
+        where: { workspaceId },
+        select: {
+          eventType: true,
+          organizerName: true,
+          partnerOneName: true,
+          partnerTwoName: true,
+        },
+      }),
+    ).toEqual({
+      eventType: "conference",
+      organizerName: "Andrei Popescu",
+      partnerOneName: null,
+      partnerTwoName: null,
+    });
+    expect(
+      await ownerDatabase.weddingEvent.findMany({
+        where: { workspaceId, deletedAt: null },
+        select: { type: true, title: true },
+        orderBy: { position: "asc" },
+      }),
+    ).toEqual([
+      { type: "CUSTOM", title: "Conferința principală" },
+      { type: "CUSTOM", title: "Sesiune de networking" },
+    ]);
+    const notifications = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/notifications`)
+      .expect(200);
+    expect(
+      notifications.body.data.items.some(
+        (item: { title: string }) =>
+          item.title === "Configurarea evenimentului este gata",
+      ),
+    ).toBe(true);
+  }, 180_000);
 
   it("recovers stale dispatcher and worker claims without replaying a completed sibling", async () => {
     const { owner } = await getSlice2Accounts();

@@ -8,7 +8,11 @@ const apiInternalUrl =
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: ["landing.spec.ts", "landing-corrections.spec.ts", "about-page.spec.ts"],
+  testMatch: [
+    "landing.spec.ts",
+    "landing-corrections.spec.ts",
+    "about-page.spec.ts",
+  ],
   fullyParallel: false,
   workers: 1,
   retries: 0,

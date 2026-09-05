@@ -65,6 +65,7 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   await signInThroughUi(page, email);
   await expect(page).toHaveURL(/\/onboarding/);
 
+  await page.getByLabel("Tipul evenimentului").selectOption("wedding");
   await page.getByPlaceholder("Ana Dumitrescu").fill("Ana Pop");
   await page.getByPlaceholder("Mihai Ionescu").fill("Mihai Pop");
   await page.getByPlaceholder("Ana & Mihai").fill("Ana & Mihai E2E");

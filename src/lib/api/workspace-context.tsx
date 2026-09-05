@@ -17,6 +17,7 @@ import {
 } from "./client";
 import { navGroups } from "@/lib/navigation";
 import { destinationForRegistration } from "@/lib/account-routing";
+import { invitationRecoveryStoragePrefix } from "@/lib/invitations/editor-recovery-key";
 
 const demoCapabilities: CapabilityKey[] = Array.from(
   new Set<CapabilityKey>([
@@ -231,6 +232,15 @@ export function WorkspaceProvider({
       // HttpOnly session cookie, so logout remains recoverable if the API call
       // cannot complete.
     } finally {
+      try {
+        for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+          const key = window.localStorage.key(index);
+          if (key?.startsWith(invitationRecoveryStoragePrefix))
+            window.localStorage.removeItem(key);
+        }
+      } catch {
+        // Session clearing must remain possible when browser storage is blocked.
+      }
       document.cookie = "weddingos_demo=; Path=/; Max-Age=0; SameSite=Lax";
       window.location.assign("/sign-in?switch=1");
     }

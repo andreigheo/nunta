@@ -51,6 +51,14 @@ export default function CreateAccountPage() {
   const [loading, setLoading] = React.useState(false);
   const [formError, setFormError] = React.useState("");
   const returnTo = safeInternalPath(searchParams.get("returnTo"));
+  const oauthError = React.useMemo(() => {
+    const code = searchParams.get("oauthError");
+    if (code === "unavailable")
+      return "Conectarea cu Google nu este disponibilă momentan.";
+    if (code === "cancelled") return "Conectarea cu Google a fost anulată.";
+    if (code) return "Conectarea cu Google nu a putut fi finalizată. Încearcă din nou.";
+    return "";
+  }, [searchParams]);
   const queryIntent = searchParams.get("intent");
   const [intent, setIntent] = React.useState<RegistrationIntent | null>(() =>
     registrationIntentForEntry(returnTo, queryIntent),
@@ -126,10 +134,18 @@ export default function CreateAccountPage() {
       <AuthHeading title="Creează-ți contul" subtitle="Alege traseul potrivit. Același cont poate avea ulterior mai multe roluri." />
 
       <div className="space-y-4">
-        <SocialButtons />
+        <SocialButtons
+          mode="register"
+          returnTo={returnTo}
+          registrationIntent={intent}
+          termsAccepted={terms}
+          marketingConsent={marketing}
+        />
         <Divider label="sau folosește emailul" />
 
-        {formError && <AuthError message={formError} />}
+        {(formError || oauthError) && (
+          <AuthError message={formError || oauthError} />
+        )}
 
         <form onSubmit={submit} className="space-y-4" noValidate>
           <fieldset>

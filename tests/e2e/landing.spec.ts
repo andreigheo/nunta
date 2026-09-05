@@ -491,8 +491,12 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   for (const width of [940, 941, 1024, 1214]) {
     await page.setViewportSize({ width, height: 900 });
     if (width <= 1100) {
-      await expect(page.getByRole("navigation", { name: "Navigație principală" })).toBeHidden();
-      await expect(page.getByRole("button", { name: "Deschide meniul" })).toBeVisible();
+      await expect(
+        page.getByRole("navigation", { name: "Navigație principală" }),
+      ).toBeHidden();
+      await expect(
+        page.getByRole("button", { name: "Deschide meniul" }),
+      ).toBeVisible();
       await expectNoHorizontalOverflow(page);
       continue;
     }

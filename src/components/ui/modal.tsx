@@ -172,6 +172,7 @@ export function Drawer({
   footer,
   headerActions,
   mobilePlacement = "side",
+  tabletPlacement = "side",
   className,
   "aria-label": ariaLabel,
 }: {
@@ -184,6 +185,7 @@ export function Drawer({
   footer?: React.ReactNode;
   headerActions?: React.ReactNode;
   mobilePlacement?: "side" | "bottom";
+  tabletPlacement?: "side" | "bottom";
   className?: string;
   "aria-label"?: string;
 }) {
@@ -199,6 +201,12 @@ export function Drawer({
     md: "sm:max-w-md",
     lg: "sm:max-w-xl",
     xl: "sm:max-w-2xl",
+  };
+  const tabletBottomWidths = {
+    sm: "lg:max-w-sm",
+    md: "lg:max-w-md",
+    lg: "lg:max-w-xl",
+    xl: "lg:max-w-2xl",
   };
 
   return (
@@ -219,15 +227,25 @@ export function Drawer({
           tabIndex={-1}
           className={cn(
             "absolute flex w-full flex-col bg-elevated shadow-overlay",
-            mobilePlacement === "bottom"
-              ? "inset-x-0 bottom-0 max-h-[82dvh] animate-slide-up rounded-t-2xl border-t border-line pb-[env(safe-area-inset-bottom)] sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:animate-slide-in-right sm:rounded-none sm:border-t-0 sm:border-l sm:pb-0"
+            mobilePlacement === "bottom" && tabletPlacement === "bottom"
+              ? "inset-x-0 bottom-0 max-h-[82dvh] animate-slide-up rounded-t-2xl border-t border-line pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-0 lg:left-auto lg:max-h-none lg:animate-slide-in-right lg:rounded-none lg:border-t-0 lg:border-l lg:pb-0"
+              : mobilePlacement === "bottom"
+                ? "inset-x-0 bottom-0 max-h-[82dvh] animate-slide-up rounded-t-2xl border-t border-line pb-[env(safe-area-inset-bottom)] sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:animate-slide-in-right sm:rounded-none sm:border-t-0 sm:border-l sm:pb-0"
               : "inset-y-0 right-0 animate-slide-in-right border-l border-line",
-            widths[width],
+            tabletPlacement === "bottom"
+              ? tabletBottomWidths[width]
+              : widths[width],
             className,
           )}
         >
           {mobilePlacement === "bottom" ? (
-            <div className="flex h-5 shrink-0 items-center justify-center sm:hidden" aria-hidden>
+            <div
+              className={cn(
+                "flex h-5 shrink-0 items-center justify-center",
+                tabletPlacement === "bottom" ? "lg:hidden" : "sm:hidden",
+              )}
+              aria-hidden
+            >
               <span className="h-1 w-12 rounded-full bg-line-strong" />
             </div>
           ) : null}

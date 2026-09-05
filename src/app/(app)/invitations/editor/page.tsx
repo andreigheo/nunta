@@ -8,7 +8,6 @@ import {
   AlignRight,
   ArrowLeft,
   Check,
-  ChevronsDown,
   ChevronsUp,
   CircleHelp,
   Eye,
@@ -45,7 +44,7 @@ import type {
   InvitationVariantResource,
   InvitationVersionHistoryItemResource,
 } from "@weddingos/contracts";
-import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
+import { ApiClientError, apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import {
   advancedBlockCatalog,
@@ -70,6 +69,8 @@ import {
   type InvitationDevice,
   type InvitationEditorSnapshot,
   type InvitationExperienceSettings,
+  type InvitationEditorProfile,
+  type InvitationPurpose,
   type InvitationBlockKind,
   type InvitationSection,
   type InvitationSectionType,
@@ -92,6 +93,7 @@ import {
 import {
   invitationEditableField,
   invitationEditableFields,
+  firstInvitationEditableField,
   invitationContentValue,
   setInvitationContentValue,
 } from "@/lib/invitations/editor-content";
@@ -99,6 +101,12 @@ import {
   invitationPreflightGuide,
   type InvitationPreflightAction,
 } from "@/lib/invitations/preflight-actions";
+import {
+  clearInvitationRecovery,
+  invitationRecoveryKey,
+  readInvitationRecovery,
+  writeInvitationRecovery,
+} from "@/lib/invitations/editor-recovery";
 import {
   clampInvitationCanvasZoom,
   invitationCanvasZoomMax,
@@ -151,6 +159,12 @@ const deviceWidths: Record<Device, number> = {
 type InspectorTab = "content" | "design" | "experience" | "publish";
 type LeftPanelTab = "blocks" | "layers";
 type EditorViewport = "mobile" | "tablet" | "desktop" | "studio";
+type EditorMode = "guided" | "advanced";
+type SaveFailure = {
+  kind: "offline" | "conflict" | "error";
+  message: string;
+  attempt: number;
+};
 
 function useEditorViewport() {
   const [viewport, setViewport] =
@@ -180,7 +194,7 @@ function useEditorViewport() {
 export default function InvitationEditorPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
+  const { user, currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const [snapshot, setSnapshot] = React.useState<InvitationEditorSnapshot>(() =>
     createInitialSnapshot(),
   );
@@ -200,11 +214,13 @@ export default function InvitationEditorPage() {
     React.useState<LeftPanelTab>("layers");
   const [inspectorTab, setInspectorTab] =
     React.useState<InspectorTab>("content");
+  const [editorMode, setEditorMode] = React.useState<EditorMode>("guided");
   const [site, setSite] = React.useState<InvitationSiteResource | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState("");
   const [loadAttempt, setLoadAttempt] = React.useState(0);
   const [saving, setSaving] = React.useState(false);
+  const [saveFailure, setSaveFailure] = React.useState<SaveFailure | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   const [publishOpen, setPublishOpen] = React.useState(false);
@@ -252,6 +268,10 @@ export default function InvitationEditorPage() {
   const [preflightError, setPreflightError] = React.useState("");
   const preflightSignatureRef = React.useRef<string | null>(null);
   const [workflowBusy, setWorkflowBusy] = React.useState(false);
+  const [recoveryCandidate, setRecoveryCandidate] = React.useState<{
+    snapshot: InvitationEditorSnapshot;
+    savedAt: number;
+  } | null>(null);
   const [variantCreateOpen, setVariantCreateOpen] = React.useState(false);
   const [variantToArchive, setVariantToArchive] =
     React.useState<InvitationVariantResource | null>(null);
@@ -266,6 +286,11 @@ export default function InvitationEditorPage() {
   >({});
   const [canvasViewportWidth, setCanvasViewportWidth] = React.useState(0);
   const zoom = zoomPreferences[device] ?? "fit";
+  const recoveryKey =
+    user?.user.id && currentWorkspace?.id
+      ? invitationRecoveryKey(user.user.id, currentWorkspace.id)
+      : null;
+  const recoveryCheckedKeyRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     let preferences: Partial<Record<Device, InvitationCanvasZoom>> = {};
@@ -299,7 +324,25 @@ export default function InvitationEditorPage() {
 
   React.useEffect(() => {
     if (!currentWorkspace || demoMode) {
-      const timer = window.setTimeout(() => setLoading(false), 0);
+      const timer = window.setTimeout(() => {
+        if (currentWorkspace) {
+          const next = createInitialSnapshot({
+            eventType: currentWorkspace.eventType,
+            title: currentWorkspace.title,
+            eventDate: currentWorkspace.eventDate,
+            location: currentWorkspace.location,
+          });
+          setBaseSnapshot(next);
+          setSnapshot(next);
+          setSelectedId(next.sections[0]?.id ?? "");
+          setSelectedContentKey(
+            next.sections[0]
+              ? firstInvitationEditableField(next.sections[0])?.path ?? null
+              : null,
+          );
+        }
+        setLoading(false);
+      }, 0);
       return () => window.clearTimeout(timer);
     }
     let active = true;
@@ -314,17 +357,29 @@ export default function InvitationEditorPage() {
           : [{ items: [] }, { items: [], nextCursor: null }];
         if (!active) return;
         setSite(value);
-        const next = snapshotFromPersisted(
-          value?.draft?.document.sections,
-          value?.draft?.settings as Parameters<typeof snapshotFromPersisted>[1],
-        );
+        const next = value?.draft
+          ? snapshotFromPersisted(
+              value.draft.document.sections,
+              value.draft.settings as Parameters<typeof snapshotFromPersisted>[1],
+              { eventType: currentWorkspace.eventType, purpose: "full" },
+            )
+          : createInitialSnapshot({
+              eventType: currentWorkspace.eventType,
+              title: currentWorkspace.title,
+              eventDate: currentWorkspace.eventDate,
+              location: currentWorkspace.location,
+            });
         setBaseSnapshot(next);
         setSnapshot(next);
         setVariants(variantData.items);
         setVersions(versionData.items);
         setActiveVariantId(null);
         setSelectedId(next.sections[0]?.id ?? "");
-        setSelectedContentKey(null);
+        setSelectedContentKey(
+          next.sections[0]
+            ? firstInvitationEditableField(next.sections[0])?.path ?? null
+            : null,
+        );
         setLastSavedAt(value?.draft ? new Date() : null);
       } catch (caught) {
         const message = apiErrorMessage(caught);
@@ -342,6 +397,50 @@ export default function InvitationEditorPage() {
       active = false;
     };
   }, [currentWorkspace, demoMode, loadAttempt, toast]);
+
+  React.useEffect(() => {
+    if (
+      loading ||
+      demoMode ||
+      !recoveryKey ||
+      recoveryCheckedKeyRef.current === recoveryKey
+    )
+      return;
+    recoveryCheckedKeyRef.current = recoveryKey;
+    try {
+      const recovered = readInvitationRecovery(
+        window.localStorage,
+        recoveryKey,
+        {
+          eventType: currentWorkspace?.eventType ?? snapshot.profile.eventType,
+          purpose: snapshot.profile.purpose,
+        },
+      );
+      if (
+        recovered &&
+        JSON.stringify(serializeSnapshot(recovered.snapshot)) !==
+          JSON.stringify(serializeSnapshot(snapshot))
+      ) {
+        const timer = window.setTimeout(() => setRecoveryCandidate(recovered), 0);
+        return () => window.clearTimeout(timer);
+      }
+    } catch {
+      // Storage can be unavailable in private browsing. Server persistence
+      // remains the source of truth.
+    }
+  }, [currentWorkspace?.eventType, demoMode, loading, recoveryKey, snapshot]);
+
+  React.useEffect(() => {
+    if (!dirty || demoMode || !recoveryKey) return;
+    const timer = window.setTimeout(() => {
+      try {
+        writeInvitationRecovery(window.localStorage, recoveryKey, snapshot);
+      } catch {
+        // A full or blocked storage area must not interrupt editing.
+      }
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [demoMode, dirty, recoveryKey, snapshot]);
 
   React.useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -391,6 +490,15 @@ export default function InvitationEditorPage() {
           );
           if (revisionAtStart === editRevisionRef.current) setDirty(false);
           setLastSavedAt(new Date());
+          setSaveFailure(null);
+          if (recoveryKey) {
+            try {
+              clearInvitationRecovery(window.localStorage, recoveryKey);
+            } catch {
+              // A successful server save must not be reported as failed only
+              // because browser storage is unavailable.
+            }
+          }
           if (!silent)
             toast({
               title: "Variantă salvată",
@@ -421,6 +529,14 @@ export default function InvitationEditorPage() {
         setBaseSnapshot(snapshot);
         if (revisionAtStart === editRevisionRef.current) setDirty(false);
         setLastSavedAt(new Date());
+        setSaveFailure(null);
+        if (recoveryKey) {
+          try {
+            clearInvitationRecovery(window.localStorage, recoveryKey);
+          } catch {
+            // Server persistence remains successful even without localStorage.
+          }
+        }
         void weddingOsApi
           .invitationVersions(currentWorkspace.id)
           .then((versionData) => setVersions(versionData.items))
@@ -433,11 +549,29 @@ export default function InvitationEditorPage() {
           });
         return updated;
       } catch (caught) {
-        toast({
-          title: "Ciorna nu a fost salvată",
-          description: apiErrorMessage(caught),
-          variant: "error",
-        });
+        const message = apiErrorMessage(caught);
+        const kind: SaveFailure["kind"] =
+          !window.navigator.onLine
+            ? "offline"
+            : caught instanceof ApiClientError && caught.status === 409
+              ? "conflict"
+              : "error";
+        setSaveFailure((current) => ({
+          kind,
+          message,
+          attempt: (current?.attempt ?? 0) + 1,
+        }));
+        if (!silent)
+          toast({
+            title:
+              kind === "offline"
+                ? "Ești offline. Modificările rămân pe acest dispozitiv"
+                : kind === "conflict"
+                  ? "Ciorna s-a schimbat într-o altă sesiune"
+                  : "Ciorna nu a fost salvată",
+            description: message,
+            variant: "error",
+          });
         return null;
       } finally {
         setSaving(false);
@@ -453,14 +587,38 @@ export default function InvitationEditorPage() {
       snapshot,
       toast,
       variants,
+      recoveryKey,
     ],
   );
 
   React.useEffect(() => {
     if (!dirty || saving || !canWrite || demoMode || !currentWorkspace) return;
-    const timer = window.setTimeout(() => void saveDraft(true), 1600);
+    if (saveFailure?.kind === "conflict") return;
+    const delay = saveFailure
+      ? Math.min(30_000, 1600 * 2 ** Math.min(saveFailure.attempt, 4))
+      : 1600;
+    const timer = window.setTimeout(() => void saveDraft(true), delay);
     return () => window.clearTimeout(timer);
-  }, [canWrite, currentWorkspace, demoMode, dirty, saveDraft, saving]);
+  }, [
+    canWrite,
+    currentWorkspace,
+    demoMode,
+    dirty,
+    saveDraft,
+    saveFailure,
+    saving,
+  ]);
+
+  React.useEffect(() => {
+    const retryWhenOnline = () => {
+      if (saveFailure?.kind === "offline")
+        setSaveFailure((current) =>
+          current ? { ...current, attempt: 0 } : current,
+        );
+    };
+    window.addEventListener("online", retryWhenOnline);
+    return () => window.removeEventListener("online", retryWhenOnline);
+  }, [saveFailure?.kind]);
 
   // The server enforces more publish rules than the local checklist can see, so
   // run the read-only preflight as soon as the review tab is open on a saved
@@ -510,8 +668,19 @@ export default function InvitationEditorPage() {
     setPreflight(null);
     setHistoryState(result.state);
     setSnapshot(result.snapshot);
+    const nextSelected =
+      result.snapshot.sections.find((section) => section.id === selectedId) ??
+      result.snapshot.sections[0];
+    setSelectedId(nextSelected?.id ?? "");
+    setSelectedContentKey((current) =>
+      nextSelected && current && invitationEditableField(nextSelected, current)
+        ? current
+        : nextSelected
+          ? firstInvitationEditableField(nextSelected)?.path ?? null
+          : null,
+    );
     setDirty(true);
-  }, [historyState, snapshot]);
+  }, [historyState, selectedId, snapshot]);
 
   const redo = React.useCallback(() => {
     const result = redoInvitationHistory(historyState, snapshot);
@@ -520,8 +689,19 @@ export default function InvitationEditorPage() {
     setPreflight(null);
     setHistoryState(result.state);
     setSnapshot(result.snapshot);
+    const nextSelected =
+      result.snapshot.sections.find((section) => section.id === selectedId) ??
+      result.snapshot.sections[0];
+    setSelectedId(nextSelected?.id ?? "");
+    setSelectedContentKey((current) =>
+      nextSelected && current && invitationEditableField(nextSelected, current)
+        ? current
+        : nextSelected
+          ? firstInvitationEditableField(nextSelected)?.path ?? null
+          : null,
+    );
     setDirty(true);
-  }, [historyState, snapshot]);
+  }, [historyState, selectedId, snapshot]);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -596,6 +776,20 @@ export default function InvitationEditorPage() {
       invitationRecordCoalesceKey("experience", update),
     );
 
+  const updateProfile = (update: Partial<InvitationEditorProfile>) => {
+    const purpose = update.purpose ?? snapshot.profile.purpose;
+    const sections = snapshot.sections.map((section) =>
+      section.type === "rsvp" && update.purpose
+        ? { ...section, visible: purpose === "full" }
+        : section,
+    );
+    commit({
+      ...snapshot,
+      profile: { ...snapshot.profile, ...update },
+      sections,
+    });
+  };
+
   const structureLockedByVariant = () => {
     if (!activeVariantId) return false;
     toast({
@@ -644,6 +838,9 @@ export default function InvitationEditorPage() {
     sections.splice(index + 1, 0, copy);
     commit({ ...snapshot, sections });
     setSelectedId(copy.id);
+    setSelectedContentKey(firstInvitationEditableField(copy)?.path ?? null);
+    scrollRequestRef.current = copy.id;
+    setSectionsOpen(false);
   };
 
   const removeSection = (id: string) => {
@@ -655,9 +852,13 @@ export default function InvitationEditorPage() {
     const index = snapshot.sections.findIndex((section) => section.id === id);
     const sections = snapshot.sections.filter((section) => section.id !== id);
     commit({ ...snapshot, sections });
-    setSelectedId(
-      sections[Math.max(0, index - 1)]?.id ?? sections[0]?.id ?? "",
+    const nextSelected =
+      sections[Math.max(0, index - 1)] ?? sections[0] ?? null;
+    setSelectedId(nextSelected?.id ?? "");
+    setSelectedContentKey(
+      nextSelected ? firstInvitationEditableField(nextSelected)?.path ?? null : null,
     );
+    if (nextSelected) scrollRequestRef.current = nextSelected.id;
   };
 
   const requestRemoveSection = (id: string) => {
@@ -676,8 +877,11 @@ export default function InvitationEditorPage() {
     const section = createDefaultSection(type);
     commit({ ...snapshot, sections: [...snapshot.sections, section] });
     setSelectedId(section.id);
+    setSelectedContentKey(firstInvitationEditableField(section)?.path ?? null);
+    scrollRequestRef.current = section.id;
     setInspectorTab("content");
     setAddOpen(false);
+    setSectionsOpen(false);
     if (permanentInspector) setInspectorPanelOpen(true);
     else setInspectorOpen(true);
   };
@@ -687,8 +891,11 @@ export default function InvitationEditorPage() {
     const section = createAdvancedSection(blockKind);
     commit({ ...snapshot, sections: [...snapshot.sections, section] });
     setSelectedId(section.id);
+    setSelectedContentKey(firstInvitationEditableField(section)?.path ?? null);
+    scrollRequestRef.current = section.id;
     setInspectorTab("content");
     setAddOpen(false);
+    setSectionsOpen(false);
     if (permanentInspector) setInspectorPanelOpen(true);
     else setInspectorOpen(true);
   };
@@ -713,6 +920,11 @@ export default function InvitationEditorPage() {
     setHistoryState(createInvitationHistory());
     setDirty(false);
     setSelectedId(next.sections[0]?.id ?? "");
+    setSelectedContentKey(
+      next.sections[0]
+        ? firstInvitationEditableField(next.sections[0])?.path ?? null
+        : null,
+    );
   };
 
   const createVariant = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -805,6 +1017,10 @@ export default function InvitationEditorPage() {
       const next = snapshotFromPersisted(
         updated.draft?.document.sections,
         updated.draft?.settings as Parameters<typeof snapshotFromPersisted>[1],
+        {
+          eventType: currentWorkspace.eventType,
+          purpose: snapshot.profile.purpose,
+        },
       );
       setSite(updated);
       setBaseSnapshot(next);
@@ -812,6 +1028,12 @@ export default function InvitationEditorPage() {
       setActiveVariantId(null);
       setDirty(false);
       setHistoryState(createInvitationHistory());
+      setSelectedId(next.sections[0]?.id ?? "");
+      setSelectedContentKey(
+        next.sections[0]
+          ? firstInvitationEditableField(next.sections[0])?.path ?? null
+          : null,
+      );
       setVersionToRestore(null);
       const versionData = await weddingOsApi.invitationVersions(
         currentWorkspace.id,
@@ -873,12 +1095,22 @@ export default function InvitationEditorPage() {
       const next = snapshotFromPersisted(
         updated.draft?.document.sections,
         updated.draft?.settings as Parameters<typeof snapshotFromPersisted>[1],
+        {
+          eventType: currentWorkspace.eventType,
+          purpose: snapshot.profile.purpose,
+        },
       );
       setSite(updated);
       setBaseSnapshot(next);
       setSnapshot(next);
       setDirty(false);
       setHistoryState(createInvitationHistory());
+      setSelectedId(next.sections[0]?.id ?? "");
+      setSelectedContentKey(
+        next.sections[0]
+          ? firstInvitationEditableField(next.sections[0])?.path ?? null
+          : null,
+      );
       setSyncPreview(
         await weddingOsApi.invitationSyncPreview(currentWorkspace.id),
       );
@@ -1032,6 +1264,10 @@ export default function InvitationEditorPage() {
       const refreshedBase = snapshotFromPersisted(
         persistedBase?.document.sections,
         persistedBase?.settings as Parameters<typeof snapshotFromPersisted>[1],
+        {
+          eventType: currentWorkspace.eventType,
+          purpose: snapshot.profile.purpose,
+        },
       );
       try {
         const [variantData, versionData] = await Promise.all([
@@ -1237,6 +1473,32 @@ export default function InvitationEditorPage() {
       if (!sectionId) return;
       setSelectedId(sectionId);
       setInspectorTab("content");
+      scrollRequestRef.current = sectionId;
+      return;
+    }
+    if (action.kind === "media-section") {
+      const section = snapshot.sections.find((item) => {
+        const content = item.content;
+        return Boolean(
+          text(content.mediaId) ||
+            text(content.coverImage) ||
+            text(content.backgroundMediaId) ||
+            text(content.posterMediaId),
+        );
+      });
+      if (!section) {
+        setInspectorTab("content");
+        setInspectorOpen(false);
+        setAddOpen(true);
+        return;
+      }
+      setSelectedId(section.id);
+      setSelectedContentKey(firstInvitationEditableField(section)?.path ?? null);
+      setInspectorTab("content");
+      setEditorMode("advanced");
+      scrollRequestRef.current = section.id;
+      if (permanentInspector) setInspectorPanelOpen(true);
+      else setInspectorOpen(true);
     }
   };
 
@@ -1302,12 +1564,15 @@ export default function InvitationEditorPage() {
   const renderInspector = (compact = false) => (
     <Inspector
       compact={compact}
+      mode={editorMode}
+      onModeChange={setEditorMode}
       tab={inspectorTab}
       onTabChange={setInspectorTab}
       selected={selected}
       selectedContentKey={selectedContentKey}
       onSelectContentKey={setSelectedContentKey}
       snapshot={snapshot}
+      onUpdateProfile={updateProfile}
       readiness={readiness}
       site={site}
       onUpdateSection={(update) =>
@@ -1394,6 +1659,14 @@ export default function InvitationEditorPage() {
               <Badge className="hidden md:inline-flex" variant="info" dot>
                 Se salvează
               </Badge>
+            ) : saveFailure ? (
+              <Badge className="hidden md:inline-flex" variant="danger" dot>
+                {saveFailure.kind === "offline"
+                  ? "Offline"
+                  : saveFailure.kind === "conflict"
+                    ? "Conflict"
+                    : "Eroare salvare"}
+              </Badge>
             ) : dirty ? (
               <Badge className="hidden md:inline-flex" variant="warning" dot>
                 Nesalvat
@@ -1409,6 +1682,12 @@ export default function InvitationEditorPage() {
               ? `Personalizare pentru: ${activeVariant.name}`
               : saving
                 ? "Se creează o versiune sigură…"
+                : saveFailure?.kind === "offline"
+                  ? "Copie locală păstrată; reîncercăm la reconectare"
+                  : saveFailure?.kind === "conflict"
+                    ? "Salvează copia locală și reîncarcă versiunea serverului"
+                    : saveFailure
+                      ? "Reîncercare automată cu pauză progresivă"
                 : dirty
                   ? "Modificări locale"
                   : lastSavedAt
@@ -1420,6 +1699,8 @@ export default function InvitationEditorPage() {
           <span className="sr-only" role="status" aria-live="polite">
             {saving
               ? "Se salvează invitația"
+              : saveFailure
+                ? `Invitația are o problemă de salvare: ${saveFailure.message}`
               : dirty
                 ? "Invitația are modificări nesalvate"
                 : "Invitația este salvată"}
@@ -1498,6 +1779,8 @@ export default function InvitationEditorPage() {
             aria-label={
               saving
                 ? "Se salvează ciorna invitației"
+                : saveFailure
+                  ? `Salvarea are o problemă: ${saveFailure.message}. Încearcă din nou.`
                 : dirty
                   ? "Salvează ciorna invitației, sunt modificări nesalvate"
                   : "Ciorna invitației este salvată"
@@ -1512,6 +1795,8 @@ export default function InvitationEditorPage() {
                 "absolute right-1 top-1 size-1.5 rounded-full",
                 saving
                   ? "animate-pulse bg-info motion-reduce:animate-none"
+                  : saveFailure
+                    ? "bg-danger"
                   : dirty
                     ? "bg-warning"
                     : "bg-success",
@@ -1645,6 +1930,7 @@ export default function InvitationEditorPage() {
               onEditSections={() => openInvitationStructure("layers")}
               onPersonalize={() => showInspectorTab("design")}
               onReview={() => showInspectorTab("publish")}
+              onMore={() => setWorkflowOpen(true)}
             />
           </div>
           <EditorMobileQuickBar
@@ -1654,15 +1940,19 @@ export default function InvitationEditorPage() {
             onContent={() => showInspectorTab("content")}
             onDesign={() => showInspectorTab("design")}
             onExperience={() => showInspectorTab("experience")}
+            onMore={() => setWorkflowOpen(true)}
           />
           <div
             ref={canvasScrollRef}
             data-testid="invitation-canvas-scroll"
-            className="min-h-0 flex-1 overflow-auto px-3 py-5 sm:p-8"
+            className={cn(
+              "min-h-0 flex-1 overflow-auto px-3 py-5 sm:p-8",
+              mobileEditor && inspectorOpen && mobileInspectorExpanded && "hidden",
+            )}
           >
             <div
               data-testid="invitation-zoom-toolbar"
-              className="sticky left-0 top-0 z-20 mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sunken px-1 text-xs text-faint"
+              className="sticky left-0 top-0 z-20 mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sunken px-1 text-xs text-muted"
             >
               <span className="hidden shrink-0 lg:inline">
                 {Math.round(activeCanvasWidth)} px
@@ -1819,8 +2109,8 @@ export default function InvitationEditorPage() {
               className={cn(
                 "flex shrink-0 flex-col border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]",
                 mobileInspectorExpanded
-                  ? "h-[min(72dvh,40rem)]"
-                  : "h-[min(46dvh,26rem)]",
+                  ? "min-h-0 flex-1"
+                  : "h-[min(42dvh,24rem)]",
               )}
               aria-label="Ajustări pentru elementul selectat"
             >
@@ -1846,7 +2136,7 @@ export default function InvitationEditorPage() {
                 </div>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="sm"
                   onClick={() =>
                     setMobileInspectorExpanded((expanded) => !expanded)
                   }
@@ -1858,9 +2148,15 @@ export default function InvitationEditorPage() {
                   aria-pressed={mobileInspectorExpanded}
                 >
                   {mobileInspectorExpanded ? (
-                    <ChevronsDown className="size-4" aria-hidden />
+                    <>
+                      <Eye className="size-4" aria-hidden />
+                      Vezi rezultatul
+                    </>
                   ) : (
-                    <ChevronsUp className="size-4" aria-hidden />
+                    <>
+                      <ChevronsUp className="size-4" aria-hidden />
+                      Editare completă
+                    </>
                   )}
                 </Button>
                 <Button
@@ -1918,6 +2214,8 @@ export default function InvitationEditorPage() {
         open={drawerInspector && inspectorOpen}
         onClose={() => setInspectorOpen(false)}
         title="Editează invitația"
+        mobilePlacement="bottom"
+        tabletPlacement="bottom"
       >
         {renderInspector()}
       </Drawer>
@@ -1951,7 +2249,10 @@ export default function InvitationEditorPage() {
           />
         </div>
         <div className="overflow-auto rounded-xl bg-sunken p-2 sm:p-4">
-          <div className="mx-auto" style={{ width: deviceWidths[device] }}>
+          <div
+            className="mx-auto"
+            style={{ width: `min(100%, ${deviceWidths[device]}px)` }}
+          >
             {publicPreviewMode === "invitation" ? (
               <div className="overflow-hidden rounded-xl shadow-overlay">
                 <InvitationRenderer
@@ -1963,7 +2264,10 @@ export default function InvitationEditorPage() {
             ) : publicPreviewMode === "rsvp" ? (
               <EditorRsvpPublicPreview snapshot={snapshot} />
             ) : (
-              <EditorGuestFlowPreview />
+              <EditorGuestFlowPreview
+                snapshot={snapshot}
+                resolveMedia={resolveMedia}
+              />
             )}
           </div>
         </div>
@@ -2210,6 +2514,64 @@ export default function InvitationEditorPage() {
         destructive
       />
 
+      <Modal
+        open={Boolean(recoveryCandidate)}
+        onClose={() => undefined}
+        title="Am găsit modificări locale nesalvate"
+        description={
+          recoveryCandidate
+            ? `Copia este din ${new Intl.DateTimeFormat("ro-RO", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }).format(new Date(recoveryCandidate.savedAt))}. Nu conține tokenuri de acces și expiră automat.`
+            : undefined
+        }
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (recoveryKey) {
+                  try {
+                    clearInvitationRecovery(window.localStorage, recoveryKey);
+                  } catch {
+                    // Closing the recovery choice remains possible when
+                    // storage access is restricted.
+                  }
+                }
+                setRecoveryCandidate(null);
+              }}
+            >
+              Renunță la copie
+            </Button>
+            <Button
+              onClick={() => {
+                if (!recoveryCandidate) return;
+                const next = recoveryCandidate.snapshot;
+                setSnapshot(next);
+                setHistoryState(createInvitationHistory());
+                setDirty(true);
+                setSelectedId(next.sections[0]?.id ?? "");
+                setSelectedContentKey(
+                  next.sections[0]
+                    ? firstInvitationEditableField(next.sections[0])?.path ?? null
+                    : null,
+                );
+                setRecoveryCandidate(null);
+              }}
+            >
+              Recuperează modificările
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm leading-6 text-muted">
+          Poți recupera documentul local sau continua cu ultima ciornă salvată
+          pe server. Publicarea nu este afectată până când salvezi explicit.
+        </p>
+      </Modal>
+
       <ConfirmDialog
         open={Boolean(sectionToRemove)}
         onClose={() => setSectionToRemove(null)}
@@ -2400,6 +2762,7 @@ function EditorMobileQuickBar({
   onContent,
   onDesign,
   onExperience,
+  onMore,
 }: {
   activeTab: InspectorTab;
   inspectorOpen: boolean;
@@ -2407,6 +2770,7 @@ function EditorMobileQuickBar({
   onContent: () => void;
   onDesign: () => void;
   onExperience: () => void;
+  onMore: () => void;
 }) {
   const actions = [
     ["Secțiuni", LayoutPanelLeft, onSections, false],
@@ -2418,11 +2782,12 @@ function EditorMobileQuickBar({
       onExperience,
       inspectorOpen && activeTab === "experience",
     ],
+    ["Mai multe", SlidersHorizontal, onMore, false],
   ] as const;
 
   return (
     <nav
-      className="grid shrink-0 grid-cols-4 border-b border-line bg-surface md:hidden"
+      className="grid shrink-0 grid-cols-5 border-b border-line bg-surface md:hidden"
       aria-label="Instrumente rapide pentru invitație"
     >
       {actions.map(([label, Icon, onClick, active]) => (
@@ -2454,6 +2819,7 @@ function EditorJourneyBar({
   onEditSections,
   onPersonalize,
   onReview,
+  onMore,
 }: {
   activeTab: InspectorTab;
   choosingStyle: boolean;
@@ -2462,6 +2828,7 @@ function EditorJourneyBar({
   onEditSections: () => void;
   onPersonalize: () => void;
   onReview: () => void;
+  onMore: () => void;
 }) {
   const steps = [
     {
@@ -2499,6 +2866,13 @@ function EditorJourneyBar({
       active: activeTab === "publish" && !choosingStyle,
       onClick: onReview,
     },
+    {
+      label: "Mai multe",
+      compactLabel: "Mai multe",
+      description: "Sincronizare, grupuri și versiuni",
+      active: false,
+      onClick: onMore,
+    },
   ];
 
   return (
@@ -2506,7 +2880,7 @@ function EditorJourneyBar({
       className="shrink-0 border-b border-line bg-subtle/55 px-2 py-2"
       aria-label="Pașii recomandați pentru construirea invitației"
     >
-      <div className="mx-auto grid max-w-3xl grid-cols-5 gap-1">
+      <div className="mx-auto grid max-w-4xl grid-cols-6 gap-1">
         {steps.map((step, index) => (
           <button
             key={step.label}
@@ -2691,12 +3065,15 @@ function CreativeRail({
 
 function Inspector({
   compact = false,
+  mode,
+  onModeChange,
   tab,
   onTabChange,
   selected,
   selectedContentKey,
   onSelectContentKey,
   snapshot,
+  onUpdateProfile,
   readiness,
   site,
   onUpdateSection,
@@ -2721,12 +3098,15 @@ function Inspector({
   onPreviewReveal,
 }: {
   compact?: boolean;
+  mode: EditorMode;
+  onModeChange: (mode: EditorMode) => void;
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
   selected?: InvitationSection;
   selectedContentKey: string | null;
   onSelectContentKey: (key: string | null) => void;
   snapshot: InvitationEditorSnapshot;
+  onUpdateProfile: (update: Partial<InvitationEditorProfile>) => void;
   readiness: ReturnType<typeof invitationReadiness>;
   site: InvitationSiteResource | null;
   onUpdateSection: (update: Partial<InvitationSection>) => void;
@@ -2792,10 +3172,85 @@ function Inspector({
           Sincronizare și versiuni
         </Button>
       </div> : null}
+      <div className="border-b border-line bg-subtle/35 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex rounded-lg border border-line bg-surface p-0.5">
+            <button
+              type="button"
+              onClick={() => onModeChange("guided")}
+              aria-pressed={mode === "guided"}
+              className={cn(
+                "min-h-9 rounded-md px-3 text-xs font-semibold",
+                mode === "guided"
+                  ? "bg-action text-on-action"
+                  : "text-muted hover:bg-subtle hover:text-ink",
+              )}
+            >
+              Construiește
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange("advanced")}
+              aria-pressed={mode === "advanced"}
+              className={cn(
+                "min-h-9 rounded-md px-3 text-xs font-semibold",
+                mode === "advanced"
+                  ? "bg-action text-on-action"
+                  : "text-muted hover:bg-subtle hover:text-ink",
+              )}
+            >
+              Avansat
+            </button>
+          </div>
+          <div className="flex min-w-0 flex-wrap gap-2">
+            <Select
+              aria-label="Tipul evenimentului"
+              value={snapshot.profile.eventType}
+              onChange={(event) =>
+                onUpdateProfile({
+                  eventType: event.target
+                    .value as InvitationEditorProfile["eventType"],
+                })
+              }
+              className="min-h-10 w-auto max-w-full text-xs"
+            >
+              <option value="wedding">Nuntă</option>
+              <option value="baptism">Botez</option>
+              <option value="birthday">Zi de naștere</option>
+              <option value="corporate">Corporate</option>
+              <option value="conference">Conferință</option>
+              <option value="anniversary">Aniversare</option>
+              <option value="private_party">Eveniment privat</option>
+              <option value="festival">Festival</option>
+              <option value="fundraiser">Eveniment caritabil</option>
+              <option value="other">Alt eveniment</option>
+            </Select>
+            <Select
+              aria-label="Scopul invitației"
+              value={snapshot.profile.purpose}
+              onChange={(event) =>
+                onUpdateProfile({
+                  purpose: event.target.value as InvitationPurpose,
+                })
+              }
+              className="min-h-10 w-auto max-w-full text-xs"
+            >
+              <option value="full">Invitație cu RSVP</option>
+              <option value="save_the_date">Save the date</option>
+              <option value="without_rsvp">Fără confirmare</option>
+            </Select>
+          </div>
+        </div>
+        <p className="mt-1.5 text-xs leading-relaxed text-muted">
+          Conținutul rămâne același document. Modul Avansat adaugă straturi,
+          poziționare și compoziție, fără să reseteze nimic.
+        </p>
+      </div>
       <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto">
         {tab === "content" && selected && (
           <SectionInspector
             compact={compact}
+            advanced={mode === "advanced"}
             section={selected}
             design={snapshot.design}
             selectedContentKey={selectedContentKey}
@@ -3035,6 +3490,7 @@ function PreflightPanel({
 
 function SectionInspector({
   compact = false,
+  advanced,
   section,
   design,
   selectedContentKey,
@@ -3047,6 +3503,7 @@ function SectionInspector({
   onUpdateContentMany,
 }: {
   compact?: boolean;
+  advanced: boolean;
   section: InvitationSection;
   design: InvitationDesign;
   selectedContentKey: string | null;
@@ -3113,16 +3570,18 @@ function SectionInspector({
           onUpdateSection={onUpdateSection}
         />
       ) : null}
-      <EditorLayerStudio
-        key={`layers:${section.id}`}
-        section={section}
-        device={device}
-        selectedContentKey={selectedContentKey}
-        onSelectContentKey={onSelectContentKey}
-        uploading={uploadingMedia}
-        onUpdateContent={onUpdateContent}
-        onUploadImage={onUploadImage}
-      />
+      {advanced ? (
+        <EditorLayerStudio
+          key={`layers:${section.id}`}
+          section={section}
+          device={device}
+          selectedContentKey={selectedContentKey}
+          onSelectContentKey={onSelectContentKey}
+          uploading={uploadingMedia}
+          onUpdateContent={onUpdateContent}
+          onUploadImage={onUploadImage}
+        />
+      ) : null}
       <details className="rounded-xl border border-line bg-subtle/30 p-3">
         <summary className="cursor-pointer text-sm font-semibold text-ink">
           Toate câmpurile secțiunii
@@ -3145,7 +3604,7 @@ function SectionInspector({
           />
         </div>
       </details>
-      <div className="border-t border-line pt-4">
+      {advanced ? <div className="border-t border-line pt-4">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="size-4 text-brand" />
           <p className="text-sm font-semibold text-ink">Compoziție</p>
@@ -3221,7 +3680,12 @@ function SectionInspector({
           onUploadImage={onUploadImage}
           onUpdateContentMany={onUpdateContentMany}
         />
-      </div>
+      </div> : (
+        <div className="w-full rounded-xl border border-dashed border-line-strong px-3 py-3 text-left text-xs text-muted">
+          Ai nevoie de poziționare, straturi sau fundaluri? Comută sus pe
+          <span className="font-semibold text-ink"> Avansat</span>.
+        </div>
+      )}
     </div>
   );
 }
@@ -3342,6 +3806,46 @@ function ContextualTextControls({
 
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface">
+      <div className="border-b border-line bg-subtle/35 p-3">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-faint">
+          Conținut comun tuturor dispozitivelor
+        </p>
+        <Field
+          label={field?.label ?? "Text"}
+          hint={
+            field?.direct
+              ? "Poți scrie aici sau direct în invitație."
+              : "Valoare structurată, editată în siguranță aici."
+          }
+        >
+          {field?.kind === "multiline" ? (
+            <Textarea
+              value={value}
+              onChange={(event) =>
+                onUpdateContent(contentKey, event.target.value)
+              }
+            />
+          ) : (
+            <Input
+              type={
+                field?.kind === "time"
+                  ? "time"
+                  : field?.kind === "phone"
+                    ? "tel"
+                    : field?.kind === "url"
+                      ? "url"
+                      : field?.kind === "date-time" && value.includes("T")
+                        ? "datetime-local"
+                        : "text"
+              }
+              value={value}
+              onChange={(event) =>
+                onUpdateContent(contentKey, event.target.value)
+              }
+            />
+          )}
+        </Field>
+      </div>
       <div className="grid grid-cols-3 border-b border-line">
         {(
           [
@@ -3374,8 +3878,8 @@ function ContextualTextControls({
             </p>
             <p className="mt-0.5 text-xs text-muted">
               {hasDeviceOverride
-                ? `Poziție personalizată pe ${deviceLabel(device)}`
-                : `Moștenește poziția pe ${deviceLabel(device)}`}
+                ? `Aspect cu ajustare proprie pe ${deviceLabel(device)}`
+                : `Aspect automat pe ${deviceLabel(device)}`}
             </p>
           </div>
           {hasDeviceOverride && deviceScope === device ? (
@@ -3384,7 +3888,7 @@ function ContextualTextControls({
               className="min-h-9 shrink-0 rounded-md px-2 text-xs font-semibold text-brand hover:bg-surface"
               onClick={() => resetStyle()}
             >
-              Șterge override
+              Resetează ajustarea
             </button>
           ) : (
             <span
@@ -3395,7 +3899,7 @@ function ContextualTextControls({
                   : "bg-surface text-muted",
               )}
             >
-              {hasDeviceOverride ? "Override" : "Moștenit"}
+              {hasDeviceOverride ? "Ajustare proprie" : "Automat"}
             </span>
           )}
         </div>
@@ -3413,15 +3917,15 @@ function ContextualTextControls({
                 }
                 className="min-h-10 w-auto max-w-[12rem] text-xs"
               >
-                <option value="mobile">Doar mobil</option>
-                <option value="tablet">Doar tabletă</option>
-                <option value="desktop">Doar desktop</option>
-                <option value="all">Toate dispozitivele</option>
+                <option value="mobile">Aspect pe mobil</option>
+                <option value="tablet">Aspect pe tabletă</option>
+                <option value="desktop">Aspect pe desktop</option>
+                <option value="all">Aspect comun</option>
               </Select>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-muted">
-              Modificările rămân pe {deviceLabel(deviceScope)}. Alege „Toate”
-              numai când vrei aceeași valoare peste tot.
+              Textul de mai sus este comun. Aici modifici doar aspectul pe
+              {` ${deviceLabel(deviceScope)}`} și îl poți reseta oricând.
             </p>
           </div>
         ) : null}
@@ -3454,10 +3958,10 @@ function ContextualTextControls({
                   }
                   className="min-h-9 w-auto text-xs"
                 >
-                  <option value="all">Toate dispozitivele</option>
-                  <option value="desktop">Doar desktop</option>
-                  <option value="tablet">Doar tabletă</option>
-                  <option value="mobile">Doar mobil</option>
+                  <option value="all">Aspect comun</option>
+                  <option value="desktop">Aspect pe desktop</option>
+                  <option value="tablet">Aspect pe tabletă</option>
+                  <option value="mobile">Aspect pe mobil</option>
                 </Select>
                 <p className="mt-1 text-xs text-faint">
                   Previzualizare: {deviceLabel(device)}
@@ -3469,41 +3973,6 @@ function ContextualTextControls({
 
         {tab === "text" && activeScope === "element" ? (
           <>
-            <Field
-              label={field?.label ?? "Text"}
-              hint={
-                field?.direct
-                  ? "Poți scrie aici sau direct în invitație."
-                  : "Valoare structurată, editată în siguranță aici."
-              }
-            >
-              {field?.kind === "multiline" ? (
-                <Textarea
-                  value={value}
-                  onChange={(event) =>
-                    onUpdateContent(contentKey, event.target.value)
-                  }
-                />
-              ) : (
-                <Input
-                  type={
-                    field?.kind === "time"
-                      ? "time"
-                      : field?.kind === "phone"
-                        ? "tel"
-                        : field?.kind === "url"
-                          ? "url"
-                          : field?.kind === "date-time" && value.includes("T")
-                            ? "datetime-local"
-                            : "text"
-                  }
-                  value={value}
-                  onChange={(event) =>
-                    onUpdateContent(contentKey, event.target.value)
-                  }
-                />
-              )}
-            </Field>
             <NumericStepper
               label="Mărimea textului"
               value={styleValue("fontSize")}
@@ -5501,7 +5970,7 @@ function InvitationCanvas({
           tabIndex={0}
         >
           {selectedId === section.id && (
-            <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-ink px-1.5 py-1 font-sans text-white shadow-overlay">
+            <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-action px-1.5 py-1 font-sans text-on-action shadow-overlay">
               <span className="max-w-24 truncate px-2 text-[10px] font-semibold">
                 {section.label}
               </span>
@@ -5562,8 +6031,10 @@ function InvitationCanvas({
 
 function EditorRsvpPublicPreview({
   snapshot,
+  onComplete,
 }: {
   snapshot: InvitationEditorSnapshot;
+  onComplete?: () => void;
 }) {
   const schedule = snapshot.sections.find(
     (section) => section.visible && section.type === "schedule",
@@ -5573,6 +6044,30 @@ function EditorRsvpPublicPreview({
     .filter(Boolean)
     .slice(0, 3);
   const labels = moments.length ? moments : ["Moment publicat în program"];
+  const [responses, setResponses] = React.useState<Record<string, string>>({});
+  const [message, setMessage] = React.useState("");
+  const [submitted, setSubmitted] = React.useState(false);
+  const completed = labels.filter((label) => responses[label]).length;
+
+  if (submitted)
+    return (
+      <div className="mx-auto grid min-h-[420px] max-w-3xl place-items-center bg-background px-4 py-8 text-ink sm:px-8">
+        <div className="max-w-md text-center">
+          <span className="mx-auto grid size-12 place-items-center rounded-full bg-success-soft text-success">
+            <Check className="size-6" aria-hidden />
+          </span>
+          <h2 className="mt-4 font-brand text-3xl font-semibold tracking-[-0.025em]">
+            Răspuns înregistrat în simulare
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Nicio deschidere și niciun răspuns real nu au fost salvate.
+          </p>
+          <Button className="mt-5" variant="outline" onClick={() => setSubmitted(false)}>
+            Modifică răspunsul
+          </Button>
+        </div>
+      </div>
+    );
 
   return (
     <div
@@ -5590,7 +6085,7 @@ function EditorRsvpPublicPreview({
         </p>
       </div>
       <div className="mt-7">
-        <Progress value={0} max={labels.length} />
+        <Progress value={completed} max={labels.length} />
         <div className="mt-7 space-y-6">
           <section aria-labelledby="preview-rsvp-person">
             <h3 id="preview-rsvp-person" className="font-semibold">
@@ -5599,68 +6094,134 @@ function EditorRsvpPublicPreview({
             <div className="mt-4 space-y-4">
               {labels.map((label) => (
                 <Field key={label} label={label}>
-                  <Select value="" disabled aria-label={`Răspuns pentru ${label}`}>
+                  <Select
+                    value={responses[label] ?? ""}
+                    onChange={(event) =>
+                      setResponses((current) => ({
+                        ...current,
+                        [label]: event.target.value,
+                      }))
+                    }
+                    aria-label={`Răspuns pentru ${label}`}
+                  >
                     <option value="">Alege răspunsul</option>
+                    <option value="yes">Particip</option>
+                    <option value="no">Nu particip</option>
                   </Select>
                 </Field>
               ))}
               <Field label="Mesaj pentru organizatori">
-                <Textarea disabled placeholder="Mesaj opțional" />
+                <Textarea
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder="Mesaj opțional"
+                />
               </Field>
             </div>
           </section>
-          <Button disabled>Salvează RSVP</Button>
+          <Button
+            disabled={completed !== labels.length}
+            onClick={() => {
+              setSubmitted(true);
+              onComplete?.();
+            }}
+          >
+            Trimite simularea RSVP
+          </Button>
         </div>
       </div>
     </div>
   );
 }
 
-function EditorGuestFlowPreview() {
+function EditorGuestFlowPreview({
+  snapshot,
+  resolveMedia,
+}: {
+  snapshot: InvitationEditorSnapshot;
+  resolveMedia: (mediaId: string, externalUrl?: string) => string;
+}) {
+  const [stage, setStage] = React.useState<"invitation" | "rsvp" | "result">(
+    "invitation",
+  );
   const stages = [
     {
       title: "Invitația",
-      detail: "Se deschide fără antetul aplicației, formular sau carduri operaționale.",
-      path: "/guest?token=…",
+      value: "invitation" as const,
     },
     {
       title: "Confirmarea RSVP",
-      detail: "Butonul din invitație duce la formularul personal al destinatarului.",
-      path: "/guest/rsvp?token=…",
+      value: "rsvp" as const,
     },
     {
-      title: "Detaliile evenimentului",
-      detail: "Programul, traseele și funcțiile live rămân într-un spațiu separat.",
-      path: "/guest/companion?token=…",
+      title: "Confirmarea trimisă",
+      value: "result" as const,
     },
   ];
   return (
-    <div className="mx-auto min-h-[640px] max-w-4xl bg-background px-4 py-8 text-ink sm:px-8 sm:py-12">
-      <h2 className="font-brand text-3xl font-semibold tracking-[-0.025em]">
-        Experiența completă a invitatului
-      </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-        Același token personal este păstrat între suprafețe, fără a amesteca
-        invitația vizuală cu sarcinile și informațiile operaționale.
-      </p>
-      <ol className="mt-8 divide-y divide-line border-y border-line">
-        {stages.map((stage, index) => (
-          <li key={stage.path} className="grid gap-3 py-6 sm:grid-cols-[3rem_1fr_auto] sm:items-start">
-            <span className="font-brand text-2xl font-semibold text-brand" aria-hidden>
-              {index + 1}
+    <div className="mx-auto min-h-[640px] max-w-4xl overflow-hidden bg-background text-ink">
+      <div className="border-b border-line px-4 py-4 sm:px-6">
+        <p className="text-xs font-semibold uppercase tracking-wider text-faint">
+          Simulare izolată, fără salvare
+        </p>
+        <ol className="mt-3 grid grid-cols-3 gap-2">
+          {stages.map((item, index) => (
+            <li key={item.value}>
+              <button
+                type="button"
+                onClick={() => setStage(item.value)}
+                aria-current={stage === item.value ? "step" : undefined}
+                className={cn(
+                  "flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold",
+                  stage === item.value
+                    ? "bg-brand-softer text-brand-strong"
+                    : "text-muted hover:bg-subtle hover:text-ink",
+                )}
+              >
+                <span className="grid size-5 shrink-0 place-items-center rounded-full border border-current text-[10px]">
+                  {index + 1}
+                </span>
+                <span className="hidden sm:inline">{item.title}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
+      {stage === "invitation" ? (
+        <div>
+          <InvitationRenderer
+            snapshot={snapshot}
+            resolveMedia={resolveMedia}
+            rsvpHref="#preview-rsvp"
+          />
+          <div className="sticky bottom-0 flex justify-center border-t border-line bg-surface/95 p-4 backdrop-blur">
+            <Button onClick={() => setStage("rsvp")}>Continuă la RSVP</Button>
+          </div>
+        </div>
+      ) : stage === "rsvp" ? (
+        <EditorRsvpPublicPreview
+          snapshot={snapshot}
+          onComplete={() => setStage("result")}
+        />
+      ) : (
+        <div className="grid min-h-[520px] place-items-center px-4 py-10">
+          <div className="max-w-md text-center">
+            <span className="mx-auto grid size-12 place-items-center rounded-full bg-success-soft text-success">
+              <Check className="size-6" aria-hidden />
             </span>
-            <div>
-              <h3 className="font-semibold">{stage.title}</h3>
-              <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
-                {stage.detail}
-              </p>
-            </div>
-            <code className="w-fit rounded-md bg-subtle px-2 py-1 text-xs text-muted">
-              {stage.path}
-            </code>
-          </li>
-        ))}
-      </ol>
+            <h2 className="mt-4 font-brand text-3xl font-semibold">
+              Parcurs verificat complet
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Ai verificat invitația și confirmarea exact ca invitatul, fără a
+              crea evenimente de deschidere sau răspunsuri reale.
+            </p>
+            <Button className="mt-5" variant="outline" onClick={() => setStage("invitation")}>
+              Reia simularea
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

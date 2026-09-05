@@ -356,6 +356,19 @@ export const apiEnvironmentSchema = z
     ]),
     METRICS_TOKEN: z.string().min(24).default("weddingos-local-metrics-token"),
     FEATURE_MAGIC_LINK_ENABLED: environmentBoolean.default(true),
+    FEATURE_GOOGLE_OAUTH_ENABLED: environmentBoolean.default(false),
+    GOOGLE_OAUTH_CLIENT_ID: z.preprocess(
+      emptyToUndefined,
+      z.string().min(20).optional(),
+    ),
+    GOOGLE_OAUTH_CLIENT_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().min(16).optional(),
+    ),
+    GOOGLE_OAUTH_REDIRECT_URI: z.preprocess(
+      emptyToUndefined,
+      z.string().url().optional(),
+    ),
     FEATURE_MFA_ENABLED: environmentBoolean.default(false),
     BETA_RELEASE_VERSION: z.preprocess(
       emptyToUndefined,
@@ -503,6 +516,7 @@ export const apiEnvironmentSchema = z
           ["OBJECT_STORAGE_SECRET_KEY", env.OBJECT_STORAGE_SECRET_KEY],
           ["SMTP_PASSWORD", env.SMTP_PASSWORD],
           ["METRICS_TOKEN", env.METRICS_TOKEN],
+          ["GOOGLE_OAUTH_CLIENT_SECRET", env.GOOGLE_OAUTH_CLIENT_SECRET],
           ["COPILOT_PROVIDER_API_KEY", env.COPILOT_PROVIDER_API_KEY],
           ["COPILOT_EMBEDDING_API_KEY", env.COPILOT_EMBEDDING_API_KEY],
         ];
@@ -510,6 +524,8 @@ export const apiEnvironmentSchema = z
           if (
             (path === "COPILOT_PROVIDER_API_KEY" &&
               !env.COPILOT_EXTERNAL_ENABLED) ||
+            (path === "GOOGLE_OAUTH_CLIENT_SECRET" &&
+              !env.FEATURE_GOOGLE_OAUTH_ENABLED) ||
             (path === "COPILOT_EMBEDDING_API_KEY" &&
               !env.COPILOT_EMBEDDING_ENABLED)
           )
@@ -705,6 +721,24 @@ export const apiEnvironmentSchema = z
           code: z.ZodIssueCode.custom,
           path: ["PAYOUT_PROVIDER_URL"],
           message: "Configured payout provider requires an HTTPS endpoint.",
+        });
+      }
+    }
+    if (env.FEATURE_GOOGLE_OAUTH_ENABLED) {
+      const expectedRedirect = `${env.WEB_URL.replace(/\/$/, "")}/api/v1/auth/google/callback`;
+      if (!env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["GOOGLE_OAUTH_CLIENT_ID"],
+          message:
+            "Google OAuth requires both a client ID and a client secret.",
+        });
+      }
+      if (env.GOOGLE_OAUTH_REDIRECT_URI !== expectedRedirect) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["GOOGLE_OAUTH_REDIRECT_URI"],
+          message: `Google OAuth redirect URI must be exactly ${expectedRedirect}.`,
         });
       }
     }

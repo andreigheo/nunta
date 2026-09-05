@@ -9,6 +9,7 @@ import { MfaController, StepUpController } from "./mfa.controller";
 import { MfaService } from "./mfa.service";
 import { AdminStepUpGuard } from "./step-up.guard";
 import { SecurityDetectionService } from "../common/security-detection.service";
+import { GoogleOAuthService } from "./google-oauth.service";
 
 @Module({
   controllers: [
@@ -25,6 +26,7 @@ import { SecurityDetectionService } from "../common/security-detection.service";
     MfaService,
     AdminStepUpGuard,
     SecurityDetectionService,
+    GoogleOAuthService,
   ],
   exports: [
     SessionService,

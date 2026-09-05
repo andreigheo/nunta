@@ -15,6 +15,13 @@ import {
 } from "@weddingos/contracts";
 import { parseApiEnvironment } from "@weddingos/config";
 import { createOpaqueToken, hashSecret } from "../src/auth/auth.crypto";
+import {
+  decodeGoogleOAuthFlow,
+  encodeGoogleOAuthFlow,
+  googleCanAuthoritativelyLinkEmail,
+  GoogleOAuthService,
+  safeOAuthReturnTo,
+} from "../src/auth/google-oauth.service";
 import { assertUsableOneTimeToken } from "../src/auth/one-time-token";
 import { ProblemException } from "../src/common/problem";
 import { enabledCopilotWebResearch } from "../src/intelligence/copilot-memory.service";
@@ -84,7 +91,134 @@ describe("Slice 0/1 foundation", () => {
     });
 
     expect(environment.FEATURE_MAGIC_LINK_ENABLED).toBe(true);
+    expect(environment.FEATURE_GOOGLE_OAUTH_ENABLED).toBe(false);
     expect(environment.FEATURE_MFA_ENABLED).toBe(false);
+  });
+
+  it("requires an exact same-origin Google OAuth callback when enabled", () => {
+    const base = {
+      NODE_ENV: "test" as const,
+      WEB_URL: "https://sarbato.space",
+      API_URL: "https://sarbato.space/api",
+      DATABASE_URL: "postgresql://example",
+      SESSION_SECRET: "test-session-secret-with-at-least-32-characters",
+      EMAIL_FROM: "Sarbato <hello@sarbato.space>",
+      EMAIL_PROVIDER: "console" as const,
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: "1025",
+      REDIS_URL: "redis://127.0.0.1:56379",
+      OUTBOX_ENCRYPTION_KEY:
+        "test-outbox-encryption-key-with-at-least-32-characters",
+      LOG_LEVEL: "silent" as const,
+      FEATURE_GOOGLE_OAUTH_ENABLED: "true",
+      GOOGLE_OAUTH_CLIENT_ID: "google-client-id.apps.googleusercontent.com",
+      GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret-value",
+    };
+
+    expect(
+      parseApiEnvironment({
+        ...base,
+        GOOGLE_OAUTH_REDIRECT_URI:
+          "https://sarbato.space/api/v1/auth/google/callback",
+      }).FEATURE_GOOGLE_OAUTH_ENABLED,
+    ).toBe(true);
+    expect(() =>
+      parseApiEnvironment({
+        ...base,
+        GOOGLE_OAUTH_REDIRECT_URI:
+          "http://localhost:4000/api/v1/auth/google/callback",
+      }),
+    ).toThrow(/Google OAuth redirect URI must be exactly/);
+  });
+
+  it("builds a PKCE Google authorization request with only the live callback and identity scopes", async () => {
+    const environment = parseApiEnvironment({
+      NODE_ENV: "test",
+      WEB_URL: "https://sarbato.space",
+      API_URL: "https://sarbato.space/api",
+      DATABASE_URL: "postgresql://example",
+      SESSION_SECRET: "test-session-secret-with-at-least-32-characters",
+      EMAIL_FROM: "Sarbato <hello@sarbato.space>",
+      EMAIL_PROVIDER: "console",
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: "1025",
+      REDIS_URL: "redis://127.0.0.1:56379",
+      OUTBOX_ENCRYPTION_KEY:
+        "test-outbox-encryption-key-with-at-least-32-characters",
+      LOG_LEVEL: "silent",
+      FEATURE_GOOGLE_OAUTH_ENABLED: "true",
+      GOOGLE_OAUTH_CLIENT_ID: "google-client-id.apps.googleusercontent.com",
+      GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret-value",
+      GOOGLE_OAUTH_REDIRECT_URI:
+        "https://sarbato.space/api/v1/auth/google/callback",
+    });
+    const service = new GoogleOAuthService(
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      environment,
+    );
+    const started = await service.begin({
+      mode: "sign-in",
+      returnTo: "/overview",
+    });
+    const authorizationUrl = new URL(started.authorizationUrl);
+    const flow = decodeGoogleOAuthFlow(
+      started.cookie,
+      environment.SESSION_SECRET,
+    );
+
+    expect(authorizationUrl.origin).toBe("https://accounts.google.com");
+    expect(authorizationUrl.searchParams.get("redirect_uri")).toBe(
+      "https://sarbato.space/api/v1/auth/google/callback",
+    );
+    expect(authorizationUrl.searchParams.get("code_challenge_method")).toBe(
+      "S256",
+    );
+    expect(authorizationUrl.searchParams.get("code_challenge")).toBeTruthy();
+    expect(authorizationUrl.searchParams.get("state")).toBe(flow?.state);
+    expect(authorizationUrl.searchParams.get("nonce")).toBe(flow?.nonce);
+    expect(
+      new Set(authorizationUrl.searchParams.get("scope")?.split(" ")),
+    ).toEqual(new Set(["openid", "email", "profile"]));
+    expect(started.authorizationUrl).not.toContain("localhost");
+  });
+
+  it("signs, expires and validates the short-lived Google OAuth flow", () => {
+    const secret = "test-session-secret-with-at-least-32-characters";
+    const now = Date.now();
+    const flow = {
+      state: "s".repeat(43),
+      verifier: "v".repeat(64),
+      nonce: "n".repeat(43),
+      mode: "register" as const,
+      returnTo: "/onboarding?source=google",
+      registrationIntent: "EVENT_ORGANIZER" as const,
+      marketingConsent: false,
+      termsAccepted: true,
+      expiresAt: now + 60_000,
+    };
+    const encoded = encodeGoogleOAuthFlow(flow, secret);
+
+    expect(decodeGoogleOAuthFlow(encoded, secret, now)).toEqual(flow);
+    expect(
+      decodeGoogleOAuthFlow(`${encoded.slice(0, -1)}x`, secret, now),
+    ).toBeNull();
+    expect(decodeGoogleOAuthFlow(encoded, secret, now + 60_001)).toBeNull();
+    expect(safeOAuthReturnTo("/%2F%2Fevil.example/steal")).toBeNull();
+    expect(safeOAuthReturnTo("/overview?tab=plan")).toBe("/overview?tab=plan");
+  });
+
+  it("links existing accounts only when Google is authoritative for the email", () => {
+    expect(googleCanAuthoritativelyLinkEmail("ana@gmail.com", undefined)).toBe(
+      true,
+    );
+    expect(
+      googleCanAuthoritativelyLinkEmail("ana@sarbato.space", "sarbato.space"),
+    ).toBe(true);
+    expect(
+      googleCanAuthoritativelyLinkEmail("ana@example.com", undefined),
+    ).toBe(false);
   });
 
   it("enables Copilot web research only for an explicit available opt-in", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultSection } from "./editor-model";
 import {
+  firstInvitationEditableField,
   invitationContentValue,
   invitationEditableFields,
   setInvitationContentValue,
@@ -25,5 +26,13 @@ describe("invitation editor content registry", () => {
     expect(invitationContentValue(section.content, "items.0.answer")).not.toBe(
       "Răspuns nou",
     );
+  });
+
+  it("chooses a valid direct field when editor selection moves to another section", () => {
+    const contact = createDefaultSection("contact", "contact");
+    expect(firstInvitationEditableField(contact)).toMatchObject({
+      path: "title",
+      direct: true,
+    });
   });
 });

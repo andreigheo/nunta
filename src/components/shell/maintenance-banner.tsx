@@ -19,6 +19,9 @@ const apiIndependentPublicPaths = new Set([
   "/terms",
   "/rambursari",
   "/cookies",
+  "/contact",
+  "/despre-noi",
+  "/produs",
 ]);
 
 export function MaintenanceBanner() {
