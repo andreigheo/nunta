@@ -511,6 +511,9 @@ test("S10 E2E 34 — security headers protect public pages", async ({
   expect(response.headers()["content-security-policy"]).toContain(
     "frame-ancestors 'none'",
   );
+  expect(response.headers()["content-security-policy"]).toContain(
+    "form-action 'self' https://accounts.google.com",
+  );
 });
 
 test("S10 E2E 35 — regular user sees a factual admin denial", async ({

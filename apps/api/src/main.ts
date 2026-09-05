@@ -30,7 +30,15 @@ async function bootstrap() {
       .set("trust proxy", environment.TRUST_PROXY_HOPS);
 
   application.useLogger(new StructuredLogger());
-  application.use(helmet());
+  application.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          formAction: ["'self'", "https://accounts.google.com"],
+        },
+      },
+    }),
+  );
   application.use(cookieParser());
   application.use(
     (_request: Request, response: Response, next: NextFunction) => {
