@@ -2525,7 +2525,7 @@ function EditorJourneyBar({
               className={cn(
                 "grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold 2xl:size-6 2xl:text-xs",
                 step.active
-                  ? "bg-brand text-on-brand"
+                  ? "bg-action text-on-action"
                   : "bg-surface text-faint",
               )}
               aria-hidden
@@ -2588,7 +2588,7 @@ function CreativeRail({
           className={cn(
             "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-semibold",
             tab === "layers"
-              ? "bg-brand text-on-brand"
+              ? "bg-action text-on-action"
               : "text-muted hover:bg-subtle hover:text-ink",
           )}
         >
@@ -2601,7 +2601,7 @@ function CreativeRail({
           className={cn(
             "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-semibold",
             tab === "blocks"
-              ? "bg-brand text-on-brand"
+              ? "bg-action text-on-action"
               : "text-muted hover:bg-subtle hover:text-ink",
           )}
         >
@@ -3436,7 +3436,7 @@ function ContextualTextControls({
                   className={cn(
                     "min-h-11 rounded-md px-3 text-xs font-semibold",
                     activeScope === value
-                      ? "bg-brand text-white"
+                      ? "bg-action text-on-action"
                       : "text-muted hover:bg-subtle",
                   )}
                 >

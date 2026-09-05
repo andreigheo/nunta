@@ -360,7 +360,7 @@ export function Topbar() {
           aria-label="Profil utilizator"
           className="inline-flex size-11 shrink-0 items-center justify-center lg:hidden"
         >
-          <span className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-[12px] font-semibold text-brand-strong dark:text-brand">
+          <span className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-[12px] font-semibold text-brand-strong">
             {initials.toUpperCase()}
           </span>
         </Link>

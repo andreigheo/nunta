@@ -358,7 +358,7 @@ export function EditorLayerStudio({
             </span>
             <button
               type="button"
-              className="flex min-h-11 items-center gap-2 rounded-lg bg-brand px-3 text-xs font-semibold text-on-brand"
+              className="flex min-h-11 items-center gap-2 rounded-lg bg-action px-3 text-xs font-semibold text-on-action"
               onClick={groupSelectedTexts}
             >
               <Group className="size-3.5" aria-hidden />

@@ -749,7 +749,7 @@ function MonthGrid({
               >
                 <span className={cn(
                   "inline-flex size-7 items-center justify-center rounded-full text-xs font-medium text-muted",
-                  inMonth && calendarDayKey(new Date(), timezone) === `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` && "bg-brand text-on-brand",
+                  inMonth && calendarDayKey(new Date(), timezone) === `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` && "bg-action text-on-action",
                 )}>{inMonth ? day : ""}</span>
                 <div className="mt-1 space-y-1">
                   {dayItems.slice(0, 3).map((item) => (

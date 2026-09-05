@@ -474,7 +474,7 @@ export default function OverviewPage() {
                 {setupSteps.map((step, index) => (
                   <li key={step.href} className={`rounded-xl border p-3 ${step.complete ? "border-success/25 bg-success-soft/35" : step === nextSetupStep ? "border-brand/35 bg-brand-softer" : "border-line bg-subtle/45"}`}>
                     <div className="flex items-center gap-2">
-                      <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${step.complete ? "bg-success text-white" : step === nextSetupStep ? "bg-brand text-on-brand" : "bg-surface text-muted"}`}>
+                      <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${step.complete ? "bg-success text-on-success" : step === nextSetupStep ? "bg-action text-on-action" : "bg-surface text-muted"}`}>
                         {step.complete ? <CheckCircle2 className="size-3.5" aria-hidden /> : index + 1}
                       </span>
                       <span className="text-sm font-semibold text-ink">{step.label}</span>
@@ -567,14 +567,14 @@ export default function OverviewPage() {
       />
 
       {nextBestAction ? (
-        <section className="overflow-hidden rounded-2xl bg-brand text-on-brand shadow-pop" aria-labelledby="next-action-title">
+        <section className="overflow-hidden rounded-2xl bg-brand-panel text-on-brand-panel shadow-pop" aria-labelledby="next-action-title">
           <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:p-7">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent">
               <Sparkles className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 id="next-action-title" className="font-brand text-2xl font-semibold leading-tight tracking-[-0.02em] text-on-brand">
+                <h2 id="next-action-title" className="font-brand text-2xl font-semibold leading-tight tracking-[-0.02em] text-on-brand-panel">
                   {nextBestAction.title}
                 </h2>
                 <Badge
@@ -585,21 +585,21 @@ export default function OverviewPage() {
                   Acțiunea recomandată
                 </Badge>
               </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-on-brand/80">
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-on-brand-panel/80">
                 {nextBestAction.reason}
               </p>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs text-on-brand/65">
+              <div className="mt-3 flex flex-wrap gap-3 text-xs text-on-brand-panel/65">
                 {nextBestAction.dueAt && (
                   <span>
                     Termen:{" "}
-                    <strong className="text-on-brand">
+                    <strong className="text-on-brand-panel">
                       {formatDateShort(nextBestAction.dueAt)}
                     </strong>
                   </span>
                 )}
                 <span>
                   Impact:{" "}
-                  <strong className="text-on-brand">
+                  <strong className="text-on-brand-panel">
                     {nextBestAction.impact}
                   </strong>
                 </span>
@@ -607,7 +607,7 @@ export default function OverviewPage() {
             </div>
             <Button
               variant="outline"
-              className="border-white/20 bg-white text-brand hover:border-white hover:bg-brand-soft"
+              className="border-on-brand-panel/25 bg-on-brand-panel text-brand-panel hover:border-on-brand-panel hover:bg-brand-soft"
               onClick={() =>
                 router.push(
                   nextBestAction.href ??

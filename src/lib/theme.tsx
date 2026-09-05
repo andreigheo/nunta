@@ -153,18 +153,17 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
   );
 }
 
-/** Compact icon button that cycles themes, used in the sidebar footer. */
+/** Compact light/dark toggle used in the sidebar footer. */
 export function ThemeCycleButton({ className }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
-  const order: ThemePreference[] = ["light", "dark", "system"];
-  const next = order[(order.indexOf(theme) + 1) % order.length];
-  const current = options.find((o) => o.value === theme) ?? options[2];
+  const { resolvedTheme, setTheme } = useTheme();
+  const next: ThemePreference = resolvedTheme === "dark" ? "light" : "dark";
+  const current = options.find((option) => option.value === resolvedTheme) ?? options[0];
   const Icon = current.icon;
   return (
     <button
       type="button"
       onClick={() => setTheme(next)}
-      aria-label={`Temă: ${current.label}. Comută la ${options.find((o) => o.value === next)?.label}.`}
+      aria-label={`Temă: ${current.label}. Comută la ${next === "dark" ? "Întunecată" : "Luminoasă"}.`}
       title={`Temă: ${current.label}`}
       className={cn(
         "inline-flex size-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",

@@ -442,7 +442,7 @@ export default function MarketplacePage() {
               className={cn(
                 "min-h-11 cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                 filters.includes(f.id)
-                  ? "border-brand bg-brand-soft text-brand-strong dark:text-brand"
+                  ? "border-brand bg-brand-soft text-brand-strong"
                   : "border-line bg-surface text-muted hover:border-line-strong",
               )}
             >
@@ -627,7 +627,7 @@ function VendorCard({
         )}
         aria-label={`Profilul ${v.name}`}
       >
-        <span className="absolute inset-0 flex items-center justify-center font-brand text-4xl font-semibold text-on-brand/90">
+        <span className="absolute inset-0 flex items-center justify-center font-brand text-4xl font-semibold text-on-brand-panel/90">
           {v.name
             .split(" ")
             .map((w) => w[0])

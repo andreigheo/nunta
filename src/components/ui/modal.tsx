@@ -320,7 +320,7 @@ function ConfirmDialogContent({
             className={
               destructive
                 ? "inline-flex h-11 items-center rounded-lg bg-danger px-4 text-sm font-medium text-on-danger transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
-                : "inline-flex h-11 items-center rounded-lg bg-brand px-4 text-sm font-medium text-on-brand transition-colors hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+                : "inline-flex h-11 items-center rounded-lg bg-action px-4 text-sm font-medium text-on-action transition-colors hover:bg-action-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
             }
           >
             {loading ? "Se procesează…" : confirmLabel}

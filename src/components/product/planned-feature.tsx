@@ -23,7 +23,7 @@ export function PlannedFeature({
         meta={<Badge variant="neutral">În pregătire</Badge>}
       />
 
-      <section className="relative overflow-hidden rounded-2xl border border-brand/30 bg-brand px-6 py-8 text-on-brand sm:px-8 sm:py-10">
+      <section className="relative overflow-hidden rounded-2xl border border-brand-panel bg-brand-panel px-6 py-8 text-on-brand-panel sm:px-8 sm:py-10">
         <div
           className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,var(--brand)_0_25%,var(--accent)_25%_50%,var(--sun)_50%_75%,var(--success)_75%)]"
           aria-hidden
@@ -35,14 +35,14 @@ export function PlannedFeature({
           <h2 className="mt-5 font-brand text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
             Fără date inventate și fără acțiuni care doar par funcționale.
           </h2>
-          <p className="mt-3 text-sm leading-6 text-on-brand/75 sm:text-[15px]">
+          <p className="mt-3 text-sm leading-6 text-on-brand-panel/75 sm:text-[15px]">
             Ecranul va fi activat când are contract backend, stări de încărcare
             și erori, persistență și permisiuni verificate. Până atunci, Sarbato
             te trimite spre fluxul disponibil acum.
           </p>
           <Link
             href={availableHref}
-            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-lg bg-surface px-4 text-sm font-semibold text-brand transition-colors hover:bg-brand-softer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-brand"
+            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-lg bg-on-brand-panel px-4 text-sm font-semibold text-brand-panel transition-colors hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-brand-panel"
           >
             {availableLabel}
             <ArrowRight className="size-4" aria-hidden />

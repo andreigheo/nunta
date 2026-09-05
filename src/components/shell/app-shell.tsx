@@ -32,11 +32,11 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     useWorkspace();
   const focusedEditor = pathname === "/invitations/editor";
   if (loading) {
-    return <div className="min-h-dvh animate-pulse bg-canvas" role="status" aria-label="Se încarcă spațiul de lucru" />;
+    return <div className="min-h-dvh animate-pulse bg-background" role="status" aria-label="Se încarcă spațiul de lucru" />;
   }
   if (loadError) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <ErrorState
           className="w-full max-w-lg"
           title="Spațiul de lucru nu este disponibil"

@@ -408,18 +408,18 @@ export default function PostEventPage() {
               </ul>
             </CardContent>
           </Card>
-          <Card className="bg-brand text-on-brand">
+          <Card className="border-brand-panel bg-brand-panel text-on-brand-panel">
             <CardContent className="p-5">
-              <HeartHandshake className="size-6 text-on-brand/80" aria-hidden />
+              <HeartHandshake className="size-6 text-on-brand-panel/80" aria-hidden />
               <h3 className="mt-3 font-brand text-xl font-semibold tracking-tight">
                 Povestea continuă în arhivă
               </h3>
-              <p className="mt-1 text-sm leading-relaxed text-on-brand/75">
+              <p className="mt-1 text-sm leading-relaxed text-on-brand-panel/75">
                 Fotografiile, mesajele și documentele rămân împreună, într-un
                 spațiu privat.
               </p>
               <Button
-                className="mt-4 border-white/20 bg-white/10 text-white hover:bg-white/15"
+                className="mt-4 border-on-brand-panel/20 bg-on-brand-panel/10 text-on-brand-panel hover:bg-on-brand-panel/15"
                 variant="outline"
                 size="sm"
                 onClick={() =>

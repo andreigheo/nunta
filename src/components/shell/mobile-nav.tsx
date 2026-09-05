@@ -84,7 +84,7 @@ export function MobileNavSheet() {
   if (!mobileNavOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background lg:hidden" role="dialog" aria-modal="true" aria-label="Meniu de navigație">
+    <div className="fixed inset-0 z-[110] flex flex-col bg-background lg:hidden" role="dialog" aria-modal="true" aria-label="Meniu de navigație">
       <div className="flex h-[4.5rem] items-center justify-between border-b border-line px-5">
         <SarbatoMark href="/overview" compact />
         <button
@@ -117,11 +117,11 @@ export function MobileNavSheet() {
                       className={cn(
                         "flex min-h-11 items-center gap-2.5 rounded-lg px-3 text-[13.5px] font-medium transition-colors",
                         active
-                          ? "bg-brand text-on-brand"
+                          ? "bg-action text-on-action"
                           : "text-muted hover:bg-subtle hover:text-ink",
                       )}
                     >
-                      <item.icon className={cn("size-[18px] shrink-0", active ? "text-on-brand" : "text-faint")} aria-hidden />
+                      <item.icon className={cn("size-[18px] shrink-0", active ? "text-on-action" : "text-faint")} aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {planLocked ? (
                         <LockKeyhole

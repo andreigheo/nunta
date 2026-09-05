@@ -748,7 +748,7 @@ export default function InvitationsPage() {
                     <p className="text-xs font-semibold uppercase tracking-[.25em] text-faint">
                       Sarbato
                     </p>
-                    <p className="mt-2 font-display text-2xl font-semibold text-brand-strong dark:text-brand">
+                    <p className="mt-2 font-display text-2xl font-semibold text-brand-strong">
                       {site.slug}
                     </p>
                     <p className="mt-2 text-xs text-muted">

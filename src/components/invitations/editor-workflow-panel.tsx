@@ -200,7 +200,7 @@ export function EditorWorkflowPanel({
                       className={cn(
                         "mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border",
                         selected
-                          ? "border-brand bg-brand text-on-brand"
+                          ? "border-action bg-action text-on-action"
                           : "border-line-strong bg-surface",
                       )}
                     >

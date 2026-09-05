@@ -177,7 +177,7 @@ export default function BetaCenterPage() {
           <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-muted">
             Contul tău nu are un grant beta activ. Folosește linkul securizat primit de la operatorul programului.
           </p>
-          <Link className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-brand px-4 text-sm font-medium text-on-brand shadow-card transition-colors hover:bg-brand-strong" href="/beta-invitation">Acceptă o invitație</Link>
+          <Link className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-action px-4 text-sm font-medium text-on-action shadow-card transition-colors hover:bg-action-hover" href="/beta-invitation">Acceptă o invitație</Link>
         </CardContent>
       </Card>
     );

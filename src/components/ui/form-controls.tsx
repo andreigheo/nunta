@@ -42,7 +42,7 @@ export function Checkbox({
         className={cn(
           "inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border transition-colors",
           checked
-            ? "border-brand bg-brand text-on-brand"
+            ? "border-action bg-action text-on-action"
             : "border-line-strong bg-surface hover:border-brand",
         )}
       >
@@ -118,12 +118,12 @@ export function Switch({
         aria-hidden
         className={cn(
           "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-          checked ? "bg-brand" : "bg-line-strong",
+          checked ? "bg-action" : "bg-line-strong",
         )}
       >
         <span
           className={cn(
-            "inline-block size-[18px] transform rounded-full bg-white shadow-sm transition-transform",
+            "inline-block size-[18px] transform rounded-full bg-on-action shadow-sm transition-transform",
             checked ? "translate-x-[22px]" : "translate-x-[3px]",
           )}
         />

@@ -36,7 +36,7 @@ import { useWorkspace } from "@/lib/api/workspace-context";
 const moduleMeta: Record<string, { icon: React.ElementType; tone: string }> = {
   "Design Studio": { icon: Image, tone: "bg-accent-soft text-accent-strong" },
   Oferte: { icon: FileText, tone: "bg-info-soft text-info" },
-  Plan: { icon: ListChecks, tone: "bg-brand-soft text-brand-strong dark:text-brand" },
+  Plan: { icon: ListChecks, tone: "bg-brand-soft text-brand-strong" },
   Furnizori: { icon: Users, tone: "bg-warning-soft text-warning" },
   Buget: { icon: Wallet, tone: "bg-success-soft text-success" },
   "Invitați": { icon: Users, tone: "bg-danger-soft text-danger" },

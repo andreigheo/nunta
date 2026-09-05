@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn, initials } from "@/lib/utils";
 
 const palette = [
-  "bg-brand-soft text-brand-strong dark:text-brand",
+  "bg-brand-soft text-brand-strong",
   "bg-accent-soft text-accent-strong",
   "bg-info-soft text-info",
   "bg-warning-soft text-warning",

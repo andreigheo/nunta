@@ -133,12 +133,12 @@ function NavGroupSection({ group }: { group: (typeof navGroups)[number] }) {
                   className={cn(
                     "group flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium transition-colors",
                     active
-                      ? "bg-brand-soft text-brand-strong dark:bg-brand-softer dark:text-brand"
+                      ? "bg-brand-soft text-brand-strong"
                       : "text-muted hover:bg-subtle hover:text-ink",
                   )}
                 >
                   <item.icon
-                    className={cn("size-[17px] shrink-0", active ? "text-brand-strong dark:text-brand" : "text-faint group-hover:text-muted")}
+                    className={cn("size-[17px] shrink-0", active ? "text-brand-strong" : "text-faint group-hover:text-muted")}
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -276,7 +276,7 @@ export function AppSidebar() {
     .filter((group) => group.items.length > 0);
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[268px] shrink-0 flex-col border-r border-line bg-brand-softer/55 lg:flex dark:bg-sunken/45">
+    <aside className="sticky top-0 hidden h-dvh w-[268px] shrink-0 flex-col border-r border-line bg-surface lg:flex">
       {/* Mark */}
       <div className="flex items-center px-4 pb-3 pt-4">
         <SarbatoMark href="/overview" compact />

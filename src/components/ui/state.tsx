@@ -63,7 +63,7 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand-strong dark:text-brand">
+      <div className="flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand-strong">
         <Icon className="size-6" aria-hidden />
       </div>
       <Heading className="mt-4 font-brand text-lg font-semibold tracking-tight text-ink">{title}</Heading>
@@ -105,7 +105,7 @@ export function ErrorState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center rounded-xl border border-danger/30 bg-danger-soft/40 px-6 py-10 text-center dark:bg-danger-soft/20",
+        "flex flex-col items-center justify-center rounded-xl border border-danger/30 bg-danger-soft/60 px-6 py-10 text-center",
         className,
       )}
     >

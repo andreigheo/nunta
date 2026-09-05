@@ -101,7 +101,7 @@ export function GuestAccommodationRecommendations({
                   className="relative grid gap-5 py-6 pl-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-8"
                 >
                   <span
-                    className="absolute left-1 top-8 flex size-5 items-center justify-center rounded-full border-2 border-surface bg-brand text-[10px] font-bold text-on-brand shadow-[0_0_0_1px_var(--color-line)]"
+                    className="absolute left-1 top-8 flex size-5 items-center justify-center rounded-full border-2 border-surface bg-action text-[10px] font-bold text-on-action shadow-[0_0_0_1px_var(--color-line)]"
                     aria-hidden
                   >
                     {index + 1}
@@ -284,7 +284,7 @@ function ExternalAction({
       className={cn(
         "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 break-words rounded-lg px-4 text-center text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         primary
-          ? "bg-brand text-on-brand hover:bg-brand-strong"
+          ? "bg-action text-on-action hover:bg-action-hover"
           : "border border-line bg-surface text-ink hover:bg-subtle",
       )}
     >

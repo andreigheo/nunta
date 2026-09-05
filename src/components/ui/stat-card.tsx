@@ -46,7 +46,7 @@ export function StatCard({
               tone === "danger" && "bg-danger-soft text-danger",
               tone === "success" && "bg-success-soft text-success",
               tone === "warning" && "bg-warning-soft text-warning",
-              tone === "default" && "bg-brand-soft text-brand-strong dark:text-brand",
+              tone === "default" && "bg-brand-soft text-brand-strong",
             )}
           >
             <Icon className="size-4" aria-hidden />

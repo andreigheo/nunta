@@ -9,7 +9,7 @@ type AuthActionLinkProps = React.ComponentProps<typeof Link> & {
 };
 
 const authActionLinkVariants = {
-  primary: "bg-brand text-on-brand hover:bg-brand-strong",
+  primary: "bg-action text-on-action hover:bg-action-hover",
   secondary: "bg-subtle text-ink hover:bg-sunken",
   outline: "border border-line bg-surface text-ink hover:bg-subtle",
   ghost: "text-muted hover:bg-subtle hover:text-ink",

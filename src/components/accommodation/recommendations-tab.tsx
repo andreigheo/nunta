@@ -423,7 +423,7 @@ export function AccommodationRecommendationsTab({
             className={cn(
               "min-h-11 shrink-0 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               statusFilter === value
-                ? "border-brand bg-brand text-on-brand"
+                ? "border-action bg-action text-on-action"
                 : "border-line bg-surface text-muted hover:border-line-strong hover:text-ink",
             )}
           >
@@ -460,7 +460,7 @@ export function AccommodationRecommendationsTab({
                         className={cn(
                           "mt-0.5 grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold",
                           selected?.id === item.id
-                            ? "bg-brand text-on-brand"
+                            ? "bg-action text-on-action"
                             : "border border-line bg-surface text-muted",
                         )}
                         aria-hidden
@@ -1087,7 +1087,7 @@ function ReadOnlyNotice() {
       </div>
       <Link
         href="/settings?tab=billing"
-        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-brand px-4 text-sm font-semibold text-brand transition-colors hover:bg-brand hover:text-on-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-brand px-4 text-sm font-semibold text-brand transition-colors hover:border-action hover:bg-action hover:text-on-action focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         Vezi abonamentele
       </Link>
