@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   capabilityKeys,
   createWorkspaceRequestSchema,
@@ -9,6 +9,7 @@ import {
   passwordResetRequestSchema,
   registerRequestSchema,
   semanticEvents,
+  TERMS_VERSION,
   isOnboardingComplete,
   workspaceStatusSchema,
   updateWorkspaceRequestSchema,
@@ -207,6 +208,159 @@ describe("Slice 0/1 foundation", () => {
     expect(decodeGoogleOAuthFlow(encoded, secret, now + 60_001)).toBeNull();
     expect(safeOAuthReturnTo("/%2F%2Fevil.example/steal")).toBeNull();
     expect(safeOAuthReturnTo("/overview?tab=plan")).toBe("/overview?tab=plan");
+  });
+
+  it("creates a complete Sarbato account from a verified Google registration", async () => {
+    const environment = parseApiEnvironment({
+      NODE_ENV: "test",
+      WEB_URL: "https://sarbato.space",
+      API_URL: "https://sarbato.space/api",
+      DATABASE_URL: "postgresql://example",
+      SESSION_SECRET: "test-session-secret-with-at-least-32-characters",
+      EMAIL_FROM: "Sarbato <hello@sarbato.space>",
+      EMAIL_PROVIDER: "console",
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: "1025",
+      REDIS_URL: "redis://127.0.0.1:56379",
+      OUTBOX_ENCRYPTION_KEY:
+        "test-outbox-encryption-key-with-at-least-32-characters",
+      LOG_LEVEL: "silent",
+      FEATURE_GOOGLE_OAUTH_ENABLED: "true",
+      GOOGLE_OAUTH_CLIENT_ID: "google-client-id.apps.googleusercontent.com",
+      GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret-value",
+      GOOGLE_OAUTH_REDIRECT_URI:
+        "https://sarbato.space/api/v1/auth/google/callback",
+    });
+    const state = "s".repeat(43);
+    const nonce = "n".repeat(43);
+    const flowCookie = encodeGoogleOAuthFlow(
+      {
+        state,
+        verifier: "v".repeat(64),
+        nonce,
+        mode: "register",
+        returnTo: "/onboarding?source=google",
+        registrationIntent: "EVENT_ORGANIZER",
+        marketingConsent: true,
+        termsAccepted: true,
+        expiresAt: Date.now() + 60_000,
+      },
+      environment.SESSION_SECRET,
+    );
+    const createdUser = {
+      id: "user-google-registration",
+      email: "ana.popescu@gmail.com",
+      status: "ACTIVE",
+    };
+    const transaction = {
+      identity: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(createdUser),
+        update: vi.fn(),
+      },
+    };
+    const database = {
+      $transaction: vi.fn(
+        async (callback: (client: typeof transaction) => unknown) =>
+          callback(transaction),
+      ),
+      identity: { update: vi.fn().mockResolvedValue({}) },
+    };
+    const session = {
+      id: "session-google-registration",
+      rawToken: "raw-session-token",
+      expiresAt: new Date(Date.now() + 60_000),
+    };
+    const sessions = { create: vi.fn().mockResolvedValue(session) };
+    const audit = { record: vi.fn().mockResolvedValue(undefined) };
+    const service = new GoogleOAuthService(
+      database as never,
+      sessions as never,
+      audit as never,
+      environment,
+    );
+    const googleClient = {
+      getToken: vi.fn().mockResolvedValue({
+        tokens: { id_token: "verified-google-id-token" },
+      }),
+      verifyIdToken: vi.fn().mockResolvedValue({
+        getPayload: () => ({
+          sub: "google-subject-123",
+          email: "Ana.Popescu@gmail.com",
+          email_verified: true,
+          nonce,
+          given_name: "Ana",
+          family_name: "Popescu",
+          picture: "https://example.test/avatar.jpg",
+        }),
+      }),
+    };
+    Object.defineProperty(service, "configuredClient", {
+      value: () => googleClient,
+    });
+
+    const result = await service.complete(
+      { code: "google-authorization-code", state },
+      flowCookie,
+      {
+        headers: { "user-agent": "Sarbato test browser" },
+        ip: "127.0.0.1",
+        requestId: "request-google-registration",
+        correlationId: "correlation-google-registration",
+      } as never,
+    );
+
+    expect(result).toEqual({
+      session,
+      returnTo: "/onboarding?source=google",
+    });
+    expect(transaction.user.create).toHaveBeenCalledWith({
+      data: {
+        email: "ana.popescu@gmail.com",
+        emailVerifiedAt: expect.any(Date),
+        acceptedTermsVersion: TERMS_VERSION,
+        acceptedTermsAt: expect.any(Date),
+        marketingConsent: true,
+        profile: {
+          create: {
+            firstName: "Ana",
+            lastName: "Popescu",
+            avatarUrl: "https://example.test/avatar.jpg",
+          },
+        },
+        identities: {
+          create: {
+            provider: "GOOGLE",
+            providerSubject: "google-subject-123",
+            lastUsedAt: expect.any(Date),
+          },
+        },
+        preference: {
+          create: { registrationIntent: "EVENT_ORGANIZER" },
+        },
+        notificationPreference: {
+          create: { marketingEmail: true },
+        },
+      },
+    });
+    expect(sessions.create).toHaveBeenCalledWith(
+      createdUser.id,
+      true,
+      "Sarbato test browser",
+      "127.0.0.1",
+    );
+    expect(database.identity.update).toHaveBeenCalledOnce();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "session.google_oauth_created.v1",
+        actorUserId: createdUser.id,
+        entityId: session.id,
+      }),
+    );
   });
 
   it("links existing accounts only when Google is authoritative for the email", () => {
