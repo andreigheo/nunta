@@ -126,8 +126,8 @@ export default function CreateAccountPage() {
       <AuthHeading title="Creează-ți contul" subtitle="Alege traseul potrivit. Același cont poate avea ulterior mai multe roluri." />
 
       <div className="space-y-4">
-        <SocialButtons mode="signup" />
-        <Divider label="sau cu email" />
+        <SocialButtons />
+        <Divider label="sau folosește emailul" />
 
         {formError && <AuthError message={formError} />}
 
@@ -148,11 +148,11 @@ export default function CreateAccountPage() {
                     onClick={() => setIntent(path.value)}
                     className={`flex min-h-16 w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors ${
                       selected
-                        ? "border-brand bg-brand-soft text-brand-strong"
+                        ? "border-action bg-surface text-ink"
                         : "border-line bg-surface text-ink hover:border-line-strong hover:bg-subtle"
                     }`}
                   >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background">
+                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${selected ? "bg-action text-on-action" : "bg-subtle text-muted"}`}>
                       <Icon className="size-4.5" aria-hidden />
                     </span>
                     <span className="min-w-0">

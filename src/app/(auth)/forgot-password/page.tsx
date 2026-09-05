@@ -43,7 +43,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div>
-      <span className="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl bg-brand-soft text-brand-strong dark:text-brand">
+      <span className="mx-auto mb-5 flex size-14 items-center justify-center rounded-xl border border-line bg-subtle text-ink">
         <KeyRound className="size-7" aria-hidden />
       </span>
       <AuthHeading title="Resetează-ți parola" subtitle="Îți trimitem un link de resetare valabil 30 de minute." />

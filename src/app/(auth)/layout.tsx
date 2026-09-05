@@ -15,63 +15,57 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh">
-      {/* Brand panel (desktop) */}
-      <aside className="relative hidden w-[42%] flex-col justify-between overflow-hidden bg-brand p-10 text-on-brand lg:flex">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.14]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 20%, #d9b98a 0, transparent 42%), radial-gradient(circle at 85% 75%, #91a899 0, transparent 45%), radial-gradient(circle at 60% 40%, #ffffff 0, transparent 30%)",
-          }}
-        />
-        <SarbatoMark href="/sign-in" inverse className="relative" />
-        <div className="relative">
-          <p className="font-brand text-[34px] font-medium leading-[1.15] tracking-tight text-balance">
-            Planul, invitațiile, furnizorii și ziua evenimentului folosesc
-            aceeași informație.
+    <div className="flex min-h-dvh bg-background">
+      <aside className="relative hidden w-[42%] min-w-[400px] flex-col justify-between overflow-hidden bg-brand-panel p-10 text-on-brand-panel dark:bg-sunken lg:flex xl:p-12">
+        <SarbatoMark href="/" inverse className="relative" />
+        <div className="relative max-w-[31rem]">
+          <p className="font-brand text-[38px] font-semibold leading-[1.08] tracking-[-0.03em] text-balance xl:text-[42px]">
+            Un singur fir pentru tot evenimentul.
           </p>
-          <ol className="mt-10 space-y-4 border-t border-on-brand/20 pt-8">
+          <p className="mt-4 max-w-[36rem] text-[15px] leading-6 text-on-brand-panel/72 dark:text-muted">
+            Planul, invitațiile, furnizorii și ziua evenimentului folosesc aceeași informație.
+          </p>
+          <ol className="relative mt-9 space-y-4 before:absolute before:bottom-4 before:left-[15px] before:top-4 before:w-px before:bg-on-brand-panel/20 dark:before:bg-line">
             {flow.map((step, index) => (
-              <li key={step} className="flex items-center gap-4">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-on-brand/15 text-sm font-semibold tabular-nums">
+              <li key={step} className="relative flex items-center gap-4">
+                <span className="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border border-on-brand-panel/25 bg-brand-panel-strong text-sm font-semibold tabular-nums dark:border-line-strong dark:bg-elevated">
                   {index + 1}
                 </span>
-                <span className="text-[15px] font-medium leading-snug text-on-brand/85">
+                <span className="text-[15px] font-medium leading-snug text-on-brand-panel/86 dark:text-ink">
                   {step}
                 </span>
               </li>
             ))}
           </ol>
         </div>
-        <p className="relative text-xs text-on-brand/60">
-          Disponibil acum pentru organizarea nunților.
+        <p className="relative text-xs text-on-brand-panel/58 dark:text-faint">
+          Pentru orice tip de eveniment. Direct din browser.
         </p>
       </aside>
 
-      {/* Form side */}
-      <main className="relative flex min-h-dvh flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
-        <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
-          <ThemeSegmentedControl />
-        </div>
-        <div className="w-full max-w-[420px] pt-14 sm:pt-16">
+      <main className="flex min-h-dvh flex-1 flex-col items-center justify-start px-4 py-6 sm:px-8 sm:py-8 lg:justify-center">
+        <div className="w-full max-w-[468px] lg:my-auto">
+          <div className="mb-7 flex justify-end">
+            <ThemeSegmentedControl compactOnMobile />
+          </div>
           <SarbatoMark
-            href="/sign-in"
+            href="/"
             compact
             className="mb-8 flex justify-center lg:hidden"
           />
-          <Suspense
-            fallback={
-              <div
-                className="h-96 animate-pulse rounded-2xl bg-subtle"
-                role="status"
-                aria-label="Se încarcă formularul"
-              />
-            }
-          >
-            {children}
-          </Suspense>
+          <section className="bg-transparent sm:rounded-[14px] sm:border sm:border-line sm:bg-elevated sm:px-7 sm:py-7">
+            <Suspense
+              fallback={
+                <div
+                  className="h-96 animate-pulse rounded-[14px] bg-subtle"
+                  role="status"
+                  aria-label="Se încarcă formularul"
+                />
+              }
+            >
+              {children}
+            </Suspense>
+          </section>
         </div>
       </main>
     </div>

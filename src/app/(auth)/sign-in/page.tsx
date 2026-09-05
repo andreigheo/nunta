@@ -104,8 +104,8 @@ export default function SignInPage() {
       <AuthHeading title="Bine ai revenit" subtitle="Conectează-te la evenimentele, invitațiile sau serviciile tale." />
 
       <div className="space-y-4">
-        <SocialButtons mode="signin" />
-        <Divider label="sau cu email" />
+        <SocialButtons />
+        <Divider label="sau folosește emailul" />
 
         {formError && <AuthError message={formError} />}
         {needsVerification ? (
@@ -215,9 +215,11 @@ export default function SignInPage() {
           )}
         </div>
 
-        <p className="text-center text-xs leading-relaxed text-faint">
-          Autentificarea folosește o sesiune securizată HttpOnly. Modul demo este izolat și nu scrie în conturile reale.
-        </p>
+        {demoEnabled ? (
+          <p className="text-center text-xs leading-relaxed text-faint">
+            Modul demo este izolat și nu scrie în conturile reale.
+          </p>
+        ) : null}
       </div>
     </div>
   );

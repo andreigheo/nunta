@@ -96,7 +96,13 @@ const options: Array<{ value: ThemePreference; label: string; icon: React.Elemen
 ];
 
 /** Segmented theme selector used in Settings → Appearance and auth screens. */
-export function ThemeSegmentedControl({ className }: { className?: string }) {
+export function ThemeSegmentedControl({
+  className,
+  compactOnMobile = false,
+}: {
+  className?: string;
+  compactOnMobile?: boolean;
+}) {
   const { theme, setTheme } = useTheme();
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
@@ -138,14 +144,14 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
             tabIndex={active ? 0 : -1}
             onClick={() => setTheme(value)}
             className={cn(
-              "inline-flex h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              "inline-flex h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               active
                 ? "bg-elevated text-ink shadow-card"
                 : "text-muted hover:text-ink",
             )}
           >
             <Icon className="size-4" aria-hidden />
-            {label}
+            <span className={cn(compactOnMobile && "sr-only sm:not-sr-only")}>{label}</span>
           </button>
         );
       })}
