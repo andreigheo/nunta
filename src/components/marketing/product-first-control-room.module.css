@@ -4189,6 +4189,28 @@
   display: none;
 }
 
+.demoCaption {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.commercePanel > .demoCaption {
+  margin: 0;
+  padding: 0.7rem 1.2rem 0;
+}
+
+.page button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.searchField > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 @media (max-width: 820px) {
   .page {
     background: #fbfaf8;
@@ -4582,7 +4604,21 @@
 
   .storyCopy p,
   .storyCopy > a {
-    display: none;
+    display: block;
+  }
+
+  .storyCopy p {
+    max-width: 42ch;
+    margin: 0.75rem 0 0;
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+
+  .storyCopy > a {
+    display: inline-flex;
+    min-height: 2.75rem;
+    margin-top: 0.45rem;
+    font-size: 0.875rem;
   }
 
   .storySurface {
@@ -4706,6 +4742,10 @@
     padding: 0;
   }
 
+  .commercePanel > .demoCaption {
+    padding: 0.68rem 0.68rem 0.5rem;
+  }
+
   .commercePanel .commerceGrid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -4736,63 +4776,42 @@
   }
 
   .categoryFilter {
-    min-height: 1.85rem;
-    border: 0;
-    padding: 0;
-    font-size: 0;
-  }
-
-  .categoryFilter::before {
-    content: "Vezi tot";
-    font-size: 0.6rem;
-  }
-
-  .categoryFilter::after {
-    content: "\2192";
-    font-size: 0.72rem;
-  }
-
-  .categoryFilter svg {
     display: none;
   }
 
   .vendorCards {
-    display: flex;
-    gap: 0.58rem;
-    margin-right: -0.68rem;
-    padding-right: 0.68rem;
-    overflow-x: auto;
-    scroll-padding-inline: 0.1rem;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-  }
-
-  .vendorCards::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
   }
 
   .vendorCard {
-    min-width: 80%;
-    flex: 0 0 80%;
-    border-radius: 0.62rem;
-    padding: 0.7rem;
-    scroll-snap-align: start;
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    padding: 0.85rem 0;
   }
 
   .vendorCard header strong {
-    font-size: 0.75rem;
+    font-size: 0.875rem;
   }
 
   .vendorCard dl {
-    gap: 0.6rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem 0.5rem;
   }
 
   .vendorCard dt {
-    font-size: 0.52rem;
+    font-size: 0.72rem;
   }
 
   .vendorCard dd {
-    font-size: 0.66rem;
+    font-size: 0.8rem;
   }
 
   .commercePanel .budgetPane {
@@ -4982,7 +5001,8 @@
     min-height: 0;
     width: 100%;
     grid-template-columns: 1fr;
-    align-content: center;
+    grid-template-rows: 4rem auto;
+    align-content: start;
     justify-items: center;
     gap: 0.25rem;
     border-right: 1px solid #e9dfe6;
@@ -4998,7 +5018,9 @@
   }
 
   .signatureKnot {
-    width: 5rem;
+    width: 5.6rem;
+    height: 4rem;
+    object-fit: contain;
   }
 
   .assuranceList {
@@ -5020,7 +5042,8 @@
   .assuranceEntry {
     min-height: 100%;
     grid-template-columns: 1fr;
-    align-content: center;
+    grid-template-rows: 4rem auto;
+    align-content: start;
     justify-items: center;
     gap: 0.25rem;
     padding: 0.5rem;
@@ -5029,9 +5052,15 @@
 
   .assuranceIcon {
     display: grid;
-    width: min(5rem, 100%);
-    min-height: 0;
+    width: min(7rem, 100%);
+    height: 4rem;
     align-items: center;
+  }
+
+  .assuranceIcon img {
+    width: 100%;
+    height: 4rem;
+    object-fit: contain;
   }
 
   .assuranceCopy {
@@ -5041,13 +5070,13 @@
 
   .assuranceCopy strong {
     max-width: 14ch;
-    font-size: 0.84rem;
+    font-size: 1rem;
     line-height: 1.2;
   }
 
   .assuranceCopy > span {
     max-width: 17ch;
-    font-size: 0.7rem;
+    font-size: 1rem;
     line-height: 1.35;
   }
 }

@@ -36,8 +36,22 @@ export const headerNav = [
   { label: "Soluții", href: "/#solutii" },
   { label: "Prețuri", href: "/#abonamente" },
   { label: "Întrebări", href: "/#intrebari" },
-  { label: "Despre noi", href: "/#despre" },
+  { label: "Contact", href: routes.contact },
 ] as const;
+
+export const productSections = {
+  planning: "/produs#planificare",
+  guests: "/produs#invitatii",
+  commerce: "/produs#furnizori",
+  operations: "/produs#ziua-evenimentului",
+} as const;
+
+export const previewCopy = {
+  label: "Exemplu demonstrativ",
+  description: "Date ilustrative. Explorează funcționalitatea în pagina Produs.",
+  invitationsAction: "Vezi cum funcționează invitațiile",
+  accountRequired: "Necesită autentificare",
+} as const;
 
 export const productFirstControlRoom = {
   name: "Product-first control room",
@@ -72,7 +86,7 @@ export const productFirstControlRoom = {
       iconTone: "sage",
       barTone: "sage",
       action: "Vezi detalii",
-      href: "/invitations",
+      href: productSections.guests,
     },
     {
       key: "budget",
@@ -83,7 +97,7 @@ export const productFirstControlRoom = {
       iconTone: "ink",
       barTone: "sage",
       action: "Vezi bugetul",
-      href: "/budget",
+      href: productSections.commerce,
     },
     {
       key: "activities",
@@ -94,7 +108,7 @@ export const productFirstControlRoom = {
       iconTone: "coral",
       barTone: "coral",
       action: "Vezi lista",
-      href: "/plan",
+      href: productSections.planning,
     },
     {
       key: "suppliers",
@@ -105,7 +119,7 @@ export const productFirstControlRoom = {
       iconTone: "ink",
       barTone: "sage",
       action: "Vezi furnizorii",
-      href: "/marketplace",
+      href: productSections.commerce,
     },
   ],
   solutionsIntro: {
@@ -765,7 +779,6 @@ export const footer = {
         { label: "Soluții", href: "/#solutii" },
         { label: "Prețuri", href: "/#abonamente" },
         { label: "Întrebări", href: "/#intrebari" },
-        { label: "Despre noi", href: "/#despre" },
         { label: "Contact", href: routes.contact },
       ],
     },

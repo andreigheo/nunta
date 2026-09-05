@@ -262,7 +262,7 @@ function ConnectedFlow() {
 
 function PlanningChapter() {
   return (
-    <section className={styles.chapter} data-chapter="planning" aria-labelledby="planning-title">
+    <section id="planificare" className={styles.chapter} data-chapter="planning" aria-labelledby="planning-title">
       <div className={styles.planPanel}>
         <div className={styles.panelTopline}>
           <div>
@@ -303,7 +303,7 @@ function PlanningChapter() {
 
 function InvitationsChapter() {
   return (
-    <section className={styles.chapter} data-chapter="invitations" aria-labelledby="invitations-title">
+    <section id="invitatii" className={styles.chapter} data-chapter="invitations" aria-labelledby="invitations-title">
       <div className={styles.chapterCopy}>
         <h2 id="invitations-title">Invitația aduce răspunsul înapoi în plan.</h2>
         <ul className={styles.coloredList}>
@@ -343,7 +343,7 @@ function InvitationsChapter() {
 
 function VendorsChapter() {
   return (
-    <section className={styles.chapter} data-chapter="vendors" aria-labelledby="vendors-title">
+    <section id="furnizori" className={styles.chapter} data-chapter="vendors" aria-labelledby="vendors-title">
       <div className={styles.chapterCopy}>
         <h2 id="vendors-title">Compari decizia și vezi impactul ei.</h2>
         <ul className={styles.coloredList}>
@@ -384,7 +384,7 @@ function VendorsChapter() {
 
 function OperationsChapter() {
   return (
-    <section className={styles.chapter} data-chapter="operations" aria-labelledby="operations-title">
+    <section id="ziua-evenimentului" className={styles.chapter} data-chapter="operations" aria-labelledby="operations-title">
       <div className={styles.chapterCopy}>
         <h2 id="operations-title">În teren, planul devine comandă.</h2>
         <ul>

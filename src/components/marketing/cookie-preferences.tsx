@@ -67,8 +67,8 @@ export function PublicCookiePreferences() {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">Preferințe cookie</p>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Folosim cookie-uri esențiale pentru funcționare. Analytics este
-          opțional, dezactivat implicit și nu se încarcă fără acord.
+          Cookie-uri esențiale pentru funcționare. Analytics se activează doar
+          cu acordul tău.
         </p>
         <a
           href="/cookies"

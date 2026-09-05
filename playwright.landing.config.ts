@@ -8,14 +8,14 @@ const apiInternalUrl =
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: "landing.spec.ts",
+  testMatch: ["landing.spec.ts", "landing-corrections.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,
   timeout: 120_000,
   expect: { timeout: 15_000 },
   reporter: [["list"]],
-  outputDir: "test-results/landing",
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? "test-results/landing",
   use: {
     baseURL: webUrl,
     trace: "retain-on-failure",

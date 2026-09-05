@@ -712,6 +712,7 @@
 }
 
 .chapter {
+  scroll-margin-top: 6rem;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.28fr) minmax(18rem, 0.72fr);
