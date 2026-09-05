@@ -13,6 +13,7 @@ import type { WeddingOsRequest } from "./http.types";
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 const EXEMPT = [/\/webhooks(?:\/|$)/, /^\/api\/v1\/guest-companion\//];
+const GOOGLE_OAUTH_START_PATH = "/api/v1/auth/google";
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
@@ -26,7 +27,13 @@ export class CsrfMiddleware implements NestMiddleware {
     if (
       !this.environment.CSRF_ENFORCEMENT ||
       SAFE.has(request.method) ||
-      EXEMPT.some((pattern) => pattern.test(request.path))
+      EXEMPT.some((pattern) => pattern.test(request.path)) ||
+      // OAuth initiation only creates a signed, short-lived PKCE/state cookie.
+      // The exact Origin check below preserves login-CSRF protection while
+      // allowing a regular HTML form to start the redirect without a header.
+      (request.method === "POST" &&
+        request.path === GOOGLE_OAUTH_START_PATH &&
+        request.headers.origin === this.environment.WEB_URL)
     )
       return next();
     const rawSession = (
