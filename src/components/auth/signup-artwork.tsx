@@ -4,7 +4,13 @@
  */
 export function SignupArtwork() {
   return (
-    <svg viewBox="0 0 460 1040" fill="none" aria-hidden="true" focusable="false">
+    <svg
+      viewBox="0 0 460 1060"
+      preserveAspectRatio="xMidYMid meet"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
       <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         {/* Invitation and the thread entering the stage. */}
         <path d="M37 57 109 30 145 124 47 148 32 79 46 69 M37 57 59 120 129 58 139 61 145 124 M32 79 97 104 139 61 M47 148 91 99 M145 124 106 101" />

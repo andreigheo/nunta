@@ -160,20 +160,22 @@
   .frame:has([data-auth-concept]) .panel > :not(.artwork) { display: none; }
   .frame:has([data-auth-concept]) .panel .artwork {
     position: absolute;
-    inset: -3dvh -5vw;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
     width: auto;
     max-width: none;
     height: auto;
     margin: 0;
     opacity: 0.14;
-    transform: scale(1.06);
-    transform-origin: center;
   }
   .frame:has([data-auth-concept]) .panel .artwork svg {
     display: block;
     width: 100%;
     max-width: none;
     height: 100%;
+    overflow: visible;
   }
   .frame:has([data-auth-concept]) .main {
     position: relative;
