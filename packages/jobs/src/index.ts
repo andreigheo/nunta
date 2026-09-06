@@ -425,6 +425,7 @@ export const asyncEventNames = [
   "platform.user_reactivated.v1",
   "platform.workspace_suspended.v1",
   "platform.workspace_reactivated.v1",
+  "platform.workspace_subscription_overridden.v1",
   "platform.vendor_suspended.v1",
   "platform.vendor_reactivated.v1",
   "support.case_created.v1",

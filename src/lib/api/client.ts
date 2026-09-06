@@ -411,6 +411,76 @@ export type PlatformUserResource = OperationResource & {
   sessionCount: number;
 };
 
+export type PlatformPage<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type PlatformOverviewResource = {
+  range: "7d" | "30d" | "90d";
+  generatedAt: string;
+  counts: {
+    users: number;
+    activeUsers: number;
+    workspaces: number;
+    activeWorkspaces: number;
+    vendors: number;
+    supportOpen: number;
+    incidentsOpen: number;
+    alertsOpen: number;
+    failedJobs: number;
+    deadBillingEvents: number;
+  };
+  trend: Array<{
+    date: string;
+    users: number;
+    workspaces: number;
+    revenueMinor: string;
+  }>;
+  recentActions: OperationResource[];
+};
+
+export type PlatformTrafficResource = {
+  range: "7d" | "30d" | "90d";
+  generatedAt: string;
+  analytics: { status: string; provider: string; detail: string };
+  firstPartyFunnel: Array<{ key: string; label: string; value: number }>;
+};
+
+export type PlatformCommerceResource = {
+  range: "7d" | "30d" | "90d";
+  generatedAt: string;
+  subscriptions: Array<{ planKey: string; status: string; _count: number }>;
+  checkouts: Array<{ status: string; _count: number }>;
+  transactions: {
+    _count: number;
+    _sum: {
+      totalMinor: string | null;
+      taxMinor: string | null;
+      feeMinor: string | null;
+    };
+  };
+  volumeByCurrency: Array<{
+    currency: string;
+    _count: number;
+    _sum: {
+      totalMinor: string | null;
+      taxMinor: string | null;
+      feeMinor: string | null;
+    };
+  }>;
+  failedEvents: number;
+  recentTransactions: OperationResource[];
+  recentCheckouts: OperationResource[];
+};
+
+export type PlatformAccessResource = {
+  roles: OperationResource[];
+  grants: OperationResource[];
+};
+
 export type PersonalPrivacyResource = {
   consents: OperationResource[];
   withdrawals: OperationResource[];
@@ -751,6 +821,51 @@ export const weddingOsApi = {
     }),
   platformDashboard: () =>
     request<PlatformDashboardResource>("/platform/dashboard"),
+  platformOverview: (range: "7d" | "30d" | "90d" = "30d") =>
+    request<PlatformOverviewResource>(`/platform/overview${queryString({ range })}`),
+  platformTraffic: (range: "7d" | "30d" | "90d" = "30d") =>
+    request<PlatformTrafficResource>(`/platform/traffic${queryString({ range })}`),
+  platformCommerce: (range: "7d" | "30d" | "90d" = "30d") =>
+    request<PlatformCommerceResource>(`/platform/commerce${queryString({ range })}`),
+  platformAuditActions: (input: {
+    query?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}) =>
+    request<PlatformPage<OperationResource>>(
+      `/platform/audit-actions${queryString(input)}`,
+    ),
+  platformAccess: () =>
+    request<PlatformAccessResource>("/platform/access"),
+  platformLabels: () =>
+    request<{ items: OperationResource[] }>("/platform/labels"),
+  createPlatformLabel: (input: {
+    name: string;
+    description?: string;
+    color: "plum" | "coral" | "amber" | "sage" | "blue";
+    reason: string;
+  }) =>
+    request<OperationResource>("/platform/labels", {
+      method: "POST",
+      body: input,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  assignPlatformLabel: (
+    labelId: string,
+    input: {
+      targetType: "USER" | "WORKSPACE" | "VENDOR_ORGANIZATION" | "SUPPORT_CASE";
+      targetId: string;
+      reason: string;
+    },
+  ) =>
+    request<OperationResource>(
+      `/platform/labels/${encodeURIComponent(labelId)}/assignments`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   platformSystemStatus: () =>
     request<PlatformSystemStatusResource>("/platform/system-status"),
   betaStatus: () => request<BetaStatusResource>("/beta/status"),
@@ -874,10 +989,30 @@ export const weddingOsApi = {
       verdict: string;
       metrics: BetaMetricsResource;
     }>("/platform/beta/exit-criteria"),
-  platformUsers: () =>
-    request<{ items: PlatformUserResource[] }>("/platform/users"),
-  platformWorkspaces: () =>
-    request<{ items: OperationResource[] }>("/platform/workspaces"),
+  platformUsers: (input: {
+    query?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}) =>
+    request<PlatformPage<PlatformUserResource>>(
+      `/platform/users${queryString(input)}`,
+    ),
+  platformUser: (userId: string) =>
+    request<OperationResource>(`/platform/users/${encodeURIComponent(userId)}`),
+  platformWorkspaces: (input: {
+    query?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}) =>
+    request<PlatformPage<OperationResource>>(
+      `/platform/workspaces${queryString(input)}`,
+    ),
+  platformWorkspace: (workspaceId: string) =>
+    request<OperationResource>(
+      `/platform/workspaces/${encodeURIComponent(workspaceId)}`,
+    ),
   platformVendors: () =>
     request<{ items: OperationResource[] }>("/platform/vendor-organizations"),
   platformSupportCases: () =>
@@ -1003,6 +1138,26 @@ export const weddingOsApi = {
               }
             : undefined,
         body: { reason, version },
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  setPlatformWorkspacePlan: (
+    workspaceId: string,
+    planKey: "FREE" | "PLUS" | "PRO",
+    version: number,
+    reason: string,
+  ) =>
+    request<OperationResource>(
+      `/platform/workspaces/${encodeURIComponent(workspaceId)}/subscription-plan`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("SUBSCRIPTION_OVERRIDE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("SUBSCRIPTION_OVERRIDE")!,
+            }
+          : undefined,
+        body: { planKey, version, reason },
         ifMatch: version,
         idempotencyKey: crypto.randomUUID(),
       },

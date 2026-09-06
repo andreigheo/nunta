@@ -76,7 +76,7 @@ test("Visual audit — registration intent is clear on desktop and mobile", asyn
   const mobilePage = await mobile.newPage();
   await mobilePage.goto("/create-account");
   await mobilePage
-    .getByRole("button", { name: /Ofer servicii pentru evenimente/ })
+    .getByRole("button", { name: /Ofer servicii/ })
     .click();
   const mobileGoogleRegistration = mobilePage.getByRole("button", {
     name: "Continuă cu Google",
@@ -194,16 +194,55 @@ test("Visual audit — platform administrator lands in the real control center",
   });
   const page = await admin.newPage();
   await page.goto("/admin");
-  await expect(page.getByText("Platform Admin").first()).toBeVisible();
   await expect(
-    page.getByText("Utilizatori", { exact: true }).first(),
+    page.getByRole("heading", { name: "Centru de comandă" }),
   ).toBeVisible();
+  await expect(page.getByText("Utilizatori", { exact: true }).first()).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await expectNoSeriousAxeViolations(page);
   await page.screenshot({
     path: resolve(auditRoot, "07-platform-admin-desktop.png"),
     fullPage: true,
     animations: "disabled",
   });
+  await page.getByRole("button", { name: /Comută la Întunecată/ }).click();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expectNoHorizontalOverflow(page);
+  await expectNoSeriousAxeViolations(page);
+  await page.screenshot({
+    path: resolve(auditRoot, "07a-platform-admin-dark-desktop.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
   await admin.close();
+
+  const mobile = await signedInContext(
+    browser,
+    "admin@weddingos.local",
+    { width: 390, height: 844 },
+  );
+  const mobilePage = await mobile.newPage();
+  await mobilePage.goto("/admin/commerce");
+  await expect(
+    mobilePage.getByRole("heading", { name: "Comerț" }),
+  ).toBeVisible();
+  await expectNoHorizontalOverflow(mobilePage);
+  await mobilePage.getByRole("button", { name: "Deschide navigația" }).click();
+  await expect(
+    mobilePage.getByRole("navigation", { name: "Navigație administrativă" }),
+  ).toBeVisible();
+  await mobilePage.getByRole("link", { name: "Etichete" }).click();
+  await expect(
+    mobilePage.getByRole("heading", { name: "Etichete" }),
+  ).toBeVisible();
+  await expectNoHorizontalOverflow(mobilePage);
+  await expectNoSeriousAxeViolations(mobilePage);
+  await mobilePage.screenshot({
+    path: resolve(auditRoot, "07b-platform-admin-mobile.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await mobile.close();
 });
 
 test("Visual audit — organizer has one clear path from setup to plan and budget", async ({

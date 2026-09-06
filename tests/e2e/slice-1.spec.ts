@@ -97,9 +97,7 @@ test("E2E 1B — provider registration preserves intent through verification and
 }) => {
   const email = uniqueEmail("provider-onboarding");
   await page.goto("/create-account");
-  await page
-    .getByRole("button", { name: /Ofer servicii pentru evenimente/ })
-    .click();
+  await page.getByRole("button", { name: /Ofer servicii/ }).click();
   await page.locator('input[autocomplete="given-name"]').fill("Irina");
   await page.locator('input[autocomplete="family-name"]').fill("Furnizor");
   await page.locator('input[type="email"]').fill(email);

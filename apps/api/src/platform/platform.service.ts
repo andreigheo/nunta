@@ -48,6 +48,28 @@ type MaintenanceWindowInput = {
   reason: string;
 };
 
+type PlatformListQuery = {
+  query?: string;
+  status?: string;
+  page: number;
+  pageSize: number;
+};
+
+type PlatformRange = "7d" | "30d" | "90d";
+
+type PlatformLabelInput = {
+  name: string;
+  description?: string | null;
+  color: "plum" | "coral" | "amber" | "sage" | "blue";
+  reason: string;
+};
+
+type PlatformLabelAssignmentInput = {
+  targetType: "USER" | "WORKSPACE" | "VENDOR_ORGANIZATION" | "SUPPORT_CASE";
+  targetId: string;
+  reason: string;
+};
+
 @Injectable()
 export class PlatformService {
   constructor(
@@ -55,6 +77,431 @@ export class PlatformService {
     @Inject(AsyncService) private readonly asyncEvents: AsyncService,
     @Inject(API_ENVIRONMENT) private readonly environment: ApiEnvironment,
   ) {}
+
+  async overview(userId: string, range: PlatformRange) {
+    return this.platformContext(
+      userId,
+      "platform.dashboard.read",
+      async (tx) => {
+        const since = rangeStart(range);
+        const [
+          users,
+          activeUsers,
+          workspaces,
+          activeWorkspaces,
+          vendors,
+          supportOpen,
+          incidentsOpen,
+          alertsOpen,
+          failedJobs,
+          deadBillingEvents,
+          recentUsers,
+          recentWorkspaces,
+          recentTransactions,
+          recentActions,
+        ] = await Promise.all([
+          tx.user.count(),
+          tx.user.count({ where: { status: "ACTIVE" } }),
+          tx.workspace.count(),
+          tx.workspace.count({ where: { status: "ACTIVE" } }),
+          tx.vendorOrganization.count(),
+          tx.platformSupportCase.count({
+            where: { status: { notIn: ["RESOLVED", "CLOSED"] } },
+          }),
+          tx.platformIncident.count({
+            where: { status: { notIn: ["RESOLVED", "CLOSED"] } },
+          }),
+          tx.securityAlert.count({ where: { status: "OPEN" } }),
+          tx.backgroundJob.count({
+            where: { status: { in: ["FAILED", "DEAD_LETTER"] } },
+          }),
+          tx.workspaceBillingProviderEvent.count({
+            where: { status: "DEAD_LETTER" },
+          }),
+          tx.user.findMany({
+            where: { createdAt: { gte: since } },
+            select: { createdAt: true },
+          }),
+          tx.workspace.findMany({
+            where: { createdAt: { gte: since } },
+            select: { createdAt: true },
+          }),
+          tx.workspaceBillingTransaction.findMany({
+            where: { createdAt: { gte: since } },
+            select: {
+              createdAt: true,
+              totalMinor: true,
+              currency: true,
+              status: true,
+            },
+          }),
+          tx.platformAdminAction.findMany({
+            where: { environment: this.environment.NODE_ENV },
+            orderBy: { createdAt: "desc" },
+            take: 8,
+          }),
+        ]);
+        return this.safe({
+          range,
+          generatedAt: new Date(),
+          counts: {
+            users,
+            activeUsers,
+            workspaces,
+            activeWorkspaces,
+            vendors,
+            supportOpen,
+            incidentsOpen,
+            alertsOpen,
+            failedJobs,
+            deadBillingEvents,
+          },
+          trend: buildDailyTrend(
+            range,
+            recentUsers,
+            recentWorkspaces,
+            recentTransactions,
+          ),
+          recentActions,
+        });
+      },
+    );
+  }
+
+  async traffic(userId: string, range: PlatformRange) {
+    return this.platformContext(
+      userId,
+      "platform.dashboard.read",
+      async (tx) => {
+        const since = rangeStart(range);
+        const [
+          registrations,
+          workspaces,
+          invitationSites,
+          publishedInvitations,
+          rsvpSubmissions,
+        ] = await Promise.all([
+          tx.user.count({ where: { createdAt: { gte: since } } }),
+          tx.workspace.count({ where: { createdAt: { gte: since } } }),
+          tx.invitationSite.count({ where: { createdAt: { gte: since } } }),
+          tx.invitationSite.count({ where: { publishedAt: { gte: since } } }),
+          tx.rsvpSubmission.count({ where: { createdAt: { gte: since } } }),
+        ]);
+        return {
+          range,
+          generatedAt: new Date().toISOString(),
+          analytics: {
+            status: "NOT_CONNECTED",
+            provider: "Google Analytics 4",
+            detail:
+              "Datele externe de trafic apar după configurarea accesului server-side la GA4 Data API.",
+          },
+          firstPartyFunnel: [
+            {
+              key: "registrations",
+              label: "Conturi create",
+              value: registrations,
+            },
+            {
+              key: "workspaces",
+              label: "Evenimente create",
+              value: workspaces,
+            },
+            {
+              key: "invitationSites",
+              label: "Invitații începute",
+              value: invitationSites,
+            },
+            {
+              key: "publishedInvitations",
+              label: "Invitații publicate",
+              value: publishedInvitations,
+            },
+            {
+              key: "rsvpSubmissions",
+              label: "Răspunsuri RSVP",
+              value: rsvpSubmissions,
+            },
+          ],
+        };
+      },
+    );
+  }
+
+  async commerce(userId: string, range: PlatformRange) {
+    return this.platformContext(userId, "platform.finance.read", async (tx) => {
+      const since = rangeStart(range);
+      const [
+        subscriptions,
+        checkouts,
+        transactions,
+        volumeByCurrency,
+        failedEvents,
+        recentTransactions,
+        recentCheckouts,
+      ] = await Promise.all([
+        tx.workspaceSubscription.groupBy({
+          by: ["planKey", "status"],
+          _count: true,
+        }),
+        tx.workspaceBillingCheckout.groupBy({
+          by: ["status"],
+          where: { createdAt: { gte: since } },
+          _count: true,
+        }),
+        tx.workspaceBillingTransaction.aggregate({
+          where: { createdAt: { gte: since } },
+          _count: true,
+          _sum: { totalMinor: true, taxMinor: true, feeMinor: true },
+        }),
+        tx.workspaceBillingTransaction.groupBy({
+          by: ["currency"],
+          where: { createdAt: { gte: since } },
+          _count: true,
+          _sum: { totalMinor: true, taxMinor: true, feeMinor: true },
+          orderBy: { currency: "asc" },
+        }),
+        tx.workspaceBillingProviderEvent.count({
+          where: { status: { in: ["FAILED", "DEAD_LETTER"] } },
+        }),
+        tx.workspaceBillingTransaction.findMany({
+          where: { createdAt: { gte: since } },
+          orderBy: { createdAt: "desc" },
+          take: 40,
+          include: { workspace: { select: { title: true } } },
+        }),
+        tx.workspaceBillingCheckout.findMany({
+          where: { createdAt: { gte: since } },
+          orderBy: { createdAt: "desc" },
+          take: 40,
+          include: { workspace: { select: { title: true } } },
+        }),
+      ]);
+      return this.safe({
+        range,
+        generatedAt: new Date(),
+        subscriptions,
+        checkouts,
+        transactions,
+        volumeByCurrency,
+        failedEvents,
+        recentTransactions,
+        recentCheckouts,
+      });
+    });
+  }
+
+  async auditActions(userId: string, query: PlatformListQuery) {
+    return this.platformContext(userId, "platform.audit.read", async (tx) => {
+      const where: Prisma.PlatformAdminActionWhereInput = {
+        environment: this.environment.NODE_ENV,
+        ...(query.query
+          ? {
+              OR: [
+                { action: { contains: query.query, mode: "insensitive" } },
+                { capability: { contains: query.query, mode: "insensitive" } },
+                { targetType: { contains: query.query, mode: "insensitive" } },
+                { targetId: { contains: query.query, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      };
+      const [items, total] = await Promise.all([
+        tx.platformAdminAction.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+        }),
+        tx.platformAdminAction.count({ where }),
+      ]);
+      return {
+        items: items.map((item) => this.safe(item)),
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+      };
+    });
+  }
+
+  async access(userId: string) {
+    return this.platformContext(userId, "platform.audit.read", async (tx) => {
+      const [roles, grants] = await Promise.all([
+        tx.platformRole.findMany({ orderBy: { name: "asc" } }),
+        tx.platformGrant.findMany({
+          where: { environment: this.environment.NODE_ENV },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+      const [users, grantRoles] = await Promise.all([
+        tx.user.findMany({
+          where: {
+            id: { in: [...new Set(grants.map((grant) => grant.userId))] },
+          },
+          select: { id: true, email: true, profile: true },
+        }),
+        tx.platformRole.findMany({
+          where: {
+            id: { in: [...new Set(grants.map((grant) => grant.roleId))] },
+          },
+        }),
+      ]);
+      const userById = new Map(users.map((row) => [row.id, row]));
+      const roleById = new Map(grantRoles.map((row) => [row.id, row]));
+      return {
+        roles: roles.map((row) => this.safe(row)),
+        grants: grants.map((row) =>
+          this.safe({
+            ...row,
+            user: userById.get(row.userId) ?? null,
+            role: roleById.get(row.roleId) ?? null,
+          }),
+        ),
+      };
+    });
+  }
+
+  async labels(userId: string) {
+    return this.platformContext(
+      userId,
+      "platform.feature_flag.read",
+      async (tx) => ({
+        items: (
+          await tx.platformLabel.findMany({
+            where: { environment: this.environment.NODE_ENV },
+            include: {
+              assignments: { orderBy: { createdAt: "desc" }, take: 50 },
+            },
+            orderBy: { name: "asc" },
+          })
+        ).map((row) => this.safe(row)),
+      }),
+    );
+  }
+
+  async createLabel(
+    actorUserId: string,
+    input: PlatformLabelInput,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    const operation = "platform.label.create";
+    return this.platformContext(
+      actorUserId,
+      "platform.feature_flag.write",
+      async (tx) => {
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          input,
+        );
+        if (replay) return replay;
+        const row = await tx.platformLabel.create({
+          data: {
+            name: input.name,
+            description: input.description,
+            color: input.color,
+            environment: this.environment.NODE_ENV,
+            createdById: actorUserId,
+            updatedById: actorUserId,
+          },
+        });
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.feature_flag.write",
+          operation,
+          "PLATFORM_LABEL",
+          row.id,
+          input.reason,
+          null,
+          row,
+          correlationId,
+        );
+        const response = this.safe(row);
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          input,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async assignLabel(
+    actorUserId: string,
+    labelId: string,
+    input: PlatformLabelAssignmentInput,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    const operation = "platform.label.assign";
+    return this.platformContext(
+      actorUserId,
+      "platform.feature_flag.write",
+      async (tx) => {
+        const request = { labelId, ...input };
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (replay) return replay;
+        const label = await tx.platformLabel.findFirst({
+          where: { id: labelId, environment: this.environment.NODE_ENV },
+        });
+        if (!label) this.notFound("Eticheta nu există în mediul curent.");
+        await this.assertLabelTarget(tx, input.targetType, input.targetId);
+        const assignment = await tx.platformLabelAssignment.upsert({
+          where: {
+            labelId_targetType_targetId: {
+              labelId,
+              targetType: input.targetType,
+              targetId: input.targetId,
+            },
+          },
+          create: {
+            labelId,
+            targetType: input.targetType,
+            targetId: input.targetId,
+            assignedById: actorUserId,
+            reason: input.reason,
+          },
+          update: { assignedById: actorUserId, reason: input.reason },
+        });
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.feature_flag.write",
+          operation,
+          input.targetType,
+          input.targetId,
+          input.reason,
+          null,
+          { labelId, assignmentId: assignment.id },
+          correlationId,
+        );
+        const response = this.safe({ ...assignment, label });
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        return response;
+      },
+    );
+  }
 
   async dashboard(userId: string) {
     return this.platformContext(
@@ -298,39 +745,89 @@ export class PlatformService {
     );
   }
 
-  async users(userId: string) {
-    return this.platformContext(userId, "platform.user.read", async (tx) => ({
-      items: (
-        await tx.user.findMany({
+  async users(
+    userId: string,
+    query: PlatformListQuery = { page: 1, pageSize: 100 },
+  ) {
+    return this.platformContext(userId, "platform.user.read", async (tx) => {
+      const where: Prisma.UserWhereInput = {
+        ...(query.status &&
+        ["ACTIVE", "SUSPENDED", "DISABLED"].includes(query.status)
+          ? { status: query.status as "ACTIVE" | "SUSPENDED" | "DISABLED" }
+          : {}),
+        ...(query.query
+          ? {
+              OR: [
+                { email: { contains: query.query, mode: "insensitive" } },
+                {
+                  profile: {
+                    is: {
+                      firstName: { contains: query.query, mode: "insensitive" },
+                    },
+                  },
+                },
+                {
+                  profile: {
+                    is: {
+                      lastName: { contains: query.query, mode: "insensitive" },
+                    },
+                  },
+                },
+              ],
+            }
+          : {}),
+      };
+      const [rows, total] = await Promise.all([
+        tx.user.findMany({
+          where,
           include: {
             profile: true,
             _count: { select: { memberships: true, sessions: true } },
           },
           orderBy: { createdAt: "desc" },
-          take: 100,
-        })
-      ).map((row) => ({
-        id: row.id,
-        email: row.email,
-        status: row.status,
-        emailVerified: Boolean(row.emailVerifiedAt),
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-        version: row.version,
-        profile: row.profile
-          ? { firstName: row.profile.firstName, lastName: row.profile.lastName }
-          : null,
-        membershipCount: row._count.memberships,
-        sessionCount: row._count.sessions,
-      })),
-    }));
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+        }),
+        tx.user.count({ where }),
+      ]);
+      return {
+        items: rows.map((row) => ({
+          id: row.id,
+          email: row.email,
+          status: row.status,
+          emailVerified: Boolean(row.emailVerifiedAt),
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+          version: row.version,
+          profile: row.profile
+            ? {
+                firstName: row.profile.firstName,
+                lastName: row.profile.lastName,
+              }
+            : null,
+          membershipCount: row._count.memberships,
+          sessionCount: row._count.sessions,
+        })),
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+      };
+    });
   }
 
   async user(userId: string, targetUserId: string) {
     return this.platformContext(userId, "platform.user.read", async (tx) => {
       const row = await tx.user.findUnique({
         where: { id: targetUserId },
-        include: { profile: true, sessions: true, memberships: true },
+        include: {
+          profile: true,
+          sessions: true,
+          memberships: {
+            include: {
+              workspace: { include: { subscription: true } },
+            },
+          },
+        },
       });
       if (!row) this.notFound("Utilizatorul nu există.");
       return {
@@ -347,7 +844,12 @@ export class PlatformService {
         memberships: row.memberships.map((membership) => ({
           id: membership.id,
           workspaceId: membership.workspaceId,
+          workspaceTitle: membership.workspace.title,
+          workspaceStatus: membership.workspace.status,
           status: membership.status,
+          planKey: membership.workspace.subscription?.planKey ?? "FREE",
+          subscriptionStatus:
+            membership.workspace.subscription?.status ?? "FREE",
         })),
         sessions: row.sessions.map((session) => ({
           id: session.id,
@@ -453,31 +955,55 @@ export class PlatformService {
     });
   }
 
-  async workspaces(userId: string) {
+  async workspaces(
+    userId: string,
+    query: PlatformListQuery = { page: 1, pageSize: 100 },
+  ) {
     return this.platformContext(
       userId,
       "platform.workspace.read",
-      async (tx) => ({
-        items: (
-          await tx.workspace.findMany({
+      async (tx) => {
+        const where: Prisma.WorkspaceWhereInput = {
+          ...(query.status &&
+          ["ACTIVE", "SUSPENDED", "ARCHIVED"].includes(query.status)
+            ? { status: query.status as "ACTIVE" | "SUSPENDED" | "ARCHIVED" }
+            : {}),
+          ...(query.query
+            ? { title: { contains: query.query, mode: "insensitive" } }
+            : {}),
+        };
+        const [rows, total] = await Promise.all([
+          tx.workspace.findMany({
+            where,
             include: {
               _count: { select: { memberships: true } },
               eventProfile: true,
+              subscription: true,
             },
             orderBy: { createdAt: "desc" },
-            take: 100,
-          })
-        ).map((row) => ({
-          id: row.id,
-          title: row.title,
-          status: row.status,
-          timezone: row.timezone,
-          createdAt: row.createdAt.toISOString(),
-          membershipCount: row._count.memberships,
-          weddingDate: row.eventProfile?.eventDate?.toISOString() ?? null,
-          version: row.version,
-        })),
-      }),
+            skip: (query.page - 1) * query.pageSize,
+            take: query.pageSize,
+          }),
+          tx.workspace.count({ where }),
+        ]);
+        return {
+          items: rows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            status: row.status,
+            timezone: row.timezone,
+            createdAt: row.createdAt.toISOString(),
+            membershipCount: row._count.memberships,
+            weddingDate: row.eventProfile?.eventDate?.toISOString() ?? null,
+            eventType: row.eventProfile?.eventType ?? null,
+            subscription: row.subscription ? this.safe(row.subscription) : null,
+            version: row.version,
+          })),
+          page: query.page,
+          pageSize: query.pageSize,
+          total,
+        };
+      },
     );
   }
 
@@ -499,6 +1025,113 @@ export class PlatformService {
     );
   }
 
+  async setWorkspaceSubscriptionPlan(
+    actorUserId: string,
+    workspaceId: string,
+    planKey: "FREE" | "PLUS" | "PRO",
+    version: number,
+    reason: string,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    const operation = "platform.workspace.subscription.override";
+    return this.platformContext(
+      actorUserId,
+      "platform.subscription.manage",
+      async (tx) => {
+        const request = { workspaceId, planKey, version, reason };
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (replay) return replay;
+
+        const workspace = await tx.workspace.findUnique({
+          where: { id: workspaceId },
+          include: { subscription: true },
+        });
+        if (!workspace) this.notFound("Workspace-ul nu există.");
+        if (workspace.version !== version) this.conflict();
+        if (workspace.subscription?.providerSubscriptionId) {
+          problem(
+            "SUBSCRIPTION_PROVIDER_MANAGED",
+            HttpStatus.CONFLICT,
+            "Subscription is provider managed",
+            "Abonamentul are o subscripție activă la furnizor. Schimbarea trebuie făcută prin fluxul furnizorului pentru a evita taxarea și drepturile divergente.",
+          );
+        }
+
+        await tx.workspace.update({
+          where: { id: workspaceId },
+          data: { version: { increment: 1 }, updatedById: actorUserId },
+        });
+        const subscriptionData = {
+          planKey,
+          status: planKey === "FREE" ? ("FREE" as const) : ("ACTIVE" as const),
+          provider: planKey === "FREE" ? null : "admin",
+          updatedById: actorUserId,
+          lastReconciledAt: new Date(),
+        };
+        // Avoid an INSERT ... ON CONFLICT path under RLS. An explicit branch
+        // keeps the policy decision unambiguous for both existing and legacy
+        // workspaces without a subscription row.
+        const subscription = workspace.subscription
+          ? await tx.workspaceSubscription.update({
+              where: { id: workspace.subscription.id },
+              data: {
+                ...subscriptionData,
+                version: { increment: 1 },
+              },
+            })
+          : await tx.workspaceSubscription.create({
+              data: {
+                workspaceId,
+                ...subscriptionData,
+                createdById: actorUserId,
+              },
+            });
+        const after = await tx.workspace.findUniqueOrThrow({
+          where: { id: workspaceId },
+          include: { subscription: true },
+        });
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.subscription.manage",
+          operation,
+          "WORKSPACE_SUBSCRIPTION",
+          subscription.id,
+          reason,
+          workspace.subscription,
+          subscription,
+          correlationId,
+        );
+        await this.event(tx, {
+          eventName: "platform.workspace_subscription_overridden.v1",
+          aggregateType: "WorkspaceSubscription",
+          aggregateId: subscription.id,
+          actorUserId,
+          correlationId,
+          idempotencyKey,
+          summary: `Planul workspace-ului a fost setat la ${planKey} de un administrator.`,
+        });
+        const response = this.safe(after);
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
   async changeWorkspaceStatus(
     actorUserId: string,
     workspaceId: string,
@@ -512,7 +1145,17 @@ export class PlatformService {
       status === "SUSPENDED"
         ? "platform.workspace.suspend"
         : "platform.workspace.reactivate";
+    const operation = `platform.workspace.${status.toLowerCase()}`;
     return this.platformContext(actorUserId, capability, async (tx) => {
+      const request = { workspaceId, status, version, reason };
+      const replay = await this.replay(
+        tx,
+        actorUserId,
+        operation,
+        idempotencyKey,
+        request,
+      );
+      if (replay) return replay;
       const before = await tx.workspace.findUnique({
         where: { id: workspaceId },
       });
@@ -529,7 +1172,7 @@ export class PlatformService {
         tx,
         actorUserId,
         capability,
-        `platform.workspace.${status.toLowerCase()}`,
+        operation,
         "WORKSPACE",
         workspaceId,
         reason,
@@ -552,7 +1195,16 @@ export class PlatformService {
             ? "Workspace suspendat."
             : "Workspace reactivat.",
       });
-      return this.safe(row);
+      const response = this.safe(row);
+      await this.saveReplay(
+        tx,
+        actorUserId,
+        operation,
+        idempotencyKey,
+        request,
+        response,
+      );
+      return response;
     });
   }
 
@@ -599,7 +1251,17 @@ export class PlatformService {
       status === "SUSPENDED"
         ? "platform.vendor.suspend"
         : "platform.vendor.reactivate";
+    const operation = `platform.vendor.${status.toLowerCase()}`;
     return this.platformContext(actorUserId, capability, async (tx) => {
+      const request = { organizationId, status, version, reason };
+      const replay = await this.replay(
+        tx,
+        actorUserId,
+        operation,
+        idempotencyKey,
+        request,
+      );
+      if (replay) return replay;
       const before = await tx.vendorOrganization.findUnique({
         where: { id: organizationId },
       });
@@ -616,7 +1278,7 @@ export class PlatformService {
         tx,
         actorUserId,
         capability,
-        `platform.vendor.${status.toLowerCase()}`,
+        operation,
         "VENDOR_ORGANIZATION",
         organizationId,
         reason,
@@ -639,7 +1301,16 @@ export class PlatformService {
             ? "Furnizor suspendat și ascuns public."
             : "Furnizor reactivat.",
       });
-      return this.safe(row);
+      const response = this.safe(row);
+      await this.saveReplay(
+        tx,
+        actorUserId,
+        operation,
+        idempotencyKey,
+        request,
+        response,
+      );
+      return response;
     });
   }
 
@@ -2572,6 +3243,25 @@ export class PlatformService {
     });
   }
 
+  private async assertLabelTarget(
+    tx: Transaction,
+    targetType: PlatformLabelAssignmentInput["targetType"],
+    targetId: string,
+  ) {
+    const exists =
+      targetType === "USER"
+        ? await tx.user.count({ where: { id: targetId } })
+        : targetType === "WORKSPACE"
+          ? await tx.workspace.count({ where: { id: targetId } })
+          : targetType === "VENDOR_ORGANIZATION"
+            ? await tx.vendorOrganization.count({ where: { id: targetId } })
+            : await tx.platformSupportCase.count({ where: { id: targetId } });
+    if (!exists)
+      this.notFound(
+        "Ținta etichetei nu există sau nu este vizibilă rolului curent.",
+      );
+  }
+
   private async action(
     tx: Transaction,
     actorUserId: string,
@@ -2704,4 +3394,48 @@ export class PlatformService {
 
 function supportPriorityRank(priority: string) {
   return { LOW: 0, NORMAL: 10, HIGH: 20, URGENT: 30 }[priority] ?? 10;
+}
+
+function rangeStart(range: PlatformRange) {
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1_000);
+}
+
+function buildDailyTrend(
+  range: PlatformRange,
+  users: Array<{ createdAt: Date }>,
+  workspaces: Array<{ createdAt: Date }>,
+  transactions: Array<{
+    createdAt: Date;
+    totalMinor: bigint;
+    currency: string;
+    status: string;
+  }>,
+) {
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+  const buckets = new Map<
+    string,
+    { date: string; users: number; workspaces: number; revenueMinor: bigint }
+  >();
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - offset);
+    const key = date.toISOString().slice(0, 10);
+    buckets.set(key, { date: key, users: 0, workspaces: 0, revenueMinor: 0n });
+  }
+  for (const item of users) {
+    const bucket = buckets.get(item.createdAt.toISOString().slice(0, 10));
+    if (bucket) bucket.users += 1;
+  }
+  for (const item of workspaces) {
+    const bucket = buckets.get(item.createdAt.toISOString().slice(0, 10));
+    if (bucket) bucket.workspaces += 1;
+  }
+  for (const item of transactions) {
+    if (!/COMPLETED|PAID|SUCCESS/i.test(item.status)) continue;
+    const bucket = buckets.get(item.createdAt.toISOString().slice(0, 10));
+    if (bucket) bucket.revenueMinor += item.totalMinor;
+  }
+  return [...buckets.values()];
 }

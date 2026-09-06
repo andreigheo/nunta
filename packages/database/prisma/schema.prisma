@@ -6186,20 +6186,21 @@ model CheckInSyncBatch {
 }
 
 model EventMediaPortal {
-  id String @id @default(uuid()) @db.Uuid
-  workspaceId String @map("workspace_id") @db.Uuid
-  weddingEventId String @unique @map("wedding_event_id") @db.Uuid
-  eventName String @map("event_name") @db.VarChar(240)
-  tokenHash String @unique @map("token_hash") @db.Char(64)
-  tokenEncrypted String @map("token_encrypted") @db.Text
-  active Boolean @default(true)
-  expiresAt DateTime @map("expires_at")
-  reservedBytes BigInt @default(0) @map("reserved_bytes")
-  uploadCount Int @default(0) @map("upload_count")
-  createdById String @map("created_by") @db.Uuid
-  version Int @default(1)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  workspaceId    String   @map("workspace_id") @db.Uuid
+  weddingEventId String   @unique @map("wedding_event_id") @db.Uuid
+  eventName      String   @map("event_name") @db.VarChar(240)
+  tokenHash      String   @unique @map("token_hash") @db.Char(64)
+  tokenEncrypted String   @map("token_encrypted") @db.Text
+  active         Boolean  @default(true)
+  expiresAt      DateTime @map("expires_at")
+  reservedBytes  BigInt   @default(0) @map("reserved_bytes")
+  uploadCount    Int      @default(0) @map("upload_count")
+  createdById    String   @map("created_by") @db.Uuid
+  version        Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
   @@index([workspaceId])
   @@map("event_media_portals")
 }
@@ -6211,9 +6212,9 @@ model GuestMoment {
   householdId        String?           @map("household_id") @db.Uuid
   guestId            String?           @map("guest_id") @db.Uuid
   guestAccessGrantId String?           @map("guest_access_grant_id") @db.Uuid
-  mediaPortalId String? @map("media_portal_id") @db.Uuid
-  uploadTokenHash String? @unique @map("upload_token_hash") @db.Char(64)
-  contributorName String? @map("contributor_name") @db.VarChar(100)
+  mediaPortalId      String?           @map("media_portal_id") @db.Uuid
+  uploadTokenHash    String?           @unique @map("upload_token_hash") @db.Char(64)
+  contributorName    String?           @map("contributor_name") @db.VarChar(100)
   caption            String?           @db.VarChar(1000)
   status             GuestMomentStatus @default(UPLOADING)
   submittedAt        DateTime          @default(now()) @map("submitted_at")
@@ -7210,6 +7211,39 @@ model PlatformAdminAction {
   @@index([actorUserId, createdAt])
   @@index([targetType, targetId, createdAt])
   @@map("platform_admin_actions")
+}
+
+model PlatformLabel {
+  id          String                    @id @default(uuid()) @db.Uuid
+  name        String                    @db.VarChar(80)
+  description String?                   @db.VarChar(500)
+  color       String                    @default("plum") @db.VarChar(24)
+  environment String                    @db.VarChar(24)
+  createdById String                    @map("created_by") @db.Uuid
+  updatedById String                    @map("updated_by") @db.Uuid
+  version     Int                       @default(1)
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  updatedAt   DateTime                  @updatedAt @map("updated_at")
+  assignments PlatformLabelAssignment[]
+
+  @@unique([environment, name])
+  @@index([environment, createdAt])
+  @@map("platform_labels")
+}
+
+model PlatformLabelAssignment {
+  id           String        @id @default(uuid()) @db.Uuid
+  labelId      String        @map("label_id") @db.Uuid
+  targetType   String        @map("target_type") @db.VarChar(40)
+  targetId     String        @map("target_id") @db.VarChar(160)
+  assignedById String        @map("assigned_by") @db.Uuid
+  reason       String        @db.VarChar(1000)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  label        PlatformLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([labelId, targetType, targetId])
+  @@index([targetType, targetId, createdAt])
+  @@map("platform_label_assignments")
 }
 
 model PlatformSupportCase {

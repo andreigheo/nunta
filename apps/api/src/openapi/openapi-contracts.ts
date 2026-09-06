@@ -322,6 +322,9 @@ import {
   updateCopilotSettingsSchema,
   updateRiskSchema,
   platformReasonSchema,
+  workspaceSubscriptionOverrideSchema,
+  platformLabelSchema,
+  platformLabelAssignmentSchema,
   createSupportCaseSchema,
   supportCaseTransitionSchema,
   supportNoteSchema,
@@ -850,6 +853,9 @@ const schemas: Record<string, ZodTypeAny> = {
   PublicAggregateConsent: publicAggregateConsentSchema,
   UpdatePublicAggregateConsent: updatePublicAggregateConsentSchema,
   PlatformReason: platformReasonSchema,
+  WorkspaceSubscriptionOverride: workspaceSubscriptionOverrideSchema,
+  PlatformLabel: platformLabelSchema,
+  PlatformLabelAssignment: platformLabelAssignmentSchema,
   CreateSupportCase: createSupportCaseSchema,
   SupportCaseTransition: supportCaseTransitionSchema,
   SupportNote: supportNoteSchema,
@@ -958,6 +964,15 @@ const requestByRoute: Array<[RegExp, string]> = [
   [
     /POST \/api\/v1\/platform\/(users\/\{userId\}|workspaces\/\{workspaceId\}|vendor-organizations\/\{organizationId\})\/(suspend|reactivate)$/,
     "PlatformReason",
+  ],
+  [
+    /POST \/api\/v1\/platform\/workspaces\/\{workspaceId\}\/subscription-plan$/,
+    "WorkspaceSubscriptionOverride",
+  ],
+  [/POST \/api\/v1\/platform\/labels$/, "PlatformLabel"],
+  [
+    /POST \/api\/v1\/platform\/labels\/\{labelId\}\/assignments$/,
+    "PlatformLabelAssignment",
   ],
   [/POST \/api\/v1\/platform\/support-cases$/, "CreateSupportCase"],
   [
@@ -2011,7 +2026,7 @@ const responseByRoute: Array<[RegExp, string]> = [
   ],
   [/(GET|POST|PATCH) \/api\/v1\/(?:platform\/)?beta(?:\/.*)?$/, "BetaResource"],
   [
-    /(GET|POST|PATCH) \/api\/v1\/platform\/(dashboard|system-status|users|workspaces|vendor-organizations|support-cases|security-alerts|incidents|feature-flags|legal-documents|data-subject-requests|backups|restores|releases)(?:\/.*)?$/,
+    /(GET|POST|PATCH) \/api\/v1\/platform\/(dashboard|overview|traffic|commerce|audit-actions|access|labels|system-status|users|workspaces|vendor-organizations|support-cases|security-alerts|incidents|feature-flags|legal-documents|data-subject-requests|backups|restores|releases)(?:\/.*)?$/,
     "PlatformResource",
   ],
   [
@@ -2930,6 +2945,8 @@ function requiresIfMatch(route: string): boolean {
     /POST \/api\/v1\/platform\/(?:users\/\{userId\}|workspaces\/\{workspaceId\}|vendor-organizations\/\{organizationId\})\/(?:suspend|reactivate)$/.test(
       route,
     ) ||
+    route ===
+      "POST /api/v1/platform/workspaces/{workspaceId}/subscription-plan" ||
     /PATCH \/api\/v1\/platform\/feature-flags\/\{flagId\}$/.test(route) ||
     /POST \/api\/v1\/platform\/(?:legal-documents\/\{documentId\}\/publish|legal-holds\/\{holdId\}\/release)$/.test(
       route,
@@ -3314,6 +3331,17 @@ function requiredCapability(route: string): string | undefined {
 
 function requiredPlatformCapability(route: string): string | undefined {
   if (!route.includes("/api/v1/platform/")) return undefined;
+  if (route.includes("/workspaces/{workspaceId}/subscription-plan"))
+    return "platform.subscription.manage";
+  if (route.includes("/traffic") || route.includes("/overview"))
+    return "platform.dashboard.read";
+  if (route.includes("/commerce")) return "platform.finance.read";
+  if (route.includes("/audit-actions") || route.includes("/access"))
+    return "platform.audit.read";
+  if (route.includes("/labels"))
+    return route.startsWith("GET")
+      ? "platform.feature_flag.read"
+      : "platform.feature_flag.write";
   if (route.includes("/platform/beta/")) {
     if (route.includes("/invitations")) return "platform.beta.invite";
     if (route.includes("/feedback") && !route.startsWith("GET"))

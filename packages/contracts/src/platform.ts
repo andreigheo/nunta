@@ -5,6 +5,30 @@ export const platformReasonSchema = z.object({
   version: z.number().int().positive(),
 });
 
+export const workspaceSubscriptionOverrideSchema = z.object({
+  planKey: z.enum(["FREE", "PLUS", "PRO"]),
+  reason: z.string().trim().min(8).max(2000),
+  version: z.number().int().positive(),
+});
+
+export const platformLabelSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(500).nullable().optional(),
+  color: z.enum(["plum", "coral", "amber", "sage", "blue"]).default("plum"),
+  reason: z.string().trim().min(8).max(1000),
+});
+
+export const platformLabelAssignmentSchema = z.object({
+  targetType: z.enum([
+    "USER",
+    "WORKSPACE",
+    "VENDOR_ORGANIZATION",
+    "SUPPORT_CASE",
+  ]),
+  targetId: z.string().uuid(),
+  reason: z.string().trim().min(8).max(1000),
+});
+
 export const createSupportCaseSchema = z.object({
   type: z.enum([
     "ACCOUNT_ACCESS",

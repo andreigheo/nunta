@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Search, ShieldCheck } from "lucide-react";
-import { PortalShell } from "@/components/portals/portal-shell";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { Badge, Button, Card, CardContent, CardSkeleton, Input, Table, TBody, TD, TH, THead, TR, useToast } from "@/components/ui";
 import { apiErrorMessage, type OperationResource, weddingOsApi } from "@/lib/api/client";
 
@@ -52,6 +51,40 @@ const sections = {
   },
   restores: { title: "Restore-uri", load: weddingOsApi.platformRestores },
   releases: { title: "Release candidates", load: weddingOsApi.platformReleases },
+  configuration: {
+    title: "Configurare",
+    load: async () => {
+      const [flags, status] = await Promise.all([
+        weddingOsApi.platformFeatureFlags(),
+        weddingOsApi.platformSystemStatus(),
+      ]);
+      return {
+        items: [
+          ...flags.items.map((item) => ({ ...item, resourceKind: "FEATURE_FLAG" })),
+          ...Object.entries(status.providers).map(([id, value]) => ({ id: `provider-${id}`, version: 1, name: `Integrare ${id}`, status: value, resourceKind: "PROVIDER" })),
+        ] as OperationResource[],
+      };
+    },
+  },
+  operations: {
+    title: "Backup și release-uri",
+    load: async () => {
+      const [backups, schedules, restores, releases] = await Promise.all([
+        weddingOsApi.platformBackups(),
+        weddingOsApi.platformBackupSchedules(),
+        weddingOsApi.platformRestores(),
+        weddingOsApi.platformReleases(),
+      ]);
+      return {
+        items: [
+          ...schedules.items.map((item) => ({ ...item, resourceKind: "BACKUP_SCHEDULE" })),
+          ...backups.items.map((item) => ({ ...item, resourceKind: "BACKUP" })),
+          ...restores.items.map((item) => ({ ...item, resourceKind: "RESTORE" })),
+          ...releases.items.map((item) => ({ ...item, resourceKind: "RELEASE" })),
+        ] as OperationResource[],
+      };
+    },
+  },
 } as const;
 
 type SectionKey = keyof typeof sections;
@@ -212,7 +245,7 @@ export default function AdminSectionPage() {
   };
 
   if (!definition) {
-    return <PortalShell role="Platform Admin" title="Rută administrativă necunoscută" subtitle="Secțiunea cerută nu există." backHref="/admin" backLabel="Control center"><Card><CardContent className="p-6">Selectează o secțiune validă din Control center.</CardContent></Card></PortalShell>;
+    return <AdminShell title="Rută administrativă necunoscută" subtitle="Secțiunea cerută nu există."><Card><CardContent className="p-6">Selectează o secțiune validă din centrul de comandă.</CardContent></Card></AdminShell>;
   }
 
   const filtered = items.filter((item) => JSON.stringify(item).toLocaleLowerCase("ro-RO").includes(query.toLocaleLowerCase("ro-RO")));
@@ -220,16 +253,12 @@ export default function AdminSectionPage() {
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
   return (
-    <PortalShell role="Platform Admin" title={definition.title} subtitle="Date persistente prin API-ul administrativ, cu redacție și capabilități aplicate pe server." backHref="/admin" backLabel="Control center">
-      <nav aria-label="Secțiuni administrative" className="mb-5 flex gap-2 overflow-x-auto pb-1">
-        {Object.entries(sections).map(([slug, item]) => <Link key={slug} href={`/admin/${slug}`} className={`inline-flex h-8 shrink-0 items-center rounded-lg px-3 text-[13px] font-medium transition-colors ${slug === key ? "bg-brand text-on-brand" : "border border-line bg-surface text-ink hover:bg-subtle"}`}>{item.title}</Link>)}
-      </nav>
-
+    <AdminShell title={definition.title} subtitle="Date persistente prin API-ul administrativ, cu redacție și capabilități aplicate pe server.">
       <Card>
         <CardContent className="p-4.5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <Input className="max-w-sm" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} icon={<Search className="size-4" />} placeholder="Filtrează rezultatele…" />
-            <div className="flex items-center gap-2">{key === "backups" ? <Button size="sm" loading={busyId === "create-backup"} onClick={() => void createBackup()}>Backup FULL</Button> : null}<Badge variant="neutral">{filtered.length} rezultate</Badge><Button size="sm" variant="outline" loading={loading} onClick={() => void load()}><RefreshCw className="size-4" />Actualizează</Button></div>
+            <div className="flex items-center gap-2">{key === "backups" || key === "operations" ? <Button size="sm" loading={busyId === "create-backup"} onClick={() => void createBackup()}>Backup FULL</Button> : null}<Badge variant="neutral">{filtered.length} rezultate</Badge><Button size="sm" variant="outline" loading={loading} onClick={() => void load()}><RefreshCw className="size-4" />Actualizează</Button></div>
           </div>
 
           {loading && !items.length ? <CardSkeleton lines={7} /> : error ? (
@@ -243,8 +272,8 @@ export default function AdminSectionPage() {
               const status = String(row.status ?? row.state ?? "ACTIVE");
               const audit = String(row.updatedAt ?? row.createdAt ?? row.environment ?? "Persistat");
               const isPolicy = key === "privacy" && typeof row.entityType === "string";
-              const isSchedule = key === "backups" && typeof row.cronExpression === "string";
-              const isBackupRun = key === "backups" && !isSchedule;
+              const isSchedule = (key === "backups" || key === "operations") && (typeof row.cronExpression === "string" || row.resourceKind === "BACKUP_SCHEDULE");
+              const isBackupRun = (key === "backups" || key === "operations") && (row.resourceKind === "BACKUP" || (key === "backups" && !isSchedule));
               const scope = key === "users" ? "user" : key === "workspaces" ? "workspace" : key === "vendors" ? "vendor" : null;
               return <TR key={String(item.id)}><TD><p className="font-medium text-ink">{label}</p></TD><TD><span className="font-mono text-xs text-muted">{String(item.id)}</span></TD><TD><Badge variant={/FAILED|SUSPENDED|CRITICAL|ACTION_REQUIRED/.test(status) ? "danger" : /PENDING|OPEN|DEGRADED/.test(status) ? "warning" : "success"}>{status}</Badge></TD><TD className="text-xs text-muted">{audit}</TD><TD align="right"><div className="flex justify-end gap-2">{scope ? <Button size="sm" variant={status === "SUSPENDED" ? "outline" : "destructive-outline"} loading={busyId === item.id} onClick={() => void changeStatus(item, scope)}>{status === "SUSPENDED" ? "Reactivează" : "Suspendă"}</Button> : null}{isPolicy ? <><Button size="sm" variant="outline" loading={busyId === `${item.id}:DRY_RUN`} onClick={() => void runRetention(item, "DRY_RUN")}>Dry-run</Button><Button size="sm" variant="destructive-outline" loading={busyId === `${item.id}:EXECUTE`} onClick={() => void runRetention(item, "EXECUTE")}>Execută</Button></> : null}{isSchedule ? <Button size="sm" variant="outline" loading={busyId === item.id} onClick={() => void toggleSchedule(item)}>{row.enabled === false ? "Reia" : "Oprește"}</Button> : null}{isBackupRun ? <Button size="sm" variant="outline" loading={busyId === `${item.id}:verify`} disabled={!/COMPLETED|AVAILABLE|VERIFIED/.test(status)} onClick={() => void verifyBackup(item)}>Verifică integritatea</Button> : null}{!scope && !isPolicy && !isSchedule && !isBackupRun ? <span className="text-xs text-faint">Doar citire</span> : null}</div></TD></TR>;
             })}</TBody></Table>
@@ -253,6 +282,6 @@ export default function AdminSectionPage() {
           <div className="mt-4 flex items-center justify-between"><p className="text-xs text-muted">Pagina {page + 1} din {pages}</p><div className="flex gap-2"><Button size="icon-sm" variant="outline" aria-label="Pagina anterioară" disabled={page === 0} onClick={() => setPage((value) => value - 1)}><ChevronLeft className="size-4" /></Button><Button size="icon-sm" variant="outline" aria-label="Pagina următoare" disabled={page + 1 >= pages} onClick={() => setPage((value) => value + 1)}><ChevronRight className="size-4" /></Button></div></div>
         </CardContent>
       </Card>
-    </PortalShell>
+    </AdminShell>
   );
 }

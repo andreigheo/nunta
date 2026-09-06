@@ -1314,18 +1314,25 @@ async function processGuestMomentScan(
 
   // Never serve the staging key: its signed PUT may remain valid after scanning.
   // Persist the exact scanned bytes at a worker-only key before making it readable.
-  const verifiedExtension = mediaExtension(detected!);
-  const verifiedKey = `private/guest-moment-originals/${snapshot.workspace_id}/${input.momentId}.${verifiedExtension}`;
-  if (safe)
+  let verifiedKey: string | null = null;
+  if (safe) {
+    if (!detected)
+      throw new PermanentJobError(
+        "Guest Moment passed validation without a detected media type",
+        "GUEST_MOMENT_MEDIA_TYPE_MISSING",
+      );
+    const verifiedExtension = mediaExtension(detected);
+    verifiedKey = `private/guest-moment-originals/${snapshot.workspace_id}/${input.momentId}.${verifiedExtension}`;
     await mediaStorage.send(
       new PutObjectCommand({
         Bucket: prepared.object.bucket,
         Key: verifiedKey,
         Body: bytes,
-        ContentType: detected!,
+        ContentType: detected,
         Metadata: { sha256: checksum },
       }),
     );
+  }
   const result = await withPersistedContext(snapshot, async (transaction) => {
     const now = new Date();
     let derivativeObjectId: string | null = null;
@@ -1358,7 +1365,7 @@ async function processGuestMomentScan(
       where: { id: input.storedObjectId },
       data: {
         contentTypeDetected: detected,
-        ...(safe ? { objectKey: verifiedKey } : {}),
+        ...(verifiedKey ? { objectKey: verifiedKey } : {}),
         checksumSha256: checksum,
         status: safe ? "AVAILABLE" : "QUARANTINED",
         scanStatus: safe ? "CLEAN" : "INFECTED",
@@ -1403,7 +1410,7 @@ async function processGuestMomentScan(
       derivativeAvailable: Boolean(derivativeObjectId),
     };
   });
-  if (safe && prepared.object.objectKey !== verifiedKey) {
+  if (verifiedKey && prepared.object.objectKey !== verifiedKey) {
     // Best effort: serving the verified copy remains safe if staging cleanup fails.
     await mediaStorage
       .send(
