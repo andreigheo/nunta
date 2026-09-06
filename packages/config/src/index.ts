@@ -182,6 +182,38 @@ export const apiEnvironmentSchema = z
       .min(30)
       .max(900)
       .default(300),
+    EVENT_MEDIA_STORAGE_PROVIDER: z
+      .enum(["inherit", "bunny-s3"])
+      .default("inherit"),
+    EVENT_MEDIA_STORAGE_ENDPOINT: z.preprocess(
+      emptyToUndefined,
+      z.string().url().optional(),
+    ),
+    EVENT_MEDIA_STORAGE_REGION: z.preprocess(
+      emptyToUndefined,
+      z.string().min(1).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_BUCKET: z.preprocess(
+      emptyToUndefined,
+      z.string().min(3).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_ACCESS_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(3).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_SECRET_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(8).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_FORCE_PATH_STYLE: environmentBoolean.default(true),
+    EVENT_MEDIA_CDN_HOSTNAME: z.preprocess(
+      emptyToUndefined,
+      z.string().min(3).optional(),
+    ),
+    EVENT_MEDIA_CDN_TOKEN_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(16).optional(),
+    ),
     DOCUMENT_MAX_BYTES: z.coerce
       .number()
       .int()
@@ -392,6 +424,47 @@ export const apiEnvironmentSchema = z
     BETA_ANALYTICS_ENABLED: environmentBoolean.default(false),
   })
   .superRefine((env, context) => {
+    if (env.EVENT_MEDIA_STORAGE_PROVIDER === "bunny-s3") {
+      const requiredBunnyStorage: Array<
+        [keyof typeof env, string | undefined]
+      > = [
+        ["EVENT_MEDIA_STORAGE_ENDPOINT", env.EVENT_MEDIA_STORAGE_ENDPOINT],
+        ["EVENT_MEDIA_STORAGE_REGION", env.EVENT_MEDIA_STORAGE_REGION],
+        ["EVENT_MEDIA_STORAGE_BUCKET", env.EVENT_MEDIA_STORAGE_BUCKET],
+        ["EVENT_MEDIA_STORAGE_ACCESS_KEY", env.EVENT_MEDIA_STORAGE_ACCESS_KEY],
+        ["EVENT_MEDIA_STORAGE_SECRET_KEY", env.EVENT_MEDIA_STORAGE_SECRET_KEY],
+        ["EVENT_MEDIA_CDN_HOSTNAME", env.EVENT_MEDIA_CDN_HOSTNAME],
+        ["EVENT_MEDIA_CDN_TOKEN_KEY", env.EVENT_MEDIA_CDN_TOKEN_KEY],
+      ];
+      for (const [path, value] of requiredBunnyStorage) {
+        if (!value)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [path],
+            message: "Bunny event media storage requires this value.",
+          });
+      }
+      if (
+        env.EVENT_MEDIA_STORAGE_ENDPOINT &&
+        new URL(env.EVENT_MEDIA_STORAGE_ENDPOINT).hostname !==
+          "de-s3.storage.bunnycdn.com"
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["EVENT_MEDIA_STORAGE_ENDPOINT"],
+          message:
+            "The configured Bunny event media zone must use its Frankfurt S3 endpoint.",
+        });
+      if (
+        env.EVENT_MEDIA_CDN_HOSTNAME &&
+        !/^[a-z0-9-]+\.b-cdn\.net$/.test(env.EVENT_MEDIA_CDN_HOSTNAME)
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["EVENT_MEDIA_CDN_HOSTNAME"],
+          message: "Bunny event media delivery must use a b-cdn.net hostname.",
+        });
+    }
     if (env.COPILOT_MAX_RUN_COST_MINOR > env.COPILOT_DAILY_COST_LIMIT_MINOR) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -514,6 +587,15 @@ export const apiEnvironmentSchema = z
           ["GUEST_ACCESS_TOKEN_SECRET", env.GUEST_ACCESS_TOKEN_SECRET],
           ["OBJECT_STORAGE_ACCESS_KEY", env.OBJECT_STORAGE_ACCESS_KEY],
           ["OBJECT_STORAGE_SECRET_KEY", env.OBJECT_STORAGE_SECRET_KEY],
+          [
+            "EVENT_MEDIA_STORAGE_ACCESS_KEY",
+            env.EVENT_MEDIA_STORAGE_ACCESS_KEY,
+          ],
+          [
+            "EVENT_MEDIA_STORAGE_SECRET_KEY",
+            env.EVENT_MEDIA_STORAGE_SECRET_KEY,
+          ],
+          ["EVENT_MEDIA_CDN_TOKEN_KEY", env.EVENT_MEDIA_CDN_TOKEN_KEY],
           ["SMTP_PASSWORD", env.SMTP_PASSWORD],
           ["METRICS_TOKEN", env.METRICS_TOKEN],
           ["GOOGLE_OAUTH_CLIENT_SECRET", env.GOOGLE_OAUTH_CLIENT_SECRET],
@@ -527,7 +609,11 @@ export const apiEnvironmentSchema = z
             (path === "GOOGLE_OAUTH_CLIENT_SECRET" &&
               !env.FEATURE_GOOGLE_OAUTH_ENABLED) ||
             (path === "COPILOT_EMBEDDING_API_KEY" &&
-              !env.COPILOT_EMBEDDING_ENABLED)
+              !env.COPILOT_EMBEDDING_ENABLED) ||
+            ((path === "EVENT_MEDIA_STORAGE_ACCESS_KEY" ||
+              path === "EVENT_MEDIA_STORAGE_SECRET_KEY" ||
+              path === "EVENT_MEDIA_CDN_TOKEN_KEY") &&
+              env.EVENT_MEDIA_STORAGE_PROVIDER !== "bunny-s3")
           )
             continue;
           if (!value || forbiddenMarker.test(value)) {
@@ -826,6 +912,35 @@ export const apiEnvironmentSchema = z
   });
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;
+
+export function eventMediaStorageConfiguration(env: ApiEnvironment) {
+  if (env.EVENT_MEDIA_STORAGE_PROVIDER === "bunny-s3") {
+    return {
+      provider: "bunny-s3" as const,
+      endpoint: env.EVENT_MEDIA_STORAGE_ENDPOINT!,
+      publicEndpoint: env.EVENT_MEDIA_STORAGE_ENDPOINT!,
+      region: env.EVENT_MEDIA_STORAGE_REGION!,
+      bucket: env.EVENT_MEDIA_STORAGE_BUCKET!,
+      accessKey: env.EVENT_MEDIA_STORAGE_ACCESS_KEY!,
+      secretKey: env.EVENT_MEDIA_STORAGE_SECRET_KEY!,
+      forcePathStyle: env.EVENT_MEDIA_STORAGE_FORCE_PATH_STYLE,
+      cdnHostname: env.EVENT_MEDIA_CDN_HOSTNAME!,
+      cdnTokenKey: env.EVENT_MEDIA_CDN_TOKEN_KEY!,
+    };
+  }
+  return {
+    provider: env.OBJECT_STORAGE_PROVIDER,
+    endpoint: env.OBJECT_STORAGE_ENDPOINT,
+    publicEndpoint: env.OBJECT_STORAGE_PUBLIC_ENDPOINT,
+    region: env.OBJECT_STORAGE_REGION,
+    bucket: env.OBJECT_STORAGE_BUCKET,
+    accessKey: env.OBJECT_STORAGE_ACCESS_KEY,
+    secretKey: env.OBJECT_STORAGE_SECRET_KEY,
+    forcePathStyle: env.OBJECT_STORAGE_FORCE_PATH_STYLE,
+    cdnHostname: undefined,
+    cdnTokenKey: undefined,
+  };
+}
 
 export function parseApiEnvironment(source: NodeJS.ProcessEnv): ApiEnvironment {
   const result = apiEnvironmentSchema.safeParse(source);

@@ -376,6 +376,43 @@ export const createGuestMomentSchema = z.object({
 export const completeGuestMomentSchema = z.object({
   checksumSha256: z.string().regex(/^[a-f0-9]{64}$/i),
 });
+
+export const mediaPortalSettingsSchema = z.object({
+  weddingEventId: uuid,
+  active: z.boolean().optional(),
+  expiresAt: z.string().datetime().optional(),
+  rotate: z.boolean().optional(),
+  version: z.number().int().positive().optional(),
+});
+export const mediaPortalUploadSchema = createGuestMomentSchema
+  .omit({ weddingEventId: true, guestId: true })
+  .extend({
+    contributorName: optionalText(100),
+    uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    consent: z.literal(true),
+  });
+export type MediaPortalResource = {
+  id: string;
+  weddingEventId: string;
+  eventName: string;
+  active: boolean;
+  expiresAt: string;
+  version: number;
+  uploadCount: number;
+  reservedBytes: number;
+  maximumBytes: number;
+  maximumFiles: number;
+  url: string;
+  qrDataUrl: string;
+};
+export type MediaPortalPublicResource = {
+  eventName: string;
+  active: boolean;
+  expiresAt: string;
+  imageMaxBytes: number;
+  videoMaxBytes: number;
+  contentTypes: string[];
+};
 export const guestMomentTransitionSchema = z.object({
   transition: z.enum([
     "APPROVE",

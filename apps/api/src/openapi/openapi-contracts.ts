@@ -271,6 +271,8 @@ import {
   galleryItemsSchema,
   guestCheckInCommandSchema,
   guestMomentReportSchema,
+  mediaPortalSettingsSchema,
+  mediaPortalUploadSchema,
   guestMomentTransitionSchema,
   runOfShowDependenciesSchema,
   runOfShowOrderSchema,
@@ -793,6 +795,54 @@ const schemas: Record<string, ZodTypeAny> = {
   CompleteGuestMoment: completeGuestMomentSchema,
   GuestMomentTransition: guestMomentTransitionSchema,
   GuestMomentReport: guestMomentReportSchema,
+  MediaPortalSettings: mediaPortalSettingsSchema,
+  MediaPortalUpload: mediaPortalUploadSchema,
+  MediaPortalComplete: z.object({
+    uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  }),
+  MediaPortalResource: z.object({
+    id: z.string().uuid(),
+    weddingEventId: z.string().uuid(),
+    eventName: z.string(),
+    active: z.boolean(),
+    expiresAt: z.string().datetime(),
+    version: z.number().int(),
+    uploadCount: z.number().int(),
+    reservedBytes: z.number(),
+    maximumBytes: z.number(),
+    maximumFiles: z.number().int(),
+    url: z.string().url(),
+    qrDataUrl: z.string(),
+  }),
+  MediaPortalList: z.object({
+    items: z.array(z.object({ id: z.string().uuid() }).passthrough()),
+    events: z.array(z.object({ id: z.string().uuid(), name: z.string() })),
+  }),
+  MediaPortalPublic: z.object({
+    eventName: z.string(),
+    active: z.boolean(),
+    expiresAt: z.string().datetime(),
+    imageMaxBytes: z.number(),
+    videoMaxBytes: z.number(),
+    contentTypes: z.array(z.string()),
+  }),
+  MediaPortalUploadResult: z.object({
+    momentId: z.string().uuid(),
+    completed: z.boolean(),
+    upload: z
+      .object({
+        method: z.literal("PUT"),
+        url: z.string().url(),
+        headers: z.record(z.string()),
+        expiresAt: z.string().datetime(),
+      })
+      .optional(),
+  }),
+  MediaPortalCompleteResult: z.object({
+    id: z.string().uuid(),
+    status: z.string(),
+  }),
+  MediaPortalDownload: z.object({ url: z.string().url() }).passthrough(),
   CreateGalleryCollection: createGalleryCollectionSchema,
   UpdateGalleryCollection: updateGalleryCollectionSchema,
   GalleryItems: galleryItemsSchema,
@@ -863,6 +913,15 @@ const schemas: Record<string, ZodTypeAny> = {
 };
 
 const requestByRoute: Array<[RegExp, string]> = [
+  [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals$/,
+    "MediaPortalSettings",
+  ],
+  [/^POST \/api\/v1\/event-media\/uploads$/, "MediaPortalUpload"],
+  [
+    /^POST \/api\/v1\/event-media\/uploads\/\{momentId\}\/complete$/,
+    "MediaPortalComplete",
+  ],
   [/POST \/api\/v1\/platform\/beta\/programs$/, "CreateBetaProgram"],
   [/POST \/api\/v1\/platform\/beta\/cohorts$/, "CreateBetaCohort"],
   [/POST \/api\/v1\/platform\/beta\/invitations$/, "CreateBetaInvitation"],
@@ -1932,6 +1991,24 @@ const requestByRoute: Array<[RegExp, string]> = [
 ];
 
 const responseByRoute: Array<[RegExp, string]> = [
+  [
+    /^GET \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals$/,
+    "MediaPortalList",
+  ],
+  [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals$/,
+    "MediaPortalResource",
+  ],
+  [
+    /^GET \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals\/moments\/\{momentId\}\/(download|content)$/,
+    "MediaPortalDownload",
+  ],
+  [/^GET \/api\/v1\/event-media$/, "MediaPortalPublic"],
+  [/^POST \/api\/v1\/event-media\/uploads$/, "MediaPortalUploadResult"],
+  [
+    /^POST \/api\/v1\/event-media\/uploads\/\{momentId\}\/complete$/,
+    "MediaPortalCompleteResult",
+  ],
   [/(GET|POST|PATCH) \/api\/v1\/(?:platform\/)?beta(?:\/.*)?$/, "BetaResource"],
   [
     /(GET|POST|PATCH) \/api\/v1\/platform\/(dashboard|system-status|users|workspaces|vendor-organizations|support-cases|security-alerts|incidents|feature-flags|legal-documents|data-subject-requests|backups|restores|releases)(?:\/.*)?$/,
@@ -2365,6 +2442,12 @@ const responseByRoute: Array<[RegExp, string]> = [
 export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
   document.components ??= {};
   document.components.securitySchemes ??= {};
+  document.components.securitySchemes.mediaPortalToken = {
+    type: "http",
+    scheme: "bearer",
+    description:
+      "Revocable event QR upload grant. Individual uploads also require their uploadToken.",
+  };
   document.components.securitySchemes.guestAccessToken = {
     type: "apiKey",
     in: "query",
@@ -2432,6 +2515,7 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
               schema:
                 path === "/health" ||
                 path === "/ready" ||
+                path.startsWith("/api/v1/event-media") ||
                 path === "/api/v1/public/product-proof"
                   ? { $ref: `#/components/schemas/${responseName}` }
                   : responseEnvelope(responseName ?? "ApiDataResponse"),
@@ -2483,6 +2567,7 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
         path === "/health" ||
         path === "/ready" ||
         path === "/api/v1/status" ||
+        path.startsWith("/api/v1/event-media") ||
         path === "/api/v1/public/product-proof" ||
         (path.startsWith("/api/v1/auth/") &&
           !path.startsWith("/api/v1/auth/csrf") &&
@@ -2492,11 +2577,13 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
         path.startsWith("/api/v1/marketplace/portfolio-assets/") ||
         path.startsWith("/api/v1/provider-webhooks/") ||
         path.startsWith("/api/v1/webhooks/");
-      operation.security = path.startsWith("/api/v1/guest")
-        ? [{ guestAccessToken: [] }]
-        : isPublic
-          ? []
-          : [{ cookie: [] }];
+      operation.security = path.startsWith("/api/v1/event-media")
+        ? [{ mediaPortalToken: [] }]
+        : path.startsWith("/api/v1/guest")
+          ? [{ guestAccessToken: [] }]
+          : isPublic
+            ? []
+            : [{ cookie: [] }];
       if (path === "/api/v1/internal/metrics") {
         operation.security = [{ internalMetricsToken: [] }];
         delete operation.responses["401"];

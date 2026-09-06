@@ -51,6 +51,7 @@ const routes = [
   "/automations",
   "/wedding-day",
   "/moments",
+  "/event-upload",
   "/post-wedding",
   "/reviews",
   "/archive",
