@@ -1,9 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { Algorithm, hash as hashPassword } from "@node-rs/argon2";
 import type { ApiEnvironment } from "@weddingos/config";
-import type { CapabilityKey } from "@weddingos/contracts";
-import type { Prisma } from "@weddingos/database";
+import type {
+  CapabilityKey,
+  RegistrationIntent,
+  RoleTemplateKey,
+} from "@weddingos/contracts";
+import { Prisma } from "@weddingos/database";
 import { AsyncService } from "../async/async.service";
+import { createOpaqueToken, hashSecret } from "../auth/auth.crypto";
 import { DatabaseService } from "../common/database.service";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
@@ -68,6 +74,51 @@ type PlatformLabelAssignmentInput = {
   targetType: "USER" | "WORKSPACE" | "VENDOR_ORGANIZATION" | "SUPPORT_CASE";
   targetId: string;
   reason: string;
+};
+
+type PlatformCreateUserInput = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  registrationIntent: RegistrationIntent;
+  platformRoleKey?: string | null;
+  reason: string;
+};
+
+type PlatformUpdateUserInput = {
+  firstName: string;
+  lastName: string;
+  registrationIntent: RegistrationIntent;
+  version: number;
+  reason: string;
+};
+
+type PlatformUserGrantInput = {
+  roleKey: string;
+  active: boolean;
+  validUntil?: string | null;
+  version?: number | null;
+  reason: string;
+};
+
+type PlatformMembershipRoleInput = {
+  roleTemplateKey: RoleTemplateKey;
+  version: number;
+  reason: string;
+};
+
+type PlatformCreateMembershipInput = {
+  workspaceId: string;
+  roleTemplateKey: RoleTemplateKey;
+  reason: string;
+};
+
+const PASSWORD_HASH_OPTIONS = {
+  algorithm: Algorithm.Argon2id,
+  memoryCost: 19_456,
+  timeCost: 2,
+  parallelism: 1,
+  outputLen: 32,
 };
 
 @Injectable()
@@ -745,6 +796,678 @@ export class PlatformService {
     );
   }
 
+  async createUser(
+    actorUserId: string,
+    input: PlatformCreateUserInput,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    return this.platformContext(
+      actorUserId,
+      "platform.user.create",
+      async (tx) => {
+        const operation = "platform.user.provision";
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          input,
+        );
+        if (replay) return replay;
+
+        const email = input.email.trim().toLowerCase();
+        if (await tx.user.count({ where: { email } })) {
+          problem(
+            "EMAIL_ALREADY_REGISTERED",
+            HttpStatus.CONFLICT,
+            "Email already registered",
+            "Există deja un cont pentru această adresă de email.",
+          );
+        }
+
+        const requestedRole = input.platformRoleKey
+          ? await tx.platformRole.findUnique({
+              where: { key: input.platformRoleKey },
+            })
+          : null;
+        if (input.platformRoleKey && !requestedRole) {
+          this.notFound("Rolul de platformă selectat nu există.");
+        }
+        if (requestedRole) {
+          await this.assertPlatformCapability(
+            tx,
+            "platform.user.manage_access",
+          );
+        }
+
+        const setupToken = createOpaqueToken();
+        const passwordHash = await hashPassword(
+          createOpaqueToken(),
+          PASSWORD_HASH_OPTIONS,
+        );
+        const created = await tx.user.create({
+          data: {
+            email,
+            acceptedTermsVersion: null,
+            acceptedTermsAt: null,
+            marketingConsent: false,
+            profile: {
+              create: {
+                firstName: input.firstName.trim(),
+                lastName: input.lastName.trim(),
+              },
+            },
+            identities: {
+              create: { provider: "PASSWORD", passwordHash },
+            },
+            preference: {
+              create: { registrationIntent: input.registrationIntent },
+            },
+            notificationPreference: { create: { marketingEmail: false } },
+            oneTimeTokens: {
+              create: {
+                purpose: "PASSWORD_RESET",
+                tokenHash: hashSecret(setupToken),
+                expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1_000),
+                metadata: this.json({
+                  adminProvisioned: true,
+                  registrationIntent: input.registrationIntent,
+                  returnTo: registrationIntentRoute(input.registrationIntent),
+                }),
+              },
+            },
+          },
+          include: { profile: true, preference: true },
+        });
+
+        if (requestedRole) {
+          await tx.platformGrant.create({
+            data: {
+              userId: created.id,
+              roleId: requestedRole.id,
+              environment: this.environment.NODE_ENV,
+              active: true,
+              mfaVerifiedAt: new Date(),
+              grantedById: actorUserId,
+              reason: input.reason,
+            },
+          });
+        }
+
+        const response = {
+          id: created.id,
+          email: created.email,
+          status: created.status,
+          emailVerified: false,
+          setupEmailSent: true,
+          createdAt: created.createdAt.toISOString(),
+          updatedAt: created.updatedAt.toISOString(),
+          version: created.version,
+          registrationIntent: created.preference?.registrationIntent,
+          platformRoleKeys: requestedRole ? [requestedRole.key] : [],
+          profile: created.profile
+            ? {
+                firstName: created.profile.firstName,
+                lastName: created.profile.lastName,
+              }
+            : null,
+          membershipCount: 0,
+          sessionCount: 0,
+        };
+
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.user.create",
+          operation,
+          "USER",
+          created.id,
+          input.reason,
+          null,
+          response,
+          correlationId,
+        );
+        await this.asyncEvents.record(tx, {
+          eventName: "platform.user_provisioned.v1",
+          aggregateType: "User",
+          aggregateId: created.id,
+          aggregateVersion: created.version,
+          actorUserId,
+          correlationId,
+          idempotencyKey,
+          deduplicationKey: `platform-user-provisioned:${created.id}`,
+          payload: {
+            subject: { userId: created.id },
+            activity: {
+              category: "platform",
+              action: "platform.user_provisioned.v1",
+              summary:
+                "Cont creat de administrator; configurarea parolei este în așteptare.",
+              entityType: "User",
+              entityId: created.id,
+            },
+          },
+          email: {
+            kind: "password-reset",
+            recipient: created.email,
+            values: {
+              firstName: created.profile?.firstName ?? "",
+              token: setupToken,
+              provisioned: "1",
+            },
+          },
+        });
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          input,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async updateUser(
+    actorUserId: string,
+    targetUserId: string,
+    input: PlatformUpdateUserInput,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    return this.platformContext(
+      actorUserId,
+      "platform.user.update",
+      async (tx) => {
+        const operation = "platform.user.update";
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          { targetUserId, ...input },
+        );
+        if (replay) return replay;
+        const before = await tx.user.findUnique({
+          where: { id: targetUserId },
+          include: { profile: true, preference: true },
+        });
+        if (!before) this.notFound("Utilizatorul nu există.");
+        const touched = await tx.user.updateMany({
+          where: { id: targetUserId, version: input.version },
+          data: { version: { increment: 1 } },
+        });
+        if (touched.count !== 1) this.conflict();
+        await Promise.all([
+          tx.userProfile.upsert({
+            where: { userId: targetUserId },
+            update: {
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+              version: { increment: 1 },
+            },
+            create: {
+              userId: targetUserId,
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+            },
+          }),
+          tx.userPreference.upsert({
+            where: { userId: targetUserId },
+            update: {
+              registrationIntent: input.registrationIntent,
+              version: { increment: 1 },
+            },
+            create: {
+              userId: targetUserId,
+              registrationIntent: input.registrationIntent,
+            },
+          }),
+        ]);
+        const row = await tx.user.findUniqueOrThrow({
+          where: { id: targetUserId },
+          include: { profile: true, preference: true },
+        });
+        const response = {
+          id: row.id,
+          email: row.email,
+          status: row.status,
+          version: row.version,
+          updatedAt: row.updatedAt.toISOString(),
+          registrationIntent: row.preference?.registrationIntent,
+          profile: row.profile
+            ? {
+                firstName: row.profile.firstName,
+                lastName: row.profile.lastName,
+              }
+            : null,
+        };
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.user.update",
+          operation,
+          "USER",
+          targetUserId,
+          input.reason,
+          before,
+          response,
+          correlationId,
+        );
+        await this.event(tx, {
+          eventName: "platform.user_updated.v1",
+          aggregateType: "User",
+          aggregateId: targetUserId,
+          actorUserId,
+          correlationId,
+          idempotencyKey,
+          summary:
+            "Profilul și tipul contului au fost actualizate de administrator.",
+        });
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          { targetUserId, ...input },
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async setUserPlatformGrant(
+    actorUserId: string,
+    targetUserId: string,
+    input: PlatformUserGrantInput,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    return this.platformContext(
+      actorUserId,
+      "platform.user.manage_access",
+      async (tx) => {
+        const operation = "platform.user.platform_access";
+        const request = { targetUserId, ...input };
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (replay) return replay;
+        if (!(await tx.user.count({ where: { id: targetUserId } }))) {
+          this.notFound("Utilizatorul nu există.");
+        }
+        const role = await tx.platformRole.findUnique({
+          where: { key: input.roleKey },
+        });
+        if (!role) this.notFound("Rolul de platformă nu există.");
+        const validUntil = input.validUntil ? new Date(input.validUntil) : null;
+        if (input.active && validUntil && validUntil.getTime() <= Date.now()) {
+          problem(
+            "VALIDATION_FAILED",
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Invalid grant validity",
+            "Data de expirare trebuie să fie în viitor.",
+          );
+        }
+        const unique = {
+          userId_roleId_environment: {
+            userId: targetUserId,
+            roleId: role.id,
+            environment: this.environment.NODE_ENV,
+          },
+        };
+        const before = await tx.platformGrant.findUnique({ where: unique });
+        if (!input.active) {
+          if (!before) this.notFound("Acordarea rolului nu există.");
+          if (!input.version) {
+            problem(
+              "PRECONDITION_REQUIRED",
+              HttpStatus.PRECONDITION_REQUIRED,
+              "Version required",
+            );
+          }
+          if (targetUserId === actorUserId) {
+            problem(
+              "FORBIDDEN",
+              HttpStatus.CONFLICT,
+              "Self revocation denied",
+              "Nu îți poți revoca propriul acces de platformă.",
+            );
+          }
+          if (role.key === "PLATFORM_SUPER_ADMIN" && before.active) {
+            const activeSuperAdmins = await tx.platformGrant.count({
+              where: {
+                roleId: role.id,
+                environment: this.environment.NODE_ENV,
+                active: true,
+                OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+              },
+            });
+            if (activeSuperAdmins <= 1) {
+              problem(
+                "LAST_OWNER_PROTECTED",
+                HttpStatus.CONFLICT,
+                "Last platform administrator protected",
+                "Ultimul super administrator activ nu poate fi revocat.",
+              );
+            }
+          }
+          const changed = await tx.platformGrant.updateMany({
+            where: { id: before.id, version: input.version ?? -1 },
+            data: {
+              active: false,
+              revokedAt: new Date(),
+              revokedById: actorUserId,
+              reason: input.reason,
+              version: { increment: 1 },
+            },
+          });
+          if (changed.count !== 1) this.conflict();
+        } else if (before) {
+          if (input.version && input.version !== before.version)
+            this.conflict();
+          await tx.platformGrant.update({
+            where: { id: before.id },
+            data: {
+              active: true,
+              validFrom: new Date(),
+              validUntil,
+              revokedAt: null,
+              revokedById: null,
+              grantedById: actorUserId,
+              mfaVerifiedAt: new Date(),
+              reason: input.reason,
+              version: { increment: 1 },
+            },
+          });
+        } else {
+          await tx.platformGrant.create({
+            data: {
+              userId: targetUserId,
+              roleId: role.id,
+              environment: this.environment.NODE_ENV,
+              active: true,
+              validUntil,
+              grantedById: actorUserId,
+              mfaVerifiedAt: new Date(),
+              reason: input.reason,
+            },
+          });
+        }
+        const row = await tx.platformGrant.findUniqueOrThrow({ where: unique });
+        const response = {
+          id: row.id,
+          roleKey: role.key,
+          roleName: role.name,
+          critical: role.critical,
+          active: row.active,
+          validFrom: row.validFrom.toISOString(),
+          validUntil: row.validUntil?.toISOString() ?? null,
+          revokedAt: row.revokedAt?.toISOString() ?? null,
+          version: row.version,
+        };
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.user.manage_access",
+          operation,
+          "PLATFORM_GRANT",
+          row.id,
+          input.reason,
+          before,
+          response,
+          correlationId,
+        );
+        await this.event(tx, {
+          eventName: "platform.user_platform_access_changed.v1",
+          aggregateType: "PlatformGrant",
+          aggregateId: row.id,
+          actorUserId,
+          correlationId,
+          idempotencyKey,
+          summary: input.active
+            ? `Rolul ${role.name} a fost acordat.`
+            : `Rolul ${role.name} a fost revocat.`,
+        });
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async setUserMembershipRole(
+    actorUserId: string,
+    targetUserId: string,
+    membershipId: string,
+    input: PlatformMembershipRoleInput,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    return this.platformContext(
+      actorUserId,
+      "platform.user.manage_access",
+      async (tx) => {
+        const operation = "platform.user.membership_role";
+        const request = { targetUserId, membershipId, ...input };
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (replay) return replay;
+        const before = await tx.workspaceMembership.findFirst({
+          where: { id: membershipId, userId: targetUserId },
+          include: { roleTemplate: true, workspace: true },
+        });
+        if (!before) this.notFound("Apartenența la eveniment nu există.");
+        const nextRole = await tx.roleTemplate.findUnique({
+          where: { key: input.roleTemplateKey },
+        });
+        if (!nextRole) this.notFound("Rolul de eveniment nu există.");
+        if (before.roleTemplate.key === input.roleTemplateKey) {
+          return {
+            id: before.id,
+            roleTemplateKey: before.roleTemplate.key,
+            roleTemplateName: before.roleTemplate.name,
+            version: before.version,
+          };
+        }
+        if (
+          before.status === "ACTIVE" &&
+          before.roleTemplate.key === "couple_owner" &&
+          input.roleTemplateKey !== "couple_owner"
+        ) {
+          const activeOwners = await tx.workspaceMembership.count({
+            where: {
+              workspaceId: before.workspaceId,
+              status: "ACTIVE",
+              roleTemplate: { key: "couple_owner" },
+            },
+          });
+          if (activeOwners <= 1) {
+            problem(
+              "LAST_OWNER_PROTECTED",
+              HttpStatus.CONFLICT,
+              "Last workspace owner protected",
+              "Adaugă un alt proprietar activ înainte de a schimba acest rol.",
+            );
+          }
+        }
+        const changed = await tx.workspaceMembership.updateMany({
+          where: { id: membershipId, version: input.version },
+          data: {
+            roleTemplateId: nextRole.id,
+            updatedById: actorUserId,
+            version: { increment: 1 },
+          },
+        });
+        if (changed.count !== 1) this.conflict();
+        const row = await tx.workspaceMembership.findUniqueOrThrow({
+          where: { id: membershipId },
+          include: { roleTemplate: true, workspace: true },
+        });
+        const response = {
+          id: row.id,
+          workspaceId: row.workspaceId,
+          workspaceTitle: row.workspace.title,
+          roleTemplateKey: row.roleTemplate.key,
+          roleTemplateName: row.roleTemplate.name,
+          status: row.status,
+          version: row.version,
+        };
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.user.manage_access",
+          operation,
+          "WORKSPACE_MEMBERSHIP",
+          row.id,
+          input.reason,
+          before,
+          response,
+          correlationId,
+        );
+        await this.event(tx, {
+          eventName: "platform.user_membership_role_changed.v1",
+          aggregateType: "WorkspaceMembership",
+          aggregateId: row.id,
+          actorUserId,
+          correlationId,
+          idempotencyKey,
+          summary: `Rolul în ${row.workspace.title} a devenit ${row.roleTemplate.name}.`,
+        });
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async createUserMembership(
+    actorUserId: string,
+    targetUserId: string,
+    input: PlatformCreateMembershipInput,
+    idempotencyKey: string,
+    correlationId: string,
+  ) {
+    return this.platformContext(
+      actorUserId,
+      "platform.user.manage_access",
+      async (tx) => {
+        const operation = "platform.user.membership_add";
+        const request = { targetUserId, ...input };
+        const replay = await this.replay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (replay) return replay;
+        const [user, workspace, role] = await Promise.all([
+          tx.user.findUnique({ where: { id: targetUserId } }),
+          tx.workspace.findUnique({ where: { id: input.workspaceId } }),
+          tx.roleTemplate.findUnique({
+            where: { key: input.roleTemplateKey },
+          }),
+        ]);
+        if (!user) this.notFound("Utilizatorul nu există.");
+        if (!workspace) this.notFound("Evenimentul nu există.");
+        if (!role) this.notFound("Rolul de eveniment nu există.");
+        const existing = await tx.workspaceMembership.findUnique({
+          where: {
+            workspaceId_userId: {
+              workspaceId: input.workspaceId,
+              userId: targetUserId,
+            },
+          },
+        });
+        if (existing) {
+          problem(
+            "VALIDATION_FAILED",
+            HttpStatus.CONFLICT,
+            "Membership already exists",
+            "Utilizatorul aparține deja acestui eveniment. Schimbă rolul existent.",
+          );
+        }
+        const row = await tx.workspaceMembership.create({
+          data: {
+            workspaceId: input.workspaceId,
+            userId: targetUserId,
+            roleTemplateId: role.id,
+            status: "ACTIVE",
+            createdById: actorUserId,
+            updatedById: actorUserId,
+          },
+          include: { roleTemplate: true, workspace: true },
+        });
+        const response = {
+          id: row.id,
+          workspaceId: row.workspaceId,
+          workspaceTitle: row.workspace.title,
+          workspaceStatus: row.workspace.status,
+          roleTemplateKey: row.roleTemplate.key,
+          roleTemplateName: row.roleTemplate.name,
+          status: row.status,
+          version: row.version,
+        };
+        await this.action(
+          tx,
+          actorUserId,
+          "platform.user.manage_access",
+          operation,
+          "WORKSPACE_MEMBERSHIP",
+          row.id,
+          input.reason,
+          null,
+          response,
+          correlationId,
+        );
+        await this.event(tx, {
+          eventName: "platform.user_membership_added.v1",
+          aggregateType: "WorkspaceMembership",
+          aggregateId: row.id,
+          actorUserId,
+          correlationId,
+          idempotencyKey,
+          summary: `Utilizatorul a fost adăugat în ${row.workspace.title} ca ${row.roleTemplate.name}.`,
+        });
+        await this.saveReplay(
+          tx,
+          actorUserId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
   async users(
     userId: string,
     query: PlatformListQuery = { page: 1, pageSize: 100 },
@@ -782,6 +1505,7 @@ export class PlatformService {
           where,
           include: {
             profile: true,
+            preference: true,
             _count: { select: { memberships: true, sessions: true } },
           },
           orderBy: { createdAt: "desc" },
@@ -790,6 +1514,21 @@ export class PlatformService {
         }),
         tx.user.count({ where }),
       ]);
+      const grants = rows.length
+        ? await tx.platformGrant.findMany({
+            where: {
+              userId: { in: rows.map((row) => row.id) },
+              environment: this.environment.NODE_ENV,
+              active: true,
+              OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+            },
+          })
+        : [];
+      const roleIds = [...new Set(grants.map((grant) => grant.roleId))];
+      const roles = roleIds.length
+        ? await tx.platformRole.findMany({ where: { id: { in: roleIds } } })
+        : [];
+      const roleKeyById = new Map(roles.map((role) => [role.id, role.key]));
       return {
         items: rows.map((row) => ({
           id: row.id,
@@ -805,6 +1544,12 @@ export class PlatformService {
                 lastName: row.profile.lastName,
               }
             : null,
+          registrationIntent:
+            row.preference?.registrationIntent ?? "EVENT_ORGANIZER",
+          platformRoleKeys: grants
+            .filter((grant) => grant.userId === row.id)
+            .map((grant) => roleKeyById.get(grant.roleId))
+            .filter((key): key is string => Boolean(key)),
           membershipCount: row._count.memberships,
           sessionCount: row._count.sessions,
         })),
@@ -821,15 +1566,33 @@ export class PlatformService {
         where: { id: targetUserId },
         include: {
           profile: true,
+          preference: true,
           sessions: true,
           memberships: {
             include: {
+              roleTemplate: true,
               workspace: { include: { subscription: true } },
             },
           },
         },
       });
       if (!row) this.notFound("Utilizatorul nu există.");
+      const [platformRoles, platformGrants, workspaceRoles] = await Promise.all(
+        [
+          tx.platformRole.findMany({ orderBy: { name: "asc" } }),
+          tx.platformGrant.findMany({
+            where: {
+              userId: targetUserId,
+              environment: this.environment.NODE_ENV,
+            },
+            orderBy: { createdAt: "asc" },
+          }),
+          tx.roleTemplate.findMany({ orderBy: { name: "asc" } }),
+        ],
+      );
+      const platformRoleById = new Map(
+        platformRoles.map((role) => [role.id, role]),
+      );
       return {
         id: row.id,
         email: row.email,
@@ -838,6 +1601,9 @@ export class PlatformService {
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
         version: row.version,
+        registrationIntent:
+          row.preference?.registrationIntent ?? "EVENT_ORGANIZER",
+        termsAccepted: Boolean(row.acceptedTermsAt && row.acceptedTermsVersion),
         profile: row.profile
           ? { firstName: row.profile.firstName, lastName: row.profile.lastName }
           : null,
@@ -847,9 +1613,43 @@ export class PlatformService {
           workspaceTitle: membership.workspace.title,
           workspaceStatus: membership.workspace.status,
           status: membership.status,
+          version: membership.version,
+          roleTemplateKey: membership.roleTemplate.key,
+          roleTemplateName: membership.roleTemplate.name,
           planKey: membership.workspace.subscription?.planKey ?? "FREE",
           subscriptionStatus:
             membership.workspace.subscription?.status ?? "FREE",
+          subscriptionProviderManaged: Boolean(
+            membership.workspace.subscription?.providerSubscriptionId,
+          ),
+          workspaceVersion: membership.workspace.version,
+        })),
+        platformGrants: platformGrants.map((grant) => {
+          const role = platformRoleById.get(grant.roleId);
+          return {
+            id: grant.id,
+            roleKey: role?.key ?? grant.roleId,
+            roleName: role?.name ?? "Rol indisponibil",
+            critical: role?.critical ?? false,
+            active:
+              grant.active &&
+              (!grant.validUntil || grant.validUntil.getTime() > Date.now()),
+            validFrom: grant.validFrom.toISOString(),
+            validUntil: grant.validUntil?.toISOString() ?? null,
+            revokedAt: grant.revokedAt?.toISOString() ?? null,
+            version: grant.version,
+          };
+        }),
+        availablePlatformRoles: platformRoles.map((role) => ({
+          key: role.key,
+          name: role.name,
+          description: role.description,
+          critical: role.critical,
+        })),
+        availableWorkspaceRoles: workspaceRoles.map((role) => ({
+          key: role.key,
+          name: role.name,
+          description: role.description,
         })),
         sessions: row.sessions.map((session) => ({
           id: session.id,
@@ -857,6 +1657,269 @@ export class PlatformService {
           lastSeenAt: session.lastSeenAt.toISOString(),
           createdAt: session.createdAt.toISOString(),
         })),
+      };
+    });
+  }
+
+  async userUsage(userId: string, targetUserId: string, range: PlatformRange) {
+    return this.platformContext(userId, "platform.usage.read", async (tx) => {
+      const target = await tx.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true },
+      });
+      if (!target) this.notFound("Utilizatorul nu există.");
+
+      const since = rangeStart(range);
+      const ownerMemberships = await tx.workspaceMembership.findMany({
+        where: {
+          userId: targetUserId,
+          status: "ACTIVE",
+          roleTemplate: { key: "couple_owner" },
+        },
+        select: {
+          workspaceId: true,
+          workspace: {
+            select: {
+              title: true,
+              subscription: { select: { planKey: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      const ownerWorkspaceIds = ownerMemberships.map(
+        (membership) => membership.workspaceId,
+      );
+
+      const [aiGroups, personalObjectGroups, ownedObjectGroups, guestGroups] =
+        await Promise.all([
+          tx.copilotUsageRecord.groupBy({
+            by: ["workspaceId"],
+            where: { userId: targetUserId, createdAt: { gte: since } },
+            _count: { _all: true },
+            _sum: {
+              inputUnits: true,
+              outputUnits: true,
+              estimatedCostMinor: true,
+            },
+          }),
+          tx.storedObject.groupBy({
+            by: ["contentTypeDetected", "contentTypeClaimed", "status"],
+            where: {
+              createdByUserId: targetUserId,
+              deletedAt: null,
+              status: { not: "DELETED" },
+            },
+            _count: { _all: true },
+            _sum: { sizeBytes: true },
+          }),
+          ownerWorkspaceIds.length
+            ? tx.storedObject.groupBy({
+                by: ["workspaceId"],
+                where: {
+                  workspaceId: { in: ownerWorkspaceIds },
+                  deletedAt: null,
+                  status: { not: "DELETED" },
+                },
+                _count: { _all: true },
+                _sum: { sizeBytes: true },
+              })
+            : Promise.resolve([]),
+          ownerWorkspaceIds.length
+            ? tx.guestMomentMedia.groupBy({
+                by: ["workspaceId", "mediaType", "moderationStatus"],
+                where: { workspaceId: { in: ownerWorkspaceIds } },
+                _count: { _all: true },
+              })
+            : Promise.resolve([]),
+        ]);
+
+      const guestBytes = ownerWorkspaceIds.length
+        ? await tx.$queryRaw<
+            Array<{ workspaceId: string; sizeBytes: bigint }>
+          >(Prisma.sql`
+            SELECT media.workspace_id AS "workspaceId",
+                   COALESCE(SUM(
+                     COALESCE(source.size_bytes, 0) +
+                     CASE WHEN derivative.deleted_at IS NULL THEN COALESCE(derivative.size_bytes, 0) ELSE 0 END
+                   ), 0)::bigint AS "sizeBytes"
+            FROM guest_moment_media media
+            JOIN stored_objects source ON source.id = media.stored_object_id
+            LEFT JOIN stored_objects derivative ON derivative.id = media.derivative_object_id
+            WHERE media.workspace_id IN (${Prisma.join(
+              ownerWorkspaceIds.map((id) => Prisma.sql`${id}::uuid`),
+            )})
+              AND source.deleted_at IS NULL
+            GROUP BY media.workspace_id
+          `)
+        : [];
+
+      const aiByWorkspace = new Map(
+        aiGroups.map((group) => [
+          group.workspaceId,
+          {
+            runs: group._count._all,
+            inputUnits: group._sum.inputUnits ?? 0,
+            outputUnits: group._sum.outputUnits ?? 0,
+            estimatedCostMinor: group._sum.estimatedCostMinor ?? 0,
+          },
+        ]),
+      );
+      const ownedObjectsByWorkspace = new Map(
+        ownedObjectGroups.map((group) => [
+          group.workspaceId,
+          {
+            files: group._count._all,
+            bytes: Number(group._sum.sizeBytes ?? 0n),
+          },
+        ]),
+      );
+      const guestBytesByWorkspace = new Map(
+        guestBytes.map((group) => [group.workspaceId, Number(group.sizeBytes)]),
+      );
+      const guestByWorkspace = new Map<
+        string,
+        {
+          items: number;
+          bytes: number;
+          images: number;
+          videos: number;
+          pending: number;
+          approved: number;
+          rejected: number;
+        }
+      >();
+      for (const group of guestGroups) {
+        const value = guestByWorkspace.get(group.workspaceId) ?? {
+          items: 0,
+          bytes: guestBytesByWorkspace.get(group.workspaceId) ?? 0,
+          images: 0,
+          videos: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+        };
+        value.items += group._count._all;
+        if (group.mediaType === "IMAGE") value.images += group._count._all;
+        if (group.mediaType === "VIDEO") value.videos += group._count._all;
+        if (
+          group.moderationStatus === "PENDING" ||
+          group.moderationStatus === "REQUIRES_REVIEW"
+        )
+          value.pending += group._count._all;
+        if (
+          group.moderationStatus === "APPROVED" ||
+          group.moderationStatus === "AUTOMATED_SAFE"
+        )
+          value.approved += group._count._all;
+        if (
+          group.moderationStatus === "REJECTED" ||
+          group.moderationStatus === "HIDDEN"
+        )
+          value.rejected += group._count._all;
+        guestByWorkspace.set(group.workspaceId, value);
+      }
+
+      const emptyAi = {
+        runs: 0,
+        inputUnits: 0,
+        outputUnits: 0,
+        estimatedCostMinor: 0,
+      };
+      const emptyGuest = {
+        items: 0,
+        bytes: 0,
+        images: 0,
+        videos: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+      };
+      const events = ownerMemberships.map((membership) => ({
+        workspaceId: membership.workspaceId,
+        title: membership.workspace.title,
+        planKey: membership.workspace.subscription?.planKey ?? "FREE",
+        storedObjects:
+          ownedObjectsByWorkspace.get(membership.workspaceId)?.files ?? 0,
+        totalBytes:
+          ownedObjectsByWorkspace.get(membership.workspaceId)?.bytes ?? 0,
+        guestMedia: guestByWorkspace.get(membership.workspaceId) ?? emptyGuest,
+        ai: aiByWorkspace.get(membership.workspaceId) ?? emptyAi,
+      }));
+
+      const ai = aiGroups.reduce(
+        (total, group) => ({
+          runs: total.runs + group._count._all,
+          inputUnits: total.inputUnits + (group._sum.inputUnits ?? 0),
+          outputUnits: total.outputUnits + (group._sum.outputUnits ?? 0),
+          estimatedCostMinor:
+            total.estimatedCostMinor + (group._sum.estimatedCostMinor ?? 0),
+        }),
+        { ...emptyAi },
+      );
+      const personalUploads = personalObjectGroups.reduce(
+        (total, group) => {
+          const type = (
+            group.contentTypeDetected ?? group.contentTypeClaimed
+          ).toLowerCase();
+          total.files += group._count._all;
+          total.bytes += Number(group._sum.sizeBytes ?? 0n);
+          if (group.status === "AVAILABLE")
+            total.availableFiles += group._count._all;
+          if (group.status === "QUARANTINED")
+            total.quarantinedFiles += group._count._all;
+          if (type.startsWith("image/")) total.imageFiles += group._count._all;
+          else if (type.startsWith("video/"))
+            total.videoFiles += group._count._all;
+          else total.otherFiles += group._count._all;
+          return total;
+        },
+        {
+          files: 0,
+          bytes: 0,
+          availableFiles: 0,
+          quarantinedFiles: 0,
+          imageFiles: 0,
+          videoFiles: 0,
+          otherFiles: 0,
+        },
+      );
+      const ownedEvents = events.reduce(
+        (total, event) => {
+          total.storedObjects += event.storedObjects;
+          total.totalBytes += event.totalBytes;
+          total.guestMedia.items += event.guestMedia.items;
+          total.guestMedia.bytes += event.guestMedia.bytes;
+          total.guestMedia.images += event.guestMedia.images;
+          total.guestMedia.videos += event.guestMedia.videos;
+          total.guestMedia.pending += event.guestMedia.pending;
+          total.guestMedia.approved += event.guestMedia.approved;
+          total.guestMedia.rejected += event.guestMedia.rejected;
+          return total;
+        },
+        {
+          count: events.length,
+          storedObjects: 0,
+          totalBytes: 0,
+          guestMedia: { ...emptyGuest },
+        },
+      );
+
+      return {
+        range,
+        since: since.toISOString(),
+        generatedAt: new Date().toISOString(),
+        attribution: {
+          personalStorage: "Fișiere create direct de utilizator.",
+          ownedEventStorage:
+            "Spațiul evenimentelor unde utilizatorul este proprietar activ; nu este atribuit colaboratorilor.",
+          accountingNote:
+            "Sunt două perspective asupra acelorași date și se pot suprapune; valorile nu trebuie adunate între ele.",
+        },
+        ai,
+        personalUploads,
+        ownedEvents,
+        events,
       };
     });
   }
@@ -3226,21 +4289,28 @@ export class PlatformService {
     operation: (tx: Transaction) => Promise<T>,
   ) {
     return this.database.withContext({ userId }, async (tx) => {
-      const result = await tx.$queryRaw<Array<{ allowed: boolean }>>`
-        SELECT public.weddingos_has_platform_capability(${capability}) AS allowed
-      `;
-      if (!result[0]?.allowed) {
-        problem(
-          "PLATFORM_CAPABILITY_REQUIRED",
-          HttpStatus.FORBIDDEN,
-          "Platform capability required",
-          undefined,
-          undefined,
-          { requiredCapability: capability },
-        );
-      }
+      await this.assertPlatformCapability(tx, capability);
       return operation(tx);
     });
+  }
+
+  private async assertPlatformCapability(
+    tx: Transaction,
+    capability: CapabilityKey,
+  ) {
+    const result = await tx.$queryRaw<Array<{ allowed: boolean }>>`
+      SELECT public.weddingos_has_platform_capability(${capability}) AS allowed
+    `;
+    if (!result[0]?.allowed) {
+      problem(
+        "PLATFORM_CAPABILITY_REQUIRED",
+        HttpStatus.FORBIDDEN,
+        "Platform capability required",
+        undefined,
+        undefined,
+        { requiredCapability: capability },
+      );
+    }
   }
 
   private async assertLabelTarget(
@@ -3394,6 +4464,10 @@ export class PlatformService {
 
 function supportPriorityRank(priority: string) {
   return { LOW: 0, NORMAL: 10, HIGH: 20, URGENT: 30 }[priority] ?? 10;
+}
+
+function registrationIntentRoute(intent: RegistrationIntent) {
+  return intent === "SERVICE_PROVIDER" ? "/vendor" : "/overview";
 }
 
 function rangeStart(range: PlatformRange) {

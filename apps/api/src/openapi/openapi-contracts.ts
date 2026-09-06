@@ -322,6 +322,11 @@ import {
   updateCopilotSettingsSchema,
   updateRiskSchema,
   platformReasonSchema,
+  platformCreateUserSchema,
+  platformCreateMembershipSchema,
+  platformUpdateUserSchema,
+  platformUserGrantSchema,
+  platformMembershipRoleSchema,
   workspaceSubscriptionOverrideSchema,
   platformLabelSchema,
   platformLabelAssignmentSchema,
@@ -853,6 +858,11 @@ const schemas: Record<string, ZodTypeAny> = {
   PublicAggregateConsent: publicAggregateConsentSchema,
   UpdatePublicAggregateConsent: updatePublicAggregateConsentSchema,
   PlatformReason: platformReasonSchema,
+  PlatformCreateUser: platformCreateUserSchema,
+  PlatformCreateMembership: platformCreateMembershipSchema,
+  PlatformUpdateUser: platformUpdateUserSchema,
+  PlatformUserGrant: platformUserGrantSchema,
+  PlatformMembershipRole: platformMembershipRoleSchema,
   WorkspaceSubscriptionOverride: workspaceSubscriptionOverrideSchema,
   PlatformLabel: platformLabelSchema,
   PlatformLabelAssignment: platformLabelAssignmentSchema,
@@ -964,6 +974,20 @@ const requestByRoute: Array<[RegExp, string]> = [
   [
     /POST \/api\/v1\/platform\/(users\/\{userId\}|workspaces\/\{workspaceId\}|vendor-organizations\/\{organizationId\})\/(suspend|reactivate)$/,
     "PlatformReason",
+  ],
+  [/POST \/api\/v1\/platform\/users$/, "PlatformCreateUser"],
+  [/PATCH \/api\/v1\/platform\/users\/\{userId\}$/, "PlatformUpdateUser"],
+  [
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/platform-grants$/,
+    "PlatformUserGrant",
+  ],
+  [
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/memberships\/\{membershipId\}\/role$/,
+    "PlatformMembershipRole",
+  ],
+  [
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/memberships$/,
+    "PlatformCreateMembership",
   ],
   [
     /POST \/api\/v1\/platform\/workspaces\/\{workspaceId\}\/subscription-plan$/,
@@ -2803,6 +2827,7 @@ function requiresIdempotencyKey(route: string): boolean {
     "POST /api/v1/platform/beta/cohorts",
     "POST /api/v1/platform/beta/invitations",
     "POST /api/v1/beta/feedback",
+    "POST /api/v1/platform/users",
     "/platform/users/",
     "/platform/workspaces/",
     "/platform/vendor-organizations/",
@@ -2943,6 +2968,10 @@ function requiresIfMatch(route: string): boolean {
       route,
     ) ||
     /POST \/api\/v1\/platform\/(?:users\/\{userId\}|workspaces\/\{workspaceId\}|vendor-organizations\/\{organizationId\})\/(?:suspend|reactivate)$/.test(
+      route,
+    ) ||
+    /PATCH \/api\/v1\/platform\/users\/\{userId\}$/.test(route) ||
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/memberships\/\{membershipId\}\/role$/.test(
       route,
     ) ||
     route ===
@@ -3355,12 +3384,20 @@ function requiredPlatformCapability(route: string): string | undefined {
   }
   if (route.includes("/dashboard") || route.includes("/system-status"))
     return "platform.dashboard.read";
+  if (route.includes("/users/{userId}/usage")) return "platform.usage.read";
   if (route.includes("/users"))
     return route.startsWith("GET")
       ? "platform.user.read"
-      : route.endsWith("/suspend")
-        ? "platform.user.suspend"
-        : "platform.user.reactivate";
+      : route === "POST /api/v1/platform/users"
+        ? "platform.user.create"
+        : route === "PATCH /api/v1/platform/users/{userId}"
+          ? "platform.user.update"
+          : route.includes("/platform-grants") ||
+              route.includes("/memberships/")
+            ? "platform.user.manage_access"
+            : route.endsWith("/suspend")
+              ? "platform.user.suspend"
+              : "platform.user.reactivate";
   if (route.includes("/workspaces"))
     return route.startsWith("GET")
       ? "platform.workspace.read"

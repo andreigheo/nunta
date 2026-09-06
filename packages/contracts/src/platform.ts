@@ -11,6 +11,65 @@ export const workspaceSubscriptionOverrideSchema = z.object({
   version: z.number().int().positive(),
 });
 
+const platformRegistrationIntentSchema = z.enum([
+  "EVENT_ORGANIZER",
+  "SERVICE_PROVIDER",
+  "INVITED_MEMBER",
+]);
+
+const platformWorkspaceRoleSchema = z.enum([
+  "couple_owner",
+  "couple_partner",
+  "wedding_planner",
+  "family_collaborator",
+  "viewer",
+]);
+
+export const platformCreateUserSchema = z.object({
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  email: z.string().trim().toLowerCase().email().max(320),
+  registrationIntent: platformRegistrationIntentSchema,
+  platformRoleKey: z
+    .string()
+    .trim()
+    .regex(/^[A-Z][A-Z0-9_]{2,79}$/)
+    .nullable()
+    .optional(),
+  reason: z.string().trim().min(8).max(2000),
+});
+
+export const platformUpdateUserSchema = z.object({
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  registrationIntent: platformRegistrationIntentSchema,
+  version: z.number().int().positive(),
+  reason: z.string().trim().min(8).max(2000),
+});
+
+export const platformUserGrantSchema = z.object({
+  roleKey: z
+    .string()
+    .trim()
+    .regex(/^[A-Z][A-Z0-9_]{2,79}$/),
+  active: z.boolean(),
+  validUntil: z.string().datetime().nullable().optional(),
+  version: z.number().int().positive().nullable().optional(),
+  reason: z.string().trim().min(8).max(2000),
+});
+
+export const platformMembershipRoleSchema = z.object({
+  roleTemplateKey: platformWorkspaceRoleSchema,
+  version: z.number().int().positive(),
+  reason: z.string().trim().min(8).max(2000),
+});
+
+export const platformCreateMembershipSchema = z.object({
+  workspaceId: z.string().uuid(),
+  roleTemplateKey: platformWorkspaceRoleSchema,
+  reason: z.string().trim().min(8).max(2000),
+});
+
 export const platformLabelSchema = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(500).nullable().optional(),

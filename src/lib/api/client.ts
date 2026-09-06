@@ -403,12 +403,126 @@ export type PlatformSystemStatusResource = {
 };
 
 export type PlatformUserResource = OperationResource & {
+  createdAt: string;
+  updatedAt: string;
   email: string;
   status: string;
   emailVerified: boolean;
   profile?: { firstName?: string; lastName?: string } | null;
+  registrationIntent: "EVENT_ORGANIZER" | "SERVICE_PROVIDER" | "INVITED_MEMBER";
+  platformRoleKeys: string[];
   membershipCount: number;
   sessionCount: number;
+};
+
+export type PlatformWorkspaceRoleResource = {
+  key: string;
+  name: string;
+  description: string;
+};
+
+export type PlatformRoleResource = PlatformWorkspaceRoleResource & {
+  critical: boolean;
+};
+
+export type PlatformGrantResource = OperationResource & {
+  roleKey: string;
+  roleName: string;
+  critical: boolean;
+  active: boolean;
+  validFrom: string;
+  validUntil: string | null;
+  revokedAt: string | null;
+};
+
+export type PlatformUserMembershipResource = OperationResource & {
+  workspaceId: string;
+  workspaceTitle: string;
+  workspaceStatus: string;
+  status: string;
+  roleTemplateKey: string;
+  roleTemplateName: string;
+  planKey: "FREE" | "PLUS" | "PRO";
+  subscriptionStatus: string;
+  subscriptionProviderManaged: boolean;
+  workspaceVersion: number;
+};
+
+export type PlatformUserDetailResource = OperationResource & {
+  createdAt: string;
+  updatedAt: string;
+  email: string;
+  status: string;
+  emailVerified: boolean;
+  termsAccepted: boolean;
+  registrationIntent: "EVENT_ORGANIZER" | "SERVICE_PROVIDER" | "INVITED_MEMBER";
+  profile?: { firstName?: string; lastName?: string } | null;
+  memberships: PlatformUserMembershipResource[];
+  platformGrants: PlatformGrantResource[];
+  availablePlatformRoles: PlatformRoleResource[];
+  availableWorkspaceRoles: PlatformWorkspaceRoleResource[];
+  sessions: Array<{
+    id: string;
+    active: boolean;
+    lastSeenAt: string;
+    createdAt: string;
+  }>;
+};
+
+export type PlatformUserUsageResource = {
+  range: "7d" | "30d" | "90d";
+  since: string;
+  generatedAt: string;
+  attribution: {
+    personalStorage: string;
+    ownedEventStorage: string;
+    accountingNote: string;
+  };
+  ai: {
+    runs: number;
+    inputUnits: number;
+    outputUnits: number;
+    estimatedCostMinor: number;
+  };
+  personalUploads: {
+    files: number;
+    bytes: number;
+    availableFiles: number;
+    quarantinedFiles: number;
+    imageFiles: number;
+    videoFiles: number;
+    otherFiles: number;
+  };
+  ownedEvents: {
+    count: number;
+    storedObjects: number;
+    totalBytes: number;
+    guestMedia: PlatformGuestMediaUsageResource;
+  };
+  events: Array<{
+    workspaceId: string;
+    title: string;
+    planKey: "FREE" | "PLUS" | "PRO";
+    storedObjects: number;
+    totalBytes: number;
+    guestMedia: PlatformGuestMediaUsageResource;
+    ai: {
+      runs: number;
+      inputUnits: number;
+      outputUnits: number;
+      estimatedCostMinor: number;
+    };
+  }>;
+};
+
+export type PlatformGuestMediaUsageResource = {
+  items: number;
+  bytes: number;
+  images: number;
+  videos: number;
+  pending: number;
+  approved: number;
+  rejected: number;
 };
 
 export type PlatformPage<T> = {
@@ -999,7 +1113,111 @@ export const weddingOsApi = {
       `/platform/users${queryString(input)}`,
     ),
   platformUser: (userId: string) =>
-    request<OperationResource>(`/platform/users/${encodeURIComponent(userId)}`),
+    request<PlatformUserDetailResource>(
+      `/platform/users/${encodeURIComponent(userId)}`,
+    ),
+  platformUserUsage: (
+    userId: string,
+    range: "7d" | "30d" | "90d" = "30d",
+  ) =>
+    request<PlatformUserUsageResource>(
+      `/platform/users/${encodeURIComponent(userId)}/usage${queryString({ range })}`,
+    ),
+  createPlatformUser: (input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    registrationIntent: PlatformUserResource["registrationIntent"];
+    platformRoleKey?: string | null;
+    reason: string;
+  }) =>
+    request<PlatformUserResource>("/platform/users", {
+      method: "POST",
+      headers: adminStepUpTokens.get("USER_PROVISION")
+        ? { "X-Admin-Step-Up": adminStepUpTokens.get("USER_PROVISION")! }
+        : undefined,
+      body: input,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  updatePlatformUser: (
+    userId: string,
+    version: number,
+    input: {
+      firstName: string;
+      lastName: string;
+      registrationIntent: PlatformUserResource["registrationIntent"];
+      reason: string;
+    },
+  ) =>
+    request<OperationResource>(`/platform/users/${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      body: { ...input, version },
+      ifMatch: version,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  setPlatformUserGrant: (
+    userId: string,
+    input: {
+      roleKey: string;
+      active: boolean;
+      validUntil?: string | null;
+      version?: number | null;
+      reason: string;
+    },
+  ) =>
+    request<PlatformGrantResource>(
+      `/platform/users/${encodeURIComponent(userId)}/platform-grants`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("USER_ACCESS_CHANGE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("USER_ACCESS_CHANGE")!,
+            }
+          : undefined,
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  setPlatformUserMembershipRole: (
+    userId: string,
+    membershipId: string,
+    roleTemplateKey: string,
+    version: number,
+    reason: string,
+  ) =>
+    request<PlatformUserMembershipResource>(
+      `/platform/users/${encodeURIComponent(userId)}/memberships/${encodeURIComponent(membershipId)}/role`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("USER_ACCESS_CHANGE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("USER_ACCESS_CHANGE")!,
+            }
+          : undefined,
+        body: { roleTemplateKey, version, reason },
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  createPlatformUserMembership: (
+    userId: string,
+    workspaceId: string,
+    roleTemplateKey: string,
+    reason: string,
+  ) =>
+    request<PlatformUserMembershipResource>(
+      `/platform/users/${encodeURIComponent(userId)}/memberships`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("USER_ACCESS_CHANGE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("USER_ACCESS_CHANGE")!,
+            }
+          : undefined,
+        body: { workspaceId, roleTemplateKey, reason },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   platformWorkspaces: (input: {
     query?: string;
     status?: string;
@@ -1270,10 +1488,14 @@ export const weddingOsApi = {
       body: { email, returnTo: returnTo ?? undefined },
       problemPolicy: "inline",
     }),
-  resetPassword: (token: string, password: string) =>
+  resetPassword: (
+    token: string,
+    password: string,
+    acceptedTermsVersion?: string,
+  ) =>
     request<PasswordResetResponse>("/auth/password-resets", {
       method: "POST",
-      body: { token, password },
+      body: { token, password, acceptedTermsVersion },
       problemPolicy: "inline",
     }),
   requestMagicLink: (email: string, returnTo?: string | null) =>

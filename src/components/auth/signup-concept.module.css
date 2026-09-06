@@ -34,6 +34,35 @@
 .form form[novalidate] > button[type="submit"] { height: 60px; margin-top: 12px; font-size: 16px; font-weight: 500; }
 .form :global(#google-registration-requirements) { min-height: 30px; }
 
+/* Sign-in is a single-screen task. Keep its controls comfortable while
+ * preventing the tall artwork from defining the document height. */
+.frame:has([data-auth-concept="sign-in"]) .main {
+  position: relative;
+  padding-block: 16px;
+}
+.frame:has([data-auth-concept="sign-in"]) .theme {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  margin: 0;
+}
+.frame:has([data-auth-concept="sign-in"]) .heading { margin-bottom: 20px; }
+.frame:has([data-auth-concept="sign-in"]) .heading p { margin-top: 8px; }
+.frame:has([data-auth-concept="sign-in"]) .form > div:last-child,
+.frame:has([data-auth-concept="sign-in"]) .form form[novalidate] {
+  display: grid;
+  gap: 12px;
+}
+.frame:has([data-auth-concept="sign-in"]) .form > div:last-child > *,
+.frame:has([data-auth-concept="sign-in"]) .form form[novalidate] > * {
+  margin-block: 0 !important;
+}
+.frame:has([data-auth-concept="sign-in"]) .form input:not([type="hidden"]):not([type="checkbox"]) { min-height: 48px; }
+.frame:has([data-auth-concept="sign-in"]) .form form[action="/api/v1/auth/google"] > button { height: 48px; }
+.frame:has([data-auth-concept="sign-in"]) .form form[novalidate] { margin-top: 0; }
+.frame:has([data-auth-concept="sign-in"]) .form form[novalidate] > button[type="submit"] { height: 48px; margin-top: 0; }
+
 @media (min-width: 1024px) {
   .frame:has([data-auth-concept]) .panel {
     display: flex; flex-direction: column; width: 50%; flex-shrink: 0;
@@ -53,8 +82,154 @@
   .frame:has([data-auth-concept]) .theme { margin-bottom: 68px; }
   .frame:has([data-auth-concept="sign-in"]) .panel { min-height: 100dvh; }
   .frame:has([data-auth-concept="sign-in"]) .intro { margin-top: 34px; }
-  .frame:has([data-auth-concept="sign-in"]) .artwork { width: min(100%, 390px); margin: 14px auto 0; }
+  .frame:has([data-auth-concept="sign-in"]) .artwork {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: clamp(280px, 42dvh, 500px);
+    margin: 14px auto 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .artwork svg {
+    width: min(78%, 360px);
+    max-width: none;
+    height: auto;
+    flex: none;
+  }
   .frame:has([data-auth-concept="sign-in"]) .caption { margin-top: 8px; }
+}
+@media (min-width: 1024px) and (min-height: 620px) {
+  .frame:has([data-auth-concept="sign-in"]) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .panel,
+  .frame:has([data-auth-concept="sign-in"]) .main {
+    height: 100dvh;
+    min-height: 0;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .formWidth { margin-block: auto; }
+  .frame:has([data-auth-concept="sign-in"]) .theme {
+    right: clamp(24px, 3vw, 48px);
+  }
+}
+@media (min-width: 1024px) and (max-height: 820px) {
+  .frame:has([data-auth-concept="sign-in"]) .panel {
+    padding-block: 24px 20px;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .mark > span > span:first-child { font-size: 40px; }
+  .frame:has([data-auth-concept="sign-in"]) .intro { margin-top: 18px; }
+  .frame:has([data-auth-concept="sign-in"]) .headline { font-size: clamp(34px, 5.2dvh, 42px); }
+  .frame:has([data-auth-concept="sign-in"]) .lead {
+    margin-top: 14px;
+    font-size: 15px;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .artwork {
+    height: min(36dvh, 290px);
+    margin-top: 8px;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .caption {
+    margin-top: auto;
+    padding-top: 8px;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .form h1 { font-size: 36px; }
+}
+@media (max-width: 1023px) {
+  .frame:has([data-auth-concept]) {
+    position: relative;
+    isolation: isolate;
+    overflow-x: clip;
+  }
+  .frame:has([data-auth-concept]) .panel {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    color: #3b183f;
+    background: transparent;
+    pointer-events: none;
+  }
+  .frame:has([data-auth-concept]) .panel > :not(.artwork) { display: none; }
+  .frame:has([data-auth-concept]) .panel .artwork {
+    position: absolute;
+    inset: -3dvh -5vw;
+    width: auto;
+    max-width: none;
+    height: auto;
+    margin: 0;
+    opacity: 0.14;
+    transform: scale(1.06);
+    transform-origin: center;
+  }
+  .frame:has([data-auth-concept]) .panel .artwork svg {
+    display: block;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+  }
+  .frame:has([data-auth-concept]) .main {
+    position: relative;
+    z-index: 1;
+    background: transparent;
+  }
+  :global(.dark) .frame:has([data-auth-concept]) {
+    --signup-sage: #83bba1;
+    --signup-coral: #f38b74;
+    --signup-amber: #e7bd58;
+  }
+  :global(.dark) .frame:has([data-auth-concept]) .panel {
+    color: #ead3ec;
+  }
+  :global(.dark) .frame:has([data-auth-concept]) .panel .artwork {
+    opacity: 0.12;
+  }
+}
+@media (max-width: 1023px) and (max-height: 760px) {
+  .frame:has([data-auth-concept="sign-in"]) .main { padding-block: 8px; }
+  .frame:has([data-auth-concept="sign-in"]) .theme {
+    top: 8px;
+    right: 8px;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .demoEntry,
+  .frame:has([data-auth-concept="sign-in"]) .demoNote {
+    display: none;
+  }
+}
+@media (max-width: 479px) and (max-height: 680px) {
+  .frame:has([data-auth-concept="sign-in"]) .main { padding-block: 4px; }
+  .frame:has([data-auth-concept="sign-in"]) .theme {
+    top: 4px;
+    transform: scale(0.9);
+    transform-origin: top right;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .formWidth > a { margin-bottom: 10px; }
+  .frame:has([data-auth-concept="sign-in"]) .form h1 { font-size: 30px; }
+  .frame:has([data-auth-concept="sign-in"]) .heading { margin-bottom: 12px; }
+  .frame:has([data-auth-concept="sign-in"]) .heading p {
+    margin-top: 4px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .form > div:last-child,
+  .frame:has([data-auth-concept="sign-in"]) .form form[novalidate] {
+    gap: 8px;
+  }
+  .frame:has([data-auth-concept="sign-in"]) .form input:not([type="hidden"]):not([type="checkbox"]),
+  .frame:has([data-auth-concept="sign-in"]) .form form[action="/api/v1/auth/google"] > button,
+  .frame:has([data-auth-concept="sign-in"]) .form form[novalidate] > button[type="submit"],
+  .frame:has([data-auth-concept="sign-in"]) .form > div:last-child > button,
+  .frame:has([data-auth-concept="sign-in"]) .form > div:last-child > div:last-child button {
+    height: 44px;
+    min-height: 44px;
+  }
 }
 @media (min-width: 1500px) {
   .artwork { max-width: 540px; align-self: center; }

@@ -247,7 +247,7 @@ export default function SignInPage() {
                 document.cookie = "weddingos_demo=1; Path=/; Max-Age=28800; SameSite=Lax";
                 router.push("/overview?demo=1");
               }}
-              className="w-full cursor-pointer rounded-xl px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-subtle hover:text-ink"
+              className={`${styles.demoEntry} w-full cursor-pointer rounded-xl px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-subtle hover:text-ink`}
             >
               Încearcă demo-ul fără cont →
             </button>
@@ -255,7 +255,7 @@ export default function SignInPage() {
         </div>
 
         {demoEnabled ? (
-          <p className="text-center text-xs leading-relaxed text-faint">
+          <p className={`${styles.demoNote} text-center text-xs leading-relaxed text-faint`}>
             Modul demo este izolat și nu scrie în conturile reale.
           </p>
         ) : null}

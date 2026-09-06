@@ -23,7 +23,12 @@ import {
   dataSubjectTransitionSchema,
   platformLabelAssignmentSchema,
   platformLabelSchema,
+  platformCreateUserSchema,
+  platformCreateMembershipSchema,
+  platformMembershipRoleSchema,
   platformReasonSchema,
+  platformUpdateUserSchema,
+  platformUserGrantSchema,
   releaseLegalHoldSchema,
   supportCaseTransitionSchema,
   supportNoteSchema,
@@ -312,6 +317,26 @@ export class PlatformController {
     );
   }
 
+  @Post("users")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_PROVISION")
+  async createUser(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.createUser(
+        auth.userId,
+        parseWithSchema(platformCreateUserSchema, body),
+        idempotencyKey(key),
+        request.correlationId,
+      ),
+    );
+  }
+
   @Get("users/:userId")
   async user(
     @CurrentAuth() auth: AuthenticatedSession,
@@ -322,6 +347,115 @@ export class PlatformController {
       request,
       await this.service.user(auth.userId, parseUuid(targetUserId, "userId")),
     );
+  }
+
+  @Get("users/:userId/usage")
+  async userUsage(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(platformRangeQuerySchema, query);
+    return apiResponse(
+      request,
+      await this.service.userUsage(
+        auth.userId,
+        parseUuid(targetUserId, "userId"),
+        input.range,
+      ),
+    );
+  }
+
+  @Patch("users/:userId")
+  async updateUser(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const parsed = parseWithSchema(platformUpdateUserSchema, body);
+    const input = {
+      ...parsed,
+      version: resourceVersion(ifMatch, parsed.version),
+    };
+    const data = await this.service.updateUser(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      input,
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+
+  @Post("users/:userId/platform-grants")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_ACCESS_CHANGE")
+  async setUserPlatformGrant(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.setUserPlatformGrant(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      parseWithSchema(platformUserGrantSchema, body),
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+
+  @Post("users/:userId/memberships/:membershipId/role")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_ACCESS_CHANGE")
+  async setUserMembershipRole(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Param("membershipId") membershipId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const parsed = parseWithSchema(platformMembershipRoleSchema, body);
+    const data = await this.service.setUserMembershipRole(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      parseUuid(membershipId, "membershipId"),
+      {
+        ...parsed,
+        version: resourceVersion(ifMatch, parsed.version),
+      },
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+
+  @Post("users/:userId/memberships")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_ACCESS_CHANGE")
+  async createUserMembership(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.createUserMembership(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      parseWithSchema(platformCreateMembershipSchema, body),
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
   }
 
   @Post("users/:userId/suspend")

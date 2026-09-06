@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Field, Input } from "@/components/ui";
+import { TERMS_VERSION } from "@weddingos/contracts";
+import { Button, Checkbox, Field, Input } from "@/components/ui";
 import { AuthHeading } from "@/components/auth/auth-bits";
 import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
@@ -15,7 +17,9 @@ export default function ResetPasswordPage() {
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
   const [formError, setFormError] = React.useState("");
+  const [termsAccepted, setTermsAccepted] = React.useState(false);
   const token = searchParams.get("token") ?? "";
+  const provisioned = searchParams.get("provisioned") === "1";
   const missingToken = token
     ? ""
     : "Linkul de resetare este incomplet. Solicită un link nou.";
@@ -33,6 +37,9 @@ export default function ResetPasswordPage() {
         "Folosește minim 8 caractere, o literă mică, o majusculă și o cifră.";
     }
     if (confirm !== password) er.confirm = "Parolele nu coincid.";
+    if (provisioned && !termsAccepted) {
+      er.terms = "Acceptă termenii pentru a activa contul.";
+    }
     setErrors(er);
     if (Object.keys(er).length) return;
     setLoading(true);
@@ -43,7 +50,11 @@ export default function ResetPasswordPage() {
     }
     setFormError("");
     try {
-      const result = await weddingOsApi.resetPassword(token, password);
+      const result = await weddingOsApi.resetPassword(
+        token,
+        password,
+        provisioned ? TERMS_VERSION : undefined,
+      );
       const params = new URLSearchParams({ passwordReset: "1" });
       if (result.returnTo) params.set("returnTo", result.returnTo);
       router.push(`/sign-in?${params.toString()}`);
@@ -65,6 +76,20 @@ export default function ResetPasswordPage() {
         <Field label="Confirmă parola nouă" error={errors.confirm}>
           <Input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} invalid={!!errors.confirm} placeholder="••••••••" />
         </Field>
+        {provisioned ? (
+          <div>
+            <Checkbox
+              checked={termsAccepted}
+              onCheckedChange={setTermsAccepted}
+              label="Accept termenii și politica de confidențialitate"
+              className="w-full"
+            />
+            <p className="pl-7 text-xs text-muted">
+              Citește <Link href="/terms" target="_blank" className="font-medium text-brand hover:underline">Termenii</Link> și <Link href="/privacy" target="_blank" className="font-medium text-brand hover:underline">Politica de confidențialitate</Link>.
+            </p>
+            {errors.terms ? <p role="alert" className="mt-1 text-xs text-danger">{errors.terms}</p> : null}
+          </div>
+        ) : null}
         <Button type="submit" size="lg" className="w-full" loading={loading} disabled={!token}>
           Salvează parola nouă
         </Button>

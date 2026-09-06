@@ -8920,7 +8920,14 @@ function renderEmail(command: EmailCommand): {
     );
   }
   if (command.kind === "password-reset") {
-    const url = `${environment.WEB_URL}/reset-password?token=${encodeURIComponent(v.token ?? "")}`;
+    const provisioned = v.provisioned === "1" ? "&provisioned=1" : "";
+    const url = `${environment.WEB_URL}/reset-password?token=${encodeURIComponent(v.token ?? "")}${provisioned}`;
+    if (v.provisioned === "1") {
+      return emailContent(
+        "Activează contul Sarbato",
+        `Salut, ${firstName}. Un administrator ți-a creat un cont Sarbato. Alege parola și acceptă termenii folosind linkul: ${url}`,
+      );
+    }
     return emailContent(
       "Resetează parola Sarbato",
       `Salut, ${firstName}. Resetează parola folosind linkul: ${url}`,

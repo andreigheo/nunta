@@ -385,6 +385,10 @@ export const capabilityKeys = [
   "platform.payout.view_provider_details",
   "platform.dashboard.read",
   "platform.user.read",
+  "platform.user.create",
+  "platform.user.update",
+  "platform.user.manage_access",
+  "platform.usage.read",
   "platform.user.suspend",
   "platform.user.reactivate",
   "platform.user.request_deletion",
@@ -949,6 +953,7 @@ export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;
 export const passwordResetSchema = z.object({
   token: z.string().min(32),
   password: passwordSchema,
+  acceptedTermsVersion: z.string().min(1).max(40).optional(),
 });
 export type PasswordReset = z.infer<typeof passwordResetSchema>;
 
@@ -1731,6 +1736,11 @@ export const semanticEvents = [
   "digest.weekly_delivered.v1",
   "platform.user_suspended.v1",
   "platform.user_reactivated.v1",
+  "platform.user_provisioned.v1",
+  "platform.user_updated.v1",
+  "platform.user_platform_access_changed.v1",
+  "platform.user_membership_role_changed.v1",
+  "platform.user_membership_added.v1",
   "platform.workspace_suspended.v1",
   "platform.workspace_reactivated.v1",
   "platform.workspace_subscription_overridden.v1",

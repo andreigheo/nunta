@@ -230,7 +230,12 @@ export class AuthController {
     const input = parseWithSchema(passwordResetSchema, body);
     return apiResponse(
       request,
-      await this.auth.resetPassword(input.token, input.password, request),
+      await this.auth.resetPassword(
+        input.token,
+        input.password,
+        input.acceptedTermsVersion,
+        request,
+      ),
     );
   }
 
