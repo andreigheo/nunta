@@ -3,13 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BriefcaseBusiness, CalendarHeart, MailCheck } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, Mail, Eye, EyeOff } from "lucide-react";
 import type { RegistrationIntent } from "@weddingos/contracts";
 import { Button, Checkbox, Field, Input } from "@/components/ui";
 import { AuthHeading, Divider, SocialButtons } from "@/components/auth/auth-bits";
 import { AuthError } from "@/components/auth/auth-bits";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { TERMS_VERSION } from "@weddingos/contracts";
+import styles from "@/components/auth/signup-concept.module.css";
 import {
   registrationIntentForEntry,
   safeInternalPath,
@@ -19,17 +20,17 @@ const paths: Array<{
   value: RegistrationIntent;
   title: string;
   description: string;
-  icon: typeof CalendarHeart;
+  icon: typeof CalendarDays;
 }> = [
   {
     value: "EVENT_ORGANIZER",
     title: "Organizez un eveniment",
     description: "Plan, invitații, furnizori, buget și ziua evenimentului.",
-    icon: CalendarHeart,
+    icon: CalendarDays,
   },
   {
     value: "SERVICE_PROVIDER",
-    title: "Ofer servicii pentru evenimente",
+    title: "Ofer servicii",
     description: "Profil, servicii, cereri, oferte, rezervări și contracte.",
     icon: BriefcaseBusiness,
   },
@@ -37,7 +38,7 @@ const paths: Array<{
     value: "INVITED_MEMBER",
     title: "Am primit o invitație",
     description: "Intru cu rolul și accesul stabilite de organizator.",
-    icon: MailCheck,
+    icon: Mail,
   },
 ];
 
@@ -49,6 +50,7 @@ export default function CreateAccountPage() {
   const [marketing, setMarketing] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
+  const [passwordVisible, setPasswordVisible] = React.useState(false);
   const [formError, setFormError] = React.useState("");
   const returnTo = safeInternalPath(searchParams.get("returnTo"));
   const oauthError = React.useMemo(() => {
@@ -130,8 +132,10 @@ export default function CreateAccountPage() {
           : 2;
 
   return (
-    <div>
-      <AuthHeading title="Creează-ți contul" subtitle="Alege traseul potrivit. Același cont poate avea ulterior mai multe roluri." />
+    <div data-auth-concept="register" className={styles.form}>
+      <div className={styles.heading}>
+        <AuthHeading title="Creează-ți contul" subtitle="Alege cum vrei să folosești Sarbato." />
+      </div>
 
       <div className="space-y-4">
         {(formError || oauthError) && (
@@ -140,10 +144,10 @@ export default function CreateAccountPage() {
 
         <div className="space-y-4">
           <fieldset>
-            <legend className="mb-2 text-sm font-medium text-ink">
+            <legend className="sr-only">
               Cum folosești Sarbato?
             </legend>
-            <div className="grid gap-2">
+            <div className={styles.roleList}>
               {paths.map((path) => {
                 const selected = intent === path.value;
                 const Icon = path.icon;
@@ -153,21 +157,18 @@ export default function CreateAccountPage() {
                     type="button"
                     aria-pressed={selected}
                     onClick={() => setIntent(path.value)}
-                    className={`flex min-h-16 w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors ${
-                      selected
-                        ? "border-action bg-surface text-ink"
-                        : "border-line bg-surface text-ink hover:border-line-strong hover:bg-subtle"
-                    }`}
+                    className={styles.role}
                   >
-                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${selected ? "bg-action text-on-action" : "bg-subtle text-muted"}`}>
+                    <span className={styles.roleIcon}>
                       <Icon className="size-4.5" aria-hidden />
                     </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">{path.title}</span>
-                      <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+                    <span className={styles.roleTitle}>
+                      <span className="block">{path.title}</span>
+                      <span className="sr-only">
                         {path.description}
                       </span>
                     </span>
+                    <span className={styles.roleIndicator} aria-hidden />
                   </button>
                 );
               })}
@@ -179,7 +180,7 @@ export default function CreateAccountPage() {
             ) : null}
           </fieldset>
 
-          <div className="space-y-2.5">
+          <div className={`space-y-2.5 ${styles.consents}`}>
             <div>
               <div className="flex items-start gap-2.5">
                 <Checkbox
@@ -232,7 +233,12 @@ export default function CreateAccountPage() {
             <Input type="email" autoComplete="email" value={values.email} onChange={set("email")} invalid={!!errors.email} placeholder="ana@email.com" />
           </Field>
           <Field label="Parolă" error={errors.password} hint={!errors.password && values.password ? undefined : "Minim 8 caractere, cu literă mică, majusculă și cifră."}>
-            <Input type="password" autoComplete="new-password" value={values.password} onChange={set("password")} invalid={!!errors.password} placeholder="••••••••" />
+            <div className="relative">
+              <Input type={passwordVisible ? "text" : "password"} autoComplete="new-password" value={values.password} onChange={set("password")} invalid={!!errors.password} placeholder="Minim 8 caractere" className="pr-14" />
+              <button type="button" aria-label={passwordVisible ? "Ascunde parola" : "Arată parola"} aria-pressed={passwordVisible} onClick={() => setPasswordVisible((visible) => !visible)} className="absolute right-1 top-1.5 flex size-11 items-center justify-center rounded-md text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2">
+                {passwordVisible ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}
+              </button>
+            </div>
             {values.password.length > 0 && (
               <div className="mt-2 flex items-center gap-2" aria-hidden>
                 {[1, 2, 3].map((i) => (

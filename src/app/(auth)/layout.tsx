@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { SarbatoMark } from "@/components/brand/sarbato-mark";
 import { ThemeSegmentedControl } from "@/lib/theme";
+import { SignupPanel } from "@/components/auth/signup-panel";
+import styles from "@/components/auth/signup-concept.module.css";
 
 const flow = [
   "Planificare",
@@ -15,8 +17,9 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh bg-background">
-      <aside className="relative hidden w-[42%] min-w-[400px] flex-col justify-between overflow-hidden bg-brand-panel p-10 text-on-brand-panel dark:bg-sunken lg:flex xl:p-12">
+    <div className={`flex min-h-dvh bg-background ${styles.frame}`}>
+      <SignupPanel />
+      <aside className={`relative hidden w-[42%] min-w-[400px] flex-col justify-between overflow-hidden bg-brand-panel p-10 text-on-brand-panel dark:bg-sunken lg:flex xl:p-12 ${styles.legacyPanel}`}>
         <SarbatoMark href="/" inverse className="relative" />
         <div className="relative max-w-[31rem]">
           <p className="font-brand text-[38px] font-semibold leading-[1.08] tracking-[-0.03em] text-balance xl:text-[42px]">
@@ -43,17 +46,17 @@ export default function AuthLayout({
         </p>
       </aside>
 
-      <main className="flex min-h-dvh flex-1 flex-col items-center justify-start px-4 py-6 sm:px-8 sm:py-8 lg:justify-center">
-        <div className="w-full max-w-[468px] lg:my-auto">
-          <div className="mb-7 flex justify-end">
-            <ThemeSegmentedControl compactOnMobile />
+      <main className={`flex min-h-dvh flex-1 flex-col items-center justify-start px-4 py-6 sm:px-8 sm:py-8 lg:justify-center ${styles.main}`}>
+        <div className={`w-full max-w-[468px] lg:my-auto ${styles.formWidth}`}>
+          <div className={`mb-7 flex justify-end ${styles.theme}`}>
+            <ThemeSegmentedControl showSystem={false} iconOnly />
           </div>
           <SarbatoMark
             href="/"
             compact
             className="mb-8 flex justify-center lg:hidden"
           />
-          <section className="bg-transparent sm:rounded-[14px] sm:border sm:border-line sm:bg-elevated sm:px-7 sm:py-7">
+          <section className={`bg-transparent sm:rounded-[14px] sm:border sm:border-line sm:bg-elevated sm:px-7 sm:py-7 ${styles.formCard}`}>
             <Suspense
               fallback={
                 <div

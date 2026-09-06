@@ -99,11 +99,19 @@ const options: Array<{ value: ThemePreference; label: string; icon: React.Elemen
 export function ThemeSegmentedControl({
   className,
   compactOnMobile = false,
+  showSystem = true,
+  iconOnly = false,
 }: {
   className?: string;
   compactOnMobile?: boolean;
+  showSystem?: boolean;
+  iconOnly?: boolean;
 }) {
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const visibleOptions = showSystem
+    ? options
+    : options.filter((option) => option.value !== "system");
+  const selectedTheme = !showSystem && theme === "system" ? resolvedTheme : theme;
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
       return;
@@ -122,7 +130,7 @@ export function ThemeSegmentedControl({
             ? (currentIndex + 1) % buttons.length
             : (currentIndex - 1 + buttons.length) % buttons.length;
     event.preventDefault();
-    setTheme(options[nextIndex].value);
+    setTheme(visibleOptions[nextIndex].value);
     buttons[nextIndex].focus();
   };
 
@@ -133,25 +141,28 @@ export function ThemeSegmentedControl({
       onKeyDown={onKeyDown}
       className={cn("inline-flex items-center gap-1 rounded-xl border border-line bg-subtle p-1", className)}
     >
-      {options.map(({ value, label, icon: Icon }) => {
-        const active = theme === value;
+      {visibleOptions.map(({ value, label, icon: Icon }) => {
+        const active = selectedTheme === value;
         return (
           <button
             key={value}
             type="button"
             role="radio"
             aria-checked={active}
+            aria-label={label}
+            title={iconOnly ? label : undefined}
             tabIndex={active ? 0 : -1}
             onClick={() => setTheme(value)}
             className={cn(
-              "inline-flex h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              "inline-flex h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              iconOnly ? "w-11 px-0" : "px-3",
               active
                 ? "bg-elevated text-ink shadow-card"
                 : "text-muted hover:text-ink",
             )}
           >
             <Icon className="size-4" aria-hidden />
-            <span className={cn(compactOnMobile && "sr-only sm:not-sr-only")}>{label}</span>
+            <span className={cn((iconOnly || compactOnMobile) && "sr-only", !iconOnly && compactOnMobile && "sm:not-sr-only")}>{label}</span>
           </button>
         );
       })}

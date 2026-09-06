@@ -1,0 +1,69 @@
+.panel { display: none; }
+
+.frame:has([data-auth-concept]) {
+  --signup-sage: #77a991;
+  --signup-coral: #f06449;
+  --signup-amber: #f0b735;
+}
+.frame:has([data-auth-concept]) .legacyPanel { display: none; }
+.frame:has([data-auth-concept]) .formCard { padding: 0; border: 0; background: transparent; }
+.frame:has([data-auth-concept]) .formWidth { max-width: 440px; }
+.frame:has([data-auth-concept]) .main { min-width: 0; padding: 28px 24px 48px; }
+.form h1 { font-size: 44px; font-weight: 500; letter-spacing: -0.025em; }
+.heading { margin-bottom: 32px; }
+.heading > div { text-align: left; margin: 0; }
+.heading p { margin-top: 14px; }
+.roleList { display: grid; gap: 14px; }
+.role { display: flex; align-items: center; gap: 18px; width: 100%; min-height: 90px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; transition: border-color 160ms, background 160ms; }
+.role:hover { border-color: var(--line-strong); background: var(--subtle); }
+.role[aria-pressed="true"] { border-color: var(--action); background: var(--subtle); }
+.role:focus-visible { outline: 2px solid var(--action); outline-offset: 4px; }
+.roleIcon { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border-radius: 10px; }
+.roleIcon svg { width: 27px; height: 27px; stroke-width: 1.5; }
+.role:nth-child(1) .roleIcon { color: var(--accent-strong); background: var(--accent-soft); }
+.role:nth-child(2) .roleIcon { color: var(--warning); background: var(--warning-soft); }
+.role:nth-child(3) .roleIcon { color: var(--success); background: var(--success-soft); }
+.roleTitle { flex: 1; font-size: 14px; line-height: 1.5; }
+.roleIndicator { width: 20px; height: 20px; border: 1px solid var(--line-strong); border-radius: 50%; flex-shrink: 0; }
+.role[aria-pressed="true"] .roleIndicator { border: 6px solid var(--action); }
+.consents { margin-block: 24px; }
+.form input:not([type="hidden"]):not([type="checkbox"]) { min-height: 56px; border-radius: 8px; }
+.form form[action="/api/v1/auth/google"] > button,
+.form button[aria-describedby="google-registration-requirements"] { height: 64px; border-radius: 12px; font-size: 16px; font-weight: 500; }
+.form form[novalidate] { margin-top: 28px; }
+.form form[novalidate] > button[type="submit"] { height: 60px; margin-top: 12px; font-size: 16px; font-weight: 500; }
+.form :global(#google-registration-requirements) { min-height: 30px; }
+
+@media (min-width: 1024px) {
+  .frame:has([data-auth-concept]) .panel {
+    display: flex; flex-direction: column; width: 50%; flex-shrink: 0;
+    padding: 48px clamp(32px, 4vw, 64px) 40px;
+    background: #29102d; color: #fff9e8;
+  }
+  .mark { align-self: flex-start; }
+  .mark > span > span:first-child { font-size: clamp(42px, 4.7vw, 60px); font-weight: 500; }
+  .intro { margin-top: 48px; }
+  .headline { font-family: var(--font-brand), sans-serif; font-size: clamp(42px, 4.8vw, 62px); line-height: 1.09; font-weight: 400; letter-spacing: -0.025em; }
+  .lead { font-size: clamp(17px, 1.75vw, 22px); line-height: 1.35; margin-top: 24px; }
+  .artwork { width: calc(100% + 24px); margin: 20px -12px 0; }
+  .artwork svg { display: block; width: 100%; height: auto; }
+  .caption { position: relative; margin-top: auto; padding-top: 20px; font-size: 14px; line-height: 1.5; }
+  .frame:has([data-auth-concept]) .main { width: 50%; justify-content: flex-start; padding: 28px clamp(32px, 4.5vw, 80px) 48px; }
+  .frame:has([data-auth-concept]) .formWidth { margin-block: 0; }
+  .frame:has([data-auth-concept]) .theme { margin-bottom: 68px; }
+  .frame:has([data-auth-concept="sign-in"]) .panel { min-height: 100dvh; }
+  .frame:has([data-auth-concept="sign-in"]) .intro { margin-top: 34px; }
+  .frame:has([data-auth-concept="sign-in"]) .artwork { width: min(100%, 390px); margin: 14px auto 0; }
+  .frame:has([data-auth-concept="sign-in"]) .caption { margin-top: 8px; }
+}
+@media (min-width: 1500px) {
+  .artwork { max-width: 540px; align-self: center; }
+  .intro { align-self: center; width: 100%; max-width: 516px; }
+}
+@media (max-width: 479px) {
+  .form h1 { font-size: 34px; }
+  .role { min-height: 80px; padding: 12px; gap: 12px; }
+  .roleIcon { width: 44px; height: 44px; }
+  .roleIndicator { width: 18px; height: 18px; }
+  .heading { margin-bottom: 24px; }
+}

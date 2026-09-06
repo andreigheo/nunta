@@ -23,6 +23,7 @@ import {
   inferredRegistrationIntent,
   safeInternalPath,
 } from "@/lib/account-routing";
+import styles from "@/components/auth/signup-concept.module.css";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -134,8 +135,10 @@ export default function SignInPage() {
   };
 
   return (
-    <div>
-      <AuthHeading title="Bine ai revenit" subtitle="Conectează-te la evenimentele, invitațiile sau serviciile tale." />
+    <div data-auth-concept="sign-in" className={styles.form}>
+      <div className={styles.heading}>
+        <AuthHeading title="Bine ai revenit" subtitle="Conectează-te la evenimentele, invitațiile sau serviciile tale." />
+      </div>
 
       <div className="space-y-4">
         <SocialButtons mode="sign-in" returnTo={returnTo} />
