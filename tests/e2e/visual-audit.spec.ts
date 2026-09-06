@@ -55,6 +55,12 @@ test("Visual audit — registration intent is clear on desktop and mobile", asyn
     "EVENT_ORGANIZER",
   );
   await expect(googleForm.locator('input[name="terms"]')).toHaveValue("1");
+  await desktopPage
+    .getByRole("button", { name: /Am primit o invitație/ })
+    .click();
+  await expect(googleForm.locator('input[name="intent"]')).toHaveValue(
+    "INVITED_MEMBER",
+  );
   await expectNoHorizontalOverflow(desktopPage);
   await expectNoSeriousAxeViolations(desktopPage);
   await desktopPage.screenshot({
@@ -72,6 +78,16 @@ test("Visual audit — registration intent is clear on desktop and mobile", asyn
   await mobilePage
     .getByRole("button", { name: /Ofer servicii pentru evenimente/ })
     .click();
+  const mobileGoogleRegistration = mobilePage.getByRole("button", {
+    name: "Continuă cu Google",
+  });
+  await mobilePage.getByRole("checkbox", { name: /Accept termenii/i }).click();
+  await expect(mobileGoogleRegistration).toBeEnabled();
+  await expect(
+    mobileGoogleRegistration
+      .locator("xpath=ancestor::form")
+      .locator('input[name="intent"]'),
+  ).toHaveValue("SERVICE_PROVIDER");
   await expectNoHorizontalOverflow(mobilePage);
   await mobilePage.screenshot({
     path: resolve(auditRoot, "02-create-account-mobile-provider.png"),

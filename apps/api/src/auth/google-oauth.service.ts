@@ -41,6 +41,14 @@ export type GoogleOAuthErrorCode =
   | "account_unavailable"
   | "failed";
 
+type GoogleOAuthCompletion = {
+  session: CreatedSession;
+  returnTo: string | null;
+  mode: GoogleOAuthFlow["mode"];
+  registrationIntent: GoogleOAuthFlow["registrationIntent"];
+  accountCreated: boolean;
+};
+
 export class GoogleOAuthError extends Error {
   constructor(public readonly code: GoogleOAuthErrorCode) {
     super(code);
@@ -218,7 +226,7 @@ export class GoogleOAuthService {
     input: { code?: string; state?: string; error?: string },
     flowCookie: string | undefined,
     request: WeddingOsRequest,
-  ): Promise<{ session: CreatedSession; returnTo: string | null }> {
+  ): Promise<GoogleOAuthCompletion> {
     if (input.error) throw new GoogleOAuthError("cancelled");
     if (!input.code || !input.state) throw new GoogleOAuthError("invalid_flow");
     const flow = decodeGoogleOAuthFlow(
@@ -259,7 +267,7 @@ export class GoogleOAuthService {
 
     const email = payload.email.trim().toLowerCase();
     const now = new Date();
-    const user = await this.database.$transaction(async (transaction) => {
+    const account = await this.database.$transaction(async (transaction) => {
       const googleIdentity = await transaction.identity.findUnique({
         where: {
           provider_providerSubject: {
@@ -269,7 +277,9 @@ export class GoogleOAuthService {
         },
         include: { user: true },
       });
-      if (googleIdentity) return googleIdentity.user;
+      if (googleIdentity) {
+        return { user: googleIdentity.user, accountCreated: false };
+      }
 
       const existing = await transaction.user.findUnique({
         where: { email },
@@ -296,12 +306,13 @@ export class GoogleOAuthService {
           },
         });
         if (!existing.emailVerifiedAt) {
-          return transaction.user.update({
+          const user = await transaction.user.update({
             where: { id: existing.id },
             data: { emailVerifiedAt: now, version: { increment: 1 } },
           });
+          return { user, accountCreated: false };
         }
-        return existing;
+        return { user: existing, accountCreated: false };
       }
 
       if (flow.mode !== "register")
@@ -318,7 +329,7 @@ export class GoogleOAuthService {
         payload.family_name,
         fullName.slice(1).join(" ") || "Google",
       );
-      return transaction.user.create({
+      const user = await transaction.user.create({
         data: {
           email,
           emailVerifiedAt: now,
@@ -347,7 +358,10 @@ export class GoogleOAuthService {
           },
         },
       });
+      return { user, accountCreated: true };
     });
+
+    const { user, accountCreated } = account;
 
     if (user.status !== "ACTIVE")
       throw new GoogleOAuthError("account_unavailable");
@@ -373,13 +387,32 @@ export class GoogleOAuthService {
       correlationId: request.correlationId,
       ipAddress: request.ip,
     });
-    return { session, returnTo: flow.returnTo };
+    return {
+      session,
+      returnTo: flow.returnTo,
+      mode: flow.mode,
+      registrationIntent: flow.registrationIntent,
+      accountCreated,
+    };
   }
 
-  successRedirect(returnTo: string | null): string {
+  successRedirect(result: Omit<GoogleOAuthCompletion, "session">): string {
+    if (result.returnTo) {
+      return new URL(result.returnTo, this.environment.WEB_URL).toString();
+    }
+
+    if (result.mode === "register" && result.accountCreated) {
+      const destination =
+        result.registrationIntent === "SERVICE_PROVIDER"
+          ? "/vendor?setup=1"
+          : result.registrationIntent === "INVITED_MEMBER"
+            ? "/start"
+            : "/onboarding";
+      return new URL(destination, this.environment.WEB_URL).toString();
+    }
+
     const url = new URL("/sign-in", this.environment.WEB_URL);
     url.searchParams.set("google", "1");
-    if (returnTo) url.searchParams.set("returnTo", returnTo);
     return url.toString();
   }
 

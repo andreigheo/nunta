@@ -105,7 +105,7 @@ export class AuthController {
       );
       return response.redirect(
         HttpStatus.SEE_OTHER,
-        this.googleOAuth.successRedirect(result.returnTo),
+        this.googleOAuth.successRedirect(result),
       );
     } catch (error) {
       return response.redirect(

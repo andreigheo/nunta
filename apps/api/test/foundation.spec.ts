@@ -317,6 +317,9 @@ describe("Slice 0/1 foundation", () => {
     expect(result).toEqual({
       session,
       returnTo: "/onboarding?source=google",
+      mode: "register",
+      registrationIntent: "EVENT_ORGANIZER",
+      accountCreated: true,
     });
     expect(transaction.user.create).toHaveBeenCalledWith({
       data: {
@@ -361,6 +364,71 @@ describe("Slice 0/1 foundation", () => {
         entityId: session.id,
       }),
     );
+    expect(
+      service.successRedirect({
+        returnTo: result.returnTo,
+        mode: result.mode,
+        registrationIntent: result.registrationIntent,
+        accountCreated: result.accountCreated,
+      }),
+    ).toBe("https://sarbato.space/onboarding?source=google");
+  });
+
+  it("routes each new Google registration directly to the selected role", () => {
+    const environment = parseApiEnvironment({
+      NODE_ENV: "test",
+      WEB_URL: "https://sarbato.space",
+      API_URL: "https://sarbato.space/api",
+      DATABASE_URL: "postgresql://example",
+      SESSION_SECRET: "test-session-secret-with-at-least-32-characters",
+      EMAIL_FROM: "Sarbato <hello@sarbato.space>",
+      EMAIL_PROVIDER: "console",
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: "1025",
+      REDIS_URL: "redis://127.0.0.1:56379",
+      OUTBOX_ENCRYPTION_KEY:
+        "test-outbox-encryption-key-with-at-least-32-characters",
+      LOG_LEVEL: "silent",
+    });
+    const service = new GoogleOAuthService(
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      environment,
+    );
+
+    expect(
+      service.successRedirect({
+        returnTo: null,
+        mode: "register",
+        registrationIntent: "EVENT_ORGANIZER",
+        accountCreated: true,
+      }),
+    ).toBe("https://sarbato.space/onboarding");
+    expect(
+      service.successRedirect({
+        returnTo: null,
+        mode: "register",
+        registrationIntent: "SERVICE_PROVIDER",
+        accountCreated: true,
+      }),
+    ).toBe("https://sarbato.space/vendor?setup=1");
+    expect(
+      service.successRedirect({
+        returnTo: null,
+        mode: "register",
+        registrationIntent: "INVITED_MEMBER",
+        accountCreated: true,
+      }),
+    ).toBe("https://sarbato.space/start");
+    expect(
+      service.successRedirect({
+        returnTo: null,
+        mode: "register",
+        registrationIntent: "EVENT_ORGANIZER",
+        accountCreated: false,
+      }),
+    ).toBe("https://sarbato.space/sign-in?google=1");
   });
 
   it("links existing accounts only when Google is authoritative for the email", () => {

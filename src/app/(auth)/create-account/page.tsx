@@ -134,20 +134,11 @@ export default function CreateAccountPage() {
       <AuthHeading title="Creează-ți contul" subtitle="Alege traseul potrivit. Același cont poate avea ulterior mai multe roluri." />
 
       <div className="space-y-4">
-        <SocialButtons
-          mode="register"
-          returnTo={returnTo}
-          registrationIntent={intent}
-          termsAccepted={terms}
-          marketingConsent={marketing}
-        />
-        <Divider label="sau folosește emailul" />
-
         {(formError || oauthError) && (
           <AuthError message={formError || oauthError} />
         )}
 
-        <form onSubmit={submit} className="space-y-4" noValidate>
+        <div className="space-y-4">
           <fieldset>
             <legend className="mb-2 text-sm font-medium text-ink">
               Cum folosești Sarbato?
@@ -187,34 +178,6 @@ export default function CreateAccountPage() {
               </p>
             ) : null}
           </fieldset>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Prenume" error={errors.firstName}>
-              <Input autoComplete="given-name" value={values.firstName} onChange={set("firstName")} invalid={!!errors.firstName} placeholder="Ana" />
-            </Field>
-            <Field label="Nume" error={errors.lastName}>
-              <Input autoComplete="family-name" value={values.lastName} onChange={set("lastName")} invalid={!!errors.lastName} placeholder="Dumitrescu" />
-            </Field>
-          </div>
-          <Field label="Email" error={errors.email}>
-            <Input type="email" autoComplete="email" value={values.email} onChange={set("email")} invalid={!!errors.email} placeholder="ana@email.com" />
-          </Field>
-          <Field label="Parolă" error={errors.password} hint={!errors.password && values.password ? undefined : "Minim 8 caractere, cu literă mică, majusculă și cifră."}>
-            <Input type="password" autoComplete="new-password" value={values.password} onChange={set("password")} invalid={!!errors.password} placeholder="••••••••" />
-            {values.password.length > 0 && (
-              <div className="mt-2 flex items-center gap-2" aria-hidden>
-                {[1, 2, 3].map((i) => (
-                  <span
-                    key={i}
-                    className={`h-1 flex-1 rounded-full ${i <= strength ? (strength === 1 ? "bg-danger" : strength === 2 ? "bg-warning" : "bg-success") : "bg-subtle"}`}
-                  />
-                ))}
-                <span className="text-[11px] text-faint">{strength === 1 ? "slabă" : strength === 2 ? "bună" : strength === 3 ? "excelentă" : ""}</span>
-              </div>
-            )}
-          </Field>
-          <Field label="Confirmă parola" error={errors.confirm}>
-            <Input type="password" autoComplete="new-password" value={values.confirm} onChange={set("confirm")} invalid={!!errors.confirm} placeholder="••••••••" />
-          </Field>
 
           <div className="space-y-2.5">
             <div>
@@ -245,6 +208,46 @@ export default function CreateAccountPage() {
               label="Vreau sfaturi de planificare pe email (opțional)"
             />
           </div>
+        </div>
+
+        <SocialButtons
+          mode="register"
+          returnTo={returnTo}
+          registrationIntent={intent}
+          termsAccepted={terms}
+          marketingConsent={marketing}
+        />
+        <Divider label="sau creează contul cu emailul" />
+
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Prenume" error={errors.firstName}>
+              <Input autoComplete="given-name" value={values.firstName} onChange={set("firstName")} invalid={!!errors.firstName} placeholder="Ana" />
+            </Field>
+            <Field label="Nume" error={errors.lastName}>
+              <Input autoComplete="family-name" value={values.lastName} onChange={set("lastName")} invalid={!!errors.lastName} placeholder="Dumitrescu" />
+            </Field>
+          </div>
+          <Field label="Email" error={errors.email}>
+            <Input type="email" autoComplete="email" value={values.email} onChange={set("email")} invalid={!!errors.email} placeholder="ana@email.com" />
+          </Field>
+          <Field label="Parolă" error={errors.password} hint={!errors.password && values.password ? undefined : "Minim 8 caractere, cu literă mică, majusculă și cifră."}>
+            <Input type="password" autoComplete="new-password" value={values.password} onChange={set("password")} invalid={!!errors.password} placeholder="••••••••" />
+            {values.password.length > 0 && (
+              <div className="mt-2 flex items-center gap-2" aria-hidden>
+                {[1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className={`h-1 flex-1 rounded-full ${i <= strength ? (strength === 1 ? "bg-danger" : strength === 2 ? "bg-warning" : "bg-success") : "bg-subtle"}`}
+                  />
+                ))}
+                <span className="text-[11px] text-faint">{strength === 1 ? "slabă" : strength === 2 ? "bună" : strength === 3 ? "excelentă" : ""}</span>
+              </div>
+            )}
+          </Field>
+          <Field label="Confirmă parola" error={errors.confirm}>
+            <Input type="password" autoComplete="new-password" value={values.confirm} onChange={set("confirm")} invalid={!!errors.confirm} placeholder="••••••••" />
+          </Field>
 
           <Button type="submit" size="lg" className="w-full" loading={loading}>
             Creează contul
