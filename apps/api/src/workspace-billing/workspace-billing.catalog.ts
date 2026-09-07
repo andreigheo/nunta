@@ -7,6 +7,25 @@ import type {
 
 export type WorkspaceEntitlements = Record<string, boolean | number>;
 
+export const MESSAGE_CREDIT_PACKS = [
+  {
+    key: "MESSAGES_100",
+    name: "100 de credite",
+    description: "Pentru trimiteri SMS și WhatsApp activate în workspace.",
+    credits: 100,
+    amountMinor: 1250,
+    currency: "EUR" as const,
+  },
+] as const;
+
+export type MessageCreditPackKey = (typeof MESSAGE_CREDIT_PACKS)[number]["key"];
+
+export function messageCreditPack(key: MessageCreditPackKey) {
+  const pack = MESSAGE_CREDIT_PACKS.find((candidate) => candidate.key === key);
+  if (!pack) throw new Error(`Unknown message credit pack: ${key}`);
+  return pack;
+}
+
 const MEBIBYTE = 1024 * 1024;
 const GIBIBYTE = 1024 * MEBIBYTE;
 
@@ -26,6 +45,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         "Până la 50 de invitați",
         "2 colaboratori în afara proprietarului",
         "5 acțiuni AI pe lună",
+        "10 credite de mesagerie pentru test",
         "250 MB pentru fișiere și imagini",
       ],
       entitlements: {
@@ -45,6 +65,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         ADVANCED_EXPORTS: false,
         PRIORITY_SUPPORT: false,
         VENDOR_PAYMENTS: false,
+        MESSAGING_CREDITS: 10,
       },
     },
     {
@@ -52,7 +73,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       name: "Plus",
       description:
         "Organizare completă, colaborare și logistică pentru majoritatea evenimentelor.",
-      amountMinor: 700,
+      amountMinor: 2700,
       currency: "EUR",
       interval: "month",
       recommended: true,
@@ -63,6 +84,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         "Mese, transport, cazare și coordonare furnizori",
         "Documente, exporturi și 5 automatizări active",
         "30 de acțiuni AI pe lună",
+        "50 de credite de mesagerie pe lună",
       ],
       entitlements: {
         MAX_COLLABORATORS: 5,
@@ -81,6 +103,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         ADVANCED_EXPORTS: true,
         PRIORITY_SUPPORT: false,
         VENDOR_PAYMENTS: false,
+        MESSAGING_CREDITS: 50,
       },
     },
     {
@@ -88,7 +111,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       name: "Pro",
       description:
         "Control operațional, automatizare și instrumente avansate pentru echipe exigente.",
-      amountMinor: 1700,
+      amountMinor: 5900,
       currency: "EUR",
       interval: "month",
       recommended: false,
@@ -99,6 +122,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         "Riscuri, Plan B, check-in și comandament în ziua evenimentului",
         "Semnături externe și 25 de automatizări active",
         "150 de acțiuni AI pe lună",
+        "100 de credite de mesagerie pe lună",
       ],
       entitlements: {
         MAX_COLLABORATORS: 15,
@@ -117,6 +141,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         ADVANCED_EXPORTS: true,
         PRIORITY_SUPPORT: true,
         VENDOR_PAYMENTS: false,
+        MESSAGING_CREDITS: 100,
       },
     },
   ] as const;

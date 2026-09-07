@@ -4,7 +4,11 @@ import type { WorkspaceSubscriptionPlanKey } from "@weddingos/contracts";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
-import { workspacePlan } from "./workspace-billing.catalog";
+import {
+  messageCreditPack,
+  type MessageCreditPackKey,
+  workspacePlan,
+} from "./workspace-billing.catalog";
 
 type PaddleEnvelope<T> = { data: T };
 
@@ -47,6 +51,13 @@ export class PaddleService {
     return this.environment.PADDLE_CLIENT_TOKEN ?? null;
   }
 
+  get messageCreditsEnabled() {
+    return (
+      this.enabled &&
+      Boolean(this.environment.PADDLE_MESSAGE_CREDITS_100_PRICE_ID)
+    );
+  }
+
   get paddleEnvironment() {
     return this.environment.PADDLE_ENVIRONMENT;
   }
@@ -70,6 +81,20 @@ export class PaddleService {
         HttpStatus.SERVICE_UNAVAILABLE,
         "Billing indisponibil",
         "Prețul Paddle pentru acest plan nu este configurat.",
+      );
+    return value;
+  }
+
+  messageCreditPriceId(pack: MessageCreditPackKey): string {
+    const value =
+      pack === "MESSAGES_100"
+        ? this.environment.PADDLE_MESSAGE_CREDITS_100_PRICE_ID
+        : undefined;
+    if (!value)
+      problem(
+        "BILLING_NOT_CONFIGURED",
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "Pachetele de credite nu sunt încă disponibile",
       );
     return value;
   }
@@ -119,6 +144,53 @@ export class PaddleService {
     };
   }
 
+  async createMessageCreditTransaction(input: {
+    pack: MessageCreditPackKey;
+    workspaceId: string;
+    userId: string;
+    checkoutId: string;
+    assignmentToken: string;
+  }) {
+    this.requireEnabled();
+    const priceId = this.messageCreditPriceId(input.pack);
+    await this.verifyMessageCreditPrice(priceId, input.pack);
+    const pack = messageCreditPack(input.pack);
+    const response = await this.call<
+      PaddleEnvelope<{ id: string; checkout: { url: string | null } }>
+    >("/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        items: [{ price_id: priceId, quantity: 1 }],
+        collection_mode: "automatic",
+        custom_data: {
+          workspace_id: input.workspaceId,
+          purchaser_user_id: input.userId,
+          credit_pack_key: input.pack,
+          credit_quantity: pack.credits,
+          checkout_id: input.checkoutId,
+          assignment_token: input.assignmentToken,
+          purpose: "sarbato_message_credits",
+        },
+        checkout: {
+          url:
+            this.environment.PADDLE_CHECKOUT_URL ??
+            `${this.environment.WEB_URL}/checkout`,
+        },
+      }),
+    });
+    if (!response.data.checkout.url)
+      problem(
+        "PADDLE_CHECKOUT_UNAVAILABLE",
+        HttpStatus.BAD_GATEWAY,
+        "Checkout Paddle indisponibil",
+      );
+    return {
+      transactionId: response.data.id,
+      checkoutUrl: response.data.checkout.url,
+      priceId,
+    };
+  }
+
   createAssignmentToken(input: {
     plan: Exclude<WorkspaceSubscriptionPlanKey, "FREE">;
     workspaceId: string;
@@ -134,6 +206,28 @@ export class PaddleService {
       .update(input.userId)
       .update("\0")
       .update(input.plan)
+      .digest("base64url");
+    return {
+      rawToken,
+      tokenHash: createHash("sha256").update(rawToken).digest("hex"),
+    };
+  }
+
+  createMessageCreditAssignmentToken(input: {
+    pack: MessageCreditPackKey;
+    workspaceId: string;
+    userId: string;
+    checkoutId: string;
+  }) {
+    const rawToken = createHmac("sha256", this.environment.SESSION_SECRET)
+      .update("sarbato-paddle-message-credits:v1\0")
+      .update(input.checkoutId)
+      .update("\0")
+      .update(input.workspaceId)
+      .update("\0")
+      .update(input.userId)
+      .update("\0")
+      .update(input.pack)
       .digest("base64url");
     return {
       rawToken,
@@ -167,6 +261,17 @@ export class PaddleService {
       );
     const match = [...matches.entries()][0];
     return match ? { planKey: match[0], priceId: match[1] } : null;
+  }
+
+  messageCreditPackFromProviderData(
+    data: Record<string, unknown>,
+  ): { packKey: MessageCreditPackKey; priceId: string } | null {
+    const configured = this.environment.PADDLE_MESSAGE_CREDITS_100_PRICE_ID;
+    if (!configured) return null;
+    const priceIds = providerPriceIds(data);
+    return priceIds.length === 1 && priceIds[0] === configured
+      ? { packKey: "MESSAGES_100", priceId: configured }
+      : null;
   }
 
   async getSubscription(subscriptionId: string) {
@@ -310,6 +415,34 @@ export class PaddleService {
         HttpStatus.SERVICE_UNAVAILABLE,
         "Preț Paddle configurat greșit",
         `Planul ${plan.name} trebuie să fie exact €${(plan.amountMinor / 100).toFixed(2)}/lună.`,
+      );
+    this.verifiedPrices.add(priceId);
+  }
+
+  private async verifyMessageCreditPrice(
+    priceId: string,
+    packKey: MessageCreditPackKey,
+  ) {
+    if (this.verifiedPrices.has(priceId)) return;
+    const response = await this.call<
+      PaddleEnvelope<{
+        unit_price: { amount: string; currency_code: string };
+        billing_cycle: { interval: string; frequency: number } | null;
+        status: string;
+      }>
+    >(`/prices/${encodeURIComponent(priceId)}`, { method: "GET" });
+    const pack = messageCreditPack(packKey);
+    const matches =
+      response.data.status === "active" &&
+      response.data.unit_price.amount === String(pack.amountMinor) &&
+      response.data.unit_price.currency_code === pack.currency &&
+      response.data.billing_cycle === null;
+    if (!matches)
+      problem(
+        "PADDLE_PRICE_MISMATCH",
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "Preț Paddle configurat greșit",
+        `Pachetul ${pack.name} trebuie să fie o plată unică de €${(pack.amountMinor / 100).toFixed(2)}.`,
       );
     this.verifiedPrices.add(priceId);
   }

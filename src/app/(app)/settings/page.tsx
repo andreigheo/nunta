@@ -7,6 +7,7 @@ import {
   Bell,
   ChevronRight,
   CreditCard,
+  Coins,
   Download,
   KeyRound,
   Laptop,
@@ -495,6 +496,7 @@ const entitlementRows = [
   { key: "MAX_GUESTS", label: "Invitați" },
   { key: "MAX_COLLABORATORS", label: "Colaboratori" },
   { key: "AI_ACTIONS_MONTHLY", label: "Acțiuni AI / lună" },
+  { key: "MESSAGING_CREDITS", label: "Credite de mesagerie" },
   { key: "MAX_ACTIVE_AUTOMATIONS", label: "Automatizări active" },
   { key: "STORAGE_BYTES", label: "Stocare" },
   { key: "ADVANCED_LOGISTICS", label: "Mese, transport și cazare" },
@@ -540,6 +542,7 @@ function BillingSettings() {
   const [loading, setLoading] = React.useState(true);
   const [busyPlan, setBusyPlan] =
     React.useState<WorkspaceSubscriptionPlanKey | null>(null);
+  const [busyCreditPack, setBusyCreditPack] = React.useState(false);
   const canManage =
     bootstrap?.membership.capabilities.includes("workspace.billing.manage") ??
     false;
@@ -612,6 +615,41 @@ function BillingSettings() {
     }
   };
 
+  const buyMessageCredits = async () => {
+    if (!currentWorkspace || !billing || !canManage) return;
+    setBusyCreditPack(true);
+    try {
+      const result = await weddingOsApi.startMessageCreditCheckout(
+        currentWorkspace.id,
+        "MESSAGES_100",
+      );
+      if (billing.clientToken) {
+        const paddle = await loadPaddle(
+          billing.clientToken,
+          billing.paddleEnvironment,
+        );
+        paddle.Checkout.open({
+          transactionId: result.transactionId,
+          settings: {
+            displayMode: "overlay",
+            theme: "light",
+            successUrl: `${window.location.origin}/settings?tab=billing&checkout=credits-success`,
+          },
+        });
+      } else {
+        window.location.assign(result.url);
+      }
+    } catch (error) {
+      toast({
+        title: "Pachetul de credite nu a putut fi deschis",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setBusyCreditPack(false);
+    }
+  };
+
   if (loading) return <CardSkeleton lines={6} />;
   if (!billing)
     return (
@@ -636,8 +674,8 @@ function BillingSettings() {
               Alege planul potrivit
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Prețuri lunare în EUR. Paddle procesează numai abonamentul
-              Sarbato.
+              Prețuri lunare în EUR. Paddle procesează abonamentele și
+              pachetele de credite Sarbato.
             </p>
           </div>
           <Badge variant="neutral">
@@ -674,7 +712,7 @@ function BillingSettings() {
                     </div>
                     <div className="mt-3 flex items-end gap-1 text-ink">
                       <span className="text-4xl font-semibold">
-                        €{(plan.amountMinor / 100).toFixed(0)}
+                        {formatEuro(plan.amountMinor)}
                       </span>
                       <span className="pb-1 text-sm text-faint">/ lună</span>
                     </div>
@@ -716,6 +754,74 @@ function BillingSettings() {
           })}
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Coins className="size-4.5 text-brand" aria-hidden />
+              Credite de mesagerie
+            </CardTitle>
+            <CardDescription>
+              Creditele incluse se reînnoiesc odată cu planul. Cele cumpărate
+              separat rămân în sold și se consumă numai după cele incluse.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <CreditMetric
+              label="Disponibile"
+              value={billing.messageCredits.available}
+              emphasis
+            />
+            <CreditMetric
+              label="Incluse în plan"
+              value={billing.messageCredits.included}
+              detail={
+                billing.messageCredits.resetsAt
+                  ? `Reînnoire ${formatDateLong(billing.messageCredits.resetsAt)}`
+                  : "Credit de test acordat o singură dată"
+              }
+            />
+            <CreditMetric
+              label="Cumpărate separat"
+              value={billing.messageCredits.purchased}
+              detail="Nu se pierd la reînnoirea planului"
+            />
+          </div>
+          {billing.messageCreditPacks.map((pack) => (
+            <div
+              key={pack.key}
+              className="mt-4 flex flex-col gap-3 rounded-xl border border-line bg-subtle p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-semibold text-ink">
+                  {pack.name} · {formatEuro(pack.amountMinor)}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {pack.description} Un SMS mai lung poate folosi mai multe
+                  credite dacă furnizorul îl facturează în mai multe segmente.
+                </p>
+              </div>
+              <Button
+                className="shrink-0"
+                variant="outline"
+                disabled={!canManage || !pack.checkoutAvailable}
+                loading={busyCreditPack}
+                onClick={() => void buyMessageCredits()}
+                title={
+                  pack.checkoutAvailable
+                    ? undefined
+                    : "Prețul pachetului trebuie configurat în Paddle"
+                }
+              >
+                Cumpără 100 credite
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -952,6 +1058,39 @@ function BillingSettings() {
       </Card>
     </div>
   );
+}
+
+function CreditMetric({
+  label,
+  value,
+  detail,
+  emphasis = false,
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-line p-4">
+      <p className="text-xs font-medium text-muted">{label}</p>
+      <p
+        className={`mt-1 text-2xl font-semibold tabular-nums ${emphasis ? "text-brand" : "text-ink"}`}
+      >
+        {value.toLocaleString("ro-RO")}
+      </p>
+      {detail ? <p className="mt-1 text-xs text-faint">{detail}</p> : null}
+    </div>
+  );
+}
+
+function formatEuro(amountMinor: number) {
+  return new Intl.NumberFormat("ro-RO", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: amountMinor % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(amountMinor / 100);
 }
 
 function AppearanceSettings() {

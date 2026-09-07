@@ -1189,6 +1189,22 @@ export const weddingOsApi = {
       body: { plan },
       idempotencyKey: crypto.randomUUID(),
     }),
+  startMessageCreditCheckout: (
+    workspaceId: string,
+    pack: "MESSAGES_100",
+  ) =>
+    request<{
+      mode: "checkout";
+      url: string;
+      transactionId: string;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/billing/message-credits/checkout`,
+      {
+        method: "POST",
+        body: { pack },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   workspaceBillingPortal: (workspaceId: string) =>
     request<{ url: string }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/billing/portal`,

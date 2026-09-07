@@ -165,7 +165,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "trust-external",
     statement:
-      "Paddle procesează abonamentul Sarbato, iar plățile dintre organizatori și furnizorii evenimentului rămân directe și separate.",
+      "Paddle procesează abonamentul și pachetele de credite Sarbato, iar plățile dintre organizatori și furnizorii evenimentului rămân directe și separate.",
     support:
       "/settings?tab=billing + catalogul Paddle Live; /payments păstrează numai evidența operațională a plăților externe către furnizori",
     status: "implemented",
@@ -224,7 +224,7 @@ export const marketingClaims: readonly MarketingClaim[] = [
   {
     id: "pricing-paid",
     statement:
-      "Plus (7 €/lună) și Pro (17 €/lună), facturate lunar prin Paddle.",
+      "Plus (27 €/lună, cu 50 de credite) și Pro (59 €/lună, cu 100 de credite), facturate lunar prin Paddle; pachetul suplimentar costă 12,50 € pentru 100 de credite.",
     support:
       "/settings?tab=billing; catalogul Paddle Live și endpoint-urile workspace billing",
     status: "implemented",

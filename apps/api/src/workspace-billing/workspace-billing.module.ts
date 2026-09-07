@@ -9,6 +9,7 @@ import {
 } from "./workspace-billing.controller";
 import { WorkspaceBillingService } from "./workspace-billing.service";
 import { WorkspaceEntitlementService } from "./workspace-entitlement.service";
+import { MessageCreditService } from "./message-credit.service";
 
 @Module({
   imports: [AuthModule, WorkspacesModule],
@@ -21,7 +22,12 @@ import { WorkspaceEntitlementService } from "./workspace-entitlement.service";
     WorkspaceBillingService,
     WorkspaceEntitlementService,
     PaddleService,
+    MessageCreditService,
   ],
-  exports: [WorkspaceBillingService, WorkspaceEntitlementService],
+  exports: [
+    WorkspaceBillingService,
+    WorkspaceEntitlementService,
+    MessageCreditService,
+  ],
 })
 export class WorkspaceBillingModule {}

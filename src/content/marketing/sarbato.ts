@@ -563,6 +563,7 @@ export const pricing = {
         "Plan, calendar, buget, invitație și RSVP",
         "Până la 50 de invitați și 2 colaboratori",
         "5 acțiuni AI și 250 MB de stocare",
+        "10 credite de mesagerie pentru test",
       ],
       status: "Disponibil",
       cta: { label: "Începe gratuit", href: routes.createAccount },
@@ -570,7 +571,7 @@ export const pricing = {
     },
     {
       name: "Plus",
-      price: "7 €",
+      price: "27 €",
       cadence: "pe lună",
       description:
         "Pentru organizarea completă, logistica invitaților și coordonarea furnizorilor.",
@@ -578,6 +579,7 @@ export const pricing = {
         "Până la 200 de invitați și 5 colaboratori",
         "Mese, transport, cazare și documente",
         "5 automatizări, 30 acțiuni AI și 2 GB",
+        "50 de credite de mesagerie pe lună",
       ],
       status: "Disponibil în cont",
       cta: { label: "Începe cu Plus", href: routes.createAccount },
@@ -585,13 +587,14 @@ export const pricing = {
     },
     {
       name: "Pro",
-      price: "17 €",
+      price: "59 €",
       cadence: "pe lună",
       description: "Pentru coordonare operațională avansată.",
       features: [
         "Până la 500 de invitați și 15 colaboratori",
         "Riscuri, Plan B, check-in și ziua evenimentului",
         "25 automatizări, 150 acțiuni AI și 10 GB",
+        "100 de credite de mesagerie pe lună",
       ],
       status: "Disponibil în cont",
       cta: { label: "Începe cu Pro", href: routes.createAccount },
@@ -599,7 +602,7 @@ export const pricing = {
     },
   ],
   boundary:
-    "Paddle procesează abonamentul Sarbato. Plățile dintre organizatori și furnizori rămân directe și separate.",
+    "Paddle procesează abonamentul și pachetele de credite Sarbato. Plățile dintre organizatori și furnizori rămân directe și separate.",
   checkoutNote:
     "Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
 } as const;
