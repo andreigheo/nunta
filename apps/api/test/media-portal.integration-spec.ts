@@ -536,6 +536,118 @@ describe.sequential(
       expect(originalFetch.status).toBe(200);
       expect(Buffer.from(await originalFetch.arrayBuffer())).toEqual(bytes);
     }, 30_000);
+    it("publishes approved moments into the live gallery behind the same QR", async () => {
+      const enabled = await request(app.getHttpServer())
+        .post(`/api/v1/workspaces/${workspaceId}/media-portals/live-gallery`)
+        .set(auth())
+        .send({ weddingEventId: eventId, enabled: true })
+        .expect(201);
+      expect(enabled.body.data).toMatchObject({
+        liveGalleryEnabled: true,
+        liveGallery: { status: "PUBLISHED", itemCount: 0 },
+      });
+
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/workspaces/${secondWorkspaceId}/media-portals/live-gallery`,
+        )
+        .set({ Cookie: secondCookie, Origin: process.env.WEB_URL! })
+        .send({ weddingEventId: secondEventId, enabled: true })
+        .expect(201);
+
+      const empty = await request(app.getHttpServer())
+        .get("/api/v1/event-media/gallery")
+        .set(publicHeaders())
+        .expect(200);
+      expect(empty.body).toMatchObject({
+        enabled: true,
+        gallery: { items: [] },
+      });
+
+      const before = await ownerDb.guestMoment.findUniqueOrThrow({
+        where: { id: uploadedMomentId },
+      });
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/workspaces/${workspaceId}/guest-moments/${uploadedMomentId}/transitions`,
+        )
+        .set({
+          ...auth(),
+          "If-Match": `"${before.version}"`,
+          "Idempotency-Key": randomUUID(),
+        })
+        .send({ transition: "APPROVE" })
+        .expect(201)
+        .expect(({ body }) => expect(body.data.status).toBe("PUBLISHED"));
+
+      const gallery = await request(app.getHttpServer())
+        .get("/api/v1/event-media/gallery")
+        .set(publicHeaders())
+        .expect(200);
+      expect(gallery.body.gallery.items).toHaveLength(1);
+      expect(gallery.body.gallery.items[0]).toMatchObject({
+        momentId: uploadedMomentId,
+        contributorName: "Andrei",
+        mediaType: "IMAGE",
+      });
+      expect(
+        (await fetch(gallery.body.gallery.items[0].previewUrl)).status,
+      ).toBe(200);
+      expect(
+        (await fetch(gallery.body.gallery.items[0].contentUrl)).status,
+      ).toBe(200);
+
+      const isolated = await request(app.getHttpServer())
+        .get("/api/v1/event-media/gallery")
+        .set({
+          Authorization: `Bearer ${secondToken}`,
+          Origin: process.env.WEB_URL!,
+        })
+        .expect(200);
+      expect(isolated.body).toMatchObject({
+        enabled: true,
+        gallery: { items: [] },
+      });
+
+      const approved = await ownerDb.guestMoment.findUniqueOrThrow({
+        where: { id: uploadedMomentId },
+      });
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/workspaces/${workspaceId}/guest-moments/${uploadedMomentId}/transitions`,
+        )
+        .set({
+          ...auth(),
+          "If-Match": `"${approved.version}"`,
+          "Idempotency-Key": randomUUID(),
+        })
+        .send({ transition: "HIDE" })
+        .expect(201);
+      expect(
+        (
+          await request(app.getHttpServer())
+            .get("/api/v1/event-media/gallery")
+            .set(publicHeaders())
+            .expect(200)
+        ).body.gallery.items,
+      ).toEqual([]);
+
+      const disabled = await request(app.getHttpServer())
+        .post(`/api/v1/workspaces/${workspaceId}/media-portals/live-gallery`)
+        .set(auth())
+        .send({ weddingEventId: eventId, enabled: false })
+        .expect(201);
+      expect(disabled.body.data.liveGalleryEnabled).toBe(false);
+      portal = disabled.body.data;
+      expect(
+        (
+          await request(app.getHttpServer())
+            .get("/api/v1/event-media/gallery")
+            .set(publicHeaders())
+            .expect(200)
+        ).body,
+      ).toEqual({ enabled: false, gallery: null });
+    }, 45_000);
     it("keeps organizer, portal, upload and object data isolated between tenants", async () => {
       const secondAuth = {
         Cookie: secondCookie,
@@ -647,6 +759,10 @@ describe.sequential(
           .get(path)
           .set(secondAuth)
           .expect(404);
+      const moderationCasesBefore =
+        await ownerDb.guestMomentModerationCase.count({
+          where: { guestMomentId: secondMomentId },
+        });
       await request(app.getHttpServer())
         .post(
           `/api/v1/workspaces/${workspaceId}/guest-moments/${secondMomentId}/transitions`,
@@ -658,7 +774,7 @@ describe.sequential(
         await ownerDb.guestMomentModerationCase.count({
           where: { guestMomentId: secondMomentId },
         }),
-      ).toBe(0);
+      ).toBe(moderationCasesBefore);
 
       // RLS itself is a second boundary below controller/service filtering.
       const visibleToFirst = await database.withContext(
@@ -699,11 +815,14 @@ describe.sequential(
         where: { id: secondStored.storedObjectId },
       });
       expect(physicalObject.workspaceId).toBe(secondWorkspaceId);
-      expect(physicalObject.objectKey).toMatch(
-        new RegExp(
-          `^private/guest-moments/${secondWorkspaceId}/${secondMomentId}/`,
-        ),
-      );
+      expect(
+        physicalObject.objectKey.startsWith(
+          `private/guest-moments/${secondWorkspaceId}/${secondMomentId}/`,
+        ) ||
+          physicalObject.objectKey.startsWith(
+            `private/guest-moment-originals/${secondWorkspaceId}/${secondMomentId}.`,
+          ),
+      ).toBe(true);
 
       // A signed URL is a short-lived bearer; tampering with it must fail.
       let secondStatus = "PROCESSING";

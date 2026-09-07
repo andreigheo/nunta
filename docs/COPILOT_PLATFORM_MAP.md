@@ -8,16 +8,16 @@ O suprafață nu este considerată controlabilă până când operația are adap
 
 ## Rezumat
 
-- Pagini: **89**
-- Operații API: **702**
+- Pagini: **97**
+- Operații API: **719**
 - Domenii API: **131**
 - Operații executabile prin propunere: **44**
-- Operații disponibile pentru citire contextuală: **238**
-- Operații explicate, dar neexecutate direct: **362**
+- Operații disponibile pentru citire contextuală: **246**
+- Operații explicate, dar neexecutate direct: **371**
 - Operații excluse intenționat: **58**
 - Operații neclasificate: **0**
-- Operații de citire candidate: **254**
-- Modificări numai prin propunere/aprobare: **406**
+- Operații de citire candidate: **262**
+- Modificări numai prin propunere/aprobare: **415**
 - Operații doar ghidate, fără execuție directă: **42**
 
 ## Domenii API
@@ -59,7 +59,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | documents                           |   12 |      4 |         8 |            0 | —                                                                                                                                                                                                                              |
 | event-day                           |   36 |      9 |        27 |            0 | announcement.publish, announcement.read, announcement.write, incident.read, incident.resolve, incident.write, wedding_day.go_live, wedding_day.manage_contacts, wedding_day.publish, wedding_day.transition, wedding_day.write |
 | event-day-exports                   |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
-| event-media                         |    3 |      1 |         2 |            0 | —                                                                                                                                                                                                                              |
+| event-media                         |    4 |      2 |         2 |            0 | —                                                                                                                                                                                                                              |
 | expenses                            |    4 |      1 |         3 |            0 | expense.read, expense.write                                                                                                                                                                                                    |
 | galleries                           |    6 |      1 |         5 |            0 | gallery.publish, gallery.read, gallery.write                                                                                                                                                                                   |
 | guest                               |   17 |     11 |         6 |            0 | —                                                                                                                                                                                                                              |
@@ -79,7 +79,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | jobs                                |    2 |      2 |         0 |            0 | —                                                                                                                                                                                                                              |
 | marketplace                         |    5 |      5 |         0 |            0 | —                                                                                                                                                                                                                              |
 | me                                  |   25 |      9 |         8 |            8 | —                                                                                                                                                                                                                              |
-| media-portals                       |    4 |      3 |         1 |            0 | guest_moment.moderate                                                                                                                                                                                                          |
+| media-portals                       |    5 |      3 |         2 |            0 | gallery.publish, guest_moment.moderate                                                                                                                                                                                         |
 | members                             |    3 |      1 |         2 |            0 | team.read, team.remove, team.update_role                                                                                                                                                                                       |
 | menus                               |    5 |      2 |         3 |            0 | menu.read, menu.write                                                                                                                                                                                                          |
 | milestones                          |    3 |      0 |         3 |            0 | timeline.write                                                                                                                                                                                                                 |
@@ -94,7 +94,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | plan-generations                    |    1 |      0 |         1 |            0 | planning.generate                                                                                                                                                                                                              |
 | plan-proposals                      |    5 |      2 |         3 |            0 | planning.apply, planning.write                                                                                                                                                                                                 |
 | planning-exports                    |    1 |      0 |         1 |            0 | planning.read                                                                                                                                                                                                                  |
-| platform                            |   76 |     35 |        37 |            4 | —                                                                                                                                                                                                                              |
+| platform                            |   91 |     42 |        45 |            4 | —                                                                                                                                                                                                                              |
 | provider-webhooks                   |    2 |      0 |         2 |            0 | —                                                                                                                                                                                                                              |
 | public                              |    2 |      2 |         0 |            0 | —                                                                                                                                                                                                                              |
 | public-aggregate-consent            |    2 |      1 |         1 |            0 | workspace.manage_public_aggregation                                                                                                                                                                                            |
@@ -166,8 +166,16 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | /activity                       | organizer  | GUIDE_ONLY                |
 | /admin                          | platform   | GUIDE_ONLY                |
 | /admin/:section                 | platform   | GUIDE_ONLY                |
+| /admin/access                   | platform   | GUIDE_ONLY                |
+| /admin/audit                    | platform   | GUIDE_ONLY                |
 | /admin/beta                     | platform   | GUIDE_ONLY                |
+| /admin/commerce                 | platform   | GUIDE_ONLY                |
+| /admin/labels                   | platform   | GUIDE_ONLY                |
+| /admin/traffic                  | platform   | GUIDE_ONLY                |
 | /admin/trust                    | platform   | GUIDE_ONLY                |
+| /admin/users                    | platform   | GUIDE_ONLY                |
+| /admin/users/:userId            | platform   | GUIDE_ONLY                |
+| /admin/workspaces               | platform   | GUIDE_ONLY                |
 | /archive                        | organizer  | GUIDE_ONLY                |
 | /automations                    | organizer  | GUIDE_ONLY                |
 | /beta                           | organizer  | GUIDE_ONLY                |

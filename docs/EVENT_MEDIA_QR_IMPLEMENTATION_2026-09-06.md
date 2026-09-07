@@ -10,20 +10,21 @@ Dezvoltarea și acceptanța inițială au folosit exclusiv baze izolate; starea 
 - Organizatorul activează colectarea pentru un eveniment existent din `/moments`.
 - Primește QR PNG și link cu token opac, poate opri/reactiva colectarea, schimba expirarea sau roti accesul.
 - Participantul deschide `/event-upload#token`, fără cont: cameră/galerie, selecție multiplă, progres individual, anulare, reîncercare, nume și mesaj opționale.
+- Același QR deschide și galeria live a evenimentului. Participantul poate comuta între „Contribuie” și „Galerie live”; galeria arată numai materialele aprobate, numai cât timp organizatorul a activat explicit publicarea live.
 - Tokenul este scos din adresă după deschidere și trimis în antetul Authorization, nu în query string. Stocarea în sesiunea browserului este opțională.
 - Uploadurile noi ajung direct în zona privată Bunny Storage `sarbato-event-media`. Workerul verifică hash-ul, formatul real, ClamAV și decodarea, generează previzualizarea în aceeași zonă și pune materialul în moderare.
 - Organizatorul primește preview-ul și originalul prin URL-uri Bunny CDN cu token și expirare scurtă; fișierele nu sunt expuse prin URL-uri publice permanente.
 - Pull Zone-ul adaugă CORS pentru toate formatele acceptate, inclusiv MOV, iar Content Security Policy permite numai endpointul S3 Frankfurt și hostname-urile Bunny CDN necesare uploadului și redării.
 - Obiectele mai vechi rămân citibile din providerul înregistrat în baza de date. Integrarea nu migrează și nu rupe materialele existente din MinIO.
 - Copia originalului verificat are altă cheie decât cea de upload. Rescrierea ulterioară a adresei temporare nu schimbă originalul descărcabil.
-- Organizatorul vede fotografii/video, autor, mesaj, stare; poate aproba, respinge, ascunde/restaura, descărca și cere ștergerea.
+- Organizatorul vede fotografii/video, autor, mesaj, stare; poate aproba, respinge, ascunde/restaura, descărca și cere ștergerea. Tot organizatorul controlează pornirea și oprirea galeriei publice.
 - Desktop: grilă cu panou de detalii; mobil/tabletă: detalii în dialog, filtre pe două rânduri pe mobil. Teme light/dark.
 
 ## Acces și limite
 
 - Folosește drepturile existente `guest_moment.read` și `guest_moment.moderate`; activarea și moderarea rămân în Pro conform catalogului existent.
 - Colectarea ține cont de planul efectiv și de perioada de grație existentă. Nu modifică prețurile sau abonamentele.
-- RLS izolează evenimentul și fiecare upload. Participantul nu primește lista materialelor altora.
+- RLS izolează evenimentul și fiecare upload. Participantul primește exclusiv materialele aprobate din evenimentul identificat de tokenul acelui QR; materialele în așteptare, respinse, ascunse sau aparținând altui eveniment/workspace nu sunt returnate.
 - Un eveniment/spațiu șters sau un spațiu inactiv nu mai este accesibil prin QR.
 - Limită tehnică per colectare: 5 GiB rezervați / 1.000 fișiere; se respectă suplimentar capacitatea totală de stocare a planului, cu blocarea concurentă folosită de celelalte module.
 - Imagini: JPG/PNG/WebP, maximum 20 MiB. Video: MP4/MOV/WebM, maximum 100 MiB. Maximum 20 de fișiere într-o serie în interfață.
@@ -32,7 +33,7 @@ Dezvoltarea și acceptanța inițială au folosit exclusiv baze izolate; starea 
 
 ## Verificări efectuate
 
-- 10 teste de integrare cu PostgreSQL/RLS și stocare reală: acces organizator/străin, izolare între doi organizatori/workspace-uri/evenimente, token invalid sau combinat între portaluri, consimțământ, formate/dimensiuni, idempotentă, concurență, upload lipsă/expirat, reînnoire, cote, pauză/rotire/expirare, eveniment șters, plan și grație, plus flux Bunny complet până la preview și originalul organizatorului.
+- 11 teste de integrare cu PostgreSQL/RLS și stocare reală: acces organizator/străin, izolare între doi organizatori/workspace-uri/evenimente, token invalid sau combinat între portaluri, consimțământ, formate/dimensiuni, idempotentă, concurență, upload lipsă/expirat, reînnoire, cote, pauză/rotire/expirare, eveniment șters, plan și grație, galeria live pe același QR și flux Bunny complet până la preview și originalul organizatorului.
 - 9 teste OpenAPI existente: trecut; noile operații au scheme de request/response și autentificare bearer documentate.
 - 11 teste pentru validarea fișierelor, limite, tokenuri și SHA-256.
 - 32 teste worker existente: trecut.
@@ -40,8 +41,8 @@ Dezvoltarea și acceptanța inițială au folosit exclusiv baze izolate; starea 
 - Browser: 320/390/768 px participant și 390/768/1440 px organizator, fără overflow orizontal al paginii sau erori JavaScript; verificare vizuală light/dark.
 - Typecheck web/API/worker/pachete și build API/worker: trecut.
 - Lint complet web/API/worker/pachete: trecut.
-- Build web optimizat: trecut, 87 pagini prerandate.
-- Smoke HTTP pe build: 73/73 rute trecute. Acesta nu reprezintă testarea funcțională a fiecărui modul al platformei.
+- Build web optimizat: trecut, 94 pagini generate.
+- Smoke HTTP pe build: 92/92 rute trecute. Acesta nu reprezintă singur testarea funcțională a fiecărui modul al platformei; este completat de suitele unitare, de integrare și E2E.
 
 ## Reproducere locală
 
@@ -63,5 +64,5 @@ Preview web: `http://127.0.0.1:43241`; API: `http://127.0.0.1:43242`. Dashboardu
 - Retry-ul păstrează identitatea fișierului cât timp pagina rămâne deschisă. Nu există upload offline/background sau reluare durabilă după închiderea browserului.
 - Cotele sunt rezervări conservative, inclusiv sesiuni abandonate. Nu se eliberează automat printr-un simplu retry sau prin moderare, ca să nu poată fi ocolite.
 - Curățarea staging-ului după scanare este best-effort. O politică periodică trebuie să identifice numai obiectele temporare expirate, fără să elimine originale vechi încă referite de baza de date. Nu aplica un lifecycle general pe prefixul vechi `private/guest-moments`.
-- Fiecare release în producție trebuie să aplice cele trei migrări noi, să reconstruiască API+worker+web, să aplice configurația proxy și să verifice uploadul prin domeniul public/CDN.
+- Fiecare release în producție trebuie să aplice migrările incluse de release, să reconstruiască API+worker+web, să aplice configurația proxy și să verifice uploadul și galeria live prin domeniul public/CDN.
 - Credentialele Bunny sunt păstrate în afara repository-ului și trebuie injectate ca secrete în mediul de producție; nu se copiază în fișiere versionate sau imagini Docker.

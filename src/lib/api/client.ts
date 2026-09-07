@@ -1,5 +1,6 @@
 import type {
   MediaPortalResource,
+  MediaPortalPublicGalleryResource,
   MediaPortalPublicResource,
   ApiProblem,
   EventType,
@@ -4678,9 +4679,12 @@ export const weddingOsApi = {
   mediaPortals: (workspaceId: string) => request<{ items: MediaPortalResource[]; events: { id: string; name: string }[] }>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals`),
   saveMediaPortal: (workspaceId: string, input: { weddingEventId: string; version?: number; active?: boolean; rotate?: boolean; expiresAt?: string }) =>
     request<MediaPortalResource>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals`, { method: "POST", body: input }),
+  saveMediaPortalLiveGallery: (workspaceId: string, input: { weddingEventId: string; enabled: boolean }) =>
+    request<MediaPortalResource>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals/live-gallery`, { method: "POST", body: input }),
   downloadMoment: (workspaceId: string, momentId: string) => request<{ url: string; fileName: string }>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals/moments/${encodeURIComponent(momentId)}/download`),
   momentContent: (workspaceId: string, momentId: string) => request<{ url: string; fileName: string }>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals/moments/${encodeURIComponent(momentId)}/content`),
   publicMediaPortal: (token: string) => publicRequest<MediaPortalPublicResource>("/event-media", { headers: { Authorization: `Bearer ${token}` } }),
+  publicMediaGallery: (token: string) => publicRequest<MediaPortalPublicGalleryResource>("/event-media/gallery", { headers: { Authorization: `Bearer ${token}` } }),
   createPublicMoment: (token: string, input: { uploadToken: string; consent: true; mediaType: "IMAGE" | "VIDEO"; originalFileName: string; contentType: string; sizeBytes: number; checksumSha256: string; contributorName?: string; caption?: string }) =>
     publicRequest<{ momentId: string; completed: boolean; upload?: { url: string; headers: Record<string, string> } }>("/event-media/uploads", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: input }),
   completePublicMoment: (token: string, momentId: string, uploadToken: string) => publicRequest<{ id: string; status: string }>(`/event-media/uploads/${encodeURIComponent(momentId)}/complete`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: { uploadToken } }),

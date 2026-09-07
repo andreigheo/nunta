@@ -13,6 +13,7 @@ import {
 import { Throttle } from "@nestjs/throttler";
 import { z } from "zod";
 import {
+  mediaPortalLiveGallerySchema,
   mediaPortalSettingsSchema,
   mediaPortalUploadSchema,
 } from "@weddingos/contracts";
@@ -60,6 +61,23 @@ export class MediaPortalController {
         auth.userId,
         parseUuid(workspace),
         parseWithSchema(mediaPortalSettingsSchema, body),
+      ),
+    );
+  }
+  @Post("live-gallery")
+  @RequireCapability("gallery.publish")
+  async saveLiveGallery(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspace: string,
+    @Body() body: unknown,
+    @Req() req: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      req,
+      await this.service.saveLiveGallery(
+        auth.userId,
+        parseUuid(workspace),
+        parseWithSchema(mediaPortalLiveGallerySchema, body),
       ),
     );
   }
@@ -116,6 +134,12 @@ export class PublicMediaPortalController {
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   bootstrap(@Headers("authorization") authorization: string | undefined) {
     return this.service.bootstrap(parseWithSchema(bearer, authorization));
+  }
+  @Get("gallery")
+  @Header("Cache-Control", "no-store")
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  gallery(@Headers("authorization") authorization: string | undefined) {
+    return this.service.gallery(parseWithSchema(bearer, authorization));
   }
   @Post("uploads")
   @Throttle({ default: { limit: 120, ttl: 60_000 } })

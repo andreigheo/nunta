@@ -82,6 +82,7 @@ function MomentsContent() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(0);
+  const [collectionRevision, setCollectionRevision] = React.useState(0);
   const compact = React.useSyncExternalStore(
     subscribe,
     compactSnapshot,
@@ -90,6 +91,8 @@ function MomentsContent() {
   const canManage =
     bootstrap?.membership.capabilities.includes("guest_moment.moderate") ??
     false;
+  const canPublish =
+    bootstrap?.membership.capabilities.includes("gallery.publish") ?? false;
   const workspaceId = currentWorkspace?.id;
   const load = React.useCallback(
     (quiet = false) => {
@@ -143,6 +146,7 @@ function MomentsContent() {
           : undefined,
       );
       await load(true);
+      setCollectionRevision((value) => value + 1);
       setDeleteId(null);
       toast({ title: "Materialul a fost actualizat", variant: "success" });
     } catch (cause) {
@@ -279,6 +283,8 @@ function MomentsContent() {
           workspaceId={workspaceId}
           demoMode={demoMode}
           canManage={canManage}
+          canPublish={canPublish}
+          refreshKey={collectionRevision}
         />
       )}
       {error && (

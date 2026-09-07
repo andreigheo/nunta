@@ -8,11 +8,19 @@ import {
 } from "./event-day.controller";
 import { EventDayService } from "./event-day.service";
 import { MediaPortalService } from "./media-portal.service";
-import { MediaPortalController, PublicMediaPortalController } from "./media-portal.controller";
+import {
+  MediaPortalController,
+  PublicMediaPortalController,
+} from "./media-portal.controller";
 
 @Module({
   imports: [AsyncModule, AuthModule, WorkspacesModule],
-  controllers: [EventDayController, GuestEventDayController, MediaPortalController, PublicMediaPortalController],
+  controllers: [
+    EventDayController,
+    GuestEventDayController,
+    MediaPortalController,
+    PublicMediaPortalController,
+  ],
   providers: [EventDayService, MediaPortalService],
   exports: [EventDayService],
 })

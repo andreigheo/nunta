@@ -3200,8 +3200,10 @@ export class EventDayService {
               ? "REJECTED"
               : transition === "HIDE"
                 ? "HIDDEN"
-                : media.moderationStatus;
-        const updated = await tx.guestMoment.update({
+                : transition === "RESTORE"
+                  ? "APPROVED"
+                  : media.moderationStatus;
+        let updated = await tx.guestMoment.update({
           where: { id: momentId },
           data: {
             status,
@@ -3216,6 +3218,68 @@ export class EventDayService {
             version: { increment: 1 },
           },
         });
+        const livePortal = await tx.eventMediaPortal.findFirst({
+          where: {
+            workspaceId,
+            weddingEventId: moment.weddingEventId,
+            liveGalleryEnabled: true,
+            liveGalleryId: { not: null },
+          },
+        });
+        if (livePortal?.liveGalleryId) {
+          const gallery = await tx.galleryCollection.findFirst({
+            where: {
+              id: livePortal.liveGalleryId,
+              workspaceId,
+              weddingEventId: moment.weddingEventId,
+              status: "PUBLISHED",
+              visibility: "GUESTS_WITH_ACCESS",
+            },
+          });
+          if (gallery && ["APPROVE", "RESTORE"].includes(transition)) {
+            const last = await tx.galleryCollectionItem.findFirst({
+              where: { collectionId: gallery.id },
+              orderBy: { position: "desc" },
+              select: { position: true },
+            });
+            await tx.galleryCollectionItem.upsert({
+              where: {
+                collectionId_guestMomentId: {
+                  collectionId: gallery.id,
+                  guestMomentId: momentId,
+                },
+              },
+              create: {
+                workspaceId,
+                collectionId: gallery.id,
+                guestMomentId: momentId,
+                position: (last?.position ?? -1) + 1,
+              },
+              update: {},
+            });
+            updated = await tx.guestMoment.update({
+              where: { id: momentId },
+              data: {
+                status: "PUBLISHED",
+                publishedAt: new Date(),
+                version: { increment: 1 },
+              },
+            });
+            await tx.galleryCollection.update({
+              where: { id: gallery.id },
+              data: { version: { increment: 1 } },
+            });
+          } else if (gallery) {
+            const removed = await tx.galleryCollectionItem.deleteMany({
+              where: { collectionId: gallery.id, guestMomentId: momentId },
+            });
+            if (removed.count)
+              await tx.galleryCollection.update({
+                where: { id: gallery.id },
+                data: { version: { increment: 1 } },
+              });
+          }
+        }
         await tx.guestMomentModerationCase.upsert({
           where: {
             id:

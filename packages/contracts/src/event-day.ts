@@ -384,6 +384,10 @@ export const mediaPortalSettingsSchema = z.object({
   rotate: z.boolean().optional(),
   version: z.number().int().positive().optional(),
 });
+export const mediaPortalLiveGallerySchema = z.object({
+  weddingEventId: uuid,
+  enabled: z.boolean(),
+});
 export const mediaPortalUploadSchema = createGuestMomentSchema
   .omit({ weddingEventId: true, guestId: true })
   .extend({
@@ -402,6 +406,14 @@ export type MediaPortalResource = {
   reservedBytes: number;
   maximumBytes: number;
   maximumFiles: number;
+  liveGalleryEnabled: boolean;
+  liveGallery: {
+    id: string;
+    name: string;
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+    itemCount: number;
+    updatedAt: string;
+  } | null;
   url: string;
   qrDataUrl: string;
 };
@@ -412,6 +424,29 @@ export type MediaPortalPublicResource = {
   imageMaxBytes: number;
   videoMaxBytes: number;
   contentTypes: string[];
+  liveGalleryEnabled: boolean;
+};
+export type MediaPortalPublicGalleryResource = {
+  enabled: boolean;
+  gallery: {
+    id: string;
+    name: string;
+    description: string | null;
+    updatedAt: string;
+    items: Array<{
+      id: string;
+      momentId: string;
+      position: number;
+      caption: string | null;
+      contributorName: string | null;
+      mediaType: "IMAGE" | "VIDEO";
+      width: number | null;
+      height: number | null;
+      durationMs: number | null;
+      previewUrl: string;
+      contentUrl: string;
+    }>;
+  } | null;
 };
 export const guestMomentTransitionSchema = z.object({
   transition: z.enum([

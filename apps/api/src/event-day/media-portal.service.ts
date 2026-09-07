@@ -15,6 +15,7 @@ import {
 import type { Prisma } from "@weddingos/database";
 import type {
   ApiProblemCode,
+  mediaPortalLiveGallerySchema,
   mediaPortalSettingsSchema,
   mediaPortalUploadSchema,
 } from "@weddingos/contracts";
@@ -52,6 +53,7 @@ export const MEDIA_LIMITS = {
 type Tx = Prisma.TransactionClient;
 type Portal = Awaited<ReturnType<Tx["eventMediaPortal"]["findFirstOrThrow"]>>;
 type Upload = z.infer<typeof mediaPortalUploadSchema>;
+type LiveGallerySettings = z.infer<typeof mediaPortalLiveGallerySchema>;
 function fail(status: number, code: string, detail: string): never {
   const codes: Record<string, ApiProblemCode> = {
     MEDIA_COLLECTION_FULL: "USAGE_LIMIT_REACHED",
@@ -169,7 +171,7 @@ export class MediaPortalService {
       secret: this.env.OUTBOX_ENCRYPTION_KEY,
     };
   }
-  private async resource(row: Portal) {
+  private async resource(tx: Tx, row: Portal) {
     const token = decryptSensitive(row.tokenEncrypted, this.key);
     if (!token)
       fail(
@@ -179,6 +181,15 @@ export class MediaPortalService {
       );
     // Fragment keeps the bearer token out of HTTP access logs and referrer headers.
     const url = `${this.env.WEB_URL}/event-upload#${token}`;
+    const gallery = row.liveGalleryId
+      ? await tx.galleryCollection.findFirst({
+          where: {
+            id: row.liveGalleryId,
+            workspaceId: row.workspaceId,
+            weddingEventId: row.weddingEventId,
+          },
+        })
+      : null;
     return {
       id: row.id,
       weddingEventId: row.weddingEventId,
@@ -190,6 +201,18 @@ export class MediaPortalService {
       reservedBytes: Number(row.reservedBytes),
       maximumBytes: MEDIA_LIMITS.maximumBytes,
       maximumFiles: MEDIA_LIMITS.maximumFiles,
+      liveGalleryEnabled: row.liveGalleryEnabled,
+      liveGallery: gallery
+        ? {
+            id: gallery.id,
+            name: gallery.name,
+            status: gallery.status,
+            itemCount: await tx.galleryCollectionItem.count({
+              where: { collectionId: gallery.id },
+            }),
+            updatedAt: gallery.updatedAt.toISOString(),
+          }
+        : null,
       url,
       qrDataUrl: await QRCode.toDataURL(url, {
         width: 640,
@@ -206,7 +229,7 @@ export class MediaPortalService {
             where: { workspaceId },
             orderBy: { createdAt: "desc" },
           })
-        ).map((row) => this.resource(row)),
+        ).map((row) => this.resource(tx, row)),
       ),
       events: (
         await tx.weddingEvent.findMany({
@@ -278,7 +301,120 @@ export class MediaPortalService {
               expiresAt,
             },
           });
-      return this.resource(saved);
+      return this.resource(tx, saved);
+    });
+  }
+  saveLiveGallery(
+    userId: string,
+    workspaceId: string,
+    input: LiveGallerySettings,
+  ) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const portal = await tx.eventMediaPortal.findFirst({
+        where: {
+          workspaceId,
+          weddingEventId: input.weddingEventId,
+        },
+      });
+      if (!portal)
+        fail(
+          404,
+          "MEDIA_LINK_INVALID",
+          "Activează mai întâi codul QR al evenimentului.",
+        );
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${portal.id}, 0))`;
+      let gallery = portal.liveGalleryId
+        ? await tx.galleryCollection.findFirst({
+            where: {
+              id: portal.liveGalleryId,
+              workspaceId,
+              weddingEventId: portal.weddingEventId,
+              status: { not: "ARCHIVED" },
+            },
+          })
+        : null;
+      if (input.enabled && !gallery) {
+        gallery = await tx.galleryCollection.create({
+          data: {
+            workspaceId,
+            weddingEventId: portal.weddingEventId,
+            name: "Momentele evenimentului",
+            description:
+              "Fotografii și clipuri aprobate de organizator, adunate prin codul QR Sarbato.",
+            visibility: "GUESTS_WITH_ACCESS",
+            createdById: userId,
+          },
+        });
+      }
+      if (gallery && input.enabled) {
+        const candidates = await tx.guestMoment.findMany({
+          where: {
+            workspaceId,
+            weddingEventId: portal.weddingEventId,
+            status: { in: ["APPROVED", "PUBLISHED"] },
+          },
+          orderBy: { submittedAt: "asc" },
+        });
+        const approvedMedia = await tx.guestMomentMedia.findMany({
+          where: {
+            workspaceId,
+            guestMomentId: { in: candidates.map((moment) => moment.id) },
+            moderationStatus: "APPROVED",
+          },
+          select: { guestMomentId: true },
+        });
+        const approved = new Set(
+          approvedMedia.map((medium) => medium.guestMomentId),
+        );
+        const momentIds = candidates
+          .map((moment) => moment.id)
+          .filter((id) => approved.has(id));
+        await tx.galleryCollectionItem.deleteMany({
+          where: { collectionId: gallery.id },
+        });
+        if (momentIds.length)
+          await tx.galleryCollectionItem.createMany({
+            data: momentIds.map((guestMomentId, position) => ({
+              workspaceId,
+              collectionId: gallery!.id,
+              guestMomentId,
+              position,
+            })),
+          });
+        const publishedAt = new Date();
+        gallery = await tx.galleryCollection.update({
+          where: { id: gallery.id },
+          data: {
+            status: "PUBLISHED",
+            visibility: "GUESTS_WITH_ACCESS",
+            publishedAt,
+            version: { increment: 1 },
+          },
+        });
+        if (momentIds.length)
+          await tx.guestMoment.updateMany({
+            where: { id: { in: momentIds }, workspaceId },
+            data: { status: "PUBLISHED", publishedAt },
+          });
+      } else if (gallery) {
+        gallery = await tx.galleryCollection.update({
+          where: { id: gallery.id },
+          data: {
+            status: "DRAFT",
+            publishedAt: null,
+            version: { increment: 1 },
+          },
+        });
+      }
+      const updated = await tx.eventMediaPortal.update({
+        where: { id: portal.id },
+        data: {
+          liveGalleryEnabled: input.enabled,
+          liveGalleryId: gallery?.id ?? null,
+          version: { increment: 1 },
+        },
+      });
+      return this.resource(tx, updated);
     });
   }
   private withPortal<T>(
@@ -348,7 +484,143 @@ export class MediaPortalService {
       imageMaxBytes: MEDIA_LIMITS.imageMaxBytes,
       videoMaxBytes: MEDIA_LIMITS.videoMaxBytes,
       contentTypes: MEDIA_LIMITS.contentTypes,
+      liveGalleryEnabled:
+        portal.liveGalleryEnabled && portal.expiresAt > new Date(),
     }));
+  }
+  gallery(token: string) {
+    return this.withPortal(token, undefined, async (tx, portal) => {
+      if (
+        !portal.liveGalleryEnabled ||
+        !portal.liveGalleryId ||
+        portal.expiresAt <= new Date()
+      )
+        return { enabled: false, gallery: null };
+      const gallery = await tx.galleryCollection.findFirst({
+        where: {
+          id: portal.liveGalleryId,
+          workspaceId: portal.workspaceId,
+          weddingEventId: portal.weddingEventId,
+          status: "PUBLISHED",
+          visibility: "GUESTS_WITH_ACCESS",
+        },
+      });
+      if (!gallery) return { enabled: true, gallery: null };
+      const items = await tx.galleryCollectionItem.findMany({
+        where: { collectionId: gallery.id, workspaceId: portal.workspaceId },
+        orderBy: { position: "asc" },
+      });
+      const moments = await tx.guestMoment.findMany({
+        where: {
+          id: { in: items.map((item) => item.guestMomentId) },
+          workspaceId: portal.workspaceId,
+          weddingEventId: portal.weddingEventId,
+          status: "PUBLISHED",
+        },
+      });
+      const media = await tx.guestMomentMedia.findMany({
+        where: {
+          guestMomentId: { in: moments.map((moment) => moment.id) },
+          workspaceId: portal.workspaceId,
+          moderationStatus: "APPROVED",
+        },
+      });
+      const stored = await tx.storedObject.findMany({
+        where: {
+          id: {
+            in: media.flatMap((medium) =>
+              [medium.storedObjectId, medium.derivativeObjectId].filter(
+                (id): id is string => Boolean(id),
+              ),
+            ),
+          },
+          workspaceId: portal.workspaceId,
+          status: "AVAILABLE",
+          OR: [
+            {
+              id: {
+                in: media.map((medium) => medium.storedObjectId),
+              },
+              scanStatus: "CLEAN",
+            },
+            {
+              id: {
+                in: media.flatMap((medium) =>
+                  medium.derivativeObjectId ? [medium.derivativeObjectId] : [],
+                ),
+              },
+              scanStatus: { in: ["CLEAN", "NOT_REQUIRED"] },
+            },
+          ],
+        },
+      });
+      const publicItems = await Promise.all(
+        items
+          .flatMap((item) => {
+            const moment = moments.find(
+              (candidate) => candidate.id === item.guestMomentId,
+            );
+            const medium = media.find(
+              (candidate) => candidate.guestMomentId === item.guestMomentId,
+            );
+            const original = stored.find(
+              (candidate) => candidate.id === medium?.storedObjectId,
+            );
+            const preview = stored.find(
+              (candidate) => candidate.id === medium?.derivativeObjectId,
+            );
+            return moment && medium && original && preview
+              ? [{ item, moment, medium, original, preview }]
+              : [];
+          })
+          .map(async ({ item, moment, medium, original, preview }) => ({
+            id: item.id,
+            momentId: moment.id,
+            position: item.position,
+            caption: moment.caption,
+            contributorName: moment.contributorName,
+            mediaType: medium.mediaType,
+            width: medium.width,
+            height: medium.height,
+            durationMs: medium.durationMs,
+            previewUrl: await this.inlineUrl(preview, 900),
+            contentUrl: await this.inlineUrl(original, 900),
+          })),
+      );
+      return {
+        enabled: true,
+        gallery: {
+          id: gallery.id,
+          name: gallery.name,
+          description: gallery.description,
+          updatedAt: gallery.updatedAt.toISOString(),
+          items: publicItems,
+        },
+      };
+    });
+  }
+  private inlineUrl(
+    stored: {
+      storageProvider: string;
+      bucket: string;
+      objectKey: string;
+      contentTypeDetected: string | null;
+      contentTypeClaimed: string;
+    },
+    expiresIn: number,
+  ) {
+    return stored.storageProvider === "bunny-s3"
+      ? this.bunnyDeliveryUrl(stored.objectKey, expiresIn)
+      : getSignedUrl(
+          this.client(stored.storageProvider, true),
+          new GetObjectCommand({
+            Bucket: stored.bucket,
+            Key: stored.objectKey,
+            ResponseContentType:
+              stored.contentTypeDetected ?? stored.contentTypeClaimed,
+          }),
+          { expiresIn },
+        );
   }
   create(token: string, input: Upload) {
     const maximum = validatePortalFile(input);

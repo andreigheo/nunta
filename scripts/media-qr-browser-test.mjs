@@ -8,10 +8,16 @@ const require = createRequire(
 );
 const sharp = require("sharp");
 const fixture = JSON.parse(
-  await readFile("/tmp/sarbato-media-qr-fixture-20260906.json", "utf8"),
+  await readFile(
+    process.env.MEDIA_QR_FIXTURE_PATH ??
+      "/tmp/sarbato-media-qr-fixture-20260906.json",
+    "utf8",
+  ),
 );
-const base = "http://127.0.0.1:43241";
-const output = "/tmp/sarbato-media-qr-browser-20260906";
+const base = process.env.MEDIA_QR_BASE_URL ?? "http://127.0.0.1:43241";
+const output =
+  process.env.MEDIA_QR_SCREENSHOT_DIR ??
+  "/tmp/sarbato-media-qr-browser-20260906";
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 try {
@@ -118,6 +124,21 @@ try {
       exact: true,
     }),
   ).toBeVisible({ timeout: 90_000 });
+  const startGallery = dashboard.getByRole("button", {
+    name: "Pornește galeria",
+    exact: true,
+  });
+  if (await startGallery.isVisible()) await startGallery.click();
+  else
+    await expect(
+      dashboard.getByRole("button", {
+        name: "Oprește galeria",
+        exact: true,
+      }),
+    ).toBeVisible();
+  await expect(
+    dashboard.getByText(/materiale aprobate sunt vizibile/),
+  ).toBeVisible();
   await expect(
     dashboard.getByRole("button", { name: `Deschide ${name}`, exact: true }),
   ).toBeVisible({ timeout: 60_000 });
@@ -131,6 +152,36 @@ try {
   await expect(
     dashboard.getByRole("button", { name: "Ascunde", exact: true }),
   ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(
+    page.getByRole("radio", { name: "Galerie live", exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("radio", { name: "Galerie live", exact: true }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Deschide momentul 1 de la Participant test",
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 30_000 });
+  await page.screenshot({
+    path: `${output}/participant-gallery-390.png`,
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", {
+      name: "Deschide momentul 1 de la Participant test",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: /Prezentarea galeriei/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `${output}/participant-gallery-presentation-390.png`,
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Închide prezentarea" }).click();
   await dashboard
     .getByRole("button", { name: `Deschide ${videoName}`, exact: true })
     .click();
@@ -236,7 +287,7 @@ try {
     )
     .toBe("REJECTED");
   console.log(
-    "PASS: image/video upload and playback, network retry, scan/approval, immutable original, corrupt-file rejection, responsive layout and dark mode, no JS errors.",
+    "PASS: image/video upload and playback, network retry, scan/approval, same-QR live gallery, immutable original, corrupt-file rejection, responsive layout and dark mode, no JS errors.",
   );
   console.log(`Screenshots: ${output}`);
 } finally {

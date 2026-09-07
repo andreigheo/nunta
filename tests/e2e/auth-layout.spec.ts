@@ -64,7 +64,9 @@ test("mobile auth keeps the shared artwork behind interactive content", async ({
             bottom: bounds.bottom,
             left: bounds.left,
           },
-          opacity: Number.parseFloat(getComputedStyle(artworkContainer).opacity),
+          opacity: Number.parseFloat(
+            getComputedStyle(artworkContainer).opacity,
+          ),
           pointerEvents: getComputedStyle(panel).pointerEvents,
           position: getComputedStyle(panel).position,
         };

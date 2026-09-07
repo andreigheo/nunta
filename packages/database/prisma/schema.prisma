@@ -6196,6 +6196,8 @@ model EventMediaPortal {
   expiresAt      DateTime @map("expires_at")
   reservedBytes  BigInt   @default(0) @map("reserved_bytes")
   uploadCount    Int      @default(0) @map("upload_count")
+  liveGalleryId  String?  @map("live_gallery_id") @db.Uuid
+  liveGalleryEnabled Boolean @default(false) @map("live_gallery_enabled")
   createdById    String   @map("created_by") @db.Uuid
   version        Int      @default(1)
   createdAt      DateTime @default(now()) @map("created_at")

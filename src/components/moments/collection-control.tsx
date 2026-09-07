@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   LockKeyhole,
+  MonitorPlay,
   Pause,
   Play,
   QrCode,
@@ -29,10 +30,14 @@ export function CollectionControl({
   workspaceId,
   demoMode,
   canManage,
+  canPublish,
+  refreshKey,
 }: {
   workspaceId: string;
   demoMode: boolean;
   canManage: boolean;
+  canPublish: boolean;
+  refreshKey: number;
 }) {
   const [portals, setPortals] = React.useState<MediaPortalResource[]>([]);
   const [events, setEvents] = React.useState<{ id: string; name: string }[]>(
@@ -67,7 +72,7 @@ export function CollectionControl({
   }, [workspaceId, demoMode, canManage]);
   React.useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
   const portal = portals.find((p) => p.weddingEventId === eventId);
   const active = portal?.active && new Date(portal.expiresAt) > new Date();
   async function save(
@@ -101,6 +106,30 @@ export function CollectionControl({
         title: "Selectează și copiază linkul din câmp",
         variant: "error",
       });
+    }
+  }
+  async function toggleLiveGallery() {
+    if (!portal || busy || demoMode || !canPublish) return;
+    setBusy(true);
+    try {
+      await weddingOsApi.saveMediaPortalLiveGallery(workspaceId, {
+        weddingEventId: portal.weddingEventId,
+        enabled: !portal.liveGalleryEnabled,
+      });
+      await load();
+      toast({
+        title: portal.liveGalleryEnabled
+          ? "Galeria live a fost oprită"
+          : "Galeria live este pregătită",
+        description: portal.liveGalleryEnabled
+          ? "Participanții nu o mai văd prin codul QR."
+          : "Materialele aprobate apar automat în același link QR.",
+        variant: "success",
+      });
+    } catch (cause) {
+      setError(apiErrorMessage(cause));
+    } finally {
+      setBusy(false);
     }
   }
   React.useEffect(() => {
@@ -262,6 +291,40 @@ export function CollectionControl({
                   {portal.maximumBytes / 1024 ** 3} GB rezervați ·{" "}
                   {portal.uploadCount} / {portal.maximumFiles} fișiere
                 </p>
+                <div className="flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success-soft text-success">
+                      <MonitorPlay className="size-4" aria-hidden />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-ink">
+                        Galerie live în același QR
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted">
+                        {portal.liveGalleryEnabled
+                          ? `${portal.liveGallery?.itemCount ?? 0} materiale aprobate sunt vizibile. Cele aprobate ulterior intră automat.`
+                          : "Participanții pot vedea într-o galerie numai materialele aprobate de tine."}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    className="shrink-0"
+                    size="sm"
+                    variant={portal.liveGalleryEnabled ? "outline" : "primary"}
+                    disabled={busy || !canPublish}
+                    onClick={() => void toggleLiveGallery()}
+                  >
+                    {portal.liveGalleryEnabled
+                      ? "Oprește galeria"
+                      : "Pornește galeria"}
+                  </Button>
+                </div>
+                {!canPublish && (
+                  <p className="text-xs text-muted">
+                    Publicarea galeriei necesită dreptul de publicare pentru
+                    acest spațiu.
+                  </p>
+                )}
               </>
             ) : (
               <>

@@ -24,6 +24,7 @@
     "test:web": "vitest run --config vitest.web.config.ts",
     "test:integration": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:integration && env DATABASE_PURPOSE=integration pnpm --filter @weddingos/api test:integration:marketing && env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:integration && env DATABASE_PURPOSE=integration WEDDINGOS_INTEGRATION_DATABASE_PREPARED=true pnpm --filter @weddingos/api test:integration:slices",
     "test:e2e": "env WEDDINGOS_RESET_ISOLATED_DATABASE=true pnpm db:test:prepare:e2e && pnpm --filter @weddingos/api build && pnpm --filter @weddingos/worker build && pnpm security:gate && playwright test",
+    "test:e2e:landing": "NEXT_DIST_DIR=.next-landing pnpm exec next build --webpack && NEXT_DIST_DIR=.next-landing pnpm exec playwright test --config=playwright.landing.config.ts",
     "db:generate": "pnpm --filter @weddingos/database generate",
     "db:migrate": "pnpm --filter @weddingos/database migrate",
     "db:seed": "pnpm --filter @weddingos/database seed",

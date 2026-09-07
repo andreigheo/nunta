@@ -272,6 +272,7 @@ import {
   guestCheckInCommandSchema,
   guestMomentReportSchema,
   mediaPortalSettingsSchema,
+  mediaPortalLiveGallerySchema,
   mediaPortalUploadSchema,
   guestMomentTransitionSchema,
   runOfShowDependenciesSchema,
@@ -804,6 +805,7 @@ const schemas: Record<string, ZodTypeAny> = {
   GuestMomentTransition: guestMomentTransitionSchema,
   GuestMomentReport: guestMomentReportSchema,
   MediaPortalSettings: mediaPortalSettingsSchema,
+  MediaPortalLiveGallery: mediaPortalLiveGallerySchema,
   MediaPortalUpload: mediaPortalUploadSchema,
   MediaPortalComplete: z.object({
     uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
@@ -819,6 +821,16 @@ const schemas: Record<string, ZodTypeAny> = {
     reservedBytes: z.number(),
     maximumBytes: z.number(),
     maximumFiles: z.number().int(),
+    liveGalleryEnabled: z.boolean(),
+    liveGallery: z
+      .object({
+        id: z.string().uuid(),
+        name: z.string(),
+        status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
+        itemCount: z.number().int(),
+        updatedAt: z.string().datetime(),
+      })
+      .nullable(),
     url: z.string().url(),
     qrDataUrl: z.string(),
   }),
@@ -833,6 +845,33 @@ const schemas: Record<string, ZodTypeAny> = {
     imageMaxBytes: z.number(),
     videoMaxBytes: z.number(),
     contentTypes: z.array(z.string()),
+    liveGalleryEnabled: z.boolean(),
+  }),
+  MediaPortalPublicGallery: z.object({
+    enabled: z.boolean(),
+    gallery: z
+      .object({
+        id: z.string().uuid(),
+        name: z.string(),
+        description: z.string().nullable(),
+        updatedAt: z.string().datetime(),
+        items: z.array(
+          z.object({
+            id: z.string().uuid(),
+            momentId: z.string().uuid(),
+            position: z.number().int(),
+            caption: z.string().nullable(),
+            contributorName: z.string().nullable(),
+            mediaType: z.enum(["IMAGE", "VIDEO"]),
+            width: z.number().int().nullable(),
+            height: z.number().int().nullable(),
+            durationMs: z.number().int().nullable(),
+            previewUrl: z.string().url(),
+            contentUrl: z.string().url(),
+          }),
+        ),
+      })
+      .nullable(),
   }),
   MediaPortalUploadResult: z.object({
     momentId: z.string().uuid(),
@@ -932,6 +971,10 @@ const requestByRoute: Array<[RegExp, string]> = [
   [
     /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals$/,
     "MediaPortalSettings",
+  ],
+  [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals\/live-gallery$/,
+    "MediaPortalLiveGallery",
   ],
   [/^POST \/api\/v1\/event-media\/uploads$/, "MediaPortalUpload"],
   [
@@ -2039,10 +2082,15 @@ const responseByRoute: Array<[RegExp, string]> = [
     "MediaPortalResource",
   ],
   [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals\/live-gallery$/,
+    "MediaPortalResource",
+  ],
+  [
     /^GET \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals\/moments\/\{momentId\}\/(download|content)$/,
     "MediaPortalDownload",
   ],
   [/^GET \/api\/v1\/event-media$/, "MediaPortalPublic"],
+  [/^GET \/api\/v1\/event-media\/gallery$/, "MediaPortalPublicGallery"],
   [/^POST \/api\/v1\/event-media\/uploads$/, "MediaPortalUploadResult"],
   [
     /^POST \/api\/v1\/event-media\/uploads\/\{momentId\}\/complete$/,

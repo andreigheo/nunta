@@ -539,6 +539,11 @@ export const apiEnvironmentSchema = z
             env.SIGNATURE_PROVIDER !== "fake",
             "Production document signatures must be configured or disabled.",
           ],
+          [
+            "FEATURE_MFA_ENABLED",
+            env.FEATURE_MFA_ENABLED,
+            "Production administrative step-up requires MFA to remain enabled.",
+          ],
         ];
         for (const [path, valid, message] of requiredProductionState) {
           if (!valid) {

@@ -20,9 +20,11 @@ import {
   Input,
   Textarea,
   ErrorState,
+  SegmentedControl,
   Skeleton,
 } from "@/components/ui";
 import { SarbatoMark } from "@/components/brand/sarbato-mark";
+import { LiveGallery } from "@/components/moments/live-gallery";
 import { weddingOsApi, apiErrorMessage } from "@/lib/api/client";
 import {
   fileChecksum,
@@ -51,6 +53,7 @@ export function EventUpload() {
   const [caption, setCaption] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState("");
+  const [view, setView] = React.useState<"upload" | "gallery">("upload");
   const camera = React.useRef<HTMLInputElement>(null);
   const gallery = React.useRef<HTMLInputElement>(null);
   const abort = React.useRef<AbortController | null>(null);
@@ -227,7 +230,21 @@ export function EventUpload() {
                 Distribuie fotografii și clipuri video de la eveniment.
               </p>
             </header>
-            {!portal.active ? (
+            {portal.liveGalleryEnabled && (
+              <SegmentedControl
+                className="grid w-full grid-cols-2"
+                ariaLabel="Alege între încărcare și galeria live"
+                value={view}
+                onChange={(value) => setView(value as "upload" | "gallery")}
+                options={[
+                  { value: "upload", label: "Contribuie" },
+                  { value: "gallery", label: "Galerie live" },
+                ]}
+              />
+            )}
+            {view === "gallery" && portal.liveGalleryEnabled ? (
+              <LiveGallery token={token} eventName={portal.eventName} />
+            ) : !portal.active ? (
               <div
                 role="status"
                 className="rounded-xl border border-line bg-surface p-6"
@@ -467,22 +484,32 @@ export function EventUpload() {
                         Organizatorul le va vedea după verificarea fișierelor.
                       </p>
                       {done === files.length && (
-                        <Button
-                          className="mt-2"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            files.forEach((f) => {
-                              URL.revokeObjectURL(f.preview);
-                              urls.current.delete(f.preview);
-                            });
-                            setFiles([]);
-                            gallery.current?.click();
-                          }}
-                        >
-                          <ImageIcon className="size-4" />
-                          Adaugă alte momente
-                        </Button>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              files.forEach((f) => {
+                                URL.revokeObjectURL(f.preview);
+                                urls.current.delete(f.preview);
+                              });
+                              setFiles([]);
+                              gallery.current?.click();
+                            }}
+                          >
+                            <ImageIcon className="size-4" />
+                            Adaugă alte momente
+                          </Button>
+                          {portal.liveGalleryEnabled && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setView("gallery")}
+                            >
+                              Vezi galeria live
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

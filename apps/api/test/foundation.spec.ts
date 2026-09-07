@@ -72,6 +72,45 @@ describe("Slice 0/1 foundation", () => {
     ).toThrow(/Invalid API environment/);
   });
 
+  it("refuses to start production when administrative MFA is disabled", () => {
+    expect(() =>
+      parseApiEnvironment({
+        NODE_ENV: "production",
+        WEB_URL: "https://sarbato.space",
+        API_URL: "https://sarbato.space/api",
+        DATABASE_URL: "postgresql://app:secret@database.internal/sarbato",
+        DATABASE_PURPOSE: "production",
+        STORAGE_PURPOSE: "production",
+        SESSION_SECRET: "a-secure-session-secret-that-is-long-enough",
+        MFA_ENCRYPTION_KEY: "a-secure-mfa-encryption-key-that-is-long-enough",
+        EMAIL_FROM: "Sarbato <hello@sarbato.space>",
+        EMAIL_PROVIDER: "smtp",
+        SMTP_HOST: "smtp.example.com",
+        SMTP_PORT: "587",
+        SMTP_USER: "mailer@sarbato.space",
+        SMTP_PASSWORD: "a-secure-smtp-password",
+        REDIS_URL: "rediss://runtime:secret@redis.internal:6380/0",
+        OUTBOX_ENCRYPTION_KEY:
+          "a-secure-outbox-encryption-key-that-is-long-enough",
+        GUEST_ACCESS_TOKEN_SECRET:
+          "a-secure-guest-token-secret-that-is-long-enough",
+        OBJECT_STORAGE_PROVIDER: "s3",
+        OBJECT_STORAGE_ENDPOINT: "https://storage.example.com",
+        OBJECT_STORAGE_PUBLIC_ENDPOINT: "https://storage.example.com",
+        OBJECT_STORAGE_BUCKET: "sarbato-private",
+        OBJECT_STORAGE_ACCESS_KEY: "secure-access-key",
+        OBJECT_STORAGE_SECRET_KEY: "a-secure-object-storage-secret",
+        SIGNATURE_PROVIDER: "disabled",
+        PAYMENT_PROVIDER: "disabled",
+        SUBSCRIPTION_PROVIDER: "disabled",
+        PAYOUT_PROVIDER: "disabled",
+        METRICS_TOKEN: "a-secure-metrics-token-value",
+        FEATURE_MFA_ENABLED: "false",
+        LOG_LEVEL: "info",
+      }),
+    ).toThrow(/Production administrative step-up requires MFA/);
+  });
+
   it("parses textual feature flags without treating false as truthy", () => {
     const environment = parseApiEnvironment({
       NODE_ENV: "test",

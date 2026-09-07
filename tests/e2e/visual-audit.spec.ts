@@ -75,9 +75,7 @@ test("Visual audit — registration intent is clear on desktop and mobile", asyn
   });
   const mobilePage = await mobile.newPage();
   await mobilePage.goto("/create-account");
-  await mobilePage
-    .getByRole("button", { name: /Ofer servicii/ })
-    .click();
+  await mobilePage.getByRole("button", { name: /Ofer servicii/ }).click();
   const mobileGoogleRegistration = mobilePage.getByRole("button", {
     name: "Continuă cu Google",
   });
@@ -197,7 +195,9 @@ test("Visual audit — platform administrator lands in the real control center",
   await expect(
     page.getByRole("heading", { name: "Centru de comandă" }),
   ).toBeVisible();
-  await expect(page.getByText("Utilizatori", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("Utilizatori", { exact: true }).first(),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectNoSeriousAxeViolations(page);
   await page.screenshot({
@@ -216,11 +216,10 @@ test("Visual audit — platform administrator lands in the real control center",
   });
   await admin.close();
 
-  const mobile = await signedInContext(
-    browser,
-    "admin@weddingos.local",
-    { width: 390, height: 844 },
-  );
+  const mobile = await signedInContext(browser, "admin@weddingos.local", {
+    width: 390,
+    height: 844,
+  });
   const mobilePage = await mobile.newPage();
   await mobilePage.goto("/admin/commerce");
   await expect(
