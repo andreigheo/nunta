@@ -74,7 +74,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               return (
                 <div
                   key={t.id}
-                  className="pointer-events-auto flex animate-slide-up items-start gap-3 rounded-xl border border-line bg-elevated p-3.5 shadow-overlay"
+                  className="pointer-events-auto flex animate-toast-slide-up items-start gap-3 rounded-xl border border-line bg-elevated p-3.5 shadow-overlay"
                 >
                   <Icon className={cn("mt-0.5 size-4.5 shrink-0", iconTones[t.variant])} aria-hidden />
                   <div className="min-w-0 flex-1">

@@ -208,6 +208,8 @@
 
   --animate-fade-in: fade-in 0.18s ease-out;
   --animate-slide-up: slide-up 0.22s cubic-bezier(0.32, 0.72, 0.24, 1);
+  --animate-toast-slide-up: toast-slide-up 0.22s
+    cubic-bezier(0.32, 0.72, 0.24, 1);
   --animate-slide-in-right: slide-in-right 0.26s
     cubic-bezier(0.32, 0.72, 0.24, 1);
   --animate-scale-in: scale-in 0.16s ease-out;
@@ -229,6 +231,14 @@
   }
   to {
     opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes toast-slide-up {
+  from {
+    transform: translateY(10px);
+  }
+  to {
     transform: translateY(0);
   }
 }
