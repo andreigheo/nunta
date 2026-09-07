@@ -46,6 +46,16 @@ remain disabled and are not part of this integration.
 The free plan and all persistent planning modules can operate without those
 providers.
 
+Twilio guest notifications are also fail-closed. Keep `TWILIO_ENABLED=false`
+until the SMS sender, the production WhatsApp sender and approved Content
+Template SIDs exist. Both `TWILIO_STATUS_CALLBACK_URL` and
+`TWILIO_INBOUND_URL` must be public HTTPS endpoints on the active Sarbato
+release; the application validates every callback signature. Use
+`TWILIO_TEST_RECIPIENTS` as a comma-separated allowlist during a controlled
+activation, then remove it only after the paid account and sender compliance
+checks are complete. A Trial WhatsApp Sandbox proves provider connectivity but
+is not a production guest channel.
+
 Accommodation discovery is informational and never creates or processes a
 booking. The default adapter reads public OpenStreetMap data through Nominatim
 and Overpass with server-side throttling, bounded queries, attribution, and a

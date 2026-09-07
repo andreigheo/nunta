@@ -72,6 +72,27 @@ export const apiEnvironmentSchema = z
     SESSION_COOKIE_NAME: z.string().min(1).default("weddingos_session"),
     EMAIL_FROM: z.string().min(3),
     EMAIL_PROVIDER: z.enum(["smtp", "console"]).default("smtp"),
+    TWILIO_ENABLED: environmentBoolean.default(false),
+    TWILIO_ACCOUNT_SID: z.string().default(""),
+    TWILIO_AUTH_TOKEN: z.string().default(""),
+    TWILIO_SMS_FROM: z.string().default(""),
+    TWILIO_WHATSAPP_FROM: z.string().default(""),
+    TWILIO_STATUS_CALLBACK_URL: z.string().default(""),
+    TWILIO_INBOUND_URL: z.string().default(""),
+    TWILIO_CONTENT_TEMPLATES: z.string().default("{}"),
+    TWILIO_TEST_RECIPIENTS: z.string().default(""),
+    TWILIO_WORKSPACE_DAILY_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .default(100),
+    TWILIO_GLOBAL_DAILY_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100000)
+      .default(1000),
     SMTP_HOST: z.string().min(1),
     SMTP_PORT: z.coerce.number().int().min(1).max(65535),
     SMTP_USER: z.preprocess(emptyToUndefined, z.string().optional()),

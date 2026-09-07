@@ -1,4 +1,7 @@
 import type {
+  GuestMessagingOverview,
+  GuestMessageInput,
+  GuestMessageConsent,
   MediaPortalResource,
   MediaPortalPublicGalleryResource,
   MediaPortalPublicResource,
@@ -2855,6 +2858,11 @@ export const weddingOsApi = {
     request<GuestListResource>(
       `/workspaces/${encodeURIComponent(workspaceId)}/guests${queryString(filters)}`,
     ),
+  guestMessaging: (workspaceId: string) => request<GuestMessagingOverview>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-messaging`),
+  saveGuestMessageConsent: (workspaceId: string, guestId: string, input: GuestMessageConsent) =>
+    request<{ saved: boolean }>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-messaging/consents/${encodeURIComponent(guestId)}`, { method: "PUT", body: input }),
+  sendGuestMessage: (workspaceId: string, input: GuestMessageInput, key: string) =>
+    request<{ ids: string[]; replayed: boolean }>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-messaging/messages`, { method: "POST", body: input, idempotencyKey: key }),
   guest: (workspaceId: string, guestId: string) =>
     request<
       GuestResource & {

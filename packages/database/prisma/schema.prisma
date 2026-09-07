@@ -2062,11 +2062,59 @@ model Guest {
   version                     Int         @default(1)
 
   @@unique([workspaceId, primaryGuestId, isPlusOne])
+  @@unique([id, workspaceId])
   @@index([workspaceId, householdId, status])
   @@index([workspaceId, emailNormalized])
   @@index([workspaceId, phoneE164])
   @@index([workspaceId, lastName, firstName])
   @@map("guests")
+}
+
+model GuestMessageConsent {
+  id              String   @id @default(uuid()) @db.Uuid
+  workspaceId     String   @map("workspace_id") @db.Uuid
+  guestId         String   @map("guest_id") @db.Uuid
+  channel         String   @db.VarChar(16)
+  destinationHash String   @map("destination_hash") @db.Char(64)
+  allowed         Boolean  @default(false)
+  evidence        String   @db.VarChar(300)
+  recordedById    String   @map("recorded_by_id") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, guestId, channel])
+  @@map("guest_message_consents")
+}
+
+model GuestMessage {
+  id               String    @id @default(uuid()) @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
+  guestId          String    @map("guest_id") @db.Uuid
+  createdById      String    @map("created_by_id") @db.Uuid
+  channel          String    @db.VarChar(16)
+  destinationHash  String    @map("destination_hash") @db.Char(64)
+  encryptedPayload String    @map("encrypted_payload") @db.Text
+  requestKey       String    @map("request_key") @db.VarChar(100)
+  requestHash      String    @map("request_hash") @db.Char(64)
+  status           String    @default("QUEUED") @db.VarChar(24)
+  providerSid      String?   @unique @map("provider_sid") @db.VarChar(40)
+  errorCode        String?   @map("error_code") @db.VarChar(80)
+  attemptedAt      DateTime? @map("attempted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, requestKey, guestId])
+  @@index([workspaceId, createdAt])
+  @@map("guest_messages")
+}
+
+model GuestMessageSuppression {
+  destinationHash String   @map("destination_hash") @db.Char(64)
+  channel         String   @db.VarChar(16)
+  blocked         Boolean  @default(true)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@id([destinationHash, channel])
+  @@map("guest_message_suppressions")
 }
 
 model GuestRelationship {
@@ -6186,22 +6234,22 @@ model CheckInSyncBatch {
 }
 
 model EventMediaPortal {
-  id             String   @id @default(uuid()) @db.Uuid
-  workspaceId    String   @map("workspace_id") @db.Uuid
-  weddingEventId String   @unique @map("wedding_event_id") @db.Uuid
-  eventName      String   @map("event_name") @db.VarChar(240)
-  tokenHash      String   @unique @map("token_hash") @db.Char(64)
-  tokenEncrypted String   @map("token_encrypted") @db.Text
-  active         Boolean  @default(true)
-  expiresAt      DateTime @map("expires_at")
-  reservedBytes  BigInt   @default(0) @map("reserved_bytes")
-  uploadCount    Int      @default(0) @map("upload_count")
-  liveGalleryId  String?  @map("live_gallery_id") @db.Uuid
-  liveGalleryEnabled Boolean @default(false) @map("live_gallery_enabled")
-  createdById    String   @map("created_by") @db.Uuid
-  version        Int      @default(1)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(uuid()) @db.Uuid
+  workspaceId        String   @map("workspace_id") @db.Uuid
+  weddingEventId     String   @unique @map("wedding_event_id") @db.Uuid
+  eventName          String   @map("event_name") @db.VarChar(240)
+  tokenHash          String   @unique @map("token_hash") @db.Char(64)
+  tokenEncrypted     String   @map("token_encrypted") @db.Text
+  active             Boolean  @default(true)
+  expiresAt          DateTime @map("expires_at")
+  reservedBytes      BigInt   @default(0) @map("reserved_bytes")
+  uploadCount        Int      @default(0) @map("upload_count")
+  liveGalleryId      String?  @map("live_gallery_id") @db.Uuid
+  liveGalleryEnabled Boolean  @default(false) @map("live_gallery_enabled")
+  createdById        String   @map("created_by") @db.Uuid
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@index([workspaceId])
   @@map("event_media_portals")

@@ -5,6 +5,11 @@ import { WorkspacesModule } from "../workspaces/workspaces.module";
 import { WorkspaceBillingModule } from "../workspace-billing/workspace-billing.module";
 import { GuestCrmController } from "./guest-crm.controller";
 import { GuestCrmService } from "./guest-crm.service";
+import { GuestMessagingService } from "./guest-messaging.service";
+import {
+  GuestMessagingController,
+  TwilioWebhookController,
+} from "./guest-messaging.controller";
 import {
   EmailWebhookController,
   InvitationCampaignController,
@@ -20,12 +25,19 @@ import { RsvpMenuService } from "./rsvp-menu.service";
   imports: [AsyncModule, AuthModule, WorkspacesModule, WorkspaceBillingModule],
   controllers: [
     GuestCrmController,
+    GuestMessagingController,
+    TwilioWebhookController,
     InvitationCampaignController,
     EmailWebhookController,
     GuestCompanionController,
     RsvpMenuController,
   ],
-  providers: [GuestCrmService, InvitationCampaignService, RsvpMenuService],
+  providers: [
+    GuestCrmService,
+    InvitationCampaignService,
+    RsvpMenuService,
+    GuestMessagingService,
+  ],
   exports: [GuestCrmService, InvitationCampaignService, RsvpMenuService],
 })
 export class GuestsModule {}

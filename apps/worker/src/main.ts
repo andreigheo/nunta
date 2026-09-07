@@ -32,6 +32,7 @@ import {
 } from "@weddingos/contracts";
 import { Prisma, PrismaClient } from "@weddingos/database";
 import { campaignGuestAccessToken } from "./guest-access-token";
+import { deliverGuestMessage } from "./guest-messaging";
 import {
   asyncEventNameSchema,
   automationRecursionAllowed,
@@ -507,6 +508,19 @@ async function processPersistedConsumer(
       slice3Result = await processCampaignDelivery(
         snapshot,
         payload.campaignDelivery.campaignRecipientId,
+      );
+    }
+    if (consumerName === "guest_message_delivery") {
+      if (!payload.guestMessage || !snapshot.workspace_id)
+        throw new PermanentJobError(
+          "Guest message contract missing",
+          "GUEST_MESSAGE_CONTRACT_MISSING",
+        );
+      await deliverGuestMessage(
+        (fn) => withPersistedContext(snapshot, fn),
+        environment,
+        snapshot.workspace_id,
+        payload.guestMessage.messageId,
       );
     }
     if (consumerName === "campaign_summary") {

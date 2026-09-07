@@ -7,6 +7,7 @@ export * from "./marketing";
 export * from "./marketing-capability-manifest";
 
 export * from "./slice3";
+export * from "./guest-messaging";
 
 export const DEFAULT_LOCALE = "ro-RO" as const;
 export const DEFAULT_TIMEZONE = "Europe/Bucharest" as const;
