@@ -13,6 +13,7 @@ import {
 } from "@nestjs/common";
 import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import {
+  createMessageCreditCheckoutSchema,
   createWorkspaceSubscriptionCheckoutSchema,
   createWorkspaceSupportCaseSchema,
 } from "@weddingos/contracts";
@@ -82,6 +83,34 @@ export class WorkspaceBillingController {
         auth.userId,
         parseUuid(workspaceId, "workspaceId"),
         input.plan,
+        idempotencyKey,
+      ),
+    );
+  }
+
+  @Post("message-credits/checkout")
+  @UseGuards(SessionAuthGuard, CapabilityGuard)
+  @RequireCapability("workspace.billing.manage")
+  async messageCreditCheckout(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    if (!idempotencyKey || idempotencyKey.length > 200)
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.BAD_REQUEST,
+        "Idempotency-Key required",
+      );
+    const input = parseWithSchema(createMessageCreditCheckoutSchema, body);
+    return apiResponse(
+      request,
+      await this.billing.startMessageCreditCheckout(
+        auth.userId,
+        parseUuid(workspaceId, "workspaceId"),
+        input.pack,
         idempotencyKey,
       ),
     );

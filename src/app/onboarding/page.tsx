@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type {
   EventType,
   OnboardingDraftResource,
@@ -35,6 +35,7 @@ import { cn, formatRON } from "@/lib/utils";
 import { Button, CurrencyInput, Field, Input, Progress, Select, Switch, useToast } from "@/components/ui";
 import { ThemeSegmentedControl } from "@/lib/theme";
 import { apiErrorMessage, hasDemoCookie, weddingOsApi } from "@/lib/api/client";
+import { selectedWorkspacePlan } from "@/lib/account-routing";
 
 const steps = [
   { id: 1, title: "Evenimentul", hint: "Ce organizezi și cine îl coordonează?" },
@@ -99,8 +100,20 @@ type ProfilePhotoSelection = {
 };
 
 export default function OnboardingPage() {
+  return (
+    <React.Suspense
+      fallback={<div className="min-h-dvh animate-pulse bg-canvas" />}
+    >
+      <OnboardingContent />
+    </React.Suspense>
+  );
+}
+
+function OnboardingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
   const [step, setStep] = React.useState(1);
   const [values, setValues] = React.useState<Record<string, string>>({
     eventType: "",
@@ -360,7 +373,11 @@ export default function OnboardingPage() {
       if (!saved) throw new Error("Draftul nu a fost salvat.");
       const result = await weddingOsApi.completeOnboarding(saved.workspaceId, saved.version);
       toast({ title: "Configurare finalizată", description: result.message, variant: "success" });
-      router.push("/plan?generate=1");
+      router.push(
+        requestedPlan
+          ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start`
+          : "/plan?generate=1",
+      );
       router.refresh();
     } catch (error) {
       toast({ title: "Configurarea nu a putut fi finalizată", description: apiErrorMessage(error), variant: "error" });

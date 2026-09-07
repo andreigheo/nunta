@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { parseApiEnvironment } from "@weddingos/config";
 import {
+  createMessageCreditCheckoutSchema,
   createWorkspaceSubscriptionCheckoutSchema,
   overrideInputSchema,
 } from "@weddingos/contracts";
@@ -17,11 +18,13 @@ import {
   subscriptionUpdate,
   WorkspaceBillingService,
 } from "../src/workspace-billing/workspace-billing.service";
+import { allocateMessageCreditConsumption } from "../src/workspace-billing/message-credit.service";
 import {
   capabilityAllowedByWorkspacePlan,
   effectiveWorkspacePlanKey,
   minimumPlanForCapability,
   resolvePlanCapabilities,
+  MESSAGE_CREDIT_PACKS,
   WORKSPACE_SUBSCRIPTION_PLANS,
   WORKSPACE_SUBSCRIPTION_ROLE_POLICY,
   workspacePlan,
@@ -52,6 +55,7 @@ function environment() {
     PADDLE_WEBHOOK_SECRET: webhookSecret,
     PADDLE_PLUS_PRICE_ID: "pri_plus123",
     PADDLE_PRO_PRICE_ID: "pri_pro123",
+    PADDLE_MESSAGE_CREDITS_100_PRICE_ID: "pri_messages100",
   });
 }
 
@@ -63,13 +67,53 @@ describe("Sarbato workspace subscriptions", () => {
       "PRO",
     ]);
     expect(workspacePlan("FREE").amountMinor).toBe(0);
-    expect(workspacePlan("PLUS").amountMinor).toBe(1900);
-    expect(workspacePlan("PRO").amountMinor).toBe(3900);
+    expect(workspacePlan("PLUS").amountMinor).toBe(2700);
+    expect(workspacePlan("PRO").amountMinor).toBe(5900);
     expect(
       WORKSPACE_SUBSCRIPTION_PLANS.every(
         (plan) => plan.currency === "EUR" && plan.interval === "month",
       ),
     ).toBe(true);
+  });
+
+  it("includes the agreed messaging allowances and €12.50 add-on", () => {
+    expect(workspacePlan("FREE").entitlements.MESSAGING_CREDITS).toBe(10);
+    expect(workspacePlan("PLUS").entitlements.MESSAGING_CREDITS).toBe(50);
+    expect(workspacePlan("PRO").entitlements.MESSAGING_CREDITS).toBe(100);
+    expect(MESSAGE_CREDIT_PACKS).toEqual([
+      expect.objectContaining({
+        key: "MESSAGES_100",
+        credits: 100,
+        amountMinor: 1250,
+        currency: "EUR",
+      }),
+    ]);
+    expect(
+      createMessageCreditCheckoutSchema.safeParse({ pack: "MESSAGES_100" })
+        .success,
+    ).toBe(true);
+    expect(
+      createMessageCreditCheckoutSchema.safeParse({ pack: "MESSAGES_500" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("consumes included credits before purchased credits", () => {
+    expect(allocateMessageCreditConsumption(10, 100, 7)).toEqual({
+      includedUsed: 7,
+      purchasedUsed: 0,
+      includedAfter: 3,
+      purchasedAfter: 100,
+    });
+    expect(allocateMessageCreditConsumption(3, 100, 8)).toEqual({
+      includedUsed: 3,
+      purchasedUsed: 5,
+      includedAfter: 0,
+      purchasedAfter: 95,
+    });
+    expect(() => allocateMessageCreditConsumption(1, 1, 3)).toThrow(
+      "Insufficient message credits",
+    );
   });
 
   it("accepts only paid plans when creating a Paddle checkout", () => {
@@ -173,6 +217,30 @@ describe("Sarbato workspace subscriptions", () => {
     ).toEqual({ planKey: "PRO", priceId: "pri_pro123" });
   });
 
+  it("uses Paddle's transaction query parameter and recognizes only the exact credit pack price", () => {
+    const service = new PaddleService(environment());
+    expect(service.checkoutUrl("txn_test/with spaces")).toBe(
+      "http://127.0.0.1:3000/checkout?_ptxn=txn_test%2Fwith%20spaces",
+    );
+    expect(
+      service.messageCreditPackFromProviderData({
+        items: [{ price_id: "pri_messages100", quantity: 1 }],
+        custom_data: { credit_pack_key: "something-else" },
+      }),
+    ).toEqual({
+      packKey: "MESSAGES_100",
+      priceId: "pri_messages100",
+    });
+    expect(
+      service.messageCreditPackFromProviderData({
+        items: [
+          { price_id: "pri_messages100", quantity: 1 },
+          { price_id: "pri_plus123", quantity: 1 },
+        ],
+      }),
+    ).toBeNull();
+  });
+
   it("rejects a provider payload that contains both paid plan prices", () => {
     const service = new PaddleService(environment());
     expect(() =>
@@ -194,7 +262,10 @@ describe("Sarbato workspace subscriptions", () => {
           id: "00000000-0000-4000-8000-000000000003",
           workspaceId: "00000000-0000-4000-8000-000000000001",
           createdById: "00000000-0000-4000-8000-000000000002",
+          kind: "SUBSCRIPTION",
           planKey: "PLUS",
+          creditPackKey: null,
+          creditQuantity: null,
           providerPriceId: "pri_plus123",
           assignmentTokenHash: "a".repeat(64),
         },
@@ -213,7 +284,10 @@ describe("Sarbato workspace subscriptions", () => {
           id: "00000000-0000-4000-8000-000000000003",
           workspaceId: "00000000-0000-4000-8000-000000000001",
           createdById: "00000000-0000-4000-8000-000000000002",
+          kind: "SUBSCRIPTION",
           planKey: "PLUS",
+          creditPackKey: null,
+          creditQuantity: null,
           providerPriceId: "pri_plus123",
           assignmentTokenHash: "a".repeat(64),
         },
@@ -555,6 +629,7 @@ describe("Sarbato workspace subscriptions", () => {
       database as never,
       paddle as never,
       {} as never,
+      {} as never,
     );
     await expect(
       service.startCheckout(
@@ -606,6 +681,7 @@ describe("Sarbato workspace subscriptions", () => {
     const service = new WorkspaceBillingService(
       database as never,
       paddle as never,
+      {} as never,
       {} as never,
     );
     await expect(

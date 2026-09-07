@@ -17,6 +17,10 @@ export const routes = {
   cookies: "/cookies",
 } as const;
 
+const organizerSignup = `${routes.createAccount}?intent=EVENT_ORGANIZER`;
+const paidPlanSignup = (plan: "PLUS" | "PRO") =>
+  `${organizerSignup}&returnTo=${encodeURIComponent(`/start?plan=${plan}`)}`;
+
 export const primaryCta: Cta = {
   label: "Începe organizarea",
   href: routes.createAccount,
@@ -587,14 +591,15 @@ export const pricing = {
         "Studio de invitații, RSVP și livrare e-mail",
         "Descoperire cazare pentru invitați",
         "200 de livrări e-mail pe lună",
+        "10 credite de mesagerie pentru test",
       ],
       status: "Fără card",
-      cta: { label: "Începe gratuit", href: routes.createAccount },
+      cta: { label: "Începe gratuit", href: organizerSignup },
       featured: false,
     },
     {
       name: "Plus",
-      price: "19 €",
+      price: "27 €",
       cadence: "pe lună",
       description:
         "Pentru organizarea completă, logistica invitaților și coordonarea furnizorilor.",
@@ -610,14 +615,15 @@ export const pricing = {
         "Coordonarea furnizorilor și documentelor",
         "Exporturi avansate și 5 automatizări active",
         "2.000 de livrări e-mail pe lună",
+        "50 de credite de mesagerie pe lună",
       ],
       status: "Recomandat",
-      cta: { label: "Începe cu Plus", href: routes.createAccount },
+      cta: { label: "Începe cu Plus", href: paidPlanSignup("PLUS") },
       featured: true,
     },
     {
       name: "Pro",
-      price: "39 €",
+      price: "59 €",
       cadence: "pe lună",
       description: "Pentru coordonare operațională avansată.",
       highlights: [
@@ -633,15 +639,16 @@ export const pricing = {
         "Coordonare avansată pentru echipa din teren",
         "25 de automatizări active",
         "10.000 de livrări e-mail pe lună",
+        "100 de credite de mesagerie pe lună",
         "Suport prioritar",
       ],
       status: "Avansat",
-      cta: { label: "Începe cu Pro", href: routes.createAccount },
+      cta: { label: "Începe cu Pro", href: paidPlanSignup("PRO") },
       featured: false,
     },
   ],
   boundary:
-    "Paddle procesează abonamentul Sarbato. Plățile dintre organizatori și furnizori rămân directe și separate.",
+    "Paddle procesează abonamentul și pachetele de credite Sarbato. Plățile dintre organizatori și furnizori rămân directe și separate.",
   checkoutNote:
     "Facturare lunară. Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
 } as const;

@@ -19,6 +19,7 @@ import { DatabaseService } from "../common/database.service";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
 import { stableHash } from "./sensitive.crypto";
+import { MessageCreditService } from "../workspace-billing/message-credit.service";
 
 @Injectable()
 export class GuestMessagingService {
@@ -26,6 +27,8 @@ export class GuestMessagingService {
     @Inject(DatabaseService) private readonly db: DatabaseService,
     @Inject(AsyncService) private readonly events: AsyncService,
     @Inject(API_ENVIRONMENT) private readonly env: ApiEnvironment,
+    @Inject(MessageCreditService)
+    private readonly messageCredits: MessageCreditService,
   ) {}
 
   async overview(
@@ -267,6 +270,14 @@ export class GuestMessagingService {
             HttpStatus.NOT_FOUND,
             "Un destinatar nu aparține acestui eveniment sau nu mai este activ.",
           );
+        await this.messageCredits.consumeInTransaction(
+          tx,
+          userId,
+          workspaceId,
+          guestIds.length,
+          `guest-message:${key}`,
+          { channel: input.channel, recipientCount: guestIds.length },
+        );
         const ids: string[] = [];
         for (const guest of guests) {
           const phone = normalizedPhone(guest.phoneE164 ?? "");

@@ -5,6 +5,7 @@ import {
   inferredRegistrationIntent,
   registrationIntentForEntry,
   safeInternalPath,
+  selectedWorkspacePlan,
 } from "./account-routing";
 import { requiredCapabilityForPath } from "./navigation";
 
@@ -56,6 +57,14 @@ describe("account routing", () => {
     expect(safeInternalPath("//evil.example/path")).toBeNull();
     expect(safeInternalPath("/\\evil.example/path")).toBeNull();
     expect(safeInternalPath("/%2F%2Fevil.example/path")).toBeNull();
+  });
+
+  it("accepts only paid workspace plans from public URLs", () => {
+    expect(selectedWorkspacePlan("PLUS")).toBe("PLUS");
+    expect(selectedWorkspacePlan("PRO")).toBe("PRO");
+    expect(selectedWorkspacePlan("FREE")).toBeNull();
+    expect(selectedWorkspacePlan("plus")).toBeNull();
+    expect(selectedWorkspacePlan("https://evil.example")).toBeNull();
   });
 
   it("sends a verified organizer without a workspace to onboarding", () => {

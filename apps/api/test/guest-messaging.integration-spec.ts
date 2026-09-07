@@ -193,6 +193,11 @@ describe.sequential(
         .set("Idempotency-Key", randomUUID())
         .send({ ...input(), guestIds: [fixtures[1]!.guestId] })
         .expect(404);
+      expect(
+        await owner.workspaceMessageCreditAccount.findUnique({
+          where: { workspaceId: fixtures[0]!.workspaceId },
+        }),
+      ).toBeNull();
     });
     it("queues once, encrypts content, records the outbox and handles idempotent replay", async () => {
       await request(app.getHttpServer())
@@ -219,6 +224,12 @@ describe.sequential(
         .send(input())
         .expect(201);
       expect(b.body.data).toMatchObject({ ids: [messageId], replayed: true });
+      expect(
+        await owner.workspaceMessageCreditAccount.findUniqueOrThrow({
+          where: { workspaceId: fixtures[0]!.workspaceId },
+          select: { includedBalance: true, purchasedBalance: true },
+        }),
+      ).toEqual({ includedBalance: 99, purchasedBalance: 0 });
       await request(app.getHttpServer())
         .post(`${path()}/messages`)
         .set(headers())

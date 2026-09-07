@@ -1,5 +1,13 @@
 import type { RegistrationIntent } from "@weddingos/contracts";
 
+export type SelectedWorkspacePlan = "PLUS" | "PRO";
+
+export function selectedWorkspacePlan(
+  value: string | null | undefined,
+): SelectedWorkspacePlan | null {
+  return value === "PLUS" || value === "PRO" ? value : null;
+}
+
 function hasUnsafeInternalPathCharacter(value: string) {
   return [...value].some((character) => {
     const code = character.charCodeAt(0);

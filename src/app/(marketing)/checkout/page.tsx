@@ -13,9 +13,10 @@ export default async function CheckoutPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
-  const rawTransactionId = Array.isArray(query._ptxn)
-    ? query._ptxn[0]
-    : query._ptxn;
+  const transactionQuery = query._ptxn ?? query.transaction_id;
+  const rawTransactionId = Array.isArray(transactionQuery)
+    ? transactionQuery[0]
+    : transactionQuery;
   const transactionId =
     typeof rawTransactionId === "string" &&
     /^txn_[A-Za-z0-9]+$/.test(rawTransactionId)

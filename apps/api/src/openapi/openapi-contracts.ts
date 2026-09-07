@@ -14,6 +14,8 @@ import {
   createSessionRequestSchema,
   createTeamInvitationRequestSchema,
   createWorkspaceRequestSchema,
+  createWorkspaceSubscriptionCheckoutSchema,
+  createMessageCreditCheckoutSchema,
   createWorkspaceSupportCaseSchema,
   currentUserSchema,
   emailVerificationRequestSchema,
@@ -473,6 +475,9 @@ const schemas: Record<string, ZodTypeAny> = {
   WorkspaceSummary: workspaceSummarySchema,
   WorkspaceMutation: workspaceMutationSchema,
   CreateWorkspaceRequest: createWorkspaceRequestSchema,
+  CreateWorkspaceSubscriptionCheckout:
+    createWorkspaceSubscriptionCheckoutSchema,
+  CreateMessageCreditCheckout: createMessageCreditCheckoutSchema,
   CreateWorkspaceSupportCase: createWorkspaceSupportCaseSchema,
   UpdateWorkspaceRequest: updateWorkspaceRequestSchema,
   WorkspaceBootstrap: workspaceBootstrapSchema,
@@ -1042,6 +1047,14 @@ const requestByRoute: Array<[RegExp, string]> = [
     "PlatformLabelAssignment",
   ],
   [/POST \/api\/v1\/platform\/support-cases$/, "CreateSupportCase"],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/billing\/checkout$/,
+    "CreateWorkspaceSubscriptionCheckout",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/billing\/message-credits\/checkout$/,
+    "CreateMessageCreditCheckout",
+  ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/billing\/support-cases$/,
     "CreateWorkspaceSupportCase",

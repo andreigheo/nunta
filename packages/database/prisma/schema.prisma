@@ -55,6 +55,24 @@ enum WorkspaceBillingCheckoutStatus {
   FAILED
 }
 
+enum WorkspaceBillingCheckoutKind {
+  SUBSCRIPTION
+  MESSAGE_CREDITS
+}
+
+enum MessageCreditBucket {
+  INCLUDED
+  PURCHASED
+}
+
+enum MessageCreditEntryType {
+  PLAN_GRANT
+  PURCHASE
+  CONSUMPTION
+  REFUND
+  ADJUSTMENT
+}
+
 enum WorkspaceBillingEventStatus {
   RECEIVED
   PROCESSING
@@ -1050,6 +1068,8 @@ model Workspace {
   billingCheckouts        WorkspaceBillingCheckout[]
   billingProviderEvents   WorkspaceBillingProviderEvent[]
   billingTransactions     WorkspaceBillingTransaction[]
+  messageCreditAccount    WorkspaceMessageCreditAccount?
+  messageCreditEntries    WorkspaceMessageCreditEntry[]
   usagePeriods            WorkspaceUsagePeriod[]
   usageReservations       WorkspaceUsageReservation[]
   creativeState           WorkspaceCreativeState?
@@ -1096,7 +1116,10 @@ model WorkspaceBillingCheckout {
   id                     String                          @id @default(uuid()) @db.Uuid
   workspaceId            String                          @map("workspace_id") @db.Uuid
   createdById            String                          @map("created_by") @db.Uuid
-  planKey                WorkspaceSubscriptionPlanKey    @map("plan_key")
+  kind                   WorkspaceBillingCheckoutKind    @default(SUBSCRIPTION)
+  planKey                WorkspaceSubscriptionPlanKey?   @map("plan_key")
+  creditPackKey          String?                         @map("credit_pack_key") @db.VarChar(40)
+  creditQuantity         Int?                            @map("credit_quantity")
   provider               String                          @db.VarChar(32)
   providerPriceId        String                          @map("provider_price_id") @db.VarChar(64)
   providerTransactionId  String?                         @unique @map("provider_transaction_id") @db.VarChar(64)
@@ -1115,6 +1138,43 @@ model WorkspaceBillingCheckout {
   @@unique([workspaceId, createdById, idempotencyKey])
   @@index([workspaceId, createdAt])
   @@map("workspace_billing_checkouts")
+}
+
+model WorkspaceMessageCreditAccount {
+  id                   String                        @id @default(uuid()) @db.Uuid
+  workspaceId          String                        @unique @map("workspace_id") @db.Uuid
+  includedBalance      Int                           @default(0) @map("included_balance")
+  purchasedBalance     Int                           @default(0) @map("purchased_balance")
+  allowancePlanKey     WorkspaceSubscriptionPlanKey  @default(FREE) @map("allowance_plan_key")
+  allowancePeriodStart DateTime?                     @map("allowance_period_start")
+  trialGrantedAt       DateTime                      @default(now()) @map("trial_granted_at")
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  updatedAt            DateTime                      @updatedAt @map("updated_at")
+  version              Int                           @default(1)
+  workspace            Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entries              WorkspaceMessageCreditEntry[]
+
+  @@map("workspace_message_credit_accounts")
+}
+
+model WorkspaceMessageCreditEntry {
+  id                    String                        @id @default(uuid()) @db.Uuid
+  workspaceId           String                        @map("workspace_id") @db.Uuid
+  accountId             String                        @map("account_id") @db.Uuid
+  bucket                MessageCreditBucket
+  type                  MessageCreditEntryType
+  quantity              Int
+  balanceAfter          Int                           @map("balance_after")
+  idempotencyKey        String                        @map("idempotency_key") @db.VarChar(200)
+  providerTransactionId String?                       @unique @map("provider_transaction_id") @db.VarChar(64)
+  metadata              Json?
+  createdAt             DateTime                      @default(now()) @map("created_at")
+  workspace             Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account               WorkspaceMessageCreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, createdAt])
+  @@map("workspace_message_credit_entries")
 }
 
 model WorkspaceBillingProviderEvent {

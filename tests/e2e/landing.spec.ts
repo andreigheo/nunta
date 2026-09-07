@@ -463,26 +463,45 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   await expect(plans.nth(0)).toContainText("acțiuni AI / lună");
   await expect(plans.nth(0)).toContainText("200 de livrări e-mail pe lună");
   await expect(plans.nth(1)).toContainText("Plus");
-  await expect(plans.nth(1)).toContainText("19 €");
+  await expect(plans.nth(1)).toContainText("27 €");
   await expect(plans.nth(1)).toContainText("30");
   await expect(plans.nth(1)).toContainText("acțiuni AI / lună");
   await expect(plans.nth(1)).toContainText("5 automatizări active");
   await expect(plans.nth(1)).toContainText("2.000 de livrări e-mail pe lună");
+  await expect(plans.nth(1)).toContainText(
+    "50 de credite de mesagerie pe lună",
+  );
   await expect(plans.nth(1)).toHaveAttribute("data-featured", "true");
   await expect(plans.nth(2)).toContainText("Pro");
-  await expect(plans.nth(2)).toContainText("39 €");
+  await expect(plans.nth(2)).toContainText("59 €");
   await expect(plans.nth(2)).toContainText("150");
   await expect(plans.nth(2)).toContainText("acțiuni AI / lună");
   await expect(plans.nth(2)).toContainText("25 de automatizări active");
   await expect(plans.nth(2)).toContainText("10.000 de livrări e-mail pe lună");
+  await expect(plans.nth(2)).toContainText(
+    "100 de credite de mesagerie pe lună",
+  );
   await expect(plans.nth(2)).toContainText("Suport prioritar");
   await expect(section.getByRole("link", { name: /Începe/ })).toHaveCount(3);
-  for (const link of await section
-    .getByRole("link", { name: /Începe/ })
-    .all()) {
-    await expect(link).toHaveAttribute("href", "/create-account");
-  }
-  await expect(section).toContainText("Paddle procesează abonamentul Sarbato");
+  await expect(
+    section.getByRole("link", { name: "Începe gratuit" }),
+  ).toHaveAttribute("href", "/create-account?intent=EVENT_ORGANIZER");
+  await expect(
+    section.getByRole("link", { name: "Începe cu Plus" }),
+  ).toHaveAttribute(
+    "href",
+    "/create-account?intent=EVENT_ORGANIZER&returnTo=%2Fstart%3Fplan%3DPLUS",
+  );
+  await expect(
+    section.getByRole("link", { name: "Începe cu Pro" }),
+  ).toHaveAttribute(
+    "href",
+    "/create-account?intent=EVENT_ORGANIZER&returnTo=%2Fstart%3Fplan%3DPRO",
+  );
+  await expect(section).toContainText("10 credite de mesagerie pentru test");
+  await expect(section).toContainText(
+    "Paddle procesează abonamentul și pachetele de credite Sarbato",
+  );
   await expect(section).toContainText(
     "Facturare lunară. Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
   );
@@ -522,7 +541,9 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
     await expect(plan).toBeVisible();
     await expect(plan.getByRole("link", { name: /Începe/ })).toBeVisible();
   }
-  await expect(section).toContainText("Paddle procesează abonamentul Sarbato");
+  await expect(section).toContainText(
+    "Paddle procesează abonamentul și pachetele de credite Sarbato",
+  );
   await expect(
     section.getByRole("link", { name: "Vezi întrebările frecvente" }),
   ).toBeVisible();

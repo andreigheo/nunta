@@ -1,7 +1,7 @@
 # Sarbato subscription plans
 
 Status: implemented application policy. Paddle is the billing provider for
-Sarbato subscriptions only.
+Sarbato subscriptions and message-credit packs only.
 
 ## Ownership and access model
 
@@ -17,26 +17,27 @@ read-only on Pro, and a planner does not gain billing administration.
 
 ## Monthly plans
 
-| Entitlement                                                  |                      Free |                      Plus |       Pro |
-| ------------------------------------------------------------ | ------------------------: | ------------------------: | --------: |
-| Price                                                        |                        €0 |                 €19/month | €39/month |
-| Active guests                                                |                        50 |                       200 |       500 |
-| Collaborators outside the owner                              |                         2 |                         5 |        15 |
-| AI actions per calendar month                                |                         5 |                        30 |       150 |
-| Commercial e-mail recipient deliveries per calendar month    |                       200 |                     2,000 |    10,000 |
-| Active automations                                           |                         0 |                         5 |        25 |
-| Storage                                                      |                    250 MB |                      2 GB |     10 GB |
-| Plan, calendar, budget, invitation, RSVP and e-mail delivery |                       Yes |                       Yes |       Yes |
-| Invitation studio                                            |                       Yes |                       Yes |       Yes |
-| Accommodation discovery                                      |                       Yes |                       Yes |       Yes |
-| Seating, transport and accommodation                         | Read-only after downgrade |                       Yes |       Yes |
-| Vendor coordination                                          | Read-only after downgrade |                       Yes |       Yes |
-| Documents and advanced exports                               | Read-only after downgrade |                       Yes |       Yes |
-| Risks and contingency plans                                  | Read-only after downgrade | Read-only after downgrade |       Yes |
-| Event-day operations and check-in                            | Read-only after downgrade | Read-only after downgrade |       Yes |
-| External electronic signatures                               | Read-only after downgrade | Read-only after downgrade |       Yes |
-| Organizer-vendor payment mediation                           |                        No |                        No |        No |
-| Priority support queue                                       |                        No |                        No |       Yes |
+| Entitlement                                                  |                      Free |                      Plus |                Pro |
+| ------------------------------------------------------------ | ------------------------: | ------------------------: | -----------------: |
+| Price                                                        |                        €0 |                 €27/month |          €59/month |
+| Active guests                                                |                        50 |                       200 |                500 |
+| Collaborators outside the owner                              |                         2 |                         5 |                 15 |
+| AI actions per calendar month                                |                         5 |                        30 |                150 |
+| Commercial e-mail recipient deliveries per calendar month    |                       200 |                     2,000 |             10,000 |
+| SMS/WhatsApp message credits                                 |          10 once for test |         50 per plan month | 100 per plan month |
+| Active automations                                           |                         0 |                         5 |                 25 |
+| Storage                                                      |                    250 MB |                      2 GB |              10 GB |
+| Plan, calendar, budget, invitation, RSVP and e-mail delivery |                       Yes |                       Yes |                Yes |
+| Invitation studio                                            |                       Yes |                       Yes |                Yes |
+| Accommodation discovery                                      |                       Yes |                       Yes |                Yes |
+| Seating, transport and accommodation                         | Read-only after downgrade |                       Yes |                Yes |
+| Vendor coordination                                          | Read-only after downgrade |                       Yes |                Yes |
+| Documents and advanced exports                               | Read-only after downgrade |                       Yes |                Yes |
+| Risks and contingency plans                                  | Read-only after downgrade | Read-only after downgrade |                Yes |
+| Event-day operations and check-in                            | Read-only after downgrade | Read-only after downgrade |                Yes |
+| External electronic signatures                               | Read-only after downgrade | Read-only after downgrade |                Yes |
+| Organizer-vendor payment mediation                           |                        No |                        No |                 No |
+| Priority support queue                                       |                        No |                        No |                Yes |
 
 ## Roles
 
@@ -79,9 +80,10 @@ change the subscription.
 
 ## Paddle boundary
 
-Paddle is Merchant of Record only for Sarbato's €19 and €39 recurring
-subscriptions. It is not used to collect, hold, route, refund or reconcile
-payments between organizers and event vendors.
+Paddle is Merchant of Record only for Sarbato's €27 and €59 recurring
+subscriptions and the one-time €12.50 pack of 100 message credits. It is not
+used to collect, hold, route, refund or reconcile payments between organizers
+and event vendors.
 
 Paid checkout must remain unavailable in the interface until production Paddle
 credentials, price identifiers and webhook verification are configured.
