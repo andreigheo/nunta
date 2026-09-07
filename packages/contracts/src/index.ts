@@ -1292,6 +1292,24 @@ export const workspaceBillingOverviewSchema = z.object({
   transactions: z.array(workspaceBillingTransactionSchema),
   usage: workspaceSubscriptionUsageSchema,
   rolePolicy: z.array(workspaceSubscriptionRolePolicySchema),
+  messageCredits: z.object({
+    included: z.number().int().nonnegative(),
+    purchased: z.number().int().nonnegative(),
+    available: z.number().int().nonnegative(),
+    planAllowance: z.number().int().nonnegative(),
+    resetsAt: z.string().datetime().nullable(),
+  }),
+  messageCreditPacks: z.array(
+    z.object({
+      key: z.literal("MESSAGES_100"),
+      name: z.string(),
+      description: z.string(),
+      credits: z.number().int().positive(),
+      amountMinor: z.number().int().positive(),
+      currency: z.literal("EUR"),
+      checkoutAvailable: z.boolean(),
+    }),
+  ),
 });
 export type WorkspaceBillingOverview = z.infer<
   typeof workspaceBillingOverviewSchema
@@ -1302,6 +1320,13 @@ export const createWorkspaceSubscriptionCheckoutSchema = z.object({
 });
 export type CreateWorkspaceSubscriptionCheckout = z.infer<
   typeof createWorkspaceSubscriptionCheckoutSchema
+>;
+
+export const createMessageCreditCheckoutSchema = z.object({
+  pack: z.literal("MESSAGES_100"),
+});
+export type CreateMessageCreditCheckout = z.infer<
+  typeof createMessageCreditCheckoutSchema
 >;
 
 export const overrideInputSchema = z

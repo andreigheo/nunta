@@ -170,6 +170,12 @@ test("landing desktop — Product-first control room V1", async ({
   await expect(page.getByRole("contentinfo")).toHaveCount(1);
 
   await dismissCookieBanner(page);
+  const pricing = page.locator("#abonamente");
+  await expect(pricing.getByText("27 €", { exact: true })).toBeVisible();
+  await expect(pricing.getByText("59 €", { exact: true })).toBeVisible();
+  await expect(pricing).toContainText("10 credite de mesagerie pentru test");
+  await expect(pricing).toContainText("50 de credite de mesagerie pe lună");
+  await expect(pricing).toContainText("100 de credite de mesagerie pe lună");
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
   await expectNoAxeViolations(page);

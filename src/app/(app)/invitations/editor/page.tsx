@@ -1662,7 +1662,7 @@ export default function InvitationEditorPage() {
           >
             <div
               data-testid="invitation-zoom-toolbar"
-              className="sticky left-0 top-0 z-20 mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sunken px-1 text-xs text-faint"
+              className="sticky left-0 top-0 z-20 mb-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sunken px-1 text-xs text-muted"
             >
               <span className="hidden shrink-0 lg:inline">
                 {Math.round(activeCanvasWidth)} px

@@ -7,8 +7,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { DatabaseService } from "../common/database.service";
 import { problem } from "../common/problem";
 import { PaddleService, type PaddleWebhook } from "./paddle.service";
+import { MessageCreditService } from "./message-credit.service";
 import {
   effectiveWorkspacePlanKey,
+  MESSAGE_CREDIT_PACKS,
+  messageCreditPack,
+  type MessageCreditPackKey,
   WORKSPACE_SUBSCRIPTION_PLANS,
   WORKSPACE_SUBSCRIPTION_ROLE_POLICY,
   workspacePlan,
@@ -19,6 +23,8 @@ export class WorkspaceBillingService {
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(PaddleService) private readonly paddle: PaddleService,
+    @Inject(MessageCreditService)
+    private readonly messageCredits: MessageCreditService,
   ) {}
 
   async overview(
@@ -91,9 +97,15 @@ export class WorkspaceBillingService {
             take: 12,
           }),
         ]);
+        const messageCredits = await this.messageCredits.balance(
+          transaction,
+          workspaceId,
+          subscription,
+        );
         return {
           subscription,
           billingTransactions,
+          messageCredits,
           used: {
             MAX_GUESTS: activeGuests,
             MAX_COLLABORATORS: activeCollaborators + pendingInvitations,
@@ -134,6 +146,11 @@ export class WorkspaceBillingService {
       transactions: result.billingTransactions.map(billingTransactionResource),
       usage,
       rolePolicy: [...WORKSPACE_SUBSCRIPTION_ROLE_POLICY],
+      messageCredits: result.messageCredits,
+      messageCreditPacks: MESSAGE_CREDIT_PACKS.map((pack) => ({
+        ...pack,
+        checkoutAvailable: this.paddle.messageCreditsEnabled,
+      })),
     };
   }
 
@@ -228,6 +245,107 @@ export class WorkspaceBillingService {
     try {
       const created = await this.paddle.createTransaction({
         plan,
+        workspaceId,
+        userId,
+        checkoutId,
+        assignmentToken: assignment.rawToken,
+      });
+      await this.database.withContext({ userId, workspaceId }, (transaction) =>
+        transaction.workspaceBillingCheckout.update({
+          where: { id: checkoutId },
+          data: { providerTransactionId: created.transactionId },
+        }),
+      );
+      return {
+        mode: "checkout" as const,
+        url: created.checkoutUrl,
+        transactionId: created.transactionId,
+      };
+    } catch (error) {
+      await this.database.withContext({ userId, workspaceId }, (transaction) =>
+        transaction.workspaceBillingCheckout.update({
+          where: { id: checkoutId },
+          data: { status: "FAILED" },
+        }),
+      );
+      throw error;
+    }
+  }
+
+  async startMessageCreditCheckout(
+    userId: string,
+    workspaceId: string,
+    packKey: MessageCreditPackKey,
+    idempotencyKey: string,
+  ) {
+    const pack = messageCreditPack(packKey);
+    const checkoutId = randomUUID();
+    const priceId = this.paddle.messageCreditPriceId(packKey);
+    const existing = await this.database.withContext(
+      { userId, workspaceId },
+      (transaction) =>
+        transaction.workspaceBillingCheckout.findUnique({
+          where: {
+            workspaceId_createdById_idempotencyKey: {
+              workspaceId,
+              createdById: userId,
+              idempotencyKey,
+            },
+          },
+        }),
+    );
+    if (
+      existing &&
+      (existing.kind !== "MESSAGE_CREDITS" ||
+        existing.creditPackKey !== packKey ||
+        existing.creditQuantity !== pack.credits)
+    )
+      problem(
+        "IDEMPOTENCY_KEY_REUSED",
+        HttpStatus.CONFLICT,
+        "Cheia de checkout a fost folosită pentru alt produs",
+      );
+    if (existing?.providerTransactionId)
+      return {
+        mode: "checkout" as const,
+        url: this.paddle.checkoutUrl(existing.providerTransactionId),
+        transactionId: existing.providerTransactionId,
+        reused: true,
+      };
+    if (existing)
+      problem(
+        "CHECKOUT_RECOVERY_PENDING",
+        HttpStatus.CONFLICT,
+        "Checkout-ul anterior este încă în curs de reconciliere",
+      );
+
+    const assignment = this.paddle.createMessageCreditAssignmentToken({
+      pack: packKey,
+      workspaceId,
+      userId,
+      checkoutId,
+    });
+    await this.database.withContext({ userId, workspaceId }, (transaction) =>
+      transaction.workspaceBillingCheckout.create({
+        data: {
+          id: checkoutId,
+          workspaceId,
+          createdById: userId,
+          kind: "MESSAGE_CREDITS",
+          planKey: null,
+          creditPackKey: packKey,
+          creditQuantity: pack.credits,
+          provider: "paddle",
+          providerPriceId: priceId,
+          assignmentTokenHash: assignment.tokenHash,
+          idempotencyKey,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      }),
+    );
+    try {
+      const created = await this.paddle.createMessageCreditTransaction({
+        pack: packKey,
         workspaceId,
         userId,
         checkoutId,
@@ -361,6 +479,59 @@ export class WorkspaceBillingService {
           checkout,
         });
         const occurredAt = validDate(event.occurred_at);
+        if (checkout?.kind === "MESSAGE_CREDITS") {
+          let status: "PROCESSED" | "IGNORED" = "IGNORED";
+          if (event.event_type === "transaction.completed") {
+            if (!transactionId)
+              invalidBillingEvent(
+                "Identificatorul tranzacției Paddle lipsește.",
+              );
+            const providerPack =
+              this.paddle.messageCreditPackFromProviderData(data);
+            if (
+              !providerPack ||
+              providerPack.packKey !== checkout.creditPackKey ||
+              providerPack.priceId !== checkout.providerPriceId ||
+              checkout.creditQuantity === null
+            )
+              invalidBillingEvent(
+                "Prețul Paddle nu corespunde pachetului de credite cumpărat.",
+              );
+            await this.messageCredits.grantPurchase(transaction, {
+              workspaceId: binding.workspace_id,
+              userId: binding.actor_user_id,
+              quantity: checkout.creditQuantity,
+              providerTransactionId: transactionId,
+              packKey: providerPack.packKey,
+            });
+            await transaction.workspaceBillingCheckout.updateMany({
+              where: { id: checkout.id, status: "CREATED" },
+              data: { status: "COMPLETED", completedAt: occurredAt },
+            });
+            status = "PROCESSED";
+          }
+          await transaction.workspaceBillingProviderEvent.create({
+            data: {
+              workspaceId: binding.workspace_id,
+              checkoutId: binding.checkout_id,
+              provider: "paddle",
+              providerEventId: event.event_id,
+              eventType: event.event_type,
+              providerTransactionId: transactionId,
+              providerCustomerId: customerId,
+              providerSubscriptionId: subscriptionId,
+              payloadHash: event.payloadHash,
+              occurredAt,
+              processedAt: new Date(),
+              status,
+            },
+          });
+          return { accepted: true, processed: status === "PROCESSED" };
+        }
+        if (checkout && !checkout.planKey)
+          invalidBillingEvent("Planul asociat checkout-ului lipsește.");
+        const subscriptionCheckout =
+          checkout as SubscriptionBillingCheckoutBinding | null;
         const supported = supportedEvent(event.event_type);
         const stale =
           subscription.lastProviderEventAt !== null &&
@@ -369,7 +540,7 @@ export class WorkspaceBillingService {
         const resolvedPlan = resolveEventPlan({
           eventType: event.event_type,
           providerPlan,
-          checkout,
+          checkout: subscriptionCheckout,
           currentPlan: subscription.planKey,
           currentProviderPriceId: subscription.providerPriceId,
         });
@@ -400,6 +571,8 @@ export class WorkspaceBillingService {
               providerTransactionId: _providerTransactionId,
               ...update
             } = accounting;
+            void _workspaceId;
+            void _providerTransactionId;
             await transaction.workspaceBillingTransaction.update({
               where: { id: existingAccounting.id },
               data: update,
@@ -636,9 +809,17 @@ export type BillingCheckoutBinding = {
   id: string;
   workspaceId: string;
   createdById: string;
-  planKey: WorkspaceSubscriptionPlanKey;
+  kind: "SUBSCRIPTION" | "MESSAGE_CREDITS";
+  planKey: WorkspaceSubscriptionPlanKey | null;
+  creditPackKey: string | null;
+  creditQuantity: number | null;
   providerPriceId: string;
   assignmentTokenHash: string;
+};
+
+export type SubscriptionBillingCheckoutBinding = BillingCheckoutBinding & {
+  kind: "SUBSCRIPTION";
+  planKey: WorkspaceSubscriptionPlanKey;
 };
 
 function validateBillingBinding(input: {
@@ -652,7 +833,14 @@ function validateBillingBinding(input: {
   checkout: BillingCheckoutBinding | null;
 }) {
   const purpose = stringValue(input.custom?.purpose);
-  if (purpose && purpose !== "sarbato_workspace_subscription")
+  const expectedPurpose =
+    input.checkout?.kind === "MESSAGE_CREDITS"
+      ? "sarbato_message_credits"
+      : "sarbato_workspace_subscription";
+  if (
+    (input.checkout && purpose !== expectedPurpose) ||
+    (!input.checkout && purpose && purpose !== expectedPurpose)
+  )
     invalidBillingEvent("Scopul tokenului Paddle este invalid.");
 
   const customWorkspaceId = uuidValue(input.custom?.workspace_id);
@@ -677,9 +865,21 @@ function validateBillingBinding(input: {
     input.assignmentTokenHash !== input.checkout.assignmentTokenHash
   )
     invalidBillingEvent("Tokenul de alocare Paddle este invalid.");
-  const customPlan = stringValue(input.custom?.plan_key);
-  if (customPlan && customPlan !== input.checkout.planKey)
-    invalidBillingEvent("Planul din metadata nu corespunde checkout-ului.");
+  if (input.checkout.kind === "MESSAGE_CREDITS") {
+    const customPack = stringValue(input.custom?.credit_pack_key);
+    const customQuantity = Number(input.custom?.credit_quantity);
+    if (customPack !== input.checkout.creditPackKey)
+      invalidBillingEvent("Pachetul din metadata nu corespunde checkout-ului.");
+    if (
+      !Number.isInteger(customQuantity) ||
+      customQuantity !== input.checkout.creditQuantity
+    )
+      invalidBillingEvent("Cantitatea de credite din metadata este invalidă.");
+  } else {
+    const customPlan = stringValue(input.custom?.plan_key);
+    if (customPlan && customPlan !== input.checkout.planKey)
+      invalidBillingEvent("Planul din metadata nu corespunde checkout-ului.");
+  }
 }
 
 export function resolveEventPlan(input: {
@@ -688,7 +888,7 @@ export function resolveEventPlan(input: {
     planKey: Exclude<WorkspaceSubscriptionPlanKey, "FREE">;
     priceId: string;
   } | null;
-  checkout: BillingCheckoutBinding | null;
+  checkout: SubscriptionBillingCheckoutBinding | null;
   currentPlan: WorkspaceSubscriptionPlanKey;
   currentProviderPriceId: string | null;
 }): { planKey: WorkspaceSubscriptionPlanKey; priceId: string | null } {

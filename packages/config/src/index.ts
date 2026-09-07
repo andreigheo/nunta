@@ -265,6 +265,13 @@ export const apiEnvironmentSchema = z
         .regex(/^pri_[A-Za-z0-9]+$/)
         .optional(),
     ),
+    PADDLE_MESSAGE_CREDITS_100_PRICE_ID: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .regex(/^pri_[A-Za-z0-9]+$/)
+        .optional(),
+    ),
     PADDLE_WEBHOOK_TOLERANCE_SECONDS: z.coerce
       .number()
       .int()
