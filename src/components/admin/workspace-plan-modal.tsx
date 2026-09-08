@@ -93,8 +93,8 @@ export function WorkspacePlanModal({
             }
           >
             <option value="FREE">Free</option>
-            <option value="PLUS">Plus · 19 EUR</option>
-            <option value="PRO">Pro · 39 EUR</option>
+            <option value="PLUS">Plus · 27 EUR</option>
+            <option value="PRO">Pro · 59 EUR</option>
           </Select>
         </Field>
         <Field label="Motiv pentru audit" required>
