@@ -10,6 +10,28 @@ release_id="${1:?release id is required}"
 release_root="/opt/sarbato/releases/${release_id}"
 active_config="/etc/nginx/sites-enabled/sarbato.space.conf"
 backup_config="/etc/nginx/sarbato.space.conf.pre-app-${release_id}"
+production_env="/etc/sarbato-production.env"
+
+persist_release_id() {
+  local backup_env="${production_env}.pre-release-${release_id}"
+  local temp_env=""
+
+  if [[ ! -f "${production_env}" ]]; then
+    echo "Production environment file is missing: ${production_env}" >&2
+    return 1
+  fi
+
+  if [[ ! -e "${backup_env}" ]]; then
+    cp --preserve=mode,ownership,timestamps "${production_env}" "${backup_env}"
+  fi
+
+  temp_env="$(mktemp "${production_env}.release-id.XXXXXX")"
+  grep -v '^SARBATO_RELEASE_ID=' "${production_env}" > "${temp_env}"
+  printf 'SARBATO_RELEASE_ID=%s\n' "${release_id}" >> "${temp_env}"
+  chown --reference="${production_env}" "${temp_env}"
+  chmod --reference="${production_env}" "${temp_env}"
+  mv "${temp_env}" "${production_env}"
+}
 
 wait_for_internal_readiness() {
   local output="/tmp/sarbato-api-ready.json"
@@ -104,6 +126,11 @@ systemctl daemon-reload
 systemctl enable --now sarbato-backup.timer
 systemctl enable --now sarbato-restore-drill.timer
 systemctl enable --now sarbato-monitor.timer
+
+# Compose resolves service image tags from this file during manual restarts.
+# Persist the accepted release only after all cutover gates and timer updates
+# succeed, so a later `docker compose up` cannot fall back to a stale image.
+persist_release_id
 
 trap - ERR
 printf 'cutover=ok\n'
