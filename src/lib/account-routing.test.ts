@@ -103,6 +103,22 @@ describe("account routing", () => {
         hasVendorOrganizations: true,
         hasPlatformAccess: false,
       }),
+    ).toBe("/overview");
+    expect(
+      destinationAfterAuthentication({
+        registrationIntent: "SERVICE_PROVIDER",
+        workspaceCount: 1,
+        hasVendorOrganizations: true,
+        hasPlatformAccess: false,
+      }),
+    ).toBe("/vendor");
+    expect(
+      destinationAfterAuthentication({
+        registrationIntent: "INVITED_MEMBER",
+        workspaceCount: 1,
+        hasVendorOrganizations: true,
+        hasPlatformAccess: false,
+      }),
     ).toBe("/start");
   });
 });

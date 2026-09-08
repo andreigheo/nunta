@@ -114,6 +114,7 @@ function OnboardingContent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
+  const createNewEvent = searchParams.get("new") === "1";
   const [step, setStep] = React.useState(1);
   const [values, setValues] = React.useState<Record<string, string>>({
     eventType: "",
@@ -259,6 +260,10 @@ function OnboardingContent() {
         setLoadingDraft(false);
         return;
       }
+      if (createNewEvent) {
+        setLoadingDraft(false);
+        return;
+      }
       void weddingOsApi
         .workspaces()
         .then(async (workspaces) => {
@@ -288,7 +293,7 @@ function OnboardingContent() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [hydrateDraft, toast]);
+  }, [createNewEvent, hydrateDraft, toast]);
 
   const persistStep = async (nextStep = step) => {
     if (hasDemoCookie()) return null;
@@ -357,6 +362,32 @@ function OnboardingContent() {
       router.push("/overview");
     } catch (error) {
       toast({ title: "Configurarea nu a putut fi salvată", description: apiErrorMessage(error), variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const finishQuickSetup = async () => {
+    if (hasDemoCookie()) {
+      router.push(requestedPlan ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start&demo=1` : "/overview?demo=1");
+      return;
+    }
+    setSaving(true);
+    try {
+      await persistStep(1);
+      toast({
+        title: "Evenimentul este pregătit",
+        description: "Poți completa restul detaliilor oricând din spațiul evenimentului.",
+        variant: "success",
+      });
+      router.push(
+        requestedPlan
+          ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start`
+          : "/overview",
+      );
+      router.refresh();
+    } catch (error) {
+      toast({ title: "Evenimentul nu a putut fi creat", description: apiErrorMessage(error), variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -867,10 +898,23 @@ function OnboardingContent() {
               </Button>
             )}
             {step < steps.length ? (
-              <Button className={cn("w-full sm:w-auto", canSkip && "col-span-2")} onClick={() => void advance()} disabled={!canContinue || saving}>
-                Continuă
-                <ArrowRight className="size-4" aria-hidden />
-              </Button>
+              step === 1 ? (
+                <>
+                  <Button className="w-full sm:w-auto" variant="outline" onClick={() => void advance()} disabled={!canContinue || saving}>
+                    Configurează în detaliu
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Button>
+                  <Button className="col-span-2 w-full sm:w-auto" onClick={() => void finishQuickSetup()} disabled={!canContinue || saving}>
+                    {requestedPlan ? `Continuă la planul ${requestedPlan === "PLUS" ? "Plus" : "Pro"}` : "Creează și deschide dashboardul"}
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Button>
+                </>
+              ) : (
+                <Button className={cn("w-full sm:w-auto", canSkip && "col-span-2")} onClick={() => void advance()} disabled={!canContinue || saving}>
+                  Continuă
+                  <ArrowRight className="size-4" aria-hidden />
+                </Button>
+              )
             ) : (
               <>
                 <Button className="w-full sm:w-auto" variant="outline" onClick={() => toast({ title: "Rezumat configurare", description: `${values.title || eventTypeLabel(values.eventType)} · ${values.date || "data nealeasă"} · ${values.guestCount || 0} invitați · ${formatRON(Number(values.budget) || 0)}`, variant: "info" })}>

@@ -554,6 +554,7 @@ function BillingSettings() {
   const [supportDescription, setSupportDescription] = React.useState("");
   const [supportBusy, setSupportBusy] = React.useState(false);
   const checkoutConfirmed = React.useRef(false);
+  const creditCheckoutConfirmed = React.useRef(false);
   const checkoutStarted = React.useRef(false);
   const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
   const canManage =
@@ -609,6 +610,71 @@ function BillingSettings() {
       } catch {
         // The normal billing card still exposes an explicit retry action.
       }
+      if (!cancelled && attempts < 30) {
+        timeoutId = window.setTimeout(() => void poll(), 2_000);
+        return;
+      }
+      if (!cancelled) {
+        creditCheckoutConfirmed.current = true;
+        toast({
+          title: "Plata este încă în curs de confirmare",
+          description:
+            "Nu adăugăm creditele până la confirmarea semnată de Paddle. Reîncarcă pagina peste câteva momente; plata nu va fi dublată.",
+          variant: "info",
+        });
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [currentWorkspace, searchParams, toast]);
+
+  React.useEffect(() => {
+    const transactionId = searchParams.get("creditTransaction");
+    if (
+      searchParams.get("checkout") !== "credits-success" ||
+      !currentWorkspace ||
+      !transactionId ||
+      creditCheckoutConfirmed.current
+    )
+      return;
+    let cancelled = false;
+    let attempts = 0;
+    let timeoutId: number | undefined;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const checkout = await weddingOsApi.messageCreditCheckoutStatus(
+          currentWorkspace.id,
+          transactionId,
+        );
+        if (cancelled) return;
+        if (checkout.status === "COMPLETED") {
+          creditCheckoutConfirmed.current = true;
+          await load();
+          if (cancelled) return;
+          toast({
+            title: `${checkout.credits} de credite au fost adăugate`,
+            description: "Soldul cumpărat este disponibil și nu expiră la reînnoirea planului.",
+            variant: "success",
+          });
+          return;
+        }
+        if (checkout.status === "FAILED" || checkout.status === "EXPIRED") {
+          creditCheckoutConfirmed.current = true;
+          toast({
+            title: "Creditarea nu a fost finalizată",
+            description: "Nu s-au adăugat credite. Poți porni din nou cumpărarea.",
+            variant: "error",
+          });
+          return;
+        }
+      } catch {
+        // Keep polling briefly: Paddle's redirect may arrive before its signed
+        // webhook is projected into the workspace ledger.
+      }
       if (!cancelled && attempts < 30)
         timeoutId = window.setTimeout(() => void poll(), 2_000);
     };
@@ -617,7 +683,7 @@ function BillingSettings() {
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [currentWorkspace, searchParams, toast]);
+  }, [currentWorkspace, load, searchParams, toast]);
 
   const choosePlan = React.useCallback(async (plan: WorkspaceSubscriptionPlanKey) => {
     if (!currentWorkspace || !billing || !canManage) return;
@@ -709,7 +775,7 @@ function BillingSettings() {
           settings: {
             displayMode: "overlay",
             theme: "light",
-            successUrl: `${window.location.origin}/settings?tab=billing&checkout=credits-success`,
+            successUrl: `${window.location.origin}/settings?tab=billing&checkout=credits-success&creditTransaction=${encodeURIComponent(result.transactionId)}`,
           },
         });
       } else {

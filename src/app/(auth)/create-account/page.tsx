@@ -63,7 +63,7 @@ export default function CreateAccountPage() {
   }, [searchParams]);
   const queryIntent = searchParams.get("intent");
   const [intent, setIntent] = React.useState<RegistrationIntent | null>(() =>
-    registrationIntentForEntry(returnTo, queryIntent),
+    registrationIntentForEntry(returnTo, queryIntent) ?? "EVENT_ORGANIZER",
   );
 
   const set = (key: keyof typeof values) => (e: React.ChangeEvent<HTMLInputElement>) =>

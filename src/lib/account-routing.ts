@@ -91,6 +91,22 @@ export function destinationAfterAuthentication(input: {
   const requested = safeInternalPath(input.returnTo);
   if (requested) return requested;
 
+  // The registration intent is the user's preferred working context. A user
+  // may also own a provider profile or have platform access, but ordinary
+  // organizer sign-in should still open the event dashboard. The explicit
+  // /start route remains available from the account menu for switching.
+  if (
+    input.registrationIntent === "EVENT_ORGANIZER" &&
+    input.workspaceCount > 0
+  )
+    return "/overview";
+  if (
+    input.registrationIntent === "SERVICE_PROVIDER" &&
+    input.hasVendorOrganizations
+  )
+    return "/vendor";
+  if (input.registrationIntent === "INVITED_MEMBER") return "/start";
+
   const contextCount = [
     input.workspaceCount > 0,
     input.hasVendorOrganizations,
@@ -98,11 +114,6 @@ export function destinationAfterAuthentication(input: {
   ].filter(Boolean).length;
   if (contextCount > 1) return "/start";
   if (input.hasPlatformAccess) return "/admin";
-  if (
-    input.registrationIntent === "SERVICE_PROVIDER" &&
-    input.hasVendorOrganizations
-  )
-    return "/vendor";
   if (input.workspaceCount > 0) return "/overview";
   if (input.hasVendorOrganizations) return "/vendor";
   return destinationForRegistration(input.registrationIntent);

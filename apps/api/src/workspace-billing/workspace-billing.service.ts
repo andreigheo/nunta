@@ -637,6 +637,40 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async messageCreditCheckoutStatus(
+    userId: string,
+    workspaceId: string,
+    providerTransactionId: string,
+  ) {
+    const checkout = await this.database.withContext(
+      { userId, workspaceId },
+      (transaction) =>
+        transaction.workspaceBillingCheckout.findFirst({
+          where: {
+            workspaceId,
+            kind: "MESSAGE_CREDITS",
+            providerTransactionId,
+          },
+          select: {
+            status: true,
+            creditQuantity: true,
+            completedAt: true,
+          },
+        }),
+    );
+    if (!checkout)
+      problem(
+        "NOT_FOUND",
+        HttpStatus.NOT_FOUND,
+        "Checkout-ul creditelor nu există în acest eveniment",
+      );
+    return {
+      status: checkout.status,
+      credits: checkout.creditQuantity ?? 0,
+      completedAt: checkout.completedAt?.toISOString() ?? null,
+    };
+  }
+
   async portal(userId: string, workspaceId: string) {
     const subscription = await this.database.withContext(
       { userId, workspaceId },
@@ -939,6 +973,8 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
         validateBillingBinding({
           custom,
           assignmentTokenHash: stored.assignmentTokenHash,
+          allowMissingCheckoutMetadata:
+            stored.eventType.startsWith("adjustment."),
           binding: {
             workspace_id: workspaceId,
             checkout_id: stored.checkoutId,
@@ -946,6 +982,68 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
           },
           checkout,
         });
+        if (stored.eventType.startsWith("adjustment.")) {
+          const adjustment = messageCreditAdjustment(data, checkout);
+          if (
+            adjustment?.approved &&
+            adjustment.quantity > 0 &&
+            checkout?.kind === "MESSAGE_CREDITS" &&
+            stored.providerTransactionId
+          ) {
+            await this.messageCredits.revokePurchase(transaction, {
+              workspaceId,
+              userId: actorUserId,
+              quantity: adjustment.quantity,
+              providerTransactionId: stored.providerTransactionId,
+              providerAdjustmentId: adjustment.adjustmentId,
+              action: adjustment.action,
+            });
+          }
+          if (
+            adjustment?.reversed &&
+            checkout?.kind === "MESSAGE_CREDITS" &&
+            stored.providerTransactionId
+          ) {
+            await this.messageCredits.restoreReversedPurchase(transaction, {
+              workspaceId,
+              userId: actorUserId,
+              providerTransactionId: stored.providerTransactionId,
+              providerAdjustmentId: adjustment.adjustmentId,
+              action: adjustment.action,
+            });
+          }
+          if (
+            (adjustment?.approved || adjustment?.reversed) &&
+            stored.providerTransactionId &&
+            checkout?.kind !== "MESSAGE_CREDITS"
+          ) {
+            await transaction.workspaceBillingTransaction.updateMany({
+              where: {
+                providerTransactionId: stored.providerTransactionId,
+                lastProviderEventAt: { lte: stored.occurredAt },
+              },
+              data: {
+                status: adjustment.reversed
+                  ? "completed"
+                  : adjustment.transactionStatus,
+                lastProviderEventAt: stored.occurredAt,
+              },
+            });
+          }
+          await transaction.workspaceBillingProviderEvent.update({
+            where: { id: stored.id },
+            data: {
+              status:
+                adjustment?.approved || adjustment?.reversed
+                  ? "PROCESSED"
+                  : "IGNORED",
+              processedAt: new Date(),
+              errorCode: null,
+              errorMessage: null,
+            },
+          });
+          return;
+        }
         if (checkout?.kind === "MESSAGE_CREDITS") {
           let status: "PROCESSED" | "IGNORED" = "IGNORED";
           if (stored.eventType === "transaction.completed") {
@@ -1426,6 +1524,7 @@ export type SubscriptionBillingCheckoutBinding = BillingCheckoutBinding & {
 function validateBillingBinding(input: {
   custom: Record<string, unknown> | null;
   assignmentTokenHash: string | null;
+  allowMissingCheckoutMetadata?: boolean;
   binding: {
     workspace_id: string;
     checkout_id: string | null;
@@ -1439,7 +1538,9 @@ function validateBillingBinding(input: {
       ? "sarbato_message_credits"
       : "sarbato_workspace_subscription";
   if (
-    (input.checkout && purpose !== expectedPurpose) ||
+    (input.checkout &&
+      !input.allowMissingCheckoutMetadata &&
+      purpose !== expectedPurpose) ||
     (!input.checkout && purpose && purpose !== expectedPurpose)
   )
     invalidBillingEvent("Scopul tokenului Paddle este invalid.");
@@ -1467,6 +1568,7 @@ function validateBillingBinding(input: {
   )
     invalidBillingEvent("Tokenul de alocare Paddle este invalid.");
   if (input.checkout.kind === "MESSAGE_CREDITS") {
+    if (input.allowMissingCheckoutMetadata) return;
     const customPack = stringValue(input.custom?.credit_pack_key);
     const customQuantity = Number(input.custom?.credit_quantity);
     if (customPack !== input.checkout.creditPackKey)
@@ -1481,6 +1583,87 @@ function validateBillingBinding(input: {
     if (customPlan && customPlan !== input.checkout.planKey)
       invalidBillingEvent("Planul din metadata nu corespunde checkout-ului.");
   }
+}
+
+export function messageCreditAdjustment(
+  data: Record<string, unknown>,
+  checkout: BillingCheckoutBinding | null,
+) {
+  const adjustmentId = stringValue(data.id);
+  const action = stringValue(data.action);
+  const status = stringValue(data.status);
+  const type = stringValue(data.type);
+  const approved = status === "approved";
+  if (!adjustmentId || !action) return null;
+  const adverse = new Set(["refund", "credit", "chargeback"]).has(action);
+  const finalStatus =
+    action === "refund"
+      ? "refunded"
+      : action === "credit"
+        ? "credited"
+        : "chargeback";
+  const transactionStatus =
+    type === "full" ? finalStatus : `partially_${finalStatus}`;
+  const reversed = status === "reversed" && adverse;
+  if (reversed)
+    return {
+      adjustmentId,
+      action,
+      approved: false,
+      reversed: true,
+      quantity: 0,
+      transactionStatus,
+    };
+  if (!approved || !adverse)
+    return {
+      adjustmentId,
+      action,
+      approved: false,
+      reversed: false,
+      quantity: 0,
+      transactionStatus,
+    };
+  if (
+    !checkout ||
+    checkout.kind !== "MESSAGE_CREDITS" ||
+    checkout.creditQuantity === null
+  )
+    return {
+      adjustmentId,
+      action,
+      approved: true,
+      reversed: false,
+      quantity: 0,
+      transactionStatus,
+    };
+  if (type === "full")
+    return {
+      adjustmentId,
+      action,
+      approved: true,
+      reversed: false,
+      quantity: checkout.creditQuantity,
+      transactionStatus,
+    };
+  const totals = objectValue(data.totals);
+  const total = Number(stringValue(totals?.total));
+  const currency = stringValue(totals?.currency_code);
+  const pack = messageCreditPack(
+    checkout.creditPackKey as MessageCreditPackKey,
+  );
+  if (currency !== pack.currency || !Number.isSafeInteger(total) || total <= 0)
+    invalidBillingEvent("Valoarea ajustării Paddle este invalidă.");
+  return {
+    adjustmentId,
+    action,
+    approved: true,
+    reversed: false,
+    quantity: Math.min(
+      checkout.creditQuantity,
+      Math.ceil((checkout.creditQuantity * total) / pack.amountMinor),
+    ),
+    transactionStatus,
+  };
 }
 
 export function resolveEventPlan(input: {

@@ -14,11 +14,15 @@ import {
 } from "../src/workspace-billing/paddle.service";
 import {
   billingTransactionUpdate,
+  messageCreditAdjustment,
   resolveEventPlan,
   subscriptionUpdate,
   WorkspaceBillingService,
 } from "../src/workspace-billing/workspace-billing.service";
-import { allocateMessageCreditConsumption } from "../src/workspace-billing/message-credit.service";
+import {
+  allocateMessageCreditConsumption,
+  MessageCreditService,
+} from "../src/workspace-billing/message-credit.service";
 import {
   capabilityAllowedByWorkspacePlan,
   effectiveWorkspacePlanKey,
@@ -239,6 +243,208 @@ describe("Sarbato workspace subscriptions", () => {
         ],
       }),
     ).toBeNull();
+  });
+
+  it("revokes only approved Paddle credit-pack adjustments", () => {
+    const checkout = {
+      id: "00000000-0000-4000-8000-000000000003",
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      createdById: "00000000-0000-4000-8000-000000000002",
+      kind: "MESSAGE_CREDITS" as const,
+      planKey: null,
+      creditPackKey: "MESSAGES_100",
+      creditQuantity: 100,
+      providerPriceId: "pri_messages100",
+      assignmentTokenHash: "a".repeat(64),
+    };
+    expect(
+      messageCreditAdjustment(
+        {
+          id: "adj_pending",
+          action: "refund",
+          status: "pending_approval",
+          type: "full",
+        },
+        checkout,
+      ),
+    ).toMatchObject({ approved: false, quantity: 0 });
+    expect(
+      messageCreditAdjustment(
+        {
+          id: "adj_full",
+          action: "refund",
+          status: "approved",
+          type: "full",
+        },
+        checkout,
+      ),
+    ).toMatchObject({ approved: true, quantity: 100 });
+    expect(
+      messageCreditAdjustment(
+        {
+          id: "adj_partial",
+          action: "refund",
+          status: "approved",
+          type: "partial",
+          totals: { total: "625", currency_code: "EUR" },
+        },
+        checkout,
+      ),
+    ).toMatchObject({ approved: true, quantity: 50 });
+    expect(
+      messageCreditAdjustment(
+        {
+          id: "adj_rejected",
+          action: "refund",
+          status: "rejected",
+          type: "full",
+        },
+        checkout,
+      ),
+    ).toMatchObject({ approved: false, quantity: 0 });
+    expect(
+      messageCreditAdjustment(
+        {
+          id: "adj_full",
+          action: "refund",
+          status: "reversed",
+          type: "full",
+        },
+        checkout,
+      ),
+    ).toMatchObject({ approved: false, reversed: true, quantity: 0 });
+  });
+
+  it("revokes purchased credits idempotently without making the balance negative", async () => {
+    const account = {
+      id: "00000000-0000-4000-8000-000000000010",
+      includedBalance: 5,
+      purchasedBalance: 40,
+      allowancePlanKey: "FREE",
+      allowancePeriodStart: null,
+    };
+    const entryFind = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ quantity: -40 });
+    const accountUpdate = vi.fn(async () => ({
+      ...account,
+      purchasedBalance: 0,
+    }));
+    const entryCreate = vi.fn(async () => ({}));
+    const transaction = {
+      $queryRaw: vi.fn(async () => [{ locked: "1" }]),
+      workspaceMessageCreditEntry: {
+        findUnique: entryFind,
+        create: entryCreate,
+      },
+      workspaceSubscription: {
+        upsert: vi.fn(async () => ({
+          planKey: "FREE",
+          status: "FREE",
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+        })),
+      },
+      workspaceMessageCreditAccount: {
+        findUnique: vi.fn(async () => account),
+        update: accountUpdate,
+      },
+    } as unknown as Prisma.TransactionClient;
+    const service = new MessageCreditService({} as never);
+    const input = {
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      userId: "00000000-0000-4000-8000-000000000002",
+      quantity: 100,
+      providerTransactionId: "txn_01m209dxm0s6enw4mrj4r4xvyv",
+      providerAdjustmentId: "adj_01m209dxm0s6enw4mrj4r4xvyv",
+      action: "refund",
+    };
+
+    await expect(service.revokePurchase(transaction, input)).resolves.toEqual({
+      revoked: true,
+      quantity: 40,
+    });
+    await expect(service.revokePurchase(transaction, input)).resolves.toEqual({
+      revoked: false,
+      quantity: 40,
+    });
+    expect(accountUpdate).toHaveBeenCalledTimes(1);
+    expect(entryCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "REFUND",
+          quantity: -40,
+          balanceAfter: 0,
+          metadata: expect.objectContaining({ unrecoveredQuantity: 60 }),
+        }),
+      }),
+    );
+  });
+
+  it("restores only the credits removed by a reversed Paddle adjustment", async () => {
+    const account = {
+      id: "00000000-0000-4000-8000-000000000010",
+      includedBalance: 0,
+      purchasedBalance: 15,
+      allowancePlanKey: "FREE",
+      allowancePeriodStart: null,
+    };
+    const entryFind = vi
+      .fn()
+      .mockResolvedValueOnce({ quantity: -40 })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ quantity: -40 })
+      .mockResolvedValueOnce({ quantity: 40 });
+    const accountUpdate = vi.fn(async () => ({
+      ...account,
+      purchasedBalance: 55,
+    }));
+    const entryCreate = vi.fn(async () => ({}));
+    const transaction = {
+      $queryRaw: vi.fn(async () => [{ locked: "1" }]),
+      workspaceMessageCreditEntry: {
+        findUnique: entryFind,
+        create: entryCreate,
+      },
+      workspaceSubscription: {
+        upsert: vi.fn(async () => ({
+          planKey: "FREE",
+          status: "FREE",
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+        })),
+      },
+      workspaceMessageCreditAccount: {
+        findUnique: vi.fn(async () => account),
+        update: accountUpdate,
+      },
+    } as unknown as Prisma.TransactionClient;
+    const service = new MessageCreditService({} as never);
+    const input = {
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      userId: "00000000-0000-4000-8000-000000000002",
+      providerTransactionId: "txn_01m209dxm0s6enw4mrj4r4xvyv",
+      providerAdjustmentId: "adj_01m209dxm0s6enw4mrj4r4xvyv",
+      action: "refund",
+    };
+
+    await expect(
+      service.restoreReversedPurchase(transaction, input),
+    ).resolves.toEqual({ restored: true, quantity: 40 });
+    await expect(
+      service.restoreReversedPurchase(transaction, input),
+    ).resolves.toEqual({ restored: false, quantity: 40 });
+    expect(accountUpdate).toHaveBeenCalledTimes(1);
+    expect(entryCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "ADJUSTMENT",
+          quantity: 40,
+          balanceAfter: 55,
+        }),
+      }),
+    );
   });
 
   it("rejects a provider payload that contains both paid plan prices", () => {

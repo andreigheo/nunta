@@ -78,7 +78,7 @@ function WorkspaceSwitcher() {
           </DropdownItem>
         ))}
         <DropdownSeparator />
-        <DropdownItem icon={<Plus />} onSelect={() => router.push("/onboarding")}>
+        <DropdownItem icon={<Plus />} onSelect={() => router.push("/onboarding?new=1")}>
           Creează un eveniment nou
         </DropdownItem>
         <DropdownItem icon={<UserRoundCog />} onSelect={() => router.push("/start")}>
