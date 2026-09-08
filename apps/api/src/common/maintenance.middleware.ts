@@ -63,7 +63,7 @@ export class MaintenanceMiddleware implements NestMiddleware {
       .status(HttpStatus.SERVICE_UNAVAILABLE)
       .type("application/problem+json")
       .send({
-        type: "https://weddingos.local/problems/maintenance-active",
+        type: "https://sarbato.space/problems/maintenance-active",
         title: "Maintenance active",
         status: HttpStatus.SERVICE_UNAVAILABLE,
         code: "MAINTENANCE_ACTIVE",

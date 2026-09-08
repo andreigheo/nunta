@@ -8806,7 +8806,7 @@ async function sendEmail(
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: command.recipient,
-    messageId: `<${executionId}@weddingos.local>`,
+    messageId: `<${executionId}@sarbato.space>`,
     subject: content.subject,
     text: content.text,
     html: content.html,
@@ -8845,7 +8845,7 @@ async function sendCampaignEmail(
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: recipient,
-    messageId: `<campaign-${executionId}@weddingos.local>`,
+    messageId: `<campaign-${executionId}@sarbato.space>`,
     // Resend SMTP honors this provider-side idempotency key for 24 hours, so
     // a crash after provider acceptance can safely retry without a duplicate.
     headers: { "Resend-Idempotency-Key": `campaign/${executionId}` },
@@ -8883,7 +8883,7 @@ async function sendTaskReminderEmail(
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: recipient,
-    messageId: `<task-reminder-${executionId}@weddingos.local>`,
+    messageId: `<task-reminder-${executionId}@sarbato.space>`,
     subject: `Reminder: ${taskTitle}`,
     text,
     html: `<p>${escapeHtml(text)}</p>`,

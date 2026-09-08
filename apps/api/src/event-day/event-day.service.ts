@@ -4519,7 +4519,7 @@ export class EventDayService {
             module: "wedding_day",
             kind: "critical_incident",
             priority: "urgent",
-            title: "Incident critic în ziua nunții",
+            title: "Incident critic în ziua evenimentului",
             body: "Un incident critic necesită atenție. Detaliile sensibile sunt disponibile numai în Command Center.",
             actionUrl: `/event-day?incident=${incidentId}`,
           },

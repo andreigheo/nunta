@@ -1776,7 +1776,7 @@ export class PlanningService {
     for (const item of calendar.items.slice(0, 2000)) {
       lines.push(
         "BEGIN:VEVENT",
-        `UID:${ics(item.id)}@weddingos.local`,
+        `UID:${ics(item.id)}@sarbato.space`,
         `DTSTAMP:${icsDate(new Date())}`,
         ...(item.allDay
           ? [
@@ -4893,7 +4893,7 @@ function onboardingCalendar(
       id: "wedding:event",
       sourceType: "wedding_event" as const,
       sourceId: "00000000-0000-0000-0000-000000000000",
-      title: "Ziua nunții",
+      title: "Ziua evenimentului",
       description: "Evenimentul principal definit în onboarding.",
       startAt: at.toISOString(),
       endAt: null,

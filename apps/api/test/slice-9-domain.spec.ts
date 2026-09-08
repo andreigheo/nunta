@@ -640,7 +640,7 @@ describe("Slice 9 intelligence contracts", () => {
       actionType: "UPSERT_BUDGET_PLAN",
       riskLevel: "MEDIUM",
       preview: {
-        name: "Bugetul nunții",
+        name: "Bugetul evenimentului",
         targetTotalMinor: 19_000_000,
         contingencyPercent: 0,
         status: "ACTIVE",

@@ -48,7 +48,7 @@ export class CsrfMiddleware implements NestMiddleware {
       .status(HttpStatus.FORBIDDEN)
       .type("application/problem+json")
       .send({
-        type: "https://weddingos.local/problems/csrf-token-invalid",
+        type: "https://sarbato.space/problems/csrf-token-invalid",
         title: "CSRF token required",
         status: HttpStatus.FORBIDDEN,
         code: "CSRF_TOKEN_INVALID",

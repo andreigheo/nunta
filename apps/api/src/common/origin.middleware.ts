@@ -25,7 +25,7 @@ export class OriginMiddleware implements NestMiddleware {
       (requiresExactOrigin && origin !== this.environment.WEB_URL)
     ) {
       response.status(403).type("application/problem+json").send({
-        type: "https://weddingos.local/problems/origin-not-allowed",
+        type: "https://sarbato.space/problems/origin-not-allowed",
         title: "Origin not allowed",
         status: 403,
         code: "ORIGIN_NOT_ALLOWED",
