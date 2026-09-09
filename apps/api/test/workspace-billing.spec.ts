@@ -875,6 +875,7 @@ describe("Sarbato workspace subscriptions", () => {
       paddle as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     await expect(
       service.startCheckout(
@@ -928,6 +929,7 @@ describe("Sarbato workspace subscriptions", () => {
       paddle as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     await expect(
       service.startCheckout(
@@ -964,6 +966,7 @@ describe("Sarbato workspace subscriptions", () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await expect(
@@ -987,6 +990,172 @@ describe("Sarbato workspace subscriptions", () => {
     });
   });
 
+  it("queues one Plus welcome email from the authoritative completed checkout", async () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const userId = "00000000-0000-4000-8000-000000000002";
+    const checkoutId = "00000000-0000-4000-8000-000000000003";
+    const eventId = "00000000-0000-4000-8000-000000000004";
+    const occurredAt = new Date("2026-09-09T17:57:26.025Z");
+    const checkout = {
+      id: checkoutId,
+      workspaceId,
+      createdById: userId,
+      kind: "SUBSCRIPTION",
+      planKey: "PLUS",
+      creditPackKey: null,
+      creditQuantity: null,
+      providerPriceId: "pri_plus123",
+      assignmentTokenHash: "a".repeat(64),
+    };
+    const data = {
+      id: "txn_plus_welcome",
+      status: "completed",
+      customer_id: "ctm_plus_welcome",
+      subscription_id: "sub_plus_welcome",
+      custom_data: {
+        purpose: "sarbato_workspace_subscription",
+        workspace_id: workspaceId,
+        purchaser_user_id: userId,
+        checkout_id: checkoutId,
+        plan_key: "PLUS",
+      },
+      items: [{ price: { id: "pri_plus123" }, quantity: 1 }],
+      details: {
+        totals: {
+          subtotal: "2700",
+          discount: "0",
+          tax: "0",
+          total: "2700",
+          currency_code: "EUR",
+        },
+      },
+      current_billing_period: {
+        starts_at: "2026-09-09T17:57:24.730Z",
+        ends_at: "2026-10-09T17:57:24.730Z",
+      },
+    };
+    const transaction = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      workspaceBillingProviderEvent: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: eventId,
+          status: "PROCESSING",
+          eventType: "transaction.completed",
+          providerEventId: "evt_plus_welcome",
+          occurredAt,
+          payloadHash: "b".repeat(64),
+          payload: {
+            event_id: "evt_plus_welcome",
+            event_type: "transaction.completed",
+            occurred_at: occurredAt.toISOString(),
+            data,
+          },
+          checkoutId,
+          providerTransactionId: "txn_plus_welcome",
+          providerCustomerId: "ctm_plus_welcome",
+          providerSubscriptionId: "sub_plus_welcome",
+          assignmentTokenHash: null,
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      workspaceSubscription: {
+        upsert: vi.fn().mockResolvedValue({
+          id: "00000000-0000-4000-8000-000000000005",
+          planKey: "FREE",
+          status: "FREE",
+          providerSubscriptionId: null,
+          providerPriceId: null,
+          lastProviderEventAt: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          pastDueAt: null,
+          gracePeriodEndAt: null,
+          version: 1,
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      workspaceBillingCheckout: {
+        findUnique: vi.fn().mockResolvedValue(checkout),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      workspaceBillingTransaction: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue({
+          email: "ana@example.test",
+          profile: { firstName: "Ana" },
+        }),
+      },
+      workspace: {
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ title: "Conferința anuală" }),
+      },
+    };
+    const database = {
+      withContext: vi.fn(
+        async (
+          _context: unknown,
+          action: (tx: typeof transaction) => unknown,
+        ) => action(transaction),
+      ),
+    };
+    const asyncEvents = { record: vi.fn().mockResolvedValue(null) };
+    const service = new WorkspaceBillingService(
+      database as never,
+      {
+        planFromProviderData: vi.fn().mockReturnValue({
+          planKey: "PLUS",
+          priceId: "pri_plus123",
+        }),
+      } as never,
+      {} as never,
+      environment(),
+      asyncEvents as never,
+    );
+
+    await (
+      service as unknown as {
+        processBillingEvent: (
+          id: string,
+          workspace: string,
+          actor: string,
+        ) => Promise<void>;
+      }
+    ).processBillingEvent(eventId, workspaceId, userId);
+
+    expect(transaction.workspaceSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ planKey: "PLUS", status: "ACTIVE" }),
+      }),
+    );
+    expect(
+      transaction.workspaceBillingCheckout.updateMany,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: "COMPLETED", completedAt: occurredAt },
+      }),
+    );
+    expect(asyncEvents.record).toHaveBeenCalledTimes(1);
+    expect(asyncEvents.record).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        eventName: "workspace.subscription_welcome_requested.v1",
+        deduplicationKey: `workspace-plus-welcome:${checkoutId}`,
+        email: {
+          kind: "workspace-plus-welcome",
+          recipient: "ana@example.test",
+          values: {
+            firstName: "Ana",
+            workspaceTitle: "Conferința anuală",
+          },
+        },
+      }),
+    );
+  });
+
   it("contains asynchronous webhook drain failures", async () => {
     const database = {
       $queryRaw: vi.fn().mockResolvedValue([]),
@@ -1004,6 +1173,7 @@ describe("Sarbato workspace subscriptions", () => {
     const service = new WorkspaceBillingService(
       database as never,
       paddle as never,
+      {} as never,
       {} as never,
       {} as never,
     );

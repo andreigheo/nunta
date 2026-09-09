@@ -81,6 +81,7 @@ import {
   type PlanGenerationInput,
   type PlanGenerationOutput,
 } from "@weddingos/jobs";
+import { renderSystemEmail } from "./email-templates";
 import nodemailer from "nodemailer";
 import mammoth from "mammoth";
 import pdfParse from "pdf-parse";
@@ -8802,7 +8803,7 @@ async function sendEmail(
         }
       : {}),
   });
-  const content = renderEmail(command);
+  const content = renderSystemEmail(command, environment.WEB_URL);
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: command.recipient,
@@ -8917,84 +8918,6 @@ function isQuietTime(
   return from <= to
     ? current >= from && current < to
     : current >= from || current < to;
-}
-
-function renderEmail(command: EmailCommand): {
-  subject: string;
-  text: string;
-  html: string;
-} {
-  const v = command.values;
-  const firstName = v.firstName ?? "";
-  if (command.kind === "email-verification") {
-    const url = `${environment.WEB_URL}/verify-email?token=${encodeURIComponent(v.token ?? "")}&email=${encodeURIComponent(command.recipient)}`;
-    return emailContent(
-      "Confirmă adresa de email Sarbato",
-      `Salut, ${firstName}. Codul tău este ${v.code ?? ""}. Confirmă contul: ${url}`,
-    );
-  }
-  if (command.kind === "password-reset") {
-    const provisioned = v.provisioned === "1" ? "&provisioned=1" : "";
-    const url = `${environment.WEB_URL}/reset-password?token=${encodeURIComponent(v.token ?? "")}${provisioned}`;
-    if (v.provisioned === "1") {
-      return emailContent(
-        "Activează contul Sarbato",
-        `Salut, ${firstName}. Un administrator ți-a creat un cont Sarbato. Alege parola și acceptă termenii folosind linkul: ${url}`,
-      );
-    }
-    return emailContent(
-      "Resetează parola Sarbato",
-      `Salut, ${firstName}. Resetează parola folosind linkul: ${url}`,
-    );
-  }
-  if (command.kind === "password-changed")
-    return emailContent(
-      "Parola Sarbato a fost schimbată",
-      `Salut, ${firstName}. Parola contului tău a fost schimbată.`,
-    );
-  if (command.kind === "magic-link") {
-    const url = `${environment.WEB_URL}/magic-link?token=${encodeURIComponent(v.token ?? "")}`;
-    return emailContent(
-      "Linkul tău magic Sarbato",
-      `Salut, ${firstName}. Conectează-te folosind linkul: ${url}`,
-    );
-  }
-  if (command.kind === "vendor-invitation") {
-    const url = `${environment.WEB_URL}/vendor-invitation?token=${encodeURIComponent(v.token ?? "")}`;
-    return emailContent(
-      `Invitație în ${v.organizationName ?? "Vendor OS"}`,
-      `Ai fost invitat în organizația ${v.organizationName ?? "Vendor OS"} cu rolul ${v.roleName ?? "colaborator"}. Acceptă invitația: ${url}`,
-    );
-  }
-  if (command.kind === "weekly-digest") {
-    const metrics = (() => {
-      try {
-        return JSON.parse(v.metrics ?? "{}") as {
-          planning?: {
-            progressPercent?: number;
-            overdueTasks?: number;
-            nextDeadlines?: number;
-          };
-          risks?: { high?: number; critical?: number };
-        };
-      } catch {
-        return {};
-      }
-    })();
-    return emailContent(
-      `Rezumat săptămânal — ${v.workspaceTitle ?? "Sarbato"}`,
-      `Salut, ${firstName}. Progres: ${metrics.planning?.progressPercent ?? 0}%. Taskuri întârziate: ${metrics.planning?.overdueTasks ?? 0}. Deadline-uri în următoarele 7 zile: ${metrics.planning?.nextDeadlines ?? 0}. Riscuri high/critical: ${metrics.risks?.high ?? 0}/${metrics.risks?.critical ?? 0}.`,
-    );
-  }
-  const url = `${environment.WEB_URL}/invitation?token=${encodeURIComponent(v.token ?? "")}`;
-  return emailContent(
-    `Invitație în ${v.workspaceTitle ?? "Sarbato"}`,
-    `${v.inviterName ?? "Un colaborator"} te-a invitat în ${v.workspaceTitle ?? "Sarbato"} cu rolul ${v.roleName ?? "colaborator"}. ${url}`,
-  );
-}
-
-function emailContent(subject: string, text: string) {
-  return { subject, text, html: `<p>${escapeHtml(text)}</p>` };
 }
 
 function escapeHtml(value: string): string {

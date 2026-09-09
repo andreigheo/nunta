@@ -15,6 +15,7 @@ import type {
 } from "@weddingos/contracts";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseService } from "../common/database.service";
+import { AsyncService } from "../async/async.service";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
 import {
@@ -47,6 +48,7 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
     @Inject(MessageCreditService)
     private readonly messageCredits: MessageCreditService,
     @Inject(API_ENVIRONMENT) private readonly environment: ApiEnvironment,
+    @Inject(AsyncService) private readonly asyncEvents: AsyncService,
   ) {}
 
   onModuleInit() {
@@ -1219,6 +1221,46 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
               },
               data: { status: "COMPLETED", completedAt: stored.occurredAt },
             });
+            if (resolvedPlan.planKey === "PLUS" && next.status === "ACTIVE") {
+              const [recipient, workspace] = await Promise.all([
+                transaction.user.findUniqueOrThrow({
+                  where: { id: actorUserId },
+                  select: {
+                    email: true,
+                    profile: { select: { firstName: true } },
+                  },
+                }),
+                transaction.workspace.findUniqueOrThrow({
+                  where: { id: workspaceId },
+                  select: { title: true },
+                }),
+              ]);
+              await this.asyncEvents.record(transaction, {
+                eventName: "workspace.subscription_welcome_requested.v1",
+                aggregateType: "WorkspaceSubscription",
+                aggregateId: subscription.id,
+                aggregateVersion: subscription.version + 1,
+                workspaceId,
+                actorUserId,
+                deduplicationKey: `workspace-plus-welcome:${stored.checkoutId}`,
+                payload: {
+                  subject: {
+                    workspaceId,
+                    subscriptionId: subscription.id,
+                    checkoutId: stored.checkoutId,
+                    planKey: "PLUS",
+                  },
+                },
+                email: {
+                  kind: "workspace-plus-welcome",
+                  recipient: recipient.email,
+                  values: {
+                    firstName: recipient.profile?.firstName ?? "",
+                    workspaceTitle: workspace.title,
+                  },
+                },
+              });
+            }
           }
           status = "PROCESSED";
         } else if (stale) {
