@@ -611,18 +611,27 @@ function BillingSettings() {
       checkoutConfirmed.current
     )
       return;
+    if (!transactionId) {
+      checkoutConfirmed.current = true;
+      clearCheckoutReturn();
+      toast({
+        title: "Abonamentul a fost reîmprospătat",
+        description:
+          "Confirmarea plății este afișată numai pentru o tranzacție Paddle verificată.",
+        variant: "info",
+      });
+      return;
+    }
     let cancelled = false;
     let attempts = 0;
     let timeoutId: number | undefined;
     const poll = async () => {
       attempts += 1;
       try {
-        const checkout = transactionId
-          ? await weddingOsApi.subscriptionCheckoutStatus(
-              currentWorkspace.id,
-              transactionId,
-            )
-          : null;
+        const checkout = await weddingOsApi.subscriptionCheckoutStatus(
+          currentWorkspace.id,
+          transactionId,
+        );
         if (
           checkout &&
           (checkout.status === "FAILED" || checkout.status === "EXPIRED")
@@ -642,7 +651,7 @@ function BillingSettings() {
         setBilling(next);
         if (
           next.subscription.status === "ACTIVE" &&
-          (!checkout?.plan || next.subscription.plan === checkout.plan)
+          (!checkout.plan || next.subscription.plan === checkout.plan)
         ) {
           checkoutConfirmed.current = true;
           setSuccessNotice(subscriptionSuccessNotice(next));
