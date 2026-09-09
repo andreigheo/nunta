@@ -903,6 +903,55 @@ describe("Sarbato workspace subscriptions", () => {
     ]);
   });
 
+  it("contains asynchronous webhook drain failures", async () => {
+    const database = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+    };
+    const paddle = {
+      enabled: true,
+      verifyWebhook: vi.fn().mockReturnValue({
+        event_id: "evt_async_failure",
+        event_type: "subscription.activated",
+        occurred_at: "2026-09-09T16:11:40.509Z",
+        payloadHash: "a".repeat(64),
+        data: { id: "sub_async_failure", status: "active" },
+      }),
+    };
+    const service = new WorkspaceBillingService(
+      database as never,
+      paddle as never,
+      {} as never,
+      {} as never,
+    );
+    const drain = vi
+      .spyOn(
+        service as unknown as { drainBillingEvents: () => Promise<void> },
+        "drainBillingEvents",
+      )
+      .mockRejectedValue(new Error("drain failed"));
+    const logger = vi
+      .spyOn(
+        (
+          service as unknown as {
+            logger: { error: (message: string, stack?: string) => void };
+          }
+        ).logger,
+        "error",
+      )
+      .mockImplementation(() => undefined);
+
+    await expect(
+      service.webhook(Buffer.from("{}"), "valid-signature"),
+    ).resolves.toEqual({ accepted: true, ignored: true });
+    await vi.waitFor(() => {
+      expect(drain).toHaveBeenCalledTimes(1);
+      expect(logger).toHaveBeenCalledWith(
+        "Workspace billing webhook-event-drain failed",
+        expect.stringContaining("drain failed"),
+      );
+    });
+  });
+
   it("rejects legacy marketplace money movement in production", () => {
     expect(() =>
       parseApiEnvironment({

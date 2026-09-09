@@ -1663,6 +1663,23 @@ describe.sequential("Slice 1 API integration and isolation", () => {
     expect(limited).toBe(true);
   }, 180_000);
 
+  it("allows tenant-scoped billing provider event updates", async () => {
+    const policies = await ownerDatabase.$queryRaw<
+      Array<{ policyname: string }>
+    >`
+      SELECT policyname
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'workspace_billing_provider_events'
+        AND cmd = 'UPDATE'
+        AND roles @> ARRAY['weddingos_app']::name[]
+    `;
+
+    expect(policies).toEqual([
+      { policyname: "workspace_billing_provider_events_update" },
+    ]);
+  });
+
   async function getSlice2Accounts(): Promise<{
     owner: TestAccount;
     outsider: TestAccount;

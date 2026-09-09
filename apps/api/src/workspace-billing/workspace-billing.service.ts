@@ -779,7 +779,11 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
   async webhook(rawBody: Buffer, signature: string | undefined) {
     const event = this.paddle.verifyWebhook(rawBody, signature);
     const accepted = await this.enqueueBillingEvent(event);
-    queueMicrotask(() => void this.drainBillingEvents());
+    queueMicrotask(() =>
+      this.runScheduledTask("webhook-event-drain", () =>
+        this.drainBillingEvents(),
+      ),
+    );
     return accepted;
   }
 
