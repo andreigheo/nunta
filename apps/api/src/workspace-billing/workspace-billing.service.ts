@@ -1187,6 +1187,22 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
             });
           }
           status = "PROCESSED";
+        } else if (stale) {
+          const periodEnrichment = staleSubscriptionPeriodEnrichment(
+            event,
+            stored.providerSubscriptionId,
+            subscription,
+          );
+          if (periodEnrichment) {
+            await transaction.workspaceSubscription.update({
+              where: { id: subscription.id },
+              data: {
+                ...periodEnrichment,
+                version: { increment: 1 },
+              },
+            });
+            status = "PROCESSED";
+          }
         }
         await transaction.workspaceBillingProviderEvent.update({
           where: { id: stored.id },
@@ -1505,6 +1521,36 @@ export function subscriptionUpdate(
     gracePeriodEndAt,
     cancelAtPeriodEnd:
       stringValue(scheduled?.action) === "cancel" && status !== "CANCELED",
+  };
+}
+
+export function staleSubscriptionPeriodEnrichment(
+  event: PaddleWebhook,
+  subscriptionId: string | null,
+  current: {
+    status: string;
+    providerSubscriptionId: string | null;
+    currentPeriodStart: Date | null;
+    currentPeriodEnd: Date | null;
+  },
+) {
+  if (
+    !event.event_type.startsWith("subscription.") ||
+    !subscriptionId ||
+    subscriptionId !== current.providerSubscriptionId
+  )
+    return null;
+  const providerStatus = stringValue(event.data.status)?.toUpperCase();
+  if (!providerStatus || providerStatus !== current.status) return null;
+  const period = objectValue(event.data.current_billing_period);
+  const currentPeriodStart = optionalDate(period?.starts_at);
+  const currentPeriodEnd = optionalDate(period?.ends_at);
+  if (!currentPeriodStart || !currentPeriodEnd) return null;
+  if (currentPeriodEnd <= currentPeriodStart) return null;
+  if (current.currentPeriodStart && current.currentPeriodEnd) return null;
+  return {
+    currentPeriodStart: current.currentPeriodStart ?? currentPeriodStart,
+    currentPeriodEnd: current.currentPeriodEnd ?? currentPeriodEnd,
   };
 }
 

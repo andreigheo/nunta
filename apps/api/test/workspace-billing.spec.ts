@@ -16,6 +16,7 @@ import {
   billingTransactionUpdate,
   messageCreditAdjustment,
   resolveEventPlan,
+  staleSubscriptionPeriodEnrichment,
   subscriptionUpdate,
   WorkspaceBillingService,
 } from "../src/workspace-billing/workspace-billing.service";
@@ -720,6 +721,44 @@ describe("Sarbato workspace subscriptions", () => {
       "sub_123",
     );
     expect(canceled).toMatchObject({ planKey: "FREE", status: "CANCELED" });
+  });
+
+  it("fills a missing billing period from a stale matching subscription event", () => {
+    const event = {
+      event_id: "evt_sub_period",
+      event_type: "subscription.updated",
+      occurred_at: "2026-09-09T16:11:40.320Z",
+      payloadHash: "d".repeat(64),
+      data: {
+        status: "active",
+        current_billing_period: {
+          starts_at: "2026-09-09T16:11:40.320Z",
+          ends_at: "2026-10-09T16:11:40.320Z",
+        },
+      },
+    };
+    const current = {
+      status: "ACTIVE",
+      providerSubscriptionId: "sub_123",
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+    };
+
+    expect(
+      staleSubscriptionPeriodEnrichment(event, "sub_123", current),
+    ).toEqual({
+      currentPeriodStart: new Date("2026-09-09T16:11:40.320Z"),
+      currentPeriodEnd: new Date("2026-10-09T16:11:40.320Z"),
+    });
+    expect(
+      staleSubscriptionPeriodEnrichment(event, "sub_other", current),
+    ).toBeNull();
+    expect(
+      staleSubscriptionPeriodEnrichment(event, "sub_123", {
+        ...current,
+        status: "CANCELED",
+      }),
+    ).toBeNull();
   });
 
   it("publishes the agreed recipient delivery quotas and Pro-only priority support", () => {
