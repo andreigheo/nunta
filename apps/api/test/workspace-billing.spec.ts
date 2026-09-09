@@ -942,6 +942,51 @@ describe("Sarbato workspace subscriptions", () => {
     ]);
   });
 
+  it("exposes subscription checkout completion only inside its workspace", async () => {
+    const completedAt = new Date("2026-09-09T16:53:36.888Z");
+    const findFirst = vi.fn().mockResolvedValue({
+      status: "COMPLETED",
+      planKey: "PLUS",
+      completedAt,
+    });
+    const database = {
+      withContext: vi.fn(
+        async (
+          _context: unknown,
+          action: (transaction: {
+            workspaceBillingCheckout: { findFirst: typeof findFirst };
+          }) => unknown,
+        ) => action({ workspaceBillingCheckout: { findFirst } }),
+      ),
+    };
+    const service = new WorkspaceBillingService(
+      database as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.subscriptionCheckoutStatus(
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000001",
+        "txn_01m23h5fw19jfc84fz9s3bb24s",
+      ),
+    ).resolves.toEqual({
+      status: "COMPLETED",
+      plan: "PLUS",
+      completedAt: completedAt.toISOString(),
+    });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        workspaceId: "00000000-0000-4000-8000-000000000001",
+        kind: "SUBSCRIPTION",
+        providerTransactionId: "txn_01m23h5fw19jfc84fz9s3bb24s",
+      },
+      select: { status: true, planKey: true, completedAt: true },
+    });
+  });
+
   it("contains asynchronous webhook drain failures", async () => {
     const database = {
       $queryRaw: vi.fn().mockResolvedValue([]),

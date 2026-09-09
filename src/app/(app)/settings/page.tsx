@@ -57,6 +57,13 @@ import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import { loadPaddle } from "@/lib/paddle";
 import { selectedWorkspacePlan } from "@/lib/account-routing";
+import {
+  billingReturnUrl,
+  creditSuccessNotice,
+  subscriptionSuccessNotice,
+  type BillingSuccessNotice,
+} from "@/lib/billing-success";
+import { PaymentSuccessConfirmation } from "@/components/billing/payment-success-confirmation";
 
 type SettingsTab =
   | "general"
@@ -553,6 +560,8 @@ function BillingSettings() {
   const [supportSubject, setSupportSubject] = React.useState("");
   const [supportDescription, setSupportDescription] = React.useState("");
   const [supportBusy, setSupportBusy] = React.useState(false);
+  const [successNotice, setSuccessNotice] =
+    React.useState<BillingSuccessNotice | null>(null);
   const checkoutConfirmed = React.useRef(false);
   const creditCheckoutConfirmed = React.useRef(false);
   const checkoutStarted = React.useRef(false);
@@ -560,6 +569,18 @@ function BillingSettings() {
   const canManage =
     bootstrap?.membership.capabilities.includes("workspace.billing.manage") ??
     false;
+
+  const clearCheckoutReturn = React.useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("checkout");
+    url.searchParams.delete("transaction");
+    url.searchParams.delete("creditTransaction");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, []);
 
   const load = React.useCallback(async () => {
     if (!currentWorkspace) return;
@@ -583,6 +604,7 @@ function BillingSettings() {
   }, [load]);
 
   React.useEffect(() => {
+    const transactionId = searchParams.get("transaction");
     if (
       searchParams.get("checkout") !== "success" ||
       !currentWorkspace ||
@@ -595,14 +617,39 @@ function BillingSettings() {
     const poll = async () => {
       attempts += 1;
       try {
+        const checkout = transactionId
+          ? await weddingOsApi.subscriptionCheckoutStatus(
+              currentWorkspace.id,
+              transactionId,
+            )
+          : null;
+        if (
+          checkout &&
+          (checkout.status === "FAILED" || checkout.status === "EXPIRED")
+        ) {
+          checkoutConfirmed.current = true;
+          clearCheckoutReturn();
+          toast({
+            title: "Plata nu a fost finalizată",
+            description: "Planul nu a fost schimbat. Poți relua plata în siguranță.",
+            variant: "error",
+          });
+          return;
+        }
+        if (checkout && checkout.status !== "COMPLETED") throw new Error("pending");
         const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
         if (cancelled) return;
         setBilling(next);
-        if (next.subscription.status === "ACTIVE") {
+        if (
+          next.subscription.status === "ACTIVE" &&
+          (!checkout?.plan || next.subscription.plan === checkout.plan)
+        ) {
           checkoutConfirmed.current = true;
+          setSuccessNotice(subscriptionSuccessNotice(next));
+          clearCheckoutReturn();
           toast({
             title: "Abonamentul este activ",
-            description: "Drepturile planului au fost alocate workspace-ului.",
+            description: "Planul și creditele au fost confirmate de backend.",
             variant: "success",
           });
           return;
@@ -615,7 +662,7 @@ function BillingSettings() {
         return;
       }
       if (!cancelled) {
-        creditCheckoutConfirmed.current = true;
+        checkoutConfirmed.current = true;
         toast({
           title: "Plata este încă în curs de confirmare",
           description:
@@ -629,7 +676,7 @@ function BillingSettings() {
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [currentWorkspace, searchParams, toast]);
+  }, [clearCheckoutReturn, currentWorkspace, searchParams, toast]);
 
   React.useEffect(() => {
     const transactionId = searchParams.get("creditTransaction");
@@ -653,8 +700,11 @@ function BillingSettings() {
         if (cancelled) return;
         if (checkout.status === "COMPLETED") {
           creditCheckoutConfirmed.current = true;
-          await load();
+          const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
           if (cancelled) return;
+          setBilling(next);
+          setSuccessNotice(creditSuccessNotice(checkout.credits, next));
+          clearCheckoutReturn();
           toast({
             title: `${checkout.credits} de credite au fost adăugate`,
             description: "Soldul cumpărat este disponibil și nu expiră la reînnoirea planului.",
@@ -664,6 +714,7 @@ function BillingSettings() {
         }
         if (checkout.status === "FAILED" || checkout.status === "EXPIRED") {
           creditCheckoutConfirmed.current = true;
+          clearCheckoutReturn();
           toast({
             title: "Creditarea nu a fost finalizată",
             description: "Nu s-au adăugat credite. Poți porni din nou cumpărarea.",
@@ -675,15 +726,26 @@ function BillingSettings() {
         // Keep polling briefly: Paddle's redirect may arrive before its signed
         // webhook is projected into the workspace ledger.
       }
-      if (!cancelled && attempts < 30)
+      if (!cancelled && attempts < 30) {
         timeoutId = window.setTimeout(() => void poll(), 2_000);
+        return;
+      }
+      if (!cancelled) {
+        creditCheckoutConfirmed.current = true;
+        toast({
+          title: "Plata este încă în curs de confirmare",
+          description:
+            "Creditele vor apărea numai după confirmarea semnată de Paddle. Reîncarcă pagina peste câteva momente; plata nu va fi dublată.",
+          variant: "info",
+        });
+      }
     };
     void poll();
     return () => {
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [currentWorkspace, load, searchParams, toast]);
+  }, [clearCheckoutReturn, currentWorkspace, searchParams, toast]);
 
   const choosePlan = React.useCallback(async (plan: WorkspaceSubscriptionPlanKey) => {
     if (!currentWorkspace || !billing || !canManage) return;
@@ -715,7 +777,11 @@ function BillingSettings() {
           settings: {
             displayMode: "overlay",
             theme: "light",
-            successUrl: `${window.location.origin}/settings?tab=billing&checkout=success`,
+            successUrl: billingReturnUrl(
+              window.location.origin,
+              "subscription",
+              result.transactionId,
+            ),
           },
         });
       } else if (result) {
@@ -775,7 +841,11 @@ function BillingSettings() {
           settings: {
             displayMode: "overlay",
             theme: "light",
-            successUrl: `${window.location.origin}/settings?tab=billing&checkout=credits-success&creditTransaction=${encodeURIComponent(result.transactionId)}`,
+            successUrl: billingReturnUrl(
+              window.location.origin,
+              "credits",
+              result.transactionId,
+            ),
           },
         });
       } else {
@@ -841,6 +911,23 @@ function BillingSettings() {
 
   return (
     <div className="space-y-5">
+      {successNotice && (
+        <PaymentSuccessConfirmation
+          notice={successNotice}
+          onDismiss={() => setSuccessNotice(null)}
+          onViewCredits={() => {
+            const target = document.getElementById("message-credits");
+            if (!target) return;
+            target.scrollIntoView({
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+                .matches
+                ? "auto"
+                : "smooth",
+              block: "start",
+            });
+          }}
+        />
+      )}
       {billing.subscription.status === "PAST_DUE" && (
         <Card className="border-amber-300 bg-amber-50">
           <CardContent className="py-4 text-sm text-amber-950">
@@ -959,7 +1046,7 @@ function BillingSettings() {
         </div>
       </div>
 
-      <Card>
+      <Card id="message-credits" className="scroll-mt-6">
         <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">

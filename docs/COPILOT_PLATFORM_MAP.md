@@ -9,15 +9,15 @@ O suprafață nu este considerată controlabilă până când operația are adap
 ## Rezumat
 
 - Pagini: **97**
-- Operații API: **719**
-- Domenii API: **131**
+- Operații API: **727**
+- Domenii API: **132**
 - Operații executabile prin propunere: **44**
-- Operații disponibile pentru citire contextuală: **246**
-- Operații explicate, dar neexecutate direct: **371**
+- Operații disponibile pentru citire contextuală: **249**
+- Operații explicate, dar neexecutate direct: **376**
 - Operații excluse intenționat: **58**
 - Operații neclasificate: **0**
-- Operații de citire candidate: **262**
-- Modificări numai prin propunere/aprobare: **415**
+- Operații de citire candidate: **265**
+- Modificări numai prin propunere/aprobare: **420**
 - Operații doar ghidate, fără execuție directă: **42**
 
 ## Domenii API
@@ -38,7 +38,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | automation-templates                |    1 |      1 |         0 |            0 | automation.read                                                                                                                                                                                                                |
 | automations                         |    8 |      2 |         6 |            0 | automation.activate, automation.execute, automation.pause, automation.read, automation.write                                                                                                                                   |
 | beta                                |    8 |      3 |         5 |            0 | —                                                                                                                                                                                                                              |
-| billing                             |    4 |      1 |         3 |            0 | workspace.billing.manage, workspace.billing.read, workspace.read                                                                                                                                                               |
+| billing                             |    7 |      3 |         4 |            0 | workspace.billing.manage, workspace.billing.read, workspace.read                                                                                                                                                               |
 | bookings                            |    4 |      2 |         2 |            0 | booking.read, booking.transition, booking.write                                                                                                                                                                                |
 | bootstrap                           |    1 |      1 |         0 |            0 | workspace.read                                                                                                                                                                                                                 |
 | budget                              |   11 |      4 |         7 |            0 | budget.read, budget.write                                                                                                                                                                                                      |
@@ -67,6 +67,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | guest-exports                       |    1 |      0 |         1 |            0 | guest.export                                                                                                                                                                                                                   |
 | guest-imports                       |    6 |      2 |         4 |            0 | guest.import                                                                                                                                                                                                                   |
 | guest-menu-selections               |    2 |      1 |         1 |            0 | menu.read, menu.write                                                                                                                                                                                                          |
+| guest-messaging                     |    3 |      1 |         2 |            0 | campaign.send                                                                                                                                                                                                                  |
 | guest-moments                       |    3 |      2 |         1 |            0 | guest_moment.moderate, guest_moment.read                                                                                                                                                                                       |
 | guest-tags                          |    4 |      1 |         3 |            0 | guest.write                                                                                                                                                                                                                    |
 | guests                              |    5 |      2 |         3 |            0 | guest.archive, guest.write                                                                                                                                                                                                     |
@@ -152,7 +153,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | vendor-trust-monetization-overview  |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | vendor-usage                        |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | venue-spaces                        |    5 |      2 |         3 |            0 | seating.write                                                                                                                                                                                                                  |
-| webhooks                            |    6 |      0 |         5 |            1 | —                                                                                                                                                                                                                              |
+| webhooks                            |    8 |      0 |         7 |            1 | —                                                                                                                                                                                                                              |
 | weekly-digests                      |    2 |      1 |         1 |            0 | copilot.read, copilot.use                                                                                                                                                                                                      |
 | workspaces                          |    3 |      1 |         2 |            0 | workspace.update                                                                                                                                                                                                               |
 

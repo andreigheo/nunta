@@ -671,6 +671,40 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async subscriptionCheckoutStatus(
+    userId: string,
+    workspaceId: string,
+    providerTransactionId: string,
+  ) {
+    const checkout = await this.database.withContext(
+      { userId, workspaceId },
+      (transaction) =>
+        transaction.workspaceBillingCheckout.findFirst({
+          where: {
+            workspaceId,
+            kind: "SUBSCRIPTION",
+            providerTransactionId,
+          },
+          select: {
+            status: true,
+            planKey: true,
+            completedAt: true,
+          },
+        }),
+    );
+    if (!checkout)
+      problem(
+        "NOT_FOUND",
+        HttpStatus.NOT_FOUND,
+        "Checkout-ul abonamentului nu există în acest eveniment",
+      );
+    return {
+      status: checkout.status,
+      plan: checkout.planKey,
+      completedAt: checkout.completedAt?.toISOString() ?? null,
+    };
+  }
+
   async portal(userId: string, workspaceId: string) {
     const subscription = await this.database.withContext(
       { userId, workspaceId },
