@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   HttpStatus,
   Inject,
@@ -12,7 +12,10 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { ApiEnvironment } from "@weddingos/config";
+import {
+  eventMediaStorageConfiguration,
+  type ApiEnvironment,
+} from "@weddingos/config";
 import type { Prisma } from "@weddingos/database";
 import IORedis from "ioredis";
 import { Observable } from "rxjs";
@@ -42,6 +45,11 @@ type GuestContext = {
 export class EventDayService {
   private readonly storage: S3Client;
   private readonly publicStorage: S3Client;
+  private readonly eventMediaStorage: S3Client;
+  private readonly eventMediaPublicStorage: S3Client;
+  private readonly eventStorage: ReturnType<
+    typeof eventMediaStorageConfiguration
+  >;
   private readonly sensitiveKey: { keyId: string; secret: string };
 
   constructor(
@@ -71,6 +79,42 @@ export class EventDayService {
         secretAccessKey: environment.OBJECT_STORAGE_SECRET_KEY,
       },
     });
+    this.eventStorage = eventMediaStorageConfiguration(environment);
+    const eventMediaClient = {
+      region: this.eventStorage.region,
+      forcePathStyle: this.eventStorage.forcePathStyle,
+      credentials: {
+        accessKeyId: this.eventStorage.accessKey,
+        secretAccessKey: this.eventStorage.secretKey,
+      },
+    };
+    this.eventMediaStorage = new S3Client({
+      ...eventMediaClient,
+      endpoint: this.eventStorage.endpoint,
+    });
+    this.eventMediaPublicStorage = new S3Client({
+      ...eventMediaClient,
+      endpoint: this.eventStorage.publicEndpoint,
+    });
+  }
+
+  private mediaStorage(provider: string, publicEndpoint = false) {
+    if (provider === "bunny-s3")
+      return publicEndpoint
+        ? this.eventMediaPublicStorage
+        : this.eventMediaStorage;
+    return publicEndpoint ? this.publicStorage : this.storage;
+  }
+
+  private mediaDeliveryUrl(objectKey: string, expiresInSeconds: number) {
+    if (!this.eventStorage.cdnHostname || !this.eventStorage.cdnTokenKey)
+      throw new Error("Bunny CDN delivery is not configured");
+    const path = `/${objectKey}`;
+    const expires = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    const token = createHash("sha256")
+      .update(`${this.eventStorage.cdnTokenKey}${path}${expires}`)
+      .digest("base64url");
+    return `https://${this.eventStorage.cdnHostname}${path}?token=${token}&expires=${expires}`;
   }
 
   async plans(userId: string, workspaceId: string) {
@@ -2830,7 +2874,8 @@ export class EventDayService {
         // RETURNING and keep the stricter read policy intact.
         const stored = {
           id: randomUUID(),
-          bucket: this.environment.OBJECT_STORAGE_BUCKET,
+          storageProvider: this.eventStorage.provider,
+          bucket: this.eventStorage.bucket,
           objectKey,
         };
         await tx.$executeRaw`
@@ -2841,7 +2886,7 @@ export class EventDayService {
           ) VALUES (
             ${stored.id}::uuid,
             ${guest.workspaceId}::uuid,
-            ${this.environment.OBJECT_STORAGE_PROVIDER},
+            ${stored.storageProvider},
             ${stored.bucket},
             ${stored.objectKey},
             ${text(input.originalFileName)},
@@ -2876,9 +2921,9 @@ export class EventDayService {
           },
         });
         const uploadUrl = await getSignedUrl(
-          this.publicStorage,
+          this.mediaStorage(stored.storageProvider, true),
           new PutObjectCommand({
-            Bucket: this.environment.OBJECT_STORAGE_BUCKET,
+            Bucket: stored.bucket,
             Key: objectKey,
             ContentType: contentType,
           }),
@@ -2926,7 +2971,7 @@ export class EventDayService {
           where: { id: session.storedObjectId },
         });
         if (!stored) notFound("Obiectul media nu există.");
-        const head = await this.storage.send(
+        const head = await this.mediaStorage(stored.storageProvider).send(
           new HeadObjectCommand({
             Bucket: stored.bucket,
             Key: stored.objectKey,
@@ -3033,15 +3078,17 @@ export class EventDayService {
         },
       });
       if (!stored) notFound("Preview-ul nu este disponibil.");
-      return getSignedUrl(
-        this.publicStorage,
-        new GetObjectCommand({
-          Bucket: stored.bucket,
-          Key: stored.objectKey,
-          ResponseContentType: stored.contentTypeDetected ?? "image/webp",
-        }),
-        { expiresIn: 60 },
-      );
+      return stored.storageProvider === "bunny-s3"
+        ? this.mediaDeliveryUrl(stored.objectKey, 60)
+        : getSignedUrl(
+            this.mediaStorage(stored.storageProvider, true),
+            new GetObjectCommand({
+              Bucket: stored.bucket,
+              Key: stored.objectKey,
+              ResponseContentType: stored.contentTypeDetected ?? "image/webp",
+            }),
+            { expiresIn: 60 },
+          );
     });
   }
 
@@ -3082,15 +3129,19 @@ export class EventDayService {
       });
       if (!stored) notFound("Preview-ul nu este disponibil.");
       return {
-        url: await getSignedUrl(
-          this.publicStorage,
-          new GetObjectCommand({
-            Bucket: stored.bucket,
-            Key: stored.objectKey,
-            ResponseContentType: stored.contentTypeDetected ?? "image/webp",
-          }),
-          { expiresIn: 60 },
-        ),
+        url:
+          stored.storageProvider === "bunny-s3"
+            ? this.mediaDeliveryUrl(stored.objectKey, 60)
+            : await getSignedUrl(
+                this.mediaStorage(stored.storageProvider, true),
+                new GetObjectCommand({
+                  Bucket: stored.bucket,
+                  Key: stored.objectKey,
+                  ResponseContentType:
+                    stored.contentTypeDetected ?? "image/webp",
+                }),
+                { expiresIn: 60 },
+              ),
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
       };
     });
@@ -3149,8 +3200,10 @@ export class EventDayService {
               ? "REJECTED"
               : transition === "HIDE"
                 ? "HIDDEN"
-                : media.moderationStatus;
-        const updated = await tx.guestMoment.update({
+                : transition === "RESTORE"
+                  ? "APPROVED"
+                  : media.moderationStatus;
+        let updated = await tx.guestMoment.update({
           where: { id: momentId },
           data: {
             status,
@@ -3165,6 +3218,68 @@ export class EventDayService {
             version: { increment: 1 },
           },
         });
+        const livePortal = await tx.eventMediaPortal.findFirst({
+          where: {
+            workspaceId,
+            weddingEventId: moment.weddingEventId,
+            liveGalleryEnabled: true,
+            liveGalleryId: { not: null },
+          },
+        });
+        if (livePortal?.liveGalleryId) {
+          const gallery = await tx.galleryCollection.findFirst({
+            where: {
+              id: livePortal.liveGalleryId,
+              workspaceId,
+              weddingEventId: moment.weddingEventId,
+              status: "PUBLISHED",
+              visibility: "GUESTS_WITH_ACCESS",
+            },
+          });
+          if (gallery && ["APPROVE", "RESTORE"].includes(transition)) {
+            const last = await tx.galleryCollectionItem.findFirst({
+              where: { collectionId: gallery.id },
+              orderBy: { position: "desc" },
+              select: { position: true },
+            });
+            await tx.galleryCollectionItem.upsert({
+              where: {
+                collectionId_guestMomentId: {
+                  collectionId: gallery.id,
+                  guestMomentId: momentId,
+                },
+              },
+              create: {
+                workspaceId,
+                collectionId: gallery.id,
+                guestMomentId: momentId,
+                position: (last?.position ?? -1) + 1,
+              },
+              update: {},
+            });
+            updated = await tx.guestMoment.update({
+              where: { id: momentId },
+              data: {
+                status: "PUBLISHED",
+                publishedAt: new Date(),
+                version: { increment: 1 },
+              },
+            });
+            await tx.galleryCollection.update({
+              where: { id: gallery.id },
+              data: { version: { increment: 1 } },
+            });
+          } else if (gallery) {
+            const removed = await tx.galleryCollectionItem.deleteMany({
+              where: { collectionId: gallery.id, guestMomentId: momentId },
+            });
+            if (removed.count)
+              await tx.galleryCollection.update({
+                where: { id: gallery.id },
+                data: { version: { increment: 1 } },
+              });
+          }
+        }
         await tx.guestMomentModerationCase.upsert({
           where: {
             id:
@@ -4404,7 +4519,7 @@ export class EventDayService {
             module: "wedding_day",
             kind: "critical_incident",
             priority: "urgent",
-            title: "Incident critic în ziua nunții",
+            title: "Incident critic în ziua evenimentului",
             body: "Un incident critic necesită atenție. Detaliile sensibile sunt disponibile numai în Command Center.",
             actionUrl: `/event-day?incident=${incidentId}`,
           },
@@ -4595,8 +4710,17 @@ export class EventDayService {
         orderBy: { createdAt: "desc" },
       }),
     ]);
+    const source = media
+      ? await tx.storedObject.findUnique({
+          where: { id: media.storedObjectId },
+          select: { originalFileName: true, sizeBytes: true },
+        })
+      : null;
+    const { uploadTokenHash: _uploadTokenHash, ...safeMoment } = moment;
     return {
-      ...resource(moment),
+      ...resource(safeMoment),
+      originalFileName: source?.originalFileName ?? null,
+      sizeBytes: source ? Number(source.sizeBytes) : null,
       media: media ? publicMedia(media) : null,
       reportCount: reports,
       moderation: moderation.map((row) => ({

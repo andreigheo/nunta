@@ -983,7 +983,7 @@ export default function MoodboardsPage() {
               className={cn(
                 "cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                 category === c
-                  ? "border-brand bg-brand-soft text-brand-strong dark:text-brand"
+                  ? "border-brand bg-brand-soft text-brand-strong"
                   : "border-line bg-surface text-muted",
               )}
             >
@@ -993,9 +993,9 @@ export default function MoodboardsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_280px]">
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         {/* Canvas */}
-        <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
+        <div className="min-w-0 columns-2 gap-3 sm:columns-3 lg:columns-4 [&>*]:mb-3">
           {visible.map((item) => (
             <button
               key={item.id}
@@ -1019,7 +1019,7 @@ export default function MoodboardsPage() {
                   aria-hidden
                 />
               ) : item.kind === "text" ? (
-                <span className="block bg-accent-soft/50 p-4 font-display text-[15px] italic leading-snug text-ink dark:bg-accent-soft/20">
+                <span className="block bg-accent-soft/60 p-4 font-display text-[15px] italic leading-snug text-ink">
                   {item.label}
                 </span>
               ) : (

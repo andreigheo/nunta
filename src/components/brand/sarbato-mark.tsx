@@ -26,7 +26,7 @@ export function SarbatoMark({
           className={cn(
             "font-brand font-semibold leading-none tracking-[-0.035em]",
             compact ? "text-2xl" : "text-3xl",
-            inverse ? "text-on-brand" : "text-brand",
+            inverse ? "text-on-brand-panel" : "text-brand",
           )}
         >
           Sarbato

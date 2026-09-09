@@ -25,7 +25,7 @@ export function PortalShell({
     <div className="min-h-dvh bg-background">
       <a
         href="#portal-main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-brand focus:px-4 focus:text-sm focus:font-semibold focus:text-on-brand"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-action focus:px-4 focus:text-sm focus:font-semibold focus:text-on-action"
       >
         Sari la conținut
       </a>

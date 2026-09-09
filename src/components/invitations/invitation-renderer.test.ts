@@ -48,6 +48,7 @@ describe("InvitationRenderer", () => {
     ];
     rsvp.content.deadline = "2027-09-20T20:59:00.000Z";
     const snapshot: InvitationEditorSnapshot = {
+      profile: { eventType: "wedding", purpose: "full" },
       design: {
         ...invitationTemplates[0].design,
         buttonStyle: "pill",
@@ -106,6 +107,7 @@ describe("InvitationRenderer", () => {
     const hero = createDefaultSection("hero", "hero-contrast");
     hero.content.layout = "minimal";
     const snapshot: InvitationEditorSnapshot = {
+      profile: { eventType: "wedding", purpose: "full" },
       design: {
         ...invitationTemplates[0].design,
         accent: "#F06449",
@@ -150,6 +152,7 @@ describe("InvitationRenderer", () => {
     hero.content.metaGap = 42;
     hero.style.align = "right";
     const snapshot: InvitationEditorSnapshot = {
+      profile: { eventType: "wedding", purpose: "full" },
       design: invitationTemplates[1].design,
       experience: {
         enabled: false,
@@ -203,6 +206,7 @@ describe("InvitationRenderer", () => {
       },
     };
     const snapshot: InvitationEditorSnapshot = {
+      profile: { eventType: "wedding", purpose: "full" },
       design: invitationTemplates[1].design,
       experience: {
         enabled: false,
@@ -249,6 +253,7 @@ describe("InvitationRenderer", () => {
   it("uses inspector activation instead of tiny inline fields when direct editing is disabled", () => {
     const hero = createDefaultSection("hero", "hero-mobile-editor");
     const snapshot: InvitationEditorSnapshot = {
+      profile: { eventType: "wedding", purpose: "full" },
       design: invitationTemplates[1].design,
       experience: {
         enabled: false,
@@ -295,6 +300,7 @@ describe("InvitationRenderer", () => {
     gradient.style.gradientTo = "#FFFFFF";
     gradient.style.textColor = "#FFFFFF";
     const snapshot: InvitationEditorSnapshot = {
+      profile: { eventType: "wedding", purpose: "full" },
       design: {
         ...invitationTemplates[0].design,
         accent: "#F4F0E8",

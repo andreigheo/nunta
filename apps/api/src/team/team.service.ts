@@ -55,12 +55,13 @@ export class TeamService {
           }),
           transaction.workspaceSubscription.findUnique({
             where: { workspaceId },
-            select: { planKey: true, status: true },
+            select: { planKey: true, status: true, gracePeriodEndAt: true },
           }),
         ]);
         const effectivePlan = effectiveWorkspacePlanKey(
           subscription?.planKey,
           subscription?.status,
+          subscription?.gracePeriodEndAt,
         );
         const inviterProfiles = await this.database.userProfile.findMany({
           where: {
@@ -164,6 +165,11 @@ export class TeamService {
             HttpStatus.CONFLICT,
             "Invitation already pending",
           );
+        await this.entitlements.lockCapacity(
+          transaction,
+          workspaceId,
+          "MAX_COLLABORATORS",
+        );
         const [activeCollaborators, pendingInvitations] = await Promise.all([
           transaction.workspaceMembership.count({
             where: {
@@ -710,7 +716,7 @@ export class TeamService {
           }),
           transaction.workspaceSubscription.findUnique({
             where: { workspaceId },
-            select: { planKey: true, status: true },
+            select: { planKey: true, status: true, gracePeriodEndAt: true },
           }),
         ]);
         return {
@@ -736,6 +742,7 @@ export class TeamService {
             effectiveWorkspacePlanKey(
               subscription?.planKey,
               subscription?.status,
+              subscription?.gracePeriodEndAt,
             ),
           ),
           lastActiveAt: null,

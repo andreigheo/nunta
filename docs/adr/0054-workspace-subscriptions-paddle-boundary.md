@@ -8,17 +8,20 @@ Stare: acceptat
 Sarbato oferă trei planuri lunare pentru workspace-ul organizatorului:
 
 - Gratuit — €0;
-- Plus — €7/lună;
-- Pro — €17/lună.
+- Plus — €27/lună, cu 50 de credite de mesagerie;
+- Pro — €59/lună, cu 100 de credite de mesagerie.
+
+Planul Gratuit primește 10 credite de test, acordate o singură dată. Un pachet
+suplimentar de 100 de credite costă €12,50 și nu expiră la reînnoirea planului.
 
 Abonamentul aparține workspace-ului, nu unui utilizator individual. Accesul
 efectiv este intersecția dintre capabilitățile rolului și drepturile planului.
 Matricea completă de limite, funcții și roluri este menținută în
 `docs/SARBATO_SUBSCRIPTION_PLANS.md`.
 
-În cod și în API-urile providerului, sumele sunt reprezentate în unități minore: `700` înseamnă €7,00, iar `1700` înseamnă €17,00. Interfața afișează întotdeauna valoarea formatată în EUR.
+În cod și în API-urile providerului, sumele sunt reprezentate în unități minore: `2700` înseamnă €27,00, `5900` înseamnă €59,00, iar `1250` înseamnă €12,50. Interfața afișează întotdeauna valoarea formatată în EUR.
 
-Paddle este folosit exclusiv ca Merchant of Record pentru abonamentul SaaS Sarbato. Price ID-ul configurat este verificat prin API înainte de checkout: stare activă, EUR, interval lunar și suma exactă a planului.
+Paddle este folosit exclusiv ca Merchant of Record pentru abonamentul SaaS Sarbato și pachetele de credite. Price ID-ul configurat este verificat prin API înainte de checkout: stare activă, EUR, interval și suma exactă a produsului.
 
 Sarbato nu acceptă, nu păstrează, nu transferă și nu reconciliază bani între organizator și furnizor. Marketplace-ul poate susține descoperire, cereri, oferte, contracte și evidență operațională, dar orice plată efectivă către furnizor rămâne externă platformei.
 

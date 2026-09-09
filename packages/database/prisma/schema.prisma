@@ -49,6 +49,7 @@ enum WorkspaceSubscriptionStatus {
 
 enum WorkspaceBillingCheckoutStatus {
   CREATED
+  RECOVERY_PENDING
   COMPLETED
   EXPIRED
   FAILED
@@ -73,9 +74,18 @@ enum MessageCreditEntryType {
 }
 
 enum WorkspaceBillingEventStatus {
+  RECEIVED
+  PROCESSING
   PROCESSED
   IGNORED
   FAILED
+  DEAD_LETTER
+}
+
+enum WorkspaceUsageReservationStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
 }
 
 enum MembershipStatus {
@@ -936,8 +946,8 @@ model User {
   email                          String                     @unique @db.VarChar(320)
   emailVerifiedAt                DateTime?                  @map("email_verified_at")
   status                         UserStatus                 @default(ACTIVE)
-  acceptedTermsVersion           String                     @map("accepted_terms_version") @db.VarChar(40)
-  acceptedTermsAt                DateTime                   @map("accepted_terms_at")
+  acceptedTermsVersion           String?                    @map("accepted_terms_version") @db.VarChar(40)
+  acceptedTermsAt                DateTime?                  @map("accepted_terms_at")
   marketingConsent               Boolean                    @default(false) @map("marketing_consent")
   createdAt                      DateTime                   @default(now()) @map("created_at")
   updatedAt                      DateTime                   @updatedAt @map("updated_at")
@@ -1060,6 +1070,8 @@ model Workspace {
   billingTransactions     WorkspaceBillingTransaction[]
   messageCreditAccount    WorkspaceMessageCreditAccount?
   messageCreditEntries    WorkspaceMessageCreditEntry[]
+  usagePeriods            WorkspaceUsagePeriod[]
+  usageReservations       WorkspaceUsageReservation[]
   creativeState           WorkspaceCreativeState?
   copilotSettings         CopilotWorkspaceSettings?
   copilotMemories         CopilotMemory[]
@@ -1081,6 +1093,8 @@ model WorkspaceSubscription {
   providerPriceId        String?                      @map("provider_price_id") @db.VarChar(64)
   currentPeriodStart     DateTime?                    @map("current_period_start")
   currentPeriodEnd       DateTime?                    @map("current_period_end")
+  pastDueAt              DateTime?                    @map("past_due_at")
+  gracePeriodEndAt       DateTime?                    @map("grace_period_end_at")
   cancelAtPeriodEnd      Boolean                      @default(false) @map("cancel_at_period_end")
   lastProviderEventAt    DateTime?                    @map("last_provider_event_at")
   lastReconciledAt       DateTime?                    @map("last_reconciled_at")
@@ -1092,31 +1106,34 @@ model WorkspaceSubscription {
   workspace              Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([status, currentPeriodEnd])
+  @@index([status, gracePeriodEndAt])
   @@index([providerCustomerId])
   @@index([providerPriceId])
   @@map("workspace_subscriptions")
 }
 
 model WorkspaceBillingCheckout {
-  id                    String                          @id @default(uuid()) @db.Uuid
-  workspaceId           String                          @map("workspace_id") @db.Uuid
-  createdById           String                          @map("created_by") @db.Uuid
-  kind                  WorkspaceBillingCheckoutKind     @default(SUBSCRIPTION)
-  planKey               WorkspaceSubscriptionPlanKey?   @map("plan_key")
-  creditPackKey         String?                          @map("credit_pack_key") @db.VarChar(40)
-  creditQuantity        Int?                             @map("credit_quantity")
-  provider              String                          @db.VarChar(32)
-  providerPriceId       String                          @map("provider_price_id") @db.VarChar(64)
-  providerTransactionId String?                         @unique @map("provider_transaction_id") @db.VarChar(64)
-  idempotencyKey        String                          @map("idempotency_key") @db.VarChar(200)
-  assignmentTokenHash   String                          @unique @map("assignment_token_hash") @db.Char(64)
-  status                WorkspaceBillingCheckoutStatus  @default(CREATED)
-  expiresAt             DateTime                        @map("expires_at")
-  completedAt           DateTime?                       @map("completed_at")
-  createdAt             DateTime                        @default(now()) @map("created_at")
-  updatedAt             DateTime                        @updatedAt @map("updated_at")
-  workspace             Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  providerEvents        WorkspaceBillingProviderEvent[]
+  id                     String                          @id @default(uuid()) @db.Uuid
+  workspaceId            String                          @map("workspace_id") @db.Uuid
+  createdById            String                          @map("created_by") @db.Uuid
+  kind                   WorkspaceBillingCheckoutKind    @default(SUBSCRIPTION)
+  planKey                WorkspaceSubscriptionPlanKey?   @map("plan_key")
+  creditPackKey          String?                         @map("credit_pack_key") @db.VarChar(40)
+  creditQuantity         Int?                            @map("credit_quantity")
+  provider               String                          @db.VarChar(32)
+  providerPriceId        String                          @map("provider_price_id") @db.VarChar(64)
+  providerTransactionId  String?                         @unique @map("provider_transaction_id") @db.VarChar(64)
+  idempotencyKey         String                          @map("idempotency_key") @db.VarChar(200)
+  assignmentTokenHash    String                          @unique @map("assignment_token_hash") @db.Char(64)
+  status                 WorkspaceBillingCheckoutStatus  @default(CREATED)
+  expiresAt              DateTime                        @map("expires_at")
+  completedAt            DateTime?                       @map("completed_at")
+  lastReconciledAt       DateTime?                       @map("last_reconciled_at")
+  reconciliationAttempts Int                             @default(0) @map("reconciliation_attempts")
+  createdAt              DateTime                        @default(now()) @map("created_at")
+  updatedAt              DateTime                        @updatedAt @map("updated_at")
+  workspace              Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  providerEvents         WorkspaceBillingProviderEvent[]
 
   @@unique([workspaceId, createdById, idempotencyKey])
   @@index([workspaceId, createdAt])
@@ -1124,35 +1141,35 @@ model WorkspaceBillingCheckout {
 }
 
 model WorkspaceMessageCreditAccount {
-  id                   String                       @id @default(uuid()) @db.Uuid
-  workspaceId          String                       @unique @map("workspace_id") @db.Uuid
-  includedBalance      Int                          @default(0) @map("included_balance")
-  purchasedBalance     Int                          @default(0) @map("purchased_balance")
-  allowancePlanKey     WorkspaceSubscriptionPlanKey @default(FREE) @map("allowance_plan_key")
-  allowancePeriodStart DateTime?                    @map("allowance_period_start")
-  trialGrantedAt       DateTime                     @default(now()) @map("trial_granted_at")
-  createdAt            DateTime                     @default(now()) @map("created_at")
-  updatedAt            DateTime                     @updatedAt @map("updated_at")
-  version              Int                          @default(1)
-  workspace            Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                   String                        @id @default(uuid()) @db.Uuid
+  workspaceId          String                        @unique @map("workspace_id") @db.Uuid
+  includedBalance      Int                           @default(0) @map("included_balance")
+  purchasedBalance     Int                           @default(0) @map("purchased_balance")
+  allowancePlanKey     WorkspaceSubscriptionPlanKey  @default(FREE) @map("allowance_plan_key")
+  allowancePeriodStart DateTime?                     @map("allowance_period_start")
+  trialGrantedAt       DateTime                      @default(now()) @map("trial_granted_at")
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  updatedAt            DateTime                      @updatedAt @map("updated_at")
+  version              Int                           @default(1)
+  workspace            Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   entries              WorkspaceMessageCreditEntry[]
 
   @@map("workspace_message_credit_accounts")
 }
 
 model WorkspaceMessageCreditEntry {
-  id                    String                       @id @default(uuid()) @db.Uuid
-  workspaceId           String                       @map("workspace_id") @db.Uuid
-  accountId             String                       @map("account_id") @db.Uuid
+  id                    String                        @id @default(uuid()) @db.Uuid
+  workspaceId           String                        @map("workspace_id") @db.Uuid
+  accountId             String                        @map("account_id") @db.Uuid
   bucket                MessageCreditBucket
   type                  MessageCreditEntryType
   quantity              Int
-  balanceAfter          Int                          @map("balance_after")
-  idempotencyKey        String                       @map("idempotency_key") @db.VarChar(200)
-  providerTransactionId String?                      @unique @map("provider_transaction_id") @db.VarChar(64)
+  balanceAfter          Int                           @map("balance_after")
+  idempotencyKey        String                        @map("idempotency_key") @db.VarChar(200)
+  providerTransactionId String?                       @unique @map("provider_transaction_id") @db.VarChar(64)
   metadata              Json?
-  createdAt             DateTime                     @default(now()) @map("created_at")
-  workspace             Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt             DateTime                      @default(now()) @map("created_at")
+  workspace             Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   account               WorkspaceMessageCreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, idempotencyKey])
@@ -1171,17 +1188,63 @@ model WorkspaceBillingProviderEvent {
   providerCustomerId     String?                     @map("provider_customer_id") @db.VarChar(64)
   providerSubscriptionId String?                     @map("provider_subscription_id") @db.VarChar(64)
   payloadHash            String                      @map("payload_hash") @db.Char(64)
+  payload                Json
+  assignmentTokenHash    String?                     @map("assignment_token_hash") @db.Char(64)
   occurredAt             DateTime                    @map("occurred_at")
   receivedAt             DateTime                    @default(now()) @map("received_at")
   processedAt            DateTime?                   @map("processed_at")
   status                 WorkspaceBillingEventStatus
+  attemptCount           Int                         @default(0) @map("attempt_count")
+  nextAttemptAt          DateTime                    @default(now()) @map("next_attempt_at")
   errorCode              String?                     @map("error_code") @db.VarChar(80)
+  errorMessage           String?                     @map("error_message") @db.VarChar(500)
   workspace              Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   checkout               WorkspaceBillingCheckout?   @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, occurredAt])
   @@index([providerSubscriptionId])
+  @@index([status, nextAttemptAt])
   @@map("workspace_billing_provider_events")
+}
+
+model WorkspaceUsagePeriod {
+  id           String                      @id @default(uuid()) @db.Uuid
+  workspaceId  String                      @map("workspace_id") @db.Uuid
+  metric       String                      @db.VarChar(80)
+  periodStart  DateTime                    @map("period_start") @db.Date
+  reserved     Int                         @default(0)
+  consumed     Int                         @default(0)
+  version      Int                         @default(1)
+  createdAt    DateTime                    @default(now()) @map("created_at")
+  updatedAt    DateTime                    @updatedAt @map("updated_at")
+  workspace    Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  reservations WorkspaceUsageReservation[]
+
+  @@unique([workspaceId, metric, periodStart])
+  @@index([workspaceId, periodStart])
+  @@map("workspace_usage_periods")
+}
+
+model WorkspaceUsageReservation {
+  id          String                          @id @default(uuid()) @db.Uuid
+  workspaceId String                          @map("workspace_id") @db.Uuid
+  periodId    String                          @map("period_id") @db.Uuid
+  metric      String                          @db.VarChar(80)
+  sourceType  String                          @map("source_type") @db.VarChar(80)
+  sourceId    String                          @map("source_id") @db.VarChar(160)
+  amount      Int                             @default(1)
+  status      WorkspaceUsageReservationStatus @default(RESERVED)
+  consumedAt  DateTime?                       @map("consumed_at")
+  releasedAt  DateTime?                       @map("released_at")
+  createdAt   DateTime                        @default(now()) @map("created_at")
+  updatedAt   DateTime                        @updatedAt @map("updated_at")
+  workspace   Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  period      WorkspaceUsagePeriod            @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, metric, sourceType, sourceId])
+  @@index([periodId, status])
+  @@index([workspaceId, createdAt])
+  @@map("workspace_usage_reservations")
 }
 
 model WorkspaceBillingTransaction {
@@ -2059,11 +2122,59 @@ model Guest {
   version                     Int         @default(1)
 
   @@unique([workspaceId, primaryGuestId, isPlusOne])
+  @@unique([id, workspaceId])
   @@index([workspaceId, householdId, status])
   @@index([workspaceId, emailNormalized])
   @@index([workspaceId, phoneE164])
   @@index([workspaceId, lastName, firstName])
   @@map("guests")
+}
+
+model GuestMessageConsent {
+  id              String   @id @default(uuid()) @db.Uuid
+  workspaceId     String   @map("workspace_id") @db.Uuid
+  guestId         String   @map("guest_id") @db.Uuid
+  channel         String   @db.VarChar(16)
+  destinationHash String   @map("destination_hash") @db.Char(64)
+  allowed         Boolean  @default(false)
+  evidence        String   @db.VarChar(300)
+  recordedById    String   @map("recorded_by_id") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, guestId, channel])
+  @@map("guest_message_consents")
+}
+
+model GuestMessage {
+  id               String    @id @default(uuid()) @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
+  guestId          String    @map("guest_id") @db.Uuid
+  createdById      String    @map("created_by_id") @db.Uuid
+  channel          String    @db.VarChar(16)
+  destinationHash  String    @map("destination_hash") @db.Char(64)
+  encryptedPayload String    @map("encrypted_payload") @db.Text
+  requestKey       String    @map("request_key") @db.VarChar(100)
+  requestHash      String    @map("request_hash") @db.Char(64)
+  status           String    @default("QUEUED") @db.VarChar(24)
+  providerSid      String?   @unique @map("provider_sid") @db.VarChar(40)
+  errorCode        String?   @map("error_code") @db.VarChar(80)
+  attemptedAt      DateTime? @map("attempted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, requestKey, guestId])
+  @@index([workspaceId, createdAt])
+  @@map("guest_messages")
+}
+
+model GuestMessageSuppression {
+  destinationHash String   @map("destination_hash") @db.Char(64)
+  channel         String   @db.VarChar(16)
+  blocked         Boolean  @default(true)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@id([destinationHash, channel])
+  @@map("guest_message_suppressions")
 }
 
 model GuestRelationship {
@@ -6182,13 +6293,38 @@ model CheckInSyncBatch {
   @@map("check_in_sync_batches")
 }
 
+model EventMediaPortal {
+  id                 String   @id @default(uuid()) @db.Uuid
+  workspaceId        String   @map("workspace_id") @db.Uuid
+  weddingEventId     String   @unique @map("wedding_event_id") @db.Uuid
+  eventName          String   @map("event_name") @db.VarChar(240)
+  tokenHash          String   @unique @map("token_hash") @db.Char(64)
+  tokenEncrypted     String   @map("token_encrypted") @db.Text
+  active             Boolean  @default(true)
+  expiresAt          DateTime @map("expires_at")
+  reservedBytes      BigInt   @default(0) @map("reserved_bytes")
+  uploadCount        Int      @default(0) @map("upload_count")
+  liveGalleryId      String?  @map("live_gallery_id") @db.Uuid
+  liveGalleryEnabled Boolean  @default(false) @map("live_gallery_enabled")
+  createdById        String   @map("created_by") @db.Uuid
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([workspaceId])
+  @@map("event_media_portals")
+}
+
 model GuestMoment {
   id                 String            @id @default(uuid()) @db.Uuid
   workspaceId        String            @map("workspace_id") @db.Uuid
   weddingEventId     String            @map("wedding_event_id") @db.Uuid
-  householdId        String            @map("household_id") @db.Uuid
+  householdId        String?           @map("household_id") @db.Uuid
   guestId            String?           @map("guest_id") @db.Uuid
-  guestAccessGrantId String            @map("guest_access_grant_id") @db.Uuid
+  guestAccessGrantId String?           @map("guest_access_grant_id") @db.Uuid
+  mediaPortalId      String?           @map("media_portal_id") @db.Uuid
+  uploadTokenHash    String?           @unique @map("upload_token_hash") @db.Char(64)
+  contributorName    String?           @map("contributor_name") @db.VarChar(100)
   caption            String?           @db.VarChar(1000)
   status             GuestMomentStatus @default(UPLOADING)
   submittedAt        DateTime          @default(now()) @map("submitted_at")
@@ -6226,7 +6362,7 @@ model GuestMomentMedia {
 model GuestMomentUploadSession {
   id                   String           @id @default(uuid()) @db.Uuid
   workspaceId          String           @map("workspace_id") @db.Uuid
-  guestAccessGrantId   String           @map("guest_access_grant_id") @db.Uuid
+  guestAccessGrantId   String?          @map("guest_access_grant_id") @db.Uuid
   guestMomentId        String           @map("guest_moment_id") @db.Uuid
   guestMomentMediaId   String           @unique @map("guest_moment_media_id") @db.Uuid
   expectedContentTypes String[]         @map("expected_content_types")
@@ -7187,24 +7323,59 @@ model PlatformAdminAction {
   @@map("platform_admin_actions")
 }
 
-model PlatformSupportCase {
-  id                   String    @id @default(uuid()) @db.Uuid
-  requesterUserId      String?   @map("requester_user_id") @db.Uuid
-  assignedUserId       String?   @map("assigned_user_id") @db.Uuid
-  type                 String    @db.VarChar(40)
-  status               String    @default("OPEN") @db.VarChar(40)
-  priority             String    @default("NORMAL") @db.VarChar(20)
-  subject              String    @db.VarChar(240)
-  description          String    @db.VarChar(4000)
-  workspaceId          String?   @map("workspace_id") @db.Uuid
-  vendorOrganizationId String?   @map("vendor_organization_id") @db.Uuid
-  resolvedAt           DateTime? @map("resolved_at")
-  closedAt             DateTime? @map("closed_at")
-  version              Int       @default(1)
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
+model PlatformLabel {
+  id          String                    @id @default(uuid()) @db.Uuid
+  name        String                    @db.VarChar(80)
+  description String?                   @db.VarChar(500)
+  color       String                    @default("plum") @db.VarChar(24)
+  environment String                    @db.VarChar(24)
+  createdById String                    @map("created_by") @db.Uuid
+  updatedById String                    @map("updated_by") @db.Uuid
+  version     Int                       @default(1)
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  updatedAt   DateTime                  @updatedAt @map("updated_at")
+  assignments PlatformLabelAssignment[]
 
-  @@index([status, priority, createdAt])
+  @@unique([environment, name])
+  @@index([environment, createdAt])
+  @@map("platform_labels")
+}
+
+model PlatformLabelAssignment {
+  id           String        @id @default(uuid()) @db.Uuid
+  labelId      String        @map("label_id") @db.Uuid
+  targetType   String        @map("target_type") @db.VarChar(40)
+  targetId     String        @map("target_id") @db.VarChar(160)
+  assignedById String        @map("assigned_by") @db.Uuid
+  reason       String        @db.VarChar(1000)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  label        PlatformLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([labelId, targetType, targetId])
+  @@index([targetType, targetId, createdAt])
+  @@map("platform_label_assignments")
+}
+
+model PlatformSupportCase {
+  id                   String                        @id @default(uuid()) @db.Uuid
+  requesterUserId      String?                       @map("requester_user_id") @db.Uuid
+  assignedUserId       String?                       @map("assigned_user_id") @db.Uuid
+  type                 String                        @db.VarChar(40)
+  status               String                        @default("OPEN") @db.VarChar(40)
+  priority             String                        @default("NORMAL") @db.VarChar(20)
+  priorityRank         Int                           @default(10) @map("priority_rank")
+  planKeyAtCreation    WorkspaceSubscriptionPlanKey? @map("plan_key_at_creation")
+  subject              String                        @db.VarChar(240)
+  description          String                        @db.VarChar(4000)
+  workspaceId          String?                       @map("workspace_id") @db.Uuid
+  vendorOrganizationId String?                       @map("vendor_organization_id") @db.Uuid
+  resolvedAt           DateTime?                     @map("resolved_at")
+  closedAt             DateTime?                     @map("closed_at")
+  version              Int                           @default(1)
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  updatedAt            DateTime                      @updatedAt @map("updated_at")
+
+  @@index([status, priorityRank, createdAt])
   @@index([requesterUserId, createdAt])
   @@map("platform_support_cases")
 }

@@ -241,7 +241,7 @@ export default function PaymentsPage() {
       />
       <Card className="overflow-hidden border-brand/20">
         <CardContent className="flex gap-3 p-5 text-sm leading-6 text-muted">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-strong dark:text-brand">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">
             <ShieldCheck className="size-5" aria-hidden />
           </span>
           <p>

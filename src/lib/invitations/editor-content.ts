@@ -145,6 +145,11 @@ export function invitationEditableField(
   return invitationEditableFields(section).find((field) => field.path === path);
 }
 
+export function firstInvitationEditableField(section: InvitationSection) {
+  const fields = invitationEditableFields(section);
+  return fields.find((field) => field.direct) ?? fields[0] ?? null;
+}
+
 export function invitationContentValue(
   content: InvitationContent,
   path: string,

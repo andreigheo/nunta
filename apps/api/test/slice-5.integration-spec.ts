@@ -35,7 +35,9 @@ describe.sequential("Slice 5 commercial journey integration", () => {
   let contractId = "";
 
   beforeAll(async () => {
-    await cleanDatabase();
+    if (process.env.WEDDINGOS_INTEGRATION_DATABASE_PREPARED !== "true") {
+      await cleanDatabase();
+    }
     const testingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

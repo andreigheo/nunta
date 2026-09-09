@@ -283,7 +283,7 @@ export default function TeamPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong dark:text-brand">
+            <span className="flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">
               <UsersRound className="size-5" aria-hidden />
             </span>
             <div>

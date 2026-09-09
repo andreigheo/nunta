@@ -328,7 +328,7 @@ export class DeterministicCopilotProvider implements CopilotProvider {
           riskLevel: "MEDIUM",
           title: `Setează bugetul la ${new Intl.NumberFormat("ro-RO").format(amountMinor / 100)} RON`,
           preview: {
-            name: currentBudget?.title || "Bugetul nunții",
+            name: currentBudget?.title || "Bugetul evenimentului",
             targetTotalMinor: amountMinor,
             contingencyPercent: currentContingency
               ? Number(currentContingency)

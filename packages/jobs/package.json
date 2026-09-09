@@ -22,8 +22,9 @@
   },
   "dependencies": {
     "@weddingos/contracts": "workspace:*",
-    "zod-to-json-schema": "^3.25.2",
-    "zod": "^3.25.76"
+    "twilio": "5.10.7",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@types/node": "^22.18.1",

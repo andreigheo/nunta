@@ -5,6 +5,7 @@ import {
   inferredRegistrationIntent,
   registrationIntentForEntry,
   safeInternalPath,
+  selectedWorkspacePlan,
 } from "./account-routing";
 import { requiredCapabilityForPath } from "./navigation";
 
@@ -58,6 +59,14 @@ describe("account routing", () => {
     expect(safeInternalPath("/%2F%2Fevil.example/path")).toBeNull();
   });
 
+  it("accepts only paid workspace plans from public URLs", () => {
+    expect(selectedWorkspacePlan("PLUS")).toBe("PLUS");
+    expect(selectedWorkspacePlan("PRO")).toBe("PRO");
+    expect(selectedWorkspacePlan("FREE")).toBeNull();
+    expect(selectedWorkspacePlan("plus")).toBeNull();
+    expect(selectedWorkspacePlan("https://evil.example")).toBeNull();
+  });
+
   it("sends a verified organizer without a workspace to onboarding", () => {
     expect(
       destinationAfterAuthentication({
@@ -90,6 +99,22 @@ describe("account routing", () => {
     expect(
       destinationAfterAuthentication({
         registrationIntent: "EVENT_ORGANIZER",
+        workspaceCount: 1,
+        hasVendorOrganizations: true,
+        hasPlatformAccess: false,
+      }),
+    ).toBe("/overview");
+    expect(
+      destinationAfterAuthentication({
+        registrationIntent: "SERVICE_PROVIDER",
+        workspaceCount: 1,
+        hasVendorOrganizations: true,
+        hasPlatformAccess: false,
+      }),
+    ).toBe("/vendor");
+    expect(
+      destinationAfterAuthentication({
+        registrationIntent: "INVITED_MEMBER",
         workspaceCount: 1,
         hasVendorOrganizations: true,
         hasPlatformAccess: false,

@@ -11,6 +11,7 @@ export * from "./operations";
 export * from "./intelligence";
 export * from "./copilot-platform";
 export * from "./generated/copilot-platform-map";
+export * from "./guest-messaging";
 
 export const DOMAIN_EVENT_QUEUE = "weddingos-domain-events" as const;
 export const DOMAIN_EVENT_JOB = "domain-event.consumer.v1" as const;
@@ -30,6 +31,7 @@ export const outboxConsumerNames = [
   "guest_export",
   "campaign_fanout",
   "campaign_delivery",
+  "guest_message_delivery",
   "campaign_summary",
   "invitation_open_projection",
   "rsvp_projection",
@@ -105,6 +107,7 @@ export const outboxConsumerNameSchema = z.enum(outboxConsumerNames);
 export type OutboxConsumerName = z.infer<typeof outboxConsumerNameSchema>;
 
 export const asyncEventNames = [
+  "guest.message_requested.v1",
   "user.registered.v1",
   "user.email_verification_requested.v1",
   "user.email_verified.v1",
@@ -423,8 +426,14 @@ export const asyncEventNames = [
   "digest.weekly_delivered.v1",
   "platform.user_suspended.v1",
   "platform.user_reactivated.v1",
+  "platform.user_provisioned.v1",
+  "platform.user_updated.v1",
+  "platform.user_platform_access_changed.v1",
+  "platform.user_membership_role_changed.v1",
+  "platform.user_membership_added.v1",
   "platform.workspace_suspended.v1",
   "platform.workspace_reactivated.v1",
+  "platform.workspace_subscription_overridden.v1",
   "platform.vendor_suspended.v1",
   "platform.vendor_reactivated.v1",
   "support.case_created.v1",
@@ -535,6 +544,7 @@ export const projectionHintSchema = z.object({
     })
     .optional(),
   campaignFanout: z.object({ campaignId: z.string().uuid() }).optional(),
+  guestMessage: z.object({ messageId: z.string().uuid() }).optional(),
   campaignDelivery: z
     .object({ campaignRecipientId: z.string().uuid() })
     .optional(),
@@ -804,6 +814,8 @@ export function selectOutboxConsumers(input: {
     consumers.add("campaign_fanout");
   if (!lifecycleOnly && input.payload.campaignDelivery)
     consumers.add("campaign_delivery");
+  if (!lifecycleOnly && input.payload.guestMessage)
+    consumers.add("guest_message_delivery");
   if (!lifecycleOnly && input.payload.campaignSummary)
     consumers.add("campaign_summary");
   if (!lifecycleOnly && input.payload.invitationOpen)

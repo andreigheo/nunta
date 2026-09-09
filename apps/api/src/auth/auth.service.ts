@@ -5,6 +5,7 @@ import type {
   EmailVerification,
   RegisterRequest,
 } from "@weddingos/contracts";
+import { TERMS_VERSION } from "@weddingos/contracts";
 import {
   Algorithm,
   hash as hashPassword,
@@ -479,6 +480,7 @@ export class AuthService {
   async resetPassword(
     token: string,
     password: string,
+    acceptedTermsVersion: string | undefined,
     request: WeddingOsRequest,
   ) {
     const record = await this.database.authOneTimeToken.findUnique({
@@ -486,6 +488,16 @@ export class AuthService {
       include: { user: { include: { profile: true } } },
     });
     assertUsableOneTimeToken(record, "PASSWORD_RESET");
+    const adminProvisioned =
+      metadataRecord(record.metadata).adminProvisioned === true;
+    if (adminProvisioned && acceptedTermsVersion !== TERMS_VERSION) {
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        "Terms acceptance required",
+        "Acceptă termenii și politica de confidențialitate pentru a activa contul.",
+      );
+    }
     const passwordHash = await hashPassword(password, PASSWORD_HASH_OPTIONS);
     const now = new Date();
     await this.database.$transaction(async (transaction) => {
@@ -510,6 +522,17 @@ export class AuthService {
         },
         data: { passwordHash, version: { increment: 1 } },
       });
+      if (adminProvisioned) {
+        await transaction.user.update({
+          where: { id: record.userId },
+          data: {
+            acceptedTermsVersion: TERMS_VERSION,
+            acceptedTermsAt: now,
+            emailVerifiedAt: record.user.emailVerifiedAt ?? now,
+            version: { increment: 1 },
+          },
+        });
+      }
       await transaction.session.updateMany({
         where: { userId: record.userId, revokedAt: null },
         data: { revokedAt: now, version: { increment: 1 } },

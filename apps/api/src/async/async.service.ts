@@ -80,6 +80,9 @@ export class AsyncService {
       ...(intent.payload?.campaignFanout
         ? { campaignFanout: intent.payload.campaignFanout }
         : {}),
+      ...(intent.payload?.guestMessage
+        ? { guestMessage: intent.payload.guestMessage }
+        : {}),
       ...(intent.payload?.campaignDelivery
         ? { campaignDelivery: intent.payload.campaignDelivery }
         : {}),

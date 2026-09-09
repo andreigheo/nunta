@@ -95,12 +95,12 @@ Aceste rezultate reduc riscul de produs, dar nu demonstrează producția public�
 
 ### Etapa 3 — furnizori reali și abonamentele Sarbato
 
-- configurăm Paddle production exclusiv pentru planurile workspace Gratuit, Plus (€7/lună) și Pro (€17/lună);
+- configurăm Paddle production exclusiv pentru planurile workspace Gratuit, Plus (€19/lună) și Pro (€39/lună);
 - configurăm email, object storage, semnătură electronică și AI conform funcțiilor păstrate în scope;
 - înlocuim adaptoarele generice cu integrări vendor-specific documentate;
 - implementăm credential management, webhook signing, idempotency, retry, reconciliation și audit;
 - validăm checkout-ul abonamentului, activarea, schimbarea planului, past-due, anularea la sfârșitul perioadei și portalul de facturi/card;
-- verificăm că Price ID-urile Paddle corespund exact sumelor €7 și €17, în EUR, cu recurență lunară;
+- verificăm că Price ID-urile Paddle corespund exact sumelor €19 și €39, în EUR, cu recurență lunară;
 - dezactivăm și scoatem din navigația live orice comandă de procesare/payout cuplu–furnizor; modelele istorice rămân izolate pentru o decizie viitoare;
 - validăm creare, trimitere, semnare, refuz, expirare și evidence package pentru semnătură;
 - validăm email delivery, bounce, complaint, unsubscribe și domeniul de expediere;

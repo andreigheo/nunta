@@ -37,6 +37,8 @@ import {
 import {
   assuranceItems,
   primaryCta,
+  previewCopy,
+  productSections,
   productFirstControlRoom as copy,
   secondaryCta,
   serviceMarquee,
@@ -153,7 +155,7 @@ export function ProductFirstControlRoom({
           title={copy.chapters.planning.title}
           lead={copy.chapters.planning.lead}
           link={copy.chapters.planning.link}
-          href="/create-account"
+          href={productSections.planning}
           icon={chapterIcons.planning}
           tone="plum"
         >
@@ -165,7 +167,7 @@ export function ProductFirstControlRoom({
           title={copy.chapters.guests.title}
           lead={copy.chapters.guests.lead}
           link={copy.chapters.guests.link}
-          href="/create-account"
+          href={productSections.guests}
           icon={chapterIcons.guests}
           tone="sage"
         >
@@ -177,7 +179,7 @@ export function ProductFirstControlRoom({
           title={copy.chapters.commerce.title}
           lead={copy.chapters.commerce.lead}
           link={copy.chapters.commerce.link}
-          href="/create-account"
+          href={productSections.commerce}
           icon={chapterIcons.commerce}
           tone="sun"
           layout="reverse"
@@ -190,7 +192,7 @@ export function ProductFirstControlRoom({
           title={copy.chapters.operations.title}
           lead={copy.chapters.operations.lead}
           link={copy.chapters.operations.link}
-          href="/create-account"
+          href={productSections.operations}
           icon={chapterIcons.operations}
           tone="sage"
           layout="reverse"
@@ -206,26 +208,6 @@ export function ProductFirstControlRoom({
       <section id="despre" className={styles.finalCta} aria-labelledby="control-room-close">
         <h2 id="control-room-close">{copy.close.title}</h2>
         <div className={styles.finalActions}>
-          <span className={styles.finalThread} aria-hidden>
-            <svg
-              aria-hidden
-              focusable="false"
-              preserveAspectRatio="none"
-              viewBox="0 0 100 100"
-            >
-              <defs>
-                <linearGradient id="final-thread-stroke" x1="0" x2="1" y1="0" y2="0">
-                  <stop offset="0" stopColor="var(--final-border)" />
-                  <stop offset="0.22" stopColor="var(--plum)" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M 0 100 H 44 C 61 100 68 88 68 62 C 68 22 77 0 94 0 H 100"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-            <i />
-          </span>
           <Link className={styles.primaryButton} href={primaryCta.href}>
             {primaryCta.label}
           </Link>
@@ -371,21 +353,19 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
         <span className={styles.controlMark} aria-hidden>
           S
         </span>
-        <button className={styles.eventSelector} type="button" aria-label="Selectează spațiul evenimentului">
+        <span className={styles.eventSelector}>
           Eveniment demonstrativ
-          <ChevronDown aria-hidden />
-        </button>
+        </span>
         <span
           data-testid="showcase-label"
           className={styles.previewLabel}
         >
           {publishable ? "Date agregate · actualizare verificată" : copy.previewLabel}
         </span>
-        <label className={styles.searchField}>
-          <span className="sr-only">Caută în eveniment</span>
+        <div className={styles.searchField} aria-hidden="true">
           <Search aria-hidden />
-          <input type="search" placeholder="Caută în eveniment" />
-        </label>
+          <span>Caută în eveniment</span>
+        </div>
       </div>
 
       <div className={styles.controlBody}>
@@ -427,12 +407,12 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
               <h3>{copy.recommendedAction.title}</h3>
               <span>{copy.recommendedAction.detail}</span>
             </div>
-            <Link href="/create-account">{copy.recommendedAction.action}</Link>
+            <Link href={productSections.guests}>{previewCopy.invitationsAction}</Link>
           </div>
 
           <div className={styles.mobileNextStep} aria-label="Următorul pas recomandat">
-            <p>Următorul pas</p>
-            <Link href="/create-account">
+            <p>{previewCopy.label}</p>
+            <Link href={productSections.guests} aria-label={previewCopy.invitationsAction}>
               <span className={styles.mobileNextIcon} aria-hidden>
                 <Mail />
               </span>
@@ -447,6 +427,8 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
 
           <div
             className={styles.metricGrid}
+            role="list"
+            aria-label="Indicatori agregați"
             data-metric-source={publishable ? "aggregate" : "demo"}
             {...(publishable ? { "data-testid": "public-proof-metrics" } : {})}
           >
@@ -465,6 +447,7 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
                   key={card.key}
                   className={styles.metricCard}
                   data-metric-key={card.key}
+                  role="listitem"
                 >
                   <div className={styles.metricHeader}>
                     <span className={toneClass[card.iconTone]} aria-hidden>
@@ -608,7 +591,7 @@ function PlanningSurface() {
           </tbody>
         </table>
       </div>
-      <button className={styles.addAction} type="button">
+      <button className={styles.addAction} type="button" disabled>
         + Activitate nouă
       </button>
     </ProductPanel>
@@ -669,8 +652,8 @@ function GuestsSurface() {
           </table>
         </div>
         <div className={styles.panelFooter}>
-          <button type="button">+ Adaugă invitat</button>
-          <button type="button">
+          <button type="button" disabled>+ Adaugă invitat</button>
+          <button type="button" disabled>
             <Upload aria-hidden />
             Exportă lista
           </button>
@@ -687,6 +670,7 @@ function CommerceSurface() {
       className={`${styles.productPanel} ${styles.commercePanel}`}
       data-demo-content="commerce-preview"
     >
+      <p className={styles.demoCaption} title={previewCopy.description}>{previewCopy.label}</p>
       <div className={styles.commerceGrid}>
         <section aria-labelledby="vendors-preview-title" className={styles.vendorPane}>
           <div className={styles.subpanelHeading}>
@@ -764,8 +748,7 @@ function CommerceSurface() {
           <div
             className={styles.vendorCards}
             role="list"
-            aria-label="Comparație furnizori, listă glisabilă pe mobil"
-            tabIndex={0}
+            aria-label="Comparație furnizori"
           >
             {chapter.vendors.map((vendor) => (
               <article
@@ -817,7 +800,7 @@ function CommerceSurface() {
               </article>
             ))}
           </div>
-          <button className={styles.centerAction} type="button">Vezi detalii și contacte</button>
+          <button className={styles.centerAction} type="button" disabled>Vezi detalii și contacte</button>
         </section>
         <section aria-labelledby="budget-preview-title" className={styles.budgetPane}>
           <div className={styles.subpanelHeading}>
@@ -964,7 +947,7 @@ function OperationsSurface() {
         <span>Alerte și actualizări</span>
         <time>11:42</time>
         <p>Livrarea echipamentelor a fost confirmată.</p>
-        <button type="button">Vezi toate</button>
+        <button type="button" disabled>Vezi toate</button>
       </div>
     </ProductPanel>
   );
@@ -1005,17 +988,16 @@ function ProductPanel({
 }) {
   return (
     <div className={`${styles.productPanel} ${className ?? ""}`}>
+      <p className={styles.demoCaption} title={previewCopy.description}>{previewCopy.label}</p>
       <div className={styles.panelHeading}>
         <h3>{title}</h3>
-        <span className={styles.mobilePanelAction} aria-hidden>
-          <ArrowRight />
-        </span>
         {actions.length ? (
           <div className={styles.panelActions}>
             {actions.map((action) => (
               <button
                 key={action}
                 type="button"
+                disabled
                 className={action === primaryAction ? styles.panelPrimary : undefined}
               >
                 {actionIcons?.[action]

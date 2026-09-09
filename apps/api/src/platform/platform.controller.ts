@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -20,11 +21,19 @@ import {
   createRestoreSchema,
   createSupportCaseSchema,
   dataSubjectTransitionSchema,
+  platformLabelAssignmentSchema,
+  platformLabelSchema,
+  platformCreateUserSchema,
+  platformCreateMembershipSchema,
+  platformMembershipRoleSchema,
   platformReasonSchema,
+  platformUpdateUserSchema,
+  platformUserGrantSchema,
   releaseLegalHoldSchema,
   supportCaseTransitionSchema,
   supportNoteSchema,
   updateFeatureFlagSchema,
+  workspaceSubscriptionOverrideSchema,
 } from "@weddingos/contracts";
 import { CurrentAuth } from "../auth/current-auth.decorator";
 import { SessionAuthGuard } from "../auth/session-auth.guard";
@@ -74,6 +83,17 @@ const backupScheduleSchema = z.object({
   version: z.number().int().positive(),
 });
 
+const platformListQuerySchema = z.object({
+  query: z.string().trim().max(160).optional(),
+  status: z.string().trim().max(40).optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  pageSize: z.coerce.number().int().min(10).max(100).default(25),
+});
+
+const platformRangeQuerySchema = z.object({
+  range: z.enum(["7d", "30d", "90d"]).default("30d"),
+});
+
 @ApiTags("platform-admin")
 @ApiCookieAuth()
 @UseGuards(SessionAuthGuard)
@@ -89,6 +109,114 @@ export class PlatformController {
     @Req() request: WeddingOsRequest,
   ) {
     return apiResponse(request, await this.service.dashboard(auth.userId));
+  }
+
+  @Get("overview")
+  async overview(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(platformRangeQuerySchema, query);
+    return apiResponse(
+      request,
+      await this.service.overview(auth.userId, input.range),
+    );
+  }
+
+  @Get("traffic")
+  async traffic(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(platformRangeQuerySchema, query);
+    return apiResponse(
+      request,
+      await this.service.traffic(auth.userId, input.range),
+    );
+  }
+
+  @Get("commerce")
+  async commerce(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(platformRangeQuerySchema, query);
+    return apiResponse(
+      request,
+      await this.service.commerce(auth.userId, input.range),
+    );
+  }
+
+  @Get("audit-actions")
+  async auditActions(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.auditActions(
+        auth.userId,
+        parseWithSchema(platformListQuerySchema, query),
+      ),
+    );
+  }
+
+  @Get("access")
+  async access(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(request, await this.service.access(auth.userId));
+  }
+
+  @Get("labels")
+  async labels(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(request, await this.service.labels(auth.userId));
+  }
+
+  @Post("labels")
+  async createLabel(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.createLabel(
+        auth.userId,
+        parseWithSchema(platformLabelSchema, body),
+        idempotencyKey(key),
+        request.correlationId,
+      ),
+    );
+  }
+
+  @Post("labels/:labelId/assignments")
+  async assignLabel(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("labelId") labelId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.assignLabel(
+        auth.userId,
+        parseUuid(labelId, "labelId"),
+        parseWithSchema(platformLabelAssignmentSchema, body),
+        idempotencyKey(key),
+        request.correlationId,
+      ),
+    );
   }
 
   @Get("system-status")
@@ -177,9 +305,36 @@ export class PlatformController {
   @Get("users")
   async users(
     @CurrentAuth() auth: AuthenticatedSession,
+    @Query() query: unknown,
     @Req() request: WeddingOsRequest,
   ) {
-    return apiResponse(request, await this.service.users(auth.userId));
+    return apiResponse(
+      request,
+      await this.service.users(
+        auth.userId,
+        parseWithSchema(platformListQuerySchema, query),
+      ),
+    );
+  }
+
+  @Post("users")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_PROVISION")
+  async createUser(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.createUser(
+        auth.userId,
+        parseWithSchema(platformCreateUserSchema, body),
+        idempotencyKey(key),
+        request.correlationId,
+      ),
+    );
   }
 
   @Get("users/:userId")
@@ -192,6 +347,115 @@ export class PlatformController {
       request,
       await this.service.user(auth.userId, parseUuid(targetUserId, "userId")),
     );
+  }
+
+  @Get("users/:userId/usage")
+  async userUsage(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(platformRangeQuerySchema, query);
+    return apiResponse(
+      request,
+      await this.service.userUsage(
+        auth.userId,
+        parseUuid(targetUserId, "userId"),
+        input.range,
+      ),
+    );
+  }
+
+  @Patch("users/:userId")
+  async updateUser(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const parsed = parseWithSchema(platformUpdateUserSchema, body);
+    const input = {
+      ...parsed,
+      version: resourceVersion(ifMatch, parsed.version),
+    };
+    const data = await this.service.updateUser(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      input,
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+
+  @Post("users/:userId/platform-grants")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_ACCESS_CHANGE")
+  async setUserPlatformGrant(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.setUserPlatformGrant(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      parseWithSchema(platformUserGrantSchema, body),
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+
+  @Post("users/:userId/memberships/:membershipId/role")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_ACCESS_CHANGE")
+  async setUserMembershipRole(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Param("membershipId") membershipId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const parsed = parseWithSchema(platformMembershipRoleSchema, body);
+    const data = await this.service.setUserMembershipRole(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      parseUuid(membershipId, "membershipId"),
+      {
+        ...parsed,
+        version: resourceVersion(ifMatch, parsed.version),
+      },
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+
+  @Post("users/:userId/memberships")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("USER_ACCESS_CHANGE")
+  async createUserMembership(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("userId") targetUserId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.createUserMembership(
+      auth.userId,
+      parseUuid(targetUserId, "userId"),
+      parseWithSchema(platformCreateMembershipSchema, body),
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
   }
 
   @Post("users/:userId/suspend")
@@ -243,9 +507,40 @@ export class PlatformController {
   @Get("workspaces")
   async workspaces(
     @CurrentAuth() auth: AuthenticatedSession,
+    @Query() query: unknown,
     @Req() request: WeddingOsRequest,
   ) {
-    return apiResponse(request, await this.service.workspaces(auth.userId));
+    return apiResponse(
+      request,
+      await this.service.workspaces(
+        auth.userId,
+        parseWithSchema(platformListQuerySchema, query),
+      ),
+    );
+  }
+
+  @Post("workspaces/:workspaceId/subscription-plan")
+  @UseGuards(AdminStepUpGuard)
+  @RequireAdminStepUp("SUBSCRIPTION_OVERRIDE")
+  async setWorkspaceSubscriptionPlan(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const input = parseWithSchema(workspaceSubscriptionOverrideSchema, body);
+    const data = await this.service.setWorkspaceSubscriptionPlan(
+      auth.userId,
+      parseUuid(workspaceId),
+      input.planKey,
+      resourceVersion(ifMatch, input.version),
+      input.reason,
+      idempotencyKey(key),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
   }
 
   @Get("workspaces/:workspaceId")

@@ -1,11 +1,6 @@
 import "dotenv/config";
 import "./telemetry";
-import {
-  createDecipheriv,
-  createHash,
-  createHmac,
-  randomUUID,
-} from "node:crypto";
+import { createDecipheriv, createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { createConnection } from "node:net";
 import {
@@ -27,12 +22,17 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { parseApiEnvironment } from "@weddingos/config";
+import {
+  eventMediaStorageConfiguration,
+  parseApiEnvironment,
+} from "@weddingos/config";
 import {
   detectMediaType,
   parseCopilotActionPayload,
 } from "@weddingos/contracts";
 import { Prisma, PrismaClient } from "@weddingos/database";
+import { campaignGuestAccessToken } from "./guest-access-token";
+import { deliverGuestMessage } from "./guest-messaging";
 import {
   asyncEventNameSchema,
   automationRecursionAllowed,
@@ -141,6 +141,19 @@ const storage = new S3Client({
     secretAccessKey: environment.OBJECT_STORAGE_SECRET_KEY,
   },
 });
+const eventStorageConfig = eventMediaStorageConfiguration(environment);
+const eventMediaStorage = new S3Client({
+  region: eventStorageConfig.region,
+  endpoint: eventStorageConfig.endpoint,
+  forcePathStyle: eventStorageConfig.forcePathStyle,
+  credentials: {
+    accessKeyId: eventStorageConfig.accessKey,
+    secretAccessKey: eventStorageConfig.secretKey,
+  },
+});
+function storageFor(provider?: string) {
+  return provider === "bunny-s3" ? eventMediaStorage : storage;
+}
 const connection = redisConnection(environment.REDIS_URL);
 const queue = new Queue<DomainEventJob>(DOMAIN_EVENT_QUEUE, {
   connection,
@@ -495,6 +508,19 @@ async function processPersistedConsumer(
       slice3Result = await processCampaignDelivery(
         snapshot,
         payload.campaignDelivery.campaignRecipientId,
+      );
+    }
+    if (consumerName === "guest_message_delivery") {
+      if (!payload.guestMessage || !snapshot.workspace_id)
+        throw new PermanentJobError(
+          "Guest message contract missing",
+          "GUEST_MESSAGE_CONTRACT_MISSING",
+        );
+      await deliverGuestMessage(
+        (fn) => withPersistedContext(snapshot, fn),
+        environment,
+        snapshot.workspace_id,
+        payload.guestMessage.messageId,
       );
     }
     if (consumerName === "campaign_summary") {
@@ -1169,7 +1195,10 @@ async function processGuestMomentScan(
   const bytes = await storedObjectBytes(
     prepared.object.objectKey,
     Number(prepared.upload.maximumSizeBytes),
+    prepared.object.storageProvider,
+    prepared.object.bucket,
   );
+  const mediaStorage = storageFor(prepared.object.storageProvider);
   const checksum = createHash("sha256").update(bytes).digest("hex");
   const detected = detectMediaType(
     bytes.subarray(0, Math.min(bytes.byteLength, 8192)),
@@ -1184,7 +1213,7 @@ async function processGuestMomentScan(
   const scan = metadataValid
     ? await clamAvScan(bytes)
     : { clean: false, signature: "metadata-mismatch" };
-  const safe = metadataValid && scan.clean;
+  let safe = metadataValid && scan.clean;
 
   let derivative:
     | {
@@ -1205,66 +1234,22 @@ async function processGuestMomentScan(
         withoutEnlargement: true,
       })
       .webp({ quality: 84, effort: 4 })
-      .toBuffer({ resolveWithObject: true });
-    if (!rendered.info.width || !rendered.info.height)
-      throw new PermanentJobError(
-        "Guest Moment derivative dimensions are invalid",
-        "GUEST_MOMENT_DERIVATIVE_INVALID",
-      );
-    derivative = {
-      key: `private/guest-moment-derivatives/${snapshot.workspace_id}/${input.momentId}.webp`,
-      bytes: rendered.data,
-      width: rendered.info.width,
-      height: rendered.info.height,
-      checksum: createHash("sha256").update(rendered.data).digest("hex"),
-    };
-    await storage.send(
-      new PutObjectCommand({
-        Bucket: environment.OBJECT_STORAGE_BUCKET,
-        Key: derivative.key,
-        Body: derivative.bytes,
-        ContentType: "image/webp",
-        Metadata: {
-          "source-object-id": input.storedObjectId,
-          sha256: derivative.checksum,
-        },
-      }),
-    );
-  } else if (safe && prepared.media.mediaType === "VIDEO") {
-    const temporaryDirectory = await mkdtemp(
-      join(tmpdir(), "weddingos-video-"),
-    );
-    try {
-      const inputPath = join(temporaryDirectory, "source-video");
-      const posterPath = join(temporaryDirectory, "poster.webp");
-      await writeFile(inputPath, bytes);
-      await execFileAsync("ffmpeg", [
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        inputPath,
-        "-frames:v",
-        "1",
-        "-vf",
-        "scale=1920:1920:force_original_aspect_ratio=decrease",
-        posterPath,
-      ]);
-      const posterBytes = await readFile(posterPath);
-      const metadata = await sharp(posterBytes).metadata();
-      if (!metadata.width || !metadata.height)
-        throw new Error("Video poster has invalid dimensions");
+      .toBuffer({ resolveWithObject: true })
+      .catch(() => null);
+    if (!rendered?.info.width || !rendered.info.height) {
+      safe = false;
+      scan.signature = "media-decode-failed";
+    } else {
       derivative = {
         key: `private/guest-moment-derivatives/${snapshot.workspace_id}/${input.momentId}.webp`,
-        bytes: posterBytes,
-        width: metadata.width,
-        height: metadata.height,
-        checksum: createHash("sha256").update(posterBytes).digest("hex"),
+        bytes: rendered.data,
+        width: rendered.info.width,
+        height: rendered.info.height,
+        checksum: createHash("sha256").update(rendered.data).digest("hex"),
       };
-      await storage.send(
+      await mediaStorage.send(
         new PutObjectCommand({
-          Bucket: environment.OBJECT_STORAGE_BUCKET,
+          Bucket: prepared.object.bucket,
           Key: derivative.key,
           Body: derivative.bytes,
           ContentType: "image/webp",
@@ -1274,12 +1259,95 @@ async function processGuestMomentScan(
           },
         }),
       );
+    }
+  } else if (safe && prepared.media.mediaType === "VIDEO") {
+    const temporaryDirectory = await mkdtemp(
+      join(tmpdir(), "weddingos-video-"),
+    );
+    try {
+      const inputPath = join(temporaryDirectory, "source-video");
+      const posterPath = join(temporaryDirectory, "poster.webp");
+      await writeFile(inputPath, bytes);
+      const decoded = await execFileAsync(
+        "ffmpeg",
+        [
+          "-nostdin",
+          "-protocol_whitelist",
+          "file,pipe",
+          "-threads",
+          "1",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-i",
+          inputPath,
+          "-frames:v",
+          "1",
+          "-vf",
+          "scale=1920:1920:force_original_aspect_ratio=decrease",
+          posterPath,
+        ],
+        { timeout: 30_000, maxBuffer: 2 * 1024 * 1024, killSignal: "SIGKILL" },
+      ).then(
+        () => true,
+        () => false,
+      );
+      if (!decoded) {
+        safe = false;
+        scan.signature = "media-decode-failed";
+      } else {
+        const posterBytes = await readFile(posterPath);
+        const metadata = await sharp(posterBytes).metadata();
+        if (!metadata.width || !metadata.height)
+          throw new Error("Video poster has invalid dimensions");
+        derivative = {
+          key: `private/guest-moment-derivatives/${snapshot.workspace_id}/${input.momentId}.webp`,
+          bytes: posterBytes,
+          width: metadata.width,
+          height: metadata.height,
+          checksum: createHash("sha256").update(posterBytes).digest("hex"),
+        };
+        await mediaStorage.send(
+          new PutObjectCommand({
+            Bucket: prepared.object.bucket,
+            Key: derivative.key,
+            Body: derivative.bytes,
+            ContentType: "image/webp",
+            Metadata: {
+              "source-object-id": input.storedObjectId,
+              sha256: derivative.checksum,
+            },
+          }),
+        );
+      }
     } finally {
       await rm(temporaryDirectory, { recursive: true, force: true });
     }
   }
 
-  return withPersistedContext(snapshot, async (transaction) => {
+  // Never serve the staging key: its signed PUT may remain valid after scanning.
+  // Persist the exact scanned bytes at a worker-only key before making it readable.
+  let verifiedKey: string | null = null;
+  if (safe) {
+    if (!detected)
+      throw new PermanentJobError(
+        "Guest Moment passed validation without a detected media type",
+        "GUEST_MOMENT_MEDIA_TYPE_MISSING",
+      );
+    const verifiedExtension = mediaExtension(detected);
+    verifiedKey = `private/guest-moment-originals/${snapshot.workspace_id}/${input.momentId}.${verifiedExtension}`;
+    await mediaStorage.send(
+      new PutObjectCommand({
+        Bucket: prepared.object.bucket,
+        Key: verifiedKey,
+        Body: bytes,
+        ContentType: detected,
+        Metadata: { sha256: checksum },
+      }),
+    );
+  }
+  const result = await withPersistedContext(snapshot, async (transaction) => {
     const now = new Date();
     let derivativeObjectId: string | null = null;
     if (derivative) {
@@ -1291,8 +1359,8 @@ async function processGuestMomentScan(
         (await transaction.storedObject.create({
           data: {
             workspaceId: snapshot.workspace_id,
-            storageProvider: environment.OBJECT_STORAGE_PROVIDER,
-            bucket: environment.OBJECT_STORAGE_BUCKET,
+            storageProvider: prepared.object.storageProvider,
+            bucket: prepared.object.bucket,
             objectKey: derivative.key,
             originalFileName: `${prepared.object.originalFileName.replace(/\.[^.]+$/, "")}.webp`,
             contentTypeClaimed: "image/webp",
@@ -1311,6 +1379,7 @@ async function processGuestMomentScan(
       where: { id: input.storedObjectId },
       data: {
         contentTypeDetected: detected,
+        ...(verifiedKey ? { objectKey: verifiedKey } : {}),
         checksumSha256: checksum,
         status: safe ? "AVAILABLE" : "QUARANTINED",
         scanStatus: safe ? "CLEAN" : "INFECTED",
@@ -1355,6 +1424,41 @@ async function processGuestMomentScan(
       derivativeAvailable: Boolean(derivativeObjectId),
     };
   });
+  if (verifiedKey && prepared.object.objectKey !== verifiedKey) {
+    // Best effort: serving the verified copy remains safe if staging cleanup fails.
+    await mediaStorage
+      .send(
+        new DeleteObjectCommand({
+          Bucket: prepared.object.bucket,
+          Key: prepared.object.objectKey,
+        }),
+      )
+      .catch(() =>
+        logger.warn({
+          event: "guest_moment.staging_cleanup_pending",
+          momentId: input.momentId,
+        }),
+      );
+  }
+  return result;
+}
+
+function mediaExtension(contentType: string) {
+  const extensions: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",
+  };
+  const extension = extensions[contentType];
+  if (!extension)
+    throw new PermanentJobError(
+      "Guest Moment media type has no safe file extension",
+      "GUEST_MOMENT_MEDIA_TYPE_UNSUPPORTED",
+    );
+  return extension;
 }
 
 async function verifyWeddingDayProjection(
@@ -1446,10 +1550,12 @@ async function verifyWeddingDayProjection(
 async function storedObjectBytes(
   objectKey: string,
   maximumBytes: number,
+  storageProvider?: string,
+  bucket = environment.OBJECT_STORAGE_BUCKET,
 ): Promise<Buffer> {
-  const result = await storage.send(
+  const result = await storageFor(storageProvider).send(
     new GetObjectCommand({
-      Bucket: environment.OBJECT_STORAGE_BUCKET,
+      Bucket: bucket,
       Key: objectKey,
     }),
   );
@@ -3500,9 +3606,10 @@ async function processCampaignDelivery(
         "Campaign target has no household",
         "CAMPAIGN_HOUSEHOLD_MISSING",
       );
-    const token = createHmac("sha256", environment.OUTBOX_ENCRYPTION_KEY)
-      .update(`guest-access:v2:${invitationRecipient.id}:EMAIL`)
-      .digest("base64url");
+    const token = campaignGuestAccessToken(
+      environment.GUEST_ACCESS_TOKEN_SECRET,
+      recipient.id,
+    );
     const tokenHash = createHash("sha256").update(token).digest("hex");
     await transaction.guestAccessGrant.updateMany({
       where: {
@@ -3534,10 +3641,13 @@ async function processCampaignDelivery(
         "Deterministic campaign grant collision",
         "CAMPAIGN_GRANT_COLLISION",
       );
+    } else if (existingGrant.revokedAt || existingGrant.expiresAt) {
+      throw new PermanentJobError(
+        "Campaign guest grant was revoked or expired",
+        "CAMPAIGN_GRANT_REVOKED",
+      );
     } else if (
-      existingGrant.revokedAt ||
       existingGrant.channel !== "EMAIL" ||
-      existingGrant.expiresAt ||
       existingGrant.householdId !== householdId
     ) {
       await transaction.guestAccessGrant.update({
@@ -3545,8 +3655,6 @@ async function processCampaignDelivery(
         data: {
           channel: "EMAIL",
           householdId,
-          revokedAt: null,
-          expiresAt: null,
           version: { increment: 1 },
         },
       });
@@ -3658,6 +3766,11 @@ async function processCampaignDelivery(
           where: { id: currentCampaignRecipient.id },
           data: { status: "CANCELLED", version: { increment: 1 } },
         });
+        await releaseCampaignEmailReservation(
+          transaction,
+          snapshot.workspace_id!,
+          currentCampaignRecipient.id,
+        );
         await finalizeCampaignIfSettled(
           transaction,
           snapshot,
@@ -3708,6 +3821,11 @@ async function processCampaignDelivery(
           publishedVersion.document,
           publishedVersion.settings,
         ),
+      );
+      await consumeCampaignEmailReservation(
+        transaction,
+        snapshot.workspace_id!,
+        currentCampaignRecipient.id,
       );
       await transaction.deliveryAttempt.upsert({
         where: {
@@ -3788,6 +3906,76 @@ async function processCampaignDelivery(
     },
     { timeout: 60_000, maxWait: 10_000 },
   );
+}
+
+async function consumeCampaignEmailReservation(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  campaignRecipientId: string,
+) {
+  await transaction.$executeRaw`SELECT pg_advisory_xact_lock(
+    hashtextextended(${`sarbato-email-quota:${workspaceId}`}, 0)
+  )`;
+  const reservation = await transaction.workspaceUsageReservation.findUnique({
+    where: {
+      workspaceId_metric_sourceType_sourceId: {
+        workspaceId,
+        metric: "EMAIL_DELIVERIES_MONTHLY",
+        sourceType: "campaign_recipient",
+        sourceId: campaignRecipientId,
+      },
+    },
+  });
+  if (!reservation || reservation.status === "CONSUMED") return;
+  if (reservation.status !== "RESERVED")
+    throw new PermanentJobError(
+      "Campaign delivery does not have a quota reservation",
+      "CAMPAIGN_QUOTA_RESERVATION_MISSING",
+    );
+  await transaction.workspaceUsageReservation.update({
+    where: { id: reservation.id },
+    data: { status: "CONSUMED", consumedAt: new Date() },
+  });
+  await transaction.workspaceUsagePeriod.update({
+    where: { id: reservation.periodId },
+    data: {
+      reserved: { decrement: reservation.amount },
+      consumed: { increment: reservation.amount },
+      version: { increment: 1 },
+    },
+  });
+}
+
+async function releaseCampaignEmailReservation(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  campaignRecipientId: string,
+) {
+  await transaction.$executeRaw`SELECT pg_advisory_xact_lock(
+    hashtextextended(${`sarbato-email-quota:${workspaceId}`}, 0)
+  )`;
+  const reservation = await transaction.workspaceUsageReservation.findUnique({
+    where: {
+      workspaceId_metric_sourceType_sourceId: {
+        workspaceId,
+        metric: "EMAIL_DELIVERIES_MONTHLY",
+        sourceType: "campaign_recipient",
+        sourceId: campaignRecipientId,
+      },
+    },
+  });
+  if (!reservation || reservation.status !== "RESERVED") return;
+  await transaction.workspaceUsageReservation.update({
+    where: { id: reservation.id },
+    data: { status: "RELEASED", releasedAt: new Date() },
+  });
+  await transaction.workspaceUsagePeriod.update({
+    where: { id: reservation.periodId },
+    data: {
+      reserved: { decrement: reservation.amount },
+      version: { increment: 1 },
+    },
+  });
 }
 
 function normalizeCampaignAddress(value: string): string {
@@ -8469,12 +8657,18 @@ async function failConsumer(
             version: { increment: 1 },
           },
         });
-        if (failedRecipient.count)
+        if (failedRecipient.count) {
+          await releaseCampaignEmailReservation(
+            transaction,
+            snapshot.workspace_id!,
+            recipient.id,
+          );
           await finalizeCampaignIfSettled(
             transaction,
             snapshot,
             recipient.campaignId,
           );
+        }
       }
     }
     if (terminal && snapshot.consumer_name === "rfq_delivery") {
@@ -8612,7 +8806,7 @@ async function sendEmail(
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: command.recipient,
-    messageId: `<${executionId}@weddingos.local>`,
+    messageId: `<${executionId}@sarbato.space>`,
     subject: content.subject,
     text: content.text,
     html: content.html,
@@ -8651,7 +8845,7 @@ async function sendCampaignEmail(
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: recipient,
-    messageId: `<campaign-${executionId}@weddingos.local>`,
+    messageId: `<campaign-${executionId}@sarbato.space>`,
     // Resend SMTP honors this provider-side idempotency key for 24 hours, so
     // a crash after provider acceptance can safely retry without a duplicate.
     headers: { "Resend-Idempotency-Key": `campaign/${executionId}` },
@@ -8689,7 +8883,7 @@ async function sendTaskReminderEmail(
   const result = await transporter.sendMail({
     from: environment.EMAIL_FROM,
     to: recipient,
-    messageId: `<task-reminder-${executionId}@weddingos.local>`,
+    messageId: `<task-reminder-${executionId}@sarbato.space>`,
     subject: `Reminder: ${taskTitle}`,
     text,
     html: `<p>${escapeHtml(text)}</p>`,
@@ -8740,7 +8934,14 @@ function renderEmail(command: EmailCommand): {
     );
   }
   if (command.kind === "password-reset") {
-    const url = `${environment.WEB_URL}/reset-password?token=${encodeURIComponent(v.token ?? "")}`;
+    const provisioned = v.provisioned === "1" ? "&provisioned=1" : "";
+    const url = `${environment.WEB_URL}/reset-password?token=${encodeURIComponent(v.token ?? "")}${provisioned}`;
+    if (v.provisioned === "1") {
+      return emailContent(
+        "Activează contul Sarbato",
+        `Salut, ${firstName}. Un administrator ți-a creat un cont Sarbato. Alege parola și acceptă termenii folosind linkul: ${url}`,
+      );
+    }
     return emailContent(
       "Resetează parola Sarbato",
       `Salut, ${firstName}. Resetează parola folosind linkul: ${url}`,

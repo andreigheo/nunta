@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   BriefcaseBusiness,
   CalendarHeart,
@@ -13,20 +14,33 @@ import {
 import { WorkspaceProvider, useWorkspace } from "@/lib/api/workspace-context";
 import { PortalShell } from "@/components/portals/portal-shell";
 import { Button, Card, CardContent, ErrorState, Field, Input } from "@/components/ui";
+import { selectedWorkspacePlan } from "@/lib/account-routing";
 
 export default function AccountStartPage() {
   return (
     <WorkspaceProvider allowNoWorkspace>
-      <AccountStartContent />
+      <React.Suspense fallback={<div className="min-h-dvh animate-pulse bg-canvas" />}>
+        <AccountStartContent />
+      </React.Suspense>
     </WorkspaceProvider>
   );
 }
 
 function AccountStartContent() {
+  const searchParams = useSearchParams();
   const { user, workspaces, loading, loadError, logout, refresh } =
     useWorkspace();
   const [invitationLink, setInvitationLink] = React.useState("");
   const [error, setError] = React.useState("");
+  const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
+
+  React.useEffect(() => {
+    if (loading || loadError || !requestedPlan) return;
+    const destination = workspaces.length
+      ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start`
+      : `/onboarding?plan=${requestedPlan}`;
+    window.location.replace(destination);
+  }, [loadError, loading, requestedPlan, workspaces.length]);
 
   const openInvitation = () => {
     setError("");
@@ -46,7 +60,7 @@ function AccountStartContent() {
     }
   };
 
-  if (loading) {
+  if (loading || requestedPlan) {
     return <div className="min-h-dvh animate-pulse bg-canvas" />;
   }
   if (loadError) {

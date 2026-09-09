@@ -32,6 +32,11 @@ let consent!: Resource;
 let dsar!: Resource;
 let hold!: Resource;
 let backup!: Resource;
+let managedWorkspaceId = "";
+let managedVendorId = "";
+let provisionedUserId = "";
+let provisionedEmail = "";
+let provisionedVersion = 1;
 
 test.describe.configure({ mode: "serial" });
 
@@ -61,6 +66,31 @@ test.beforeAll(async () => {
       reason: "Slice 10 E2E controlled administrator.",
     },
   });
+  const managedWorkspace = await apiData<Resource>(
+    await regular.api.post("/api/v1/workspaces", {
+      headers: mutationHeaders({
+        "Idempotency-Key": `workspace-${randomUUID()}`,
+      }),
+      data: {
+        title: "E2E Admin Plan Workspace",
+        partnerOneName: "",
+        partnerTwoName: "",
+      },
+    }),
+  );
+  managedWorkspaceId = managedWorkspace.id;
+  const managedVendor = await ownerDatabase.vendorOrganization.create({
+    data: {
+      legalName: "E2E Furnizor SRL",
+      displayName: "E2E Furnizor",
+      country: "RO",
+      contactEmail: "vendor-admin-e2e@example.test",
+      status: "ACTIVE",
+      createdById: regular.userId,
+      updatedById: regular.userId,
+    },
+  });
+  managedVendorId = managedVendor.id;
 });
 
 test.afterAll(async () => {
@@ -88,8 +118,65 @@ test("S10 E2E 02 — platform admin dashboard uses persisted counts", async () =
 test("S10 E2E 03 — admin UI loads live control center", async ({ page }) => {
   await authorizePage(page, admin);
   await page.goto("/admin");
-  await expect(page.getByText("Platform Admin").first()).toBeVisible();
-  await expect(page.getByText("Doar pentru beta controlată")).toBeVisible();
+  await expect(page.getByText("Administrare Sarbato")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Centru de comandă" }),
+  ).toBeVisible();
+});
+
+test("S10 E2E 03A — control center exposes persisted operational aggregates", async () => {
+  const overview = await apiData<{
+    range: string;
+    counts: { users: number; workspaces: number };
+    trend: Array<{ date: string }>;
+  }>(await admin.api.get("/api/v1/platform/overview?range=7d"));
+  expect(overview.range).toBe("7d");
+  expect(overview.counts.users).toBeGreaterThan(2);
+  expect(overview.counts.workspaces).toBeGreaterThan(0);
+  expect(overview.trend).toHaveLength(7);
+});
+
+test("S10 E2E 03B — traffic, commerce, audit and access remain capability protected", async () => {
+  for (const path of ["traffic", "commerce", "audit-actions", "access"]) {
+    expect((await regular.api.get(`/api/v1/platform/${path}`)).status()).toBe(
+      403,
+    );
+    expect((await admin.api.get(`/api/v1/platform/${path}`)).status()).toBe(
+      200,
+    );
+  }
+});
+
+test("S10 E2E 03C — admin user management exposes the provisioning workflow", async ({
+  page,
+}) => {
+  await authorizePage(page, admin);
+  await page.goto("/admin/users");
+  await expect(
+    page.getByRole("heading", { name: "Utilizatori" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Adaugă utilizator" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Adaugă un utilizator" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Tip de cont")).toBeVisible();
+  await expect(page.getByLabel("Acces de platformă")).toBeVisible();
+  await expect(page.getByLabel("Motiv pentru audit")).toBeVisible();
+  await expect(page.getByLabel("Parola administrativă")).toBeVisible();
+  await expect(page.getByLabel("Cod MFA")).toBeVisible();
+});
+
+test("S10 E2E 03D — user detail exposes privacy-safe usage controls", async ({
+  page,
+}) => {
+  await authorizePage(page, admin);
+  await page.goto(`/admin/users/${target.userId}`);
+  await expect(
+    page.getByRole("heading", { name: "Consum și stocare" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Perioadă AI")).toBeVisible();
+  await expect(page.getByText("Încărcat direct")).toBeVisible();
+  await expect(page.getByText("Materiale participanți")).toBeVisible();
 });
 
 test("S10 E2E 04 — system status exposes bounded operational state", async () => {
@@ -109,11 +196,399 @@ test("S10 E2E 05 — user inventory is capability protected", async () => {
 });
 
 test("S10 E2E 06 — user detail has version and no password hash", async () => {
-  const user = await apiData<Resource & { email: string }>(
-    await admin.api.get(`/api/v1/platform/users/${target.userId}`),
-  );
+  const user = await apiData<
+    Resource & {
+      email: string;
+      memberships: Array<{
+        workspaceId: string;
+        workspaceTitle: string;
+        planKey: string;
+      }>;
+    }
+  >(await admin.api.get(`/api/v1/platform/users/${target.userId}`));
   expect(user.version).toBeGreaterThan(0);
   expect(JSON.stringify(user)).not.toContain("passwordHash");
+});
+
+test("S10 E2E 06A — newly registered organizer is searchable with workspace and plan", async () => {
+  const list = await apiData<{ items: Array<{ id: string }> }>(
+    await admin.api.get(
+      `/api/v1/platform/users?query=${encodeURIComponent(regular.email)}&page=1&pageSize=10`,
+    ),
+  );
+  expect(list.items.map((item) => item.id)).toContain(regular.userId);
+  const user = await apiData<{
+    memberships: Array<{
+      workspaceId: string;
+      workspaceTitle: string;
+      planKey: string;
+    }>;
+  }>(await admin.api.get(`/api/v1/platform/users/${regular.userId}`));
+  expect(user.memberships).toContainEqual(
+    expect.objectContaining({
+      workspaceId: managedWorkspaceId,
+      workspaceTitle: "E2E Admin Plan Workspace",
+      planKey: "FREE",
+    }),
+  );
+});
+
+test("S10 E2E 06AA — usage control is capability protected and isolates user attribution", async () => {
+  expect(
+    (
+      await regular.api.get(
+        `/api/v1/platform/users/${regular.userId}/usage?range=7d`,
+      )
+    ).status(),
+  ).toBe(403);
+
+  await ownerDatabase.storedObject.create({
+    data: {
+      workspaceId: managedWorkspaceId,
+      storageProvider: "local",
+      bucket: "e2e",
+      objectKey: `private/e2e/${randomUUID()}.jpg`,
+      originalFileName: "organizer-photo.jpg",
+      contentTypeClaimed: "image/jpeg",
+      contentTypeDetected: "image/jpeg",
+      sizeBytes: 2_048n,
+      checksumSha256: "a".repeat(64),
+      status: "AVAILABLE",
+      scanStatus: "CLEAN",
+      createdByUserId: regular.userId,
+    },
+  });
+  const event = await ownerDatabase.weddingEvent.create({
+    data: {
+      workspaceId: managedWorkspaceId,
+      type: "CUSTOM",
+      title: "E2E Usage Event",
+      timezone: "Europe/Bucharest",
+    },
+  });
+  const portal = await ownerDatabase.eventMediaPortal.create({
+    data: {
+      workspaceId: managedWorkspaceId,
+      weddingEventId: event.id,
+      eventName: event.title,
+      tokenHash: "d".repeat(64),
+      tokenEncrypted: "e2e-encrypted-token",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+      createdById: regular.userId,
+    },
+  });
+  const source = await ownerDatabase.storedObject.create({
+    data: {
+      workspaceId: managedWorkspaceId,
+      storageProvider: "bunny-s3",
+      bucket: "e2e",
+      objectKey: `private/guest-moments/${managedWorkspaceId}/${randomUUID()}.jpg`,
+      originalFileName: "guest-photo.jpg",
+      contentTypeClaimed: "image/jpeg",
+      contentTypeDetected: "image/jpeg",
+      sizeBytes: 4_096n,
+      checksumSha256: "b".repeat(64),
+      status: "AVAILABLE",
+      scanStatus: "CLEAN",
+    },
+  });
+  const derivative = await ownerDatabase.storedObject.create({
+    data: {
+      workspaceId: managedWorkspaceId,
+      storageProvider: "bunny-s3",
+      bucket: "e2e",
+      objectKey: `private/guest-moments/${managedWorkspaceId}/${randomUUID()}-preview.jpg`,
+      originalFileName: "guest-photo-preview.jpg",
+      contentTypeClaimed: "image/jpeg",
+      contentTypeDetected: "image/jpeg",
+      sizeBytes: 1_024n,
+      checksumSha256: "c".repeat(64),
+      status: "AVAILABLE",
+      scanStatus: "CLEAN",
+    },
+  });
+  const moment = await ownerDatabase.guestMoment.create({
+    data: {
+      workspaceId: managedWorkspaceId,
+      weddingEventId: event.id,
+      mediaPortalId: portal.id,
+      uploadTokenHash: "e".repeat(64),
+      contributorName: "Participant E2E",
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+  });
+  await ownerDatabase.guestMomentMedia.create({
+    data: {
+      workspaceId: managedWorkspaceId,
+      guestMomentId: moment.id,
+      storedObjectId: source.id,
+      derivativeObjectId: derivative.id,
+      mediaType: "IMAGE",
+      moderationStatus: "APPROVED",
+    },
+  });
+
+  const usage = await apiData<{
+    range: string;
+    personalUploads: { files: number; bytes: number; imageFiles: number };
+    ownedEvents: {
+      count: number;
+      totalBytes: number;
+      guestMedia: { items: number; bytes: number; images: number };
+    };
+    events: Array<{ workspaceId: string }>;
+  }>(
+    await admin.api.get(
+      `/api/v1/platform/users/${regular.userId}/usage?range=7d`,
+    ),
+  );
+  expect(usage.range).toBe("7d");
+  expect(usage.personalUploads).toMatchObject({
+    files: 1,
+    bytes: 2_048,
+    imageFiles: 1,
+  });
+  expect(usage.ownedEvents.count).toBeGreaterThanOrEqual(1);
+  expect(usage.ownedEvents.totalBytes).toBeGreaterThanOrEqual(7_168);
+  expect(usage.ownedEvents.guestMedia).toMatchObject({
+    items: 1,
+    bytes: 5_120,
+    images: 1,
+  });
+  expect(usage.events.map((item) => item.workspaceId)).toContain(
+    managedWorkspaceId,
+  );
+
+  const isolated = await apiData<{
+    personalUploads: { bytes: number };
+    ownedEvents: { guestMedia: { items: number } };
+  }>(
+    await admin.api.get(
+      `/api/v1/platform/users/${target.userId}/usage?range=7d`,
+    ),
+  );
+  expect(isolated.personalUploads.bytes).toBe(0);
+  expect(isolated.ownedEvents.guestMedia.items).toBe(0);
+});
+
+test("S10 E2E 06B — regular users cannot provision accounts", async () => {
+  const response = await regular.api.post("/api/v1/platform/users", {
+    headers: mutationHeaders({
+      "Idempotency-Key": `denied-user-${randomUUID()}`,
+    }),
+    data: {
+      firstName: "Denied",
+      lastName: "User",
+      email: `denied-${randomUUID()}@example.test`,
+      registrationIntent: "EVENT_ORGANIZER",
+      reason: "E2E regular user must be denied.",
+    },
+  });
+  expect(response.status()).toBe(403);
+});
+
+test("S10 E2E 06C — admin provisions a pending account without choosing its password", async () => {
+  provisionedEmail = `admin-created-${randomUUID()}@example.test`;
+  const created = await apiData<{
+    id: string;
+    version: number;
+    setupEmailSent: boolean;
+    registrationIntent: string;
+  }>(
+    await admin.api.post("/api/v1/platform/users", {
+      headers: mutationHeaders({
+        "Idempotency-Key": `create-user-${randomUUID()}`,
+      }),
+      data: {
+        firstName: "Ana",
+        lastName: "Tester",
+        email: provisionedEmail,
+        registrationIntent: "EVENT_ORGANIZER",
+        platformRoleKey: null,
+        reason: "E2E controlled tester provisioning.",
+      },
+    }),
+  );
+  provisionedUserId = created.id;
+  provisionedVersion = created.version;
+  expect(created.setupEmailSent).toBe(true);
+  expect(created.registrationIntent).toBe("EVENT_ORGANIZER");
+  const stored = await ownerDatabase.user.findUniqueOrThrow({
+    where: { id: provisionedUserId },
+    include: { identities: true, oneTimeTokens: true },
+  });
+  expect(stored.acceptedTermsAt).toBeNull();
+  expect(stored.acceptedTermsVersion).toBeNull();
+  expect(stored.emailVerifiedAt).toBeNull();
+  expect(stored.identities[0]?.passwordHash).toBeTruthy();
+  expect(JSON.stringify(created)).not.toContain("passwordHash");
+  const setup = stored.oneTimeTokens.find(
+    (token) => token.purpose === "PASSWORD_RESET",
+  );
+  expect(setup?.metadata).toEqual(
+    expect.objectContaining({ adminProvisioned: true }),
+  );
+});
+
+test("S10 E2E 06D — provisioned account requires terms and activates through its setup email", async () => {
+  const setupToken = await waitForSetupToken(provisionedEmail);
+  const missingTerms = await admin.api.post("/api/v1/auth/password-resets", {
+    headers: mutationHeaders(),
+    data: { token: setupToken, password },
+  });
+  expect(missingTerms.status()).toBe(422);
+  const activated = await admin.api.post("/api/v1/auth/password-resets", {
+    headers: mutationHeaders(),
+    data: {
+      token: setupToken,
+      password,
+      acceptedTermsVersion: "2026-07-18",
+    },
+  });
+  expect(activated.status()).toBe(200);
+  const account = await ownerDatabase.user.findUniqueOrThrow({
+    where: { id: provisionedUserId },
+  });
+  provisionedVersion = account.version;
+  expect(account.emailVerifiedAt).not.toBeNull();
+  expect(account.acceptedTermsVersion).toBe("2026-07-18");
+  const provisionedApi = await newApiContext();
+  expect(
+    (
+      await provisionedApi.post("/api/v1/auth/sessions", {
+        headers: mutationHeaders(),
+        data: { email: provisionedEmail, password, remember: true },
+      })
+    ).status(),
+  ).toBe(200);
+});
+
+test("S10 E2E 06E — admin updates account type and profile with optimistic locking", async () => {
+  const updated = await apiData<{
+    version: number;
+    registrationIntent: string;
+    profile: { firstName: string; lastName: string };
+  }>(
+    await admin.api.patch(`/api/v1/platform/users/${provisionedUserId}`, {
+      headers: mutationHeaders({
+        "If-Match": `"${provisionedVersion}"`,
+        "Idempotency-Key": `update-user-${randomUUID()}`,
+      }),
+      data: {
+        version: provisionedVersion,
+        firstName: "Ana",
+        lastName: "Furnizor",
+        registrationIntent: "SERVICE_PROVIDER",
+        reason: "E2E account classification update.",
+      },
+    }),
+  );
+  provisionedVersion = updated.version;
+  expect(updated.registrationIntent).toBe("SERVICE_PROVIDER");
+  expect(updated.profile.lastName).toBe("Furnizor");
+});
+
+test("S10 E2E 06F — admin grants and revokes a bounded platform role", async () => {
+  const granted = await apiData<
+    Resource & { roleKey: string; active: boolean }
+  >(
+    await admin.api.post(
+      `/api/v1/platform/users/${provisionedUserId}/platform-grants`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `grant-user-${randomUUID()}`,
+        }),
+        data: {
+          roleKey: "PLATFORM_READ_ONLY",
+          active: true,
+          reason: "E2E temporary read-only administration.",
+        },
+      },
+    ),
+  );
+  expect(granted.roleKey).toBe("PLATFORM_READ_ONLY");
+  expect(granted.active).toBe(true);
+  const revoked = await apiData<Resource & { active: boolean }>(
+    await admin.api.post(
+      `/api/v1/platform/users/${provisionedUserId}/platform-grants`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `revoke-user-${randomUUID()}`,
+        }),
+        data: {
+          roleKey: "PLATFORM_READ_ONLY",
+          active: false,
+          version: granted.version,
+          reason: "E2E temporary access completed.",
+        },
+      },
+    ),
+  );
+  expect(revoked.active).toBe(false);
+});
+
+test("S10 E2E 06G — admin adds event access and changes its role", async () => {
+  const membership = await apiData<Resource & { roleTemplateKey: string }>(
+    await admin.api.post(
+      `/api/v1/platform/users/${provisionedUserId}/memberships`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `membership-${randomUUID()}`,
+        }),
+        data: {
+          workspaceId: managedWorkspaceId,
+          roleTemplateKey: "viewer",
+          reason: "E2E add tester to managed event.",
+        },
+      },
+    ),
+  );
+  expect(membership.roleTemplateKey).toBe("viewer");
+  const changed = await apiData<Resource & { roleTemplateKey: string }>(
+    await admin.api.post(
+      `/api/v1/platform/users/${provisionedUserId}/memberships/${membership.id}/role`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${membership.version}"`,
+          "Idempotency-Key": `membership-role-${randomUUID()}`,
+        }),
+        data: {
+          roleTemplateKey: "family_collaborator",
+          version: membership.version,
+          reason: "E2E update tester event role.",
+        },
+      },
+    ),
+  );
+  expect(changed.roleTemplateKey).toBe("family_collaborator");
+});
+
+test("S10 E2E 06H — the sole active event owner cannot be demoted", async () => {
+  const detail = await apiData<{
+    memberships: Array<Resource & { roleTemplateKey: string }>;
+  }>(await admin.api.get(`/api/v1/platform/users/${regular.userId}`));
+  const ownerMembership = detail.memberships.find(
+    (membership) =>
+      membership.roleTemplateKey === "couple_owner" && membership.id,
+  );
+  expect(ownerMembership).toBeTruthy();
+  const denied = await admin.api.post(
+    `/api/v1/platform/users/${regular.userId}/memberships/${ownerMembership!.id}/role`,
+    {
+      headers: mutationHeaders({
+        "If-Match": `"${ownerMembership!.version}"`,
+        "Idempotency-Key": `owner-guard-${randomUUID()}`,
+      }),
+      data: {
+        roleTemplateKey: "viewer",
+        version: ownerMembership!.version,
+        reason: "E2E protect the last active owner.",
+      },
+    },
+  );
+  expect(denied.status()).toBe(409);
+  expect((await denied.json()).code).toBe("LAST_OWNER_PROTECTED");
 });
 
 test("S10 E2E 07 — suspend revokes the target session", async () => {
@@ -164,23 +639,220 @@ test("S10 E2E 08 — reactivation restores login without restoring old session",
 });
 
 test("S10 E2E 09 — workspaces inventory is available to platform admin", async () => {
+  const list = await apiData<{ items: unknown[]; total: number; page: number }>(
+    await admin.api.get("/api/v1/platform/workspaces?page=1&pageSize=10"),
+  );
+  expect(list.items).toBeInstanceOf(Array);
+  expect(list.total).toBeGreaterThan(0);
+  expect(list.page).toBe(1);
+});
+
+test("S10 E2E 09A — admin can assign a non-provider workspace plan with audit", async () => {
+  const workspace = await apiData<Resource>(
+    await admin.api.get(`/api/v1/platform/workspaces/${managedWorkspaceId}`),
+  );
+  const idempotencyKey = `plan-${randomUUID()}`;
+  const request = {
+    headers: mutationHeaders({
+      "If-Match": `"${workspace.version}"`,
+      "Idempotency-Key": idempotencyKey,
+    }),
+    data: {
+      planKey: "PLUS",
+      version: workspace.version,
+      reason: "E2E controlled plan assignment.",
+    },
+  };
+  const updated = await apiData<
+    Resource & { subscription: { planKey: string } }
+  >(
+    await admin.api.post(
+      `/api/v1/platform/workspaces/${managedWorkspaceId}/subscription-plan`,
+      request,
+    ),
+  );
+  expect(updated.subscription.planKey).toBe("PLUS");
+  const replay = await apiData<
+    Resource & { subscription: { planKey: string } }
+  >(
+    await admin.api.post(
+      `/api/v1/platform/workspaces/${managedWorkspaceId}/subscription-plan`,
+      request,
+    ),
+  );
+  expect(replay.version).toBe(updated.version);
+  expect(replay.subscription.planKey).toBe("PLUS");
+  const action = await ownerDatabase.platformAdminAction.findFirst({
+    where: {
+      targetType: "WORKSPACE_SUBSCRIPTION",
+      action: "platform.workspace.subscription.override",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  expect(action?.actorUserId).toBe(admin.userId);
+});
+
+test("S10 E2E 09AA — provider-managed subscriptions cannot be overwritten from admin", async () => {
+  await ownerDatabase.workspaceSubscription.update({
+    where: { workspaceId: managedWorkspaceId },
+    data: {
+      provider: "fake",
+      providerSubscriptionId: `provider-${randomUUID()}`,
+    },
+  });
+  const workspace = await apiData<Resource>(
+    await admin.api.get(`/api/v1/platform/workspaces/${managedWorkspaceId}`),
+  );
+  const response = await admin.api.post(
+    `/api/v1/platform/workspaces/${managedWorkspaceId}/subscription-plan`,
+    {
+      headers: mutationHeaders({
+        "If-Match": `"${workspace.version}"`,
+        "Idempotency-Key": `provider-plan-${randomUUID()}`,
+      }),
+      data: {
+        planKey: "PLUS",
+        version: workspace.version,
+        reason: "E2E must reject provider-managed plan override.",
+      },
+    },
+  );
+  expect(response.status()).toBe(409);
+  expect((await response.json()).code).toBe("SUBSCRIPTION_PROVIDER_MANAGED");
+});
+
+test("S10 E2E 09AB — workspace suspension and reactivation are idempotent and audited", async () => {
+  const current = await apiData<Resource>(
+    await admin.api.get(`/api/v1/platform/workspaces/${managedWorkspaceId}`),
+  );
+  const suspendKey = `workspace-suspend-${randomUUID()}`;
+  const suspendRequest = {
+    headers: mutationHeaders({
+      "If-Match": `"${current.version}"`,
+      "Idempotency-Key": suspendKey,
+    }),
+    data: {
+      version: current.version,
+      reason: "E2E controlled workspace suspension.",
+    },
+  };
+  const suspended = await apiData<Resource>(
+    await admin.api.post(
+      `/api/v1/platform/workspaces/${managedWorkspaceId}/suspend`,
+      suspendRequest,
+    ),
+  );
+  expect(suspended.status).toBe("SUSPENDED");
+  const replay = await apiData<Resource>(
+    await admin.api.post(
+      `/api/v1/platform/workspaces/${managedWorkspaceId}/suspend`,
+      suspendRequest,
+    ),
+  );
+  expect(replay.version).toBe(suspended.version);
+  const reactivated = await apiData<Resource>(
+    await admin.api.post(
+      `/api/v1/platform/workspaces/${managedWorkspaceId}/reactivate`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${suspended.version}"`,
+          "Idempotency-Key": `workspace-reactivate-${randomUUID()}`,
+        }),
+        data: {
+          version: suspended.version,
+          reason: "E2E controlled workspace reactivation.",
+        },
+      },
+    ),
+  );
+  expect(reactivated.status).toBe("ACTIVE");
+});
+
+test("S10 E2E 09B — labels are persisted and target-validated", async () => {
+  const label = await apiData<Resource>(
+    await admin.api.post("/api/v1/platform/labels", {
+      headers: mutationHeaders({ "Idempotency-Key": `label-${randomUUID()}` }),
+      data: {
+        name: `Necesită atenție ${Date.now()}`,
+        description: "Etichetă E2E pentru operațiuni.",
+        color: "coral",
+        reason: "E2E label creation with audit.",
+      },
+    }),
+  );
+  const assignment = await apiData<Resource & { targetId: string }>(
+    await admin.api.post(`/api/v1/platform/labels/${label.id}/assignments`, {
+      headers: mutationHeaders({ "Idempotency-Key": `assign-${randomUUID()}` }),
+      data: {
+        targetType: "USER",
+        targetId: regular.userId,
+        reason: "E2E reviewed label assignment.",
+      },
+    }),
+  );
+  expect(assignment.targetId).toBe(regular.userId);
+  const labels = await apiData<{
+    items: Array<{ id: string; assignments: unknown[] }>;
+  }>(await admin.api.get("/api/v1/platform/labels"));
   expect(
-    (
-      await apiData<{ items: unknown[] }>(
-        await admin.api.get("/api/v1/platform/workspaces"),
-      )
-    ).items,
-  ).toBeInstanceOf(Array);
+    labels.items.find((item) => item.id === label.id)?.assignments,
+  ).toHaveLength(1);
 });
 
 test("S10 E2E 10 — vendor inventory is available to platform admin", async () => {
-  expect(
-    (
-      await apiData<{ items: unknown[] }>(
-        await admin.api.get("/api/v1/platform/vendor-organizations"),
-      )
-    ).items,
-  ).toBeInstanceOf(Array);
+  const vendors = await apiData<{ items: Array<{ id: string }> }>(
+    await admin.api.get("/api/v1/platform/vendor-organizations"),
+  );
+  expect(vendors.items.map((item) => item.id)).toContain(managedVendorId);
+});
+
+test("S10 E2E 10A — vendor detail, suspension, replay and reactivation stay consistent", async () => {
+  const current = await apiData<Resource>(
+    await admin.api.get(
+      `/api/v1/platform/vendor-organizations/${managedVendorId}`,
+    ),
+  );
+  const suspendKey = `vendor-suspend-${randomUUID()}`;
+  const suspendRequest = {
+    headers: mutationHeaders({
+      "If-Match": `"${current.version}"`,
+      "Idempotency-Key": suspendKey,
+    }),
+    data: {
+      version: current.version,
+      reason: "E2E controlled vendor suspension.",
+    },
+  };
+  const suspended = await apiData<Resource>(
+    await admin.api.post(
+      `/api/v1/platform/vendor-organizations/${managedVendorId}/suspend`,
+      suspendRequest,
+    ),
+  );
+  expect(suspended.status).toBe("SUSPENDED");
+  const replay = await apiData<Resource>(
+    await admin.api.post(
+      `/api/v1/platform/vendor-organizations/${managedVendorId}/suspend`,
+      suspendRequest,
+    ),
+  );
+  expect(replay.version).toBe(suspended.version);
+  const reactivated = await apiData<Resource>(
+    await admin.api.post(
+      `/api/v1/platform/vendor-organizations/${managedVendorId}/reactivate`,
+      {
+        headers: mutationHeaders({
+          "If-Match": `"${suspended.version}"`,
+          "Idempotency-Key": `vendor-reactivate-${randomUUID()}`,
+        }),
+        data: {
+          version: suspended.version,
+          reason: "E2E controlled vendor reactivation.",
+        },
+      },
+    ),
+  );
+  expect(reactivated.status).toBe("ACTIVE");
 });
 
 test("S10 E2E 11 — support case is persisted", async () => {
@@ -511,6 +1183,9 @@ test("S10 E2E 34 — security headers protect public pages", async ({
   expect(response.headers()["content-security-policy"]).toContain(
     "frame-ancestors 'none'",
   );
+  expect(response.headers()["content-security-policy"]).toContain(
+    "form-action 'self' https://accounts.google.com",
+  );
 });
 
 test("S10 E2E 35 — regular user sees a factual admin denial", async ({
@@ -519,7 +1194,7 @@ test("S10 E2E 35 — regular user sees a factual admin denial", async ({
   await authorizePage(page, regular);
   await page.goto("/admin");
   await expect(
-    page.getByText("Acces refuzat sau serviciu indisponibil"),
+    page.getByText("Datele administrative nu sunt disponibile"),
   ).toBeVisible();
 });
 
@@ -590,6 +1265,34 @@ async function waitForVerificationToken(email: string) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`Verification e-mail missing for ${email}`);
+}
+
+async function waitForSetupToken(email: string) {
+  for (let attempt = 0; attempt < 600; attempt += 1) {
+    const list = (await fetch(
+      "http://127.0.0.1:8025/api/v1/messages?limit=100",
+    ).then((response) => response.json())) as {
+      messages: Array<{
+        ID: string;
+        Subject: string;
+        To: Array<{ Address: string }>;
+      }>;
+    };
+    const summary = list.messages.find(
+      (message) =>
+        message.Subject === "Activează contul Sarbato" &&
+        message.To.some((recipient) => recipient.Address === email),
+    );
+    if (summary) {
+      const message = (await fetch(
+        `http://127.0.0.1:8025/api/v1/message/${summary.ID}`,
+      ).then((response) => response.json())) as { Text: string };
+      const match = message.Text.match(/[?&]token=([^&\s]+)/);
+      if (match?.[1]) return decodeURIComponent(match[1]);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Setup e-mail missing for ${email}`);
 }
 
 async function newApiContext() {

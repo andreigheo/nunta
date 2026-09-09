@@ -73,6 +73,20 @@ export class MfaService {
       this.environment.MFA_ENCRYPTION_KEY_ID,
     );
     const enrollment = await this.database.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(
+        hashtextextended(${`sarbato-mfa-enrollment:${userId}`}, 0)
+      )`;
+      const active = await tx.mfaAuthenticator.findFirst({
+        where: { userId, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (active)
+        problem(
+          "VERSION_CONFLICT",
+          HttpStatus.CONFLICT,
+          "MFA este deja activ",
+          "Dezactivează autentificatorul existent cu parola și codul curent înainte de a configura unul nou.",
+        );
       await tx.mfaAuthenticator.updateMany({
         where: { userId, status: "PENDING" },
         data: {
@@ -138,16 +152,34 @@ export class MfaService {
     const recoveryCodes = createRecoveryCodes();
     const batchId = randomUUID();
     await this.database.$transaction(async (tx) => {
-      await tx.mfaAuthenticator.updateMany({
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(
+        hashtextextended(${`sarbato-mfa-enrollment:${userId}`}, 0)
+      )`;
+      const active = await tx.mfaAuthenticator.findFirst({
         where: { userId, status: "ACTIVE" },
+        select: { id: true },
+      });
+      if (active)
+        problem(
+          "VERSION_CONFLICT",
+          HttpStatus.CONFLICT,
+          "MFA este deja activ",
+          "Configurarea în așteptare nu poate înlocui autentificatorul activ.",
+        );
+      await tx.mfaAuthenticator.updateMany({
+        where: {
+          userId,
+          status: "PENDING",
+          id: { not: enrollment.id },
+        },
         data: {
           status: "DISABLED",
           disabledAt: new Date(),
           version: { increment: 1 },
         },
       });
-      await tx.mfaAuthenticator.update({
-        where: { id: enrollment.id },
+      const activated = await tx.mfaAuthenticator.updateMany({
+        where: { id: enrollment.id, userId, status: "PENDING" },
         data: {
           status: "ACTIVE",
           confirmedAt: new Date(),
@@ -155,6 +187,12 @@ export class MfaService {
           version: { increment: 1 },
         },
       });
+      if (activated.count !== 1)
+        problem(
+          "MFA_ENROLLMENT_INVALID",
+          HttpStatus.CONFLICT,
+          "MFA enrollment invalid",
+        );
       await tx.mfaRecoveryCode.createMany({
         data: recoveryCodes.map((raw) => ({
           userId,

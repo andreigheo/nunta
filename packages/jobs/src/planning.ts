@@ -55,6 +55,12 @@ export interface PlanGenerationProvider {
 
 export const PLANNING_RULES_VERSION = "slice-2b.v1";
 
+const weddingOnlyCategories = new Set([
+  "civil_ceremony",
+  "religious_ceremony",
+  "rings",
+]);
+
 export const minimumCoverageCategories = [
   "budget",
   "venue",
@@ -303,7 +309,7 @@ const taskTemplates: Record<(typeof phases)[number]["key"], TaskTemplate[]> = {
     task(
       "transport",
       "Planifică transportul",
-      "Confirmă necesarul pentru cuplu și invitați pe baza estimărilor din onboarding.",
+      "Confirmă necesarul pentru organizatori și invitați pe baza estimărilor din onboarding.",
       -45,
       "medium",
       false,
@@ -408,6 +414,7 @@ export class DeterministicPlanProvider implements PlanGenerationProvider {
   async generatePlan(
     input: PlanGenerationInput,
   ): Promise<PlanGenerationOutput> {
+    const wedding = isWeddingEvent(input);
     const exactDate = eventDate(input.dateEvents);
     const flexible =
       Boolean(input.dateEvents.flexibleDate) || exactDate === null;
@@ -531,7 +538,9 @@ export class DeterministicPlanProvider implements PlanGenerationProvider {
       );
 
     return {
-      title: "Planul inițial al nunții",
+      title: wedding
+        ? "Planul inițial al nunții"
+        : "Planul inițial al evenimentului",
       summary: `Propunere deterministă cu ${items.filter((item) => item.type === "task").length} taskuri, adaptată onboardingului salvat.`,
       assumptions,
       warnings,
@@ -649,7 +658,12 @@ function buildAssumptions(
   exactDate: string | null,
 ): string[] {
   const assumptions: string[] = [];
-  if (!exactDate) assumptions.push("Data exactă a nunții nu este confirmată.");
+  if (!exactDate)
+    assumptions.push(
+      isWeddingEvent(input)
+        ? "Data exactă a nunții nu este confirmată."
+        : "Data exactă a evenimentului nu este confirmată.",
+    );
   if (!text(input.location.city) && !text(input.location.venue))
     assumptions.push("Locația exactă nu este confirmată.");
   if (!numberValue(input.guests.guestCount))
@@ -664,6 +678,8 @@ function buildAssumptions(
 }
 
 function isRelevant(category: string, input: PlanGenerationInput): boolean {
+  if (!isWeddingEvent(input) && weddingOnlyCategories.has(category))
+    return false;
   if (category === "religious_ceremony")
     return input.dateEvents.religious !== false;
   if (category === "civil_ceremony") return input.dateEvents.civil !== false;
@@ -671,6 +687,14 @@ function isRelevant(category: string, input: PlanGenerationInput): boolean {
   if (category === "transport") return input.guests.transport !== false;
   if (category === "accommodation") return input.guests.accommodation !== false;
   return true;
+}
+
+function isWeddingEvent(input: PlanGenerationInput): boolean {
+  const value = input.couple.eventType ?? input.dateEvents.eventType;
+  // Drafturile istorice nu aveau eventType și reprezentau exclusiv nunți.
+  return typeof value !== "string" || value.trim() === ""
+    ? true
+    : value.trim().toLowerCase() === "wedding";
 }
 
 function milestoneTitle(phaseKey: string): string {

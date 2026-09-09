@@ -9,11 +9,17 @@ export type Cta = {
 export const routes = {
   signIn: "/sign-in",
   createAccount: "/create-account",
+  contact: "/contact",
+  about: "/despre-noi",
   privacy: "/confidentialitate",
   terms: "/termeni",
   refunds: "/rambursari",
   cookies: "/cookies",
 } as const;
+
+const organizerSignup = `${routes.createAccount}?intent=EVENT_ORGANIZER`;
+const paidPlanSignup = (plan: "PLUS" | "PRO") =>
+  `${organizerSignup}&returnTo=${encodeURIComponent(`/start?plan=${plan}`)}`;
 
 export const primaryCta: Cta = {
   label: "Începe organizarea",
@@ -22,7 +28,7 @@ export const primaryCta: Cta = {
 
 export const secondaryCta: Cta = {
   label: "Vezi produsul",
-  href: "#produs",
+  href: "/produs",
 };
 
 export const signInCta: Cta = {
@@ -31,12 +37,27 @@ export const signInCta: Cta = {
 };
 
 export const headerNav = [
-  { label: "Produs", href: "#produs" },
-  { label: "Soluții", href: "#solutii" },
-  { label: "Prețuri", href: "#abonamente" },
-  { label: "Întrebări", href: "#intrebari" },
-  { label: "Despre noi", href: "#despre" },
+  { label: "Produs", href: "/produs" },
+  { label: "Soluții", href: "/#solutii" },
+  { label: "Prețuri", href: "/#abonamente" },
+  { label: "Întrebări", href: "/#intrebari" },
+  { label: "Despre noi", href: routes.about },
+  { label: "Contact", href: routes.contact },
 ] as const;
+
+export const productSections = {
+  planning: "/produs#planificare",
+  guests: "/produs#invitatii",
+  commerce: "/produs#furnizori",
+  operations: "/produs#ziua-evenimentului",
+} as const;
+
+export const previewCopy = {
+  label: "Exemplu demonstrativ",
+  description: "Date ilustrative. Explorează funcționalitatea în pagina Produs.",
+  invitationsAction: "Vezi cum funcționează invitațiile",
+  accountRequired: "Necesită autentificare",
+} as const;
 
 export const productFirstControlRoom = {
   name: "Product-first control room",
@@ -71,7 +92,7 @@ export const productFirstControlRoom = {
       iconTone: "sage",
       barTone: "sage",
       action: "Vezi detalii",
-      href: "/invitations",
+      href: productSections.guests,
     },
     {
       key: "budget",
@@ -82,7 +103,7 @@ export const productFirstControlRoom = {
       iconTone: "ink",
       barTone: "sage",
       action: "Vezi bugetul",
-      href: "/budget",
+      href: productSections.commerce,
     },
     {
       key: "activities",
@@ -93,7 +114,7 @@ export const productFirstControlRoom = {
       iconTone: "coral",
       barTone: "coral",
       action: "Vezi lista",
-      href: "/plan",
+      href: productSections.planning,
     },
     {
       key: "suppliers",
@@ -104,7 +125,7 @@ export const productFirstControlRoom = {
       iconTone: "ink",
       barTone: "sage",
       action: "Vezi furnizorii",
-      href: "/marketplace",
+      href: productSections.commerce,
     },
   ],
   solutionsIntro: {
@@ -559,14 +580,21 @@ export const pricing = {
       price: "0 €",
       cadence: "fără card",
       description: "Pentru primul pas și organizarea de bază a evenimentului.",
+      highlights: [
+        { value: "50", label: "invitați" },
+        { value: "2", label: "colaboratori" },
+        { value: "5", label: "acțiuni AI / lună" },
+        { value: "250 MB", label: "stocare" },
+      ],
       features: [
-        "Plan, calendar, buget, invitație și RSVP",
-        "Până la 50 de invitați și 2 colaboratori",
-        "5 acțiuni AI și 250 MB de stocare",
+        "Plan, calendar și buget într-un singur spațiu",
+        "Studio de invitații, RSVP și livrare e-mail",
+        "Descoperire cazare pentru invitați",
+        "200 de livrări e-mail pe lună",
         "10 credite de mesagerie pentru test",
       ],
-      status: "Disponibil",
-      cta: { label: "Începe gratuit", href: routes.createAccount },
+      status: "Fără card",
+      cta: { label: "Începe gratuit", href: organizerSignup },
       featured: false,
     },
     {
@@ -575,14 +603,22 @@ export const pricing = {
       cadence: "pe lună",
       description:
         "Pentru organizarea completă, logistica invitaților și coordonarea furnizorilor.",
+      highlights: [
+        { value: "200", label: "invitați" },
+        { value: "5", label: "colaboratori" },
+        { value: "30", label: "acțiuni AI / lună" },
+        { value: "2 GB", label: "stocare" },
+      ],
       features: [
-        "Până la 200 de invitați și 5 colaboratori",
-        "Mese, transport, cazare și documente",
-        "5 automatizări, 30 acțiuni AI și 2 GB",
+        "Tot ce include planul Gratuit",
+        "Mese, transport și cazare gestionate complet",
+        "Coordonarea furnizorilor și documentelor",
+        "Exporturi avansate și 5 automatizări active",
+        "2.000 de livrări e-mail pe lună",
         "50 de credite de mesagerie pe lună",
       ],
-      status: "Disponibil în cont",
-      cta: { label: "Începe cu Plus", href: routes.createAccount },
+      status: "Recomandat",
+      cta: { label: "Începe cu Plus", href: paidPlanSignup("PLUS") },
       featured: true,
     },
     {
@@ -590,21 +626,31 @@ export const pricing = {
       price: "59 €",
       cadence: "pe lună",
       description: "Pentru coordonare operațională avansată.",
-      features: [
-        "Până la 500 de invitați și 15 colaboratori",
-        "Riscuri, Plan B, check-in și ziua evenimentului",
-        "25 automatizări, 150 acțiuni AI și 10 GB",
-        "100 de credite de mesagerie pe lună",
+      highlights: [
+        { value: "500", label: "invitați" },
+        { value: "15", label: "colaboratori" },
+        { value: "150", label: "acțiuni AI / lună" },
+        { value: "10 GB", label: "stocare" },
       ],
-      status: "Disponibil în cont",
-      cta: { label: "Începe cu Pro", href: routes.createAccount },
+      features: [
+        "Tot ce include planul Plus",
+        "Riscuri și planuri de rezervă",
+        "Check-in și operațiuni în ziua evenimentului",
+        "Coordonare avansată pentru echipa din teren",
+        "25 de automatizări active",
+        "10.000 de livrări e-mail pe lună",
+        "100 de credite de mesagerie pe lună",
+        "Suport prioritar",
+      ],
+      status: "Avansat",
+      cta: { label: "Începe cu Pro", href: paidPlanSignup("PRO") },
       featured: false,
     },
   ],
   boundary:
     "Paddle procesează abonamentul și pachetele de credite Sarbato. Plățile dintre organizatori și furnizori rămân directe și separate.",
   checkoutNote:
-    "Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
+    "Facturare lunară. Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
 } as const;
 
 export const trust = {
@@ -679,6 +725,55 @@ export const finalCta = {
   ],
 } as const;
 
+export const contactPage = {
+  eyebrow: "Contact Sarbato",
+  title: "Spune-ne ce pregătești. Pornim de la întrebarea ta.",
+  lead: "Fie că vrei să înțelegi produsul, ai nevoie de ajutor cu accesul sau vrei să discutăm o colaborare, scrie-ne cât mai concret.",
+  email: "hello@sarbato.space",
+  directTitle: "Preferi un mesaj direct?",
+  directLead: "Poți scrie oricând pe email. Nu include parole, date de card sau alte informații sensibile.",
+  faqLabel: "Pentru răspunsuri rapide",
+  faqLink: "Vezi întrebările frecvente",
+  form: {
+    eyebrow: "Mesaj nou",
+    title: "Cu ce te putem ajuta?",
+    nameLabel: "Nume",
+    namePlaceholder: "Cum te numești",
+    emailLabel: "Email",
+    emailPlaceholder: "nume@exemplu.ro",
+    topicLabel: "Subiect",
+    topics: [
+      "Întrebare despre produs",
+      "Ajutor cu accesul",
+      "Colaborare",
+      "Altceva",
+    ],
+    messageLabel: "Mesaj",
+    messagePlaceholder:
+      "Spune-ne ce organizezi, ce vrei să rezolvi și unde ai nevoie de claritate.",
+    submitLabel: "Deschide mesajul în email",
+    note: "Butonul pregătește mesajul în aplicația ta de email. Nu îl trimitem automat.",
+    prepared: "Mesajul este pregătit. Confirmă trimiterea din aplicația ta de email.",
+  },
+  pathsTitle: "Ajută-ne să păstrăm firul scurt.",
+  pathsLead:
+    "Alege subiectul potrivit și include detaliile care ne ajută să înțelegem situația din prima.",
+  paths: [
+    {
+      title: "Produs și organizare",
+      body: "Spune-ne tipul evenimentului și ce ai vrea să coordonezi mai simplu.",
+    },
+    {
+      title: "Cont și acces",
+      body: "Include adresa contului și descrie pasul la care te-ai blocat, fără parolă.",
+    },
+    {
+      title: "Colaborări",
+      body: "Prezintă pe scurt ideea, rolul tău și forma de colaborare pe care o propui.",
+    },
+  ],
+} as const;
+
 export const footer = {
   title: "Tot evenimentul rămâne legat, până la ultimul detaliu.",
   tagline:
@@ -689,11 +784,12 @@ export const footer = {
     {
       title: "Explorează",
       links: [
-        { label: "Produs", href: "/#produs" },
+        { label: "Produs", href: "/produs" },
         { label: "Soluții", href: "/#solutii" },
         { label: "Prețuri", href: "/#abonamente" },
         { label: "Întrebări", href: "/#intrebari" },
-        { label: "Despre noi", href: "/#despre" },
+        { label: "Contact", href: routes.contact },
+        { label: "Despre noi", href: routes.about },
       ],
     },
     {

@@ -2,6 +2,7 @@ import type { Viewport } from "next";
 import { MarketingFooter } from "@/components/marketing/marketing-footer";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { PublicCookiePreferences } from "@/components/marketing/cookie-preferences";
+import { GoogleMeasurement } from "@/components/marketing/google-measurement";
 
 export const viewport: Viewport = {
   themeColor: "#f7f7f3",
@@ -34,6 +35,7 @@ export default function MarketingLayout({
         {children}
       </main>
       <MarketingFooter />
+      <GoogleMeasurement />
       <PublicCookiePreferences />
     </div>
   );

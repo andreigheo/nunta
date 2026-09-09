@@ -295,7 +295,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
                   className={cn(
                     "min-h-11 rounded-lg border px-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                     radiusKm === value
-                      ? "border-brand bg-brand text-on-brand"
+                      ? "border-action bg-action text-on-action"
                       : "border-line bg-surface text-muted hover:border-line-strong hover:text-ink",
                   )}
                 >
@@ -307,7 +307,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
 
           <div className="rounded-xl bg-brand-softer/60 p-4" aria-label="Fir de proximitate">
             <div className="flex items-center gap-3">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand text-on-brand">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-action">
                 <MapPin className="size-4" aria-hidden />
               </span>
               <span className="h-px min-w-4 flex-1 bg-gradient-to-r from-brand via-accent to-sage" aria-hidden />
@@ -432,7 +432,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
               </div>
               <Link
                 href="/settings?tab=billing"
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-brand px-4 text-sm font-semibold text-brand transition-colors hover:bg-brand hover:text-on-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-brand px-4 text-sm font-semibold text-brand transition-colors hover:border-action hover:bg-action hover:text-on-action focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 Vezi abonamentele
               </Link>
@@ -546,7 +546,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
           {!searching && response && response.metadata.status !== "unavailable" && sortedItems.length > 0 && (
             <div className="overflow-hidden rounded-xl border border-line bg-surface">
               <div className="flex items-start gap-3 border-b border-line bg-brand-softer/55 px-4 py-4 sm:px-5">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand text-on-brand">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-action">
                   <MapPin className="size-4" aria-hidden />
                 </span>
                 <div className="min-w-0">

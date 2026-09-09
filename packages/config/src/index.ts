@@ -72,6 +72,27 @@ export const apiEnvironmentSchema = z
     SESSION_COOKIE_NAME: z.string().min(1).default("weddingos_session"),
     EMAIL_FROM: z.string().min(3),
     EMAIL_PROVIDER: z.enum(["smtp", "console"]).default("smtp"),
+    TWILIO_ENABLED: environmentBoolean.default(false),
+    TWILIO_ACCOUNT_SID: z.string().default(""),
+    TWILIO_AUTH_TOKEN: z.string().default(""),
+    TWILIO_SMS_FROM: z.string().default(""),
+    TWILIO_WHATSAPP_FROM: z.string().default(""),
+    TWILIO_STATUS_CALLBACK_URL: z.string().default(""),
+    TWILIO_INBOUND_URL: z.string().default(""),
+    TWILIO_CONTENT_TEMPLATES: z.string().default("{}"),
+    TWILIO_TEST_RECIPIENTS: z.string().default(""),
+    TWILIO_WORKSPACE_DAILY_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .default(100),
+    TWILIO_GLOBAL_DAILY_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100000)
+      .default(1000),
     SMTP_HOST: z.string().min(1),
     SMTP_PORT: z.coerce.number().int().min(1).max(65535),
     SMTP_USER: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -80,6 +101,10 @@ export const apiEnvironmentSchema = z
     OUTBOX_ENCRYPTION_KEY: z.string().min(32),
     OUTBOX_ENCRYPTION_KEY_ID: z.string().min(1).max(80).default("local-v1"),
     OUTBOX_DECRYPTION_KEYS: z.string().default("{}"),
+    GUEST_ACCESS_TOKEN_SECRET: z
+      .string()
+      .min(32)
+      .default("weddingos-local-guest-access-token-secret-change-production"),
     OUTBOX_COMMAND_TTL_SECONDS: z.coerce
       .number()
       .int()
@@ -178,6 +203,38 @@ export const apiEnvironmentSchema = z
       .min(30)
       .max(900)
       .default(300),
+    EVENT_MEDIA_STORAGE_PROVIDER: z
+      .enum(["inherit", "bunny-s3"])
+      .default("inherit"),
+    EVENT_MEDIA_STORAGE_ENDPOINT: z.preprocess(
+      emptyToUndefined,
+      z.string().url().optional(),
+    ),
+    EVENT_MEDIA_STORAGE_REGION: z.preprocess(
+      emptyToUndefined,
+      z.string().min(1).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_BUCKET: z.preprocess(
+      emptyToUndefined,
+      z.string().min(3).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_ACCESS_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(3).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_SECRET_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(8).optional(),
+    ),
+    EVENT_MEDIA_STORAGE_FORCE_PATH_STYLE: environmentBoolean.default(true),
+    EVENT_MEDIA_CDN_HOSTNAME: z.preprocess(
+      emptyToUndefined,
+      z.string().min(3).optional(),
+    ),
+    EVENT_MEDIA_CDN_TOKEN_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(16).optional(),
+    ),
     DOCUMENT_MAX_BYTES: z.coerce
       .number()
       .int()
@@ -278,6 +335,12 @@ export const apiEnvironmentSchema = z
       .min(5)
       .max(900)
       .default(300),
+    WORKSPACE_BILLING_GRACE_HOURS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(168)
+      .default(72),
     PAYOUT_PROVIDER: z.enum(["fake", "configured", "disabled"]).default("fake"),
     PAYOUT_PROVIDER_URL: z.preprocess(
       emptyToUndefined,
@@ -353,6 +416,19 @@ export const apiEnvironmentSchema = z
     ]),
     METRICS_TOKEN: z.string().min(24).default("weddingos-local-metrics-token"),
     FEATURE_MAGIC_LINK_ENABLED: environmentBoolean.default(true),
+    FEATURE_GOOGLE_OAUTH_ENABLED: environmentBoolean.default(false),
+    GOOGLE_OAUTH_CLIENT_ID: z.preprocess(
+      emptyToUndefined,
+      z.string().min(20).optional(),
+    ),
+    GOOGLE_OAUTH_CLIENT_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().min(16).optional(),
+    ),
+    GOOGLE_OAUTH_REDIRECT_URI: z.preprocess(
+      emptyToUndefined,
+      z.string().url().optional(),
+    ),
     FEATURE_MFA_ENABLED: environmentBoolean.default(false),
     BETA_RELEASE_VERSION: z.preprocess(
       emptyToUndefined,
@@ -376,6 +452,47 @@ export const apiEnvironmentSchema = z
     BETA_ANALYTICS_ENABLED: environmentBoolean.default(false),
   })
   .superRefine((env, context) => {
+    if (env.EVENT_MEDIA_STORAGE_PROVIDER === "bunny-s3") {
+      const requiredBunnyStorage: Array<
+        [keyof typeof env, string | undefined]
+      > = [
+        ["EVENT_MEDIA_STORAGE_ENDPOINT", env.EVENT_MEDIA_STORAGE_ENDPOINT],
+        ["EVENT_MEDIA_STORAGE_REGION", env.EVENT_MEDIA_STORAGE_REGION],
+        ["EVENT_MEDIA_STORAGE_BUCKET", env.EVENT_MEDIA_STORAGE_BUCKET],
+        ["EVENT_MEDIA_STORAGE_ACCESS_KEY", env.EVENT_MEDIA_STORAGE_ACCESS_KEY],
+        ["EVENT_MEDIA_STORAGE_SECRET_KEY", env.EVENT_MEDIA_STORAGE_SECRET_KEY],
+        ["EVENT_MEDIA_CDN_HOSTNAME", env.EVENT_MEDIA_CDN_HOSTNAME],
+        ["EVENT_MEDIA_CDN_TOKEN_KEY", env.EVENT_MEDIA_CDN_TOKEN_KEY],
+      ];
+      for (const [path, value] of requiredBunnyStorage) {
+        if (!value)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [path],
+            message: "Bunny event media storage requires this value.",
+          });
+      }
+      if (
+        env.EVENT_MEDIA_STORAGE_ENDPOINT &&
+        new URL(env.EVENT_MEDIA_STORAGE_ENDPOINT).hostname !==
+          "de-s3.storage.bunnycdn.com"
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["EVENT_MEDIA_STORAGE_ENDPOINT"],
+          message:
+            "The configured Bunny event media zone must use its Frankfurt S3 endpoint.",
+        });
+      if (
+        env.EVENT_MEDIA_CDN_HOSTNAME &&
+        !/^[a-z0-9-]+\.b-cdn\.net$/.test(env.EVENT_MEDIA_CDN_HOSTNAME)
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["EVENT_MEDIA_CDN_HOSTNAME"],
+          message: "Bunny event media delivery must use a b-cdn.net hostname.",
+        });
+    }
     if (env.COPILOT_MAX_RUN_COST_MINOR > env.COPILOT_DAILY_COST_LIMIT_MINOR) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -450,6 +567,11 @@ export const apiEnvironmentSchema = z
             env.SIGNATURE_PROVIDER !== "fake",
             "Production document signatures must be configured or disabled.",
           ],
+          [
+            "FEATURE_MFA_ENABLED",
+            env.FEATURE_MFA_ENABLED,
+            "Production administrative step-up requires MFA to remain enabled.",
+          ],
         ];
         for (const [path, valid, message] of requiredProductionState) {
           if (!valid) {
@@ -495,10 +617,21 @@ export const apiEnvironmentSchema = z
           ["SESSION_SECRET", env.SESSION_SECRET],
           ["MFA_ENCRYPTION_KEY", env.MFA_ENCRYPTION_KEY],
           ["OUTBOX_ENCRYPTION_KEY", env.OUTBOX_ENCRYPTION_KEY],
+          ["GUEST_ACCESS_TOKEN_SECRET", env.GUEST_ACCESS_TOKEN_SECRET],
           ["OBJECT_STORAGE_ACCESS_KEY", env.OBJECT_STORAGE_ACCESS_KEY],
           ["OBJECT_STORAGE_SECRET_KEY", env.OBJECT_STORAGE_SECRET_KEY],
+          [
+            "EVENT_MEDIA_STORAGE_ACCESS_KEY",
+            env.EVENT_MEDIA_STORAGE_ACCESS_KEY,
+          ],
+          [
+            "EVENT_MEDIA_STORAGE_SECRET_KEY",
+            env.EVENT_MEDIA_STORAGE_SECRET_KEY,
+          ],
+          ["EVENT_MEDIA_CDN_TOKEN_KEY", env.EVENT_MEDIA_CDN_TOKEN_KEY],
           ["SMTP_PASSWORD", env.SMTP_PASSWORD],
           ["METRICS_TOKEN", env.METRICS_TOKEN],
+          ["GOOGLE_OAUTH_CLIENT_SECRET", env.GOOGLE_OAUTH_CLIENT_SECRET],
           ["COPILOT_PROVIDER_API_KEY", env.COPILOT_PROVIDER_API_KEY],
           ["COPILOT_EMBEDDING_API_KEY", env.COPILOT_EMBEDDING_API_KEY],
         ];
@@ -506,8 +639,14 @@ export const apiEnvironmentSchema = z
           if (
             (path === "COPILOT_PROVIDER_API_KEY" &&
               !env.COPILOT_EXTERNAL_ENABLED) ||
+            (path === "GOOGLE_OAUTH_CLIENT_SECRET" &&
+              !env.FEATURE_GOOGLE_OAUTH_ENABLED) ||
             (path === "COPILOT_EMBEDDING_API_KEY" &&
-              !env.COPILOT_EMBEDDING_ENABLED)
+              !env.COPILOT_EMBEDDING_ENABLED) ||
+            ((path === "EVENT_MEDIA_STORAGE_ACCESS_KEY" ||
+              path === "EVENT_MEDIA_STORAGE_SECRET_KEY" ||
+              path === "EVENT_MEDIA_CDN_TOKEN_KEY") &&
+              env.EVENT_MEDIA_STORAGE_PROVIDER !== "bunny-s3")
           )
             continue;
           if (!value || forbiddenMarker.test(value)) {
@@ -704,6 +843,24 @@ export const apiEnvironmentSchema = z
         });
       }
     }
+    if (env.FEATURE_GOOGLE_OAUTH_ENABLED) {
+      const expectedRedirect = `${env.WEB_URL.replace(/\/$/, "")}/api/v1/auth/google/callback`;
+      if (!env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["GOOGLE_OAUTH_CLIENT_ID"],
+          message:
+            "Google OAuth requires both a client ID and a client secret.",
+        });
+      }
+      if (env.GOOGLE_OAUTH_REDIRECT_URI !== expectedRedirect) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["GOOGLE_OAUTH_REDIRECT_URI"],
+          message: `Google OAuth redirect URI must be exactly ${expectedRedirect}.`,
+        });
+      }
+    }
     if (env.NODE_ENV === "beta") {
       const required: Array<[keyof typeof env, unknown, string]> = [
         [
@@ -769,6 +926,7 @@ export const apiEnvironmentSchema = z
         ["SESSION_SECRET", env.SESSION_SECRET],
         ["MFA_ENCRYPTION_KEY", env.MFA_ENCRYPTION_KEY],
         ["OUTBOX_ENCRYPTION_KEY", env.OUTBOX_ENCRYPTION_KEY],
+        ["GUEST_ACCESS_TOKEN_SECRET", env.GUEST_ACCESS_TOKEN_SECRET],
         ["OBJECT_STORAGE_ACCESS_KEY", env.OBJECT_STORAGE_ACCESS_KEY],
         ["OBJECT_STORAGE_SECRET_KEY", env.OBJECT_STORAGE_SECRET_KEY],
         ["SMTP_PASSWORD", env.SMTP_PASSWORD],
@@ -787,6 +945,35 @@ export const apiEnvironmentSchema = z
   });
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;
+
+export function eventMediaStorageConfiguration(env: ApiEnvironment) {
+  if (env.EVENT_MEDIA_STORAGE_PROVIDER === "bunny-s3") {
+    return {
+      provider: "bunny-s3" as const,
+      endpoint: env.EVENT_MEDIA_STORAGE_ENDPOINT!,
+      publicEndpoint: env.EVENT_MEDIA_STORAGE_ENDPOINT!,
+      region: env.EVENT_MEDIA_STORAGE_REGION!,
+      bucket: env.EVENT_MEDIA_STORAGE_BUCKET!,
+      accessKey: env.EVENT_MEDIA_STORAGE_ACCESS_KEY!,
+      secretKey: env.EVENT_MEDIA_STORAGE_SECRET_KEY!,
+      forcePathStyle: env.EVENT_MEDIA_STORAGE_FORCE_PATH_STYLE,
+      cdnHostname: env.EVENT_MEDIA_CDN_HOSTNAME!,
+      cdnTokenKey: env.EVENT_MEDIA_CDN_TOKEN_KEY!,
+    };
+  }
+  return {
+    provider: env.OBJECT_STORAGE_PROVIDER,
+    endpoint: env.OBJECT_STORAGE_ENDPOINT,
+    publicEndpoint: env.OBJECT_STORAGE_PUBLIC_ENDPOINT,
+    region: env.OBJECT_STORAGE_REGION,
+    bucket: env.OBJECT_STORAGE_BUCKET,
+    accessKey: env.OBJECT_STORAGE_ACCESS_KEY,
+    secretKey: env.OBJECT_STORAGE_SECRET_KEY,
+    forcePathStyle: env.OBJECT_STORAGE_FORCE_PATH_STYLE,
+    cdnHostname: undefined,
+    cdnTokenKey: undefined,
+  };
+}
 
 export function parseApiEnvironment(source: NodeJS.ProcessEnv): ApiEnvironment {
   const result = apiEnvironmentSchema.safeParse(source);

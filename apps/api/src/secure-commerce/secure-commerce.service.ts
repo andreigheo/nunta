@@ -205,6 +205,7 @@ export class SecureCommerceService {
       const planKey = effectiveWorkspacePlanKey(
         membership.workspace.subscription?.planKey,
         membership.workspace.subscription?.status,
+        membership.workspace.subscription?.gracePeriodEndAt,
       );
       if (!capabilityAllowedByWorkspacePlan(capability, planKey)) {
         const minimumPlan = minimumPlanForCapability(capability);
@@ -414,7 +415,7 @@ export class SecureCommerceService {
           const [subscription, stored] = await Promise.all([
             tx.workspaceSubscription.findUnique({
               where: { workspaceId: owner.workspaceId },
-              select: { planKey: true, status: true },
+              select: { planKey: true, status: true, gracePeriodEndAt: true },
             }),
             tx.storedObject.aggregate({
               where: {
@@ -428,6 +429,7 @@ export class SecureCommerceService {
           const planKey = effectiveWorkspacePlanKey(
             subscription?.planKey,
             subscription?.status,
+            subscription?.gracePeriodEndAt,
           );
           const storageLimit = Number(
             workspacePlan(planKey).entitlements.STORAGE_BYTES ?? 0,

@@ -65,7 +65,7 @@
 .plan {
   display: flex;
   min-width: 0;
-  min-height: 35rem;
+  min-height: 0;
   flex-direction: column;
   padding: clamp(1.75rem, 3vw, 2.65rem);
   color: #19151d;
@@ -149,7 +149,7 @@
 }
 
 .description {
-  min-height: 5.1rem;
+  min-height: 5rem;
   margin: 1.75rem 0 0;
   color: #57515b;
   font-size: 1rem;
@@ -161,17 +161,86 @@
   color: rgb(255 249 255 / 78%);
 }
 
+.highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 1.5rem 0 0;
+  border: 1px solid #ded8df;
+  border-radius: 0.625rem;
+  background: #ded8df;
+  overflow: hidden;
+}
+
+.highlights div {
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  background: #fff;
+}
+
+.highlights dd,
+.highlights dt {
+  margin: 0;
+}
+
+.highlights dd {
+  color: #29102d;
+  font-family: var(--font-brand);
+  font-size: 1.15rem;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+
+.highlights dt {
+  margin-top: 0.3rem;
+  color: #6d6670;
+  font-size: 0.72rem;
+  font-weight: 560;
+  line-height: 1.35;
+}
+
+.plan[data-featured="true"] .highlights {
+  border-color: rgb(255 249 255 / 18%);
+  background: rgb(255 249 255 / 18%);
+}
+
+.plan[data-featured="true"] .highlights div {
+  background: rgb(255 249 255 / 7%);
+}
+
+.plan[data-featured="true"] .highlights dd {
+  color: #fff9ff;
+}
+
+.plan[data-featured="true"] .highlights dt {
+  color: rgb(255 249 255 / 84%);
+}
+
+.includesTitle {
+  margin: 1.75rem 0 0;
+  color: #29102d;
+  font-size: 0.78rem;
+  font-weight: 740;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.plan[data-featured="true"] .includesTitle {
+  color: #fff9ff;
+}
+
 .features {
   display: grid;
-  gap: 1rem;
-  margin: 0;
-  border-top: 1px solid #ded8df;
-  padding: 1.75rem 0 0;
+  gap: 0.85rem;
+  margin: 0.85rem 0 0;
+  padding: 0;
   list-style: none;
 }
 
 .plan[data-featured="true"] .features {
-  border-color: rgb(255 249 255 / 18%);
+  border-color: transparent;
 }
 
 .features li {
@@ -370,7 +439,7 @@
   }
 
   .features {
-    padding-top: 1.5rem;
+    padding-top: 0;
   }
 }
 
@@ -454,14 +523,14 @@
 
   .features {
     gap: 0.9rem;
-    margin-top: 0;
-    border-top: 1px solid #ded8df;
-    padding-top: 1.5rem;
+    margin-top: 0.85rem;
+    border-top: 0;
+    padding-top: 0;
   }
 
   .plan[data-featured="true"] .features {
-    border-top: 1px solid rgb(255 249 255 / 18%);
-    padding-top: 1.5rem;
+    border-top: 0;
+    padding-top: 0;
   }
 
   .features li {

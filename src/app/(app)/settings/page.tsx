@@ -6,8 +6,8 @@ import { useSearchParams } from "next/navigation";
 import {
   Bell,
   ChevronRight,
-  CreditCard,
   Coins,
+  CreditCard,
   Download,
   KeyRound,
   Laptop,
@@ -56,6 +56,14 @@ import type {
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import { loadPaddle } from "@/lib/paddle";
+import { selectedWorkspacePlan } from "@/lib/account-routing";
+import {
+  billingReturnUrl,
+  creditSuccessNotice,
+  subscriptionSuccessNotice,
+  type BillingSuccessNotice,
+} from "@/lib/billing-success";
+import { PaymentSuccessConfirmation } from "@/components/billing/payment-success-confirmation";
 
 type SettingsTab =
   | "general"
@@ -497,6 +505,7 @@ const entitlementRows = [
   { key: "MAX_COLLABORATORS", label: "Colaboratori" },
   { key: "AI_ACTIONS_MONTHLY", label: "Acțiuni AI / lună" },
   { key: "MESSAGING_CREDITS", label: "Credite de mesagerie" },
+  { key: "EMAIL_DELIVERIES_MONTHLY", label: "Livrări e-mail / lună" },
   { key: "MAX_ACTIVE_AUTOMATIONS", label: "Automatizări active" },
   { key: "STORAGE_BYTES", label: "Stocare" },
   { key: "ADVANCED_LOGISTICS", label: "Mese, transport și cazare" },
@@ -512,6 +521,7 @@ const usageLabels: Record<string, string> = {
   MAX_GUESTS: "Invitați activi",
   MAX_COLLABORATORS: "Colaboratori și invitații",
   AI_ACTIONS_MONTHLY: "Acțiuni AI luna aceasta",
+  EMAIL_DELIVERIES_MONTHLY: "Livrări e-mail luna aceasta",
   MAX_ACTIVE_AUTOMATIONS: "Automatizări active",
   STORAGE_BYTES: "Stocare utilizată",
 };
@@ -530,6 +540,7 @@ function formatEntitlement(key: string, value: boolean | number | undefined) {
 }
 
 function BillingSettings() {
+  const searchParams = useSearchParams();
   const { currentWorkspace, bootstrap } = useWorkspace();
   const { toast } = useToast();
   const [billing, setBilling] = React.useState<
@@ -543,9 +554,33 @@ function BillingSettings() {
   const [busyPlan, setBusyPlan] =
     React.useState<WorkspaceSubscriptionPlanKey | null>(null);
   const [busyCreditPack, setBusyCreditPack] = React.useState(false);
+  const [supportType, setSupportType] = React.useState<
+    "ACCOUNT_ACCESS" | "BILLING" | "BUG" | "SECURITY" | "OTHER"
+  >("BILLING");
+  const [supportSubject, setSupportSubject] = React.useState("");
+  const [supportDescription, setSupportDescription] = React.useState("");
+  const [supportBusy, setSupportBusy] = React.useState(false);
+  const [successNotice, setSuccessNotice] =
+    React.useState<BillingSuccessNotice | null>(null);
+  const checkoutConfirmed = React.useRef(false);
+  const creditCheckoutConfirmed = React.useRef(false);
+  const checkoutStarted = React.useRef(false);
+  const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
   const canManage =
     bootstrap?.membership.capabilities.includes("workspace.billing.manage") ??
     false;
+
+  const clearCheckoutReturn = React.useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("checkout");
+    url.searchParams.delete("transaction");
+    url.searchParams.delete("creditTransaction");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, []);
 
   const load = React.useCallback(async () => {
     if (!currentWorkspace) return;
@@ -568,7 +603,160 @@ function BillingSettings() {
     return () => window.clearTimeout(timeoutId);
   }, [load]);
 
-  const choosePlan = async (plan: WorkspaceSubscriptionPlanKey) => {
+  React.useEffect(() => {
+    const transactionId = searchParams.get("transaction");
+    if (
+      searchParams.get("checkout") !== "success" ||
+      !currentWorkspace ||
+      checkoutConfirmed.current
+    )
+      return;
+    if (!transactionId) {
+      checkoutConfirmed.current = true;
+      clearCheckoutReturn();
+      toast({
+        title: "Abonamentul a fost reîmprospătat",
+        description:
+          "Confirmarea plății este afișată numai pentru o tranzacție Paddle verificată.",
+        variant: "info",
+      });
+      return;
+    }
+    let cancelled = false;
+    let attempts = 0;
+    let timeoutId: number | undefined;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const checkout = await weddingOsApi.subscriptionCheckoutStatus(
+          currentWorkspace.id,
+          transactionId,
+        );
+        if (
+          checkout &&
+          (checkout.status === "FAILED" || checkout.status === "EXPIRED")
+        ) {
+          checkoutConfirmed.current = true;
+          clearCheckoutReturn();
+          toast({
+            title: "Plata nu a fost finalizată",
+            description: "Planul nu a fost schimbat. Poți relua plata în siguranță.",
+            variant: "error",
+          });
+          return;
+        }
+        if (checkout && checkout.status !== "COMPLETED") throw new Error("pending");
+        const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
+        if (cancelled) return;
+        setBilling(next);
+        if (
+          next.subscription.status === "ACTIVE" &&
+          (!checkout.plan || next.subscription.plan === checkout.plan)
+        ) {
+          checkoutConfirmed.current = true;
+          setSuccessNotice(subscriptionSuccessNotice(next));
+          clearCheckoutReturn();
+          toast({
+            title: "Abonamentul este activ",
+            description: "Planul și creditele au fost confirmate de backend.",
+            variant: "success",
+          });
+          return;
+        }
+      } catch {
+        // The normal billing card still exposes an explicit retry action.
+      }
+      if (!cancelled && attempts < 30) {
+        timeoutId = window.setTimeout(() => void poll(), 2_000);
+        return;
+      }
+      if (!cancelled) {
+        checkoutConfirmed.current = true;
+        toast({
+          title: "Plata este încă în curs de confirmare",
+          description:
+            "Nu adăugăm creditele până la confirmarea semnată de Paddle. Reîncarcă pagina peste câteva momente; plata nu va fi dublată.",
+          variant: "info",
+        });
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [clearCheckoutReturn, currentWorkspace, searchParams, toast]);
+
+  React.useEffect(() => {
+    const transactionId = searchParams.get("creditTransaction");
+    if (
+      searchParams.get("checkout") !== "credits-success" ||
+      !currentWorkspace ||
+      !transactionId ||
+      creditCheckoutConfirmed.current
+    )
+      return;
+    let cancelled = false;
+    let attempts = 0;
+    let timeoutId: number | undefined;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const checkout = await weddingOsApi.messageCreditCheckoutStatus(
+          currentWorkspace.id,
+          transactionId,
+        );
+        if (cancelled) return;
+        if (checkout.status === "COMPLETED") {
+          creditCheckoutConfirmed.current = true;
+          const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
+          if (cancelled) return;
+          setBilling(next);
+          setSuccessNotice(creditSuccessNotice(checkout.credits, next));
+          clearCheckoutReturn();
+          toast({
+            title: `${checkout.credits} de credite au fost adăugate`,
+            description: "Soldul cumpărat este disponibil și nu expiră la reînnoirea planului.",
+            variant: "success",
+          });
+          return;
+        }
+        if (checkout.status === "FAILED" || checkout.status === "EXPIRED") {
+          creditCheckoutConfirmed.current = true;
+          clearCheckoutReturn();
+          toast({
+            title: "Creditarea nu a fost finalizată",
+            description: "Nu s-au adăugat credite. Poți porni din nou cumpărarea.",
+            variant: "error",
+          });
+          return;
+        }
+      } catch {
+        // Keep polling briefly: Paddle's redirect may arrive before its signed
+        // webhook is projected into the workspace ledger.
+      }
+      if (!cancelled && attempts < 30) {
+        timeoutId = window.setTimeout(() => void poll(), 2_000);
+        return;
+      }
+      if (!cancelled) {
+        creditCheckoutConfirmed.current = true;
+        toast({
+          title: "Plata este încă în curs de confirmare",
+          description:
+            "Creditele vor apărea numai după confirmarea semnată de Paddle. Reîncarcă pagina peste câteva momente; plata nu va fi dublată.",
+          variant: "info",
+        });
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [clearCheckoutReturn, currentWorkspace, searchParams, toast]);
+
+  const choosePlan = React.useCallback(async (plan: WorkspaceSubscriptionPlanKey) => {
     if (!currentWorkspace || !billing || !canManage) return;
     setBusyPlan(plan);
     try {
@@ -598,7 +786,11 @@ function BillingSettings() {
           settings: {
             displayMode: "overlay",
             theme: "light",
-            successUrl: `${window.location.origin}/settings?tab=billing&checkout=success`,
+            successUrl: billingReturnUrl(
+              window.location.origin,
+              "subscription",
+              result.transactionId,
+            ),
           },
         });
       } else if (result) {
@@ -613,7 +805,32 @@ function BillingSettings() {
     } finally {
       setBusyPlan(null);
     }
-  };
+  }, [billing, canManage, currentWorkspace, toast]);
+
+  React.useEffect(() => {
+    if (
+      searchParams.get("checkout") !== "start" ||
+      !requestedPlan ||
+      !billing ||
+      !canManage ||
+      checkoutStarted.current
+    )
+      return;
+    checkoutStarted.current = true;
+    if (billing.subscription.plan === requestedPlan) {
+      toast({
+        title: "Planul este deja activ",
+        description: `Workspace-ul folosește deja planul ${requestedPlan === "PLUS" ? "Plus" : "Pro"}.`,
+        variant: "info",
+      });
+      return;
+    }
+    const timeoutId = window.setTimeout(
+      () => void choosePlan(requestedPlan),
+      0,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [billing, canManage, choosePlan, requestedPlan, searchParams, toast]);
 
   const buyMessageCredits = async () => {
     if (!currentWorkspace || !billing || !canManage) return;
@@ -633,7 +850,11 @@ function BillingSettings() {
           settings: {
             displayMode: "overlay",
             theme: "light",
-            successUrl: `${window.location.origin}/settings?tab=billing&checkout=credits-success`,
+            successUrl: billingReturnUrl(
+              window.location.origin,
+              "credits",
+              result.transactionId,
+            ),
           },
         });
       } else {
@@ -647,6 +868,38 @@ function BillingSettings() {
       });
     } finally {
       setBusyCreditPack(false);
+    }
+  };
+
+  const submitSupportCase = async () => {
+    if (!currentWorkspace) return;
+    setSupportBusy(true);
+    try {
+      const created = await weddingOsApi.createWorkspaceSupportCase(
+        currentWorkspace.id,
+        {
+          type: supportType,
+          subject: supportSubject,
+          description: supportDescription,
+        },
+      );
+      setSupportSubject("");
+      setSupportDescription("");
+      toast({
+        title: "Cererea a fost trimisă",
+        description: created.prioritySupport
+          ? "Cazul a intrat în coada prioritară Pro."
+          : "Cazul a intrat în coada normală de suport.",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Cererea nu a putut fi trimisă",
+        description: apiErrorMessage(error),
+        variant: "error",
+      });
+    } finally {
+      setSupportBusy(false);
     }
   };
 
@@ -667,6 +920,53 @@ function BillingSettings() {
 
   return (
     <div className="space-y-5">
+      {successNotice && (
+        <PaymentSuccessConfirmation
+          notice={successNotice}
+          onDismiss={() => setSuccessNotice(null)}
+          onViewCredits={() => {
+            const target = document.getElementById("message-credits");
+            if (!target) return;
+            target.scrollIntoView({
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+                .matches
+                ? "auto"
+                : "smooth",
+              block: "start",
+            });
+          }}
+        />
+      )}
+      {billing.subscription.status === "PAST_DUE" && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="py-4 text-sm text-amber-950">
+            Plata abonamentului nu a fost confirmată. Funcțiile planului rămân
+            active până la{" "}
+            {billing.subscription.gracePeriodEndAt
+              ? formatDateLong(billing.subscription.gracePeriodEndAt)
+              : "încheierea perioadei de grație"}
+            , apoi workspace-ul trece automat la limitele planului Gratuit.
+          </CardContent>
+        </Card>
+      )}
+      {billing.emailHealth.state !== "healthy" && (
+        <Card
+          className={
+            billing.emailHealth.state === "paused"
+              ? "border-red-300 bg-red-50"
+              : "border-amber-300 bg-amber-50"
+          }
+        >
+          <CardContent className="py-4 text-sm text-ink">
+            Rata de respingere a e-mailurilor este{" "}
+            {(billing.emailHealth.bounceRate * 100).toFixed(1)}% în ultimele 30
+            de zile.
+            {billing.emailHealth.state === "paused"
+              ? " Campaniile noi sunt oprite până la curățarea listei."
+              : " Verifică adresele înainte ca trimiterile să fie oprite la 4%."}
+          </CardContent>
+        </Card>
+      )}
       <div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -755,7 +1055,7 @@ function BillingSettings() {
         </div>
       </div>
 
-      <Card>
+      <Card id="message-credits" className="scroll-mt-6">
         <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -800,8 +1100,8 @@ function BillingSettings() {
                   {pack.name} · {formatEuro(pack.amountMinor)}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted">
-                  {pack.description} Un SMS mai lung poate folosi mai multe
-                  credite dacă furnizorul îl facturează în mai multe segmente.
+                  {pack.description} Un credit acoperă o trimitere către un
+                  invitat eligibil.
                 </p>
               </div>
               <Button
@@ -875,10 +1175,72 @@ function BillingSettings() {
                       style={{ width: `${percent}%` }}
                     />
                   </div>
+                  {key === "EMAIL_DELIVERIES_MONTHLY" && percent >= 70 ? (
+                    <p className="mt-2 text-xs text-amber-700">
+                      {percent >= 90
+                        ? "Aproape de limita lunară."
+                        : "Ai consumat peste 70% din limita lunară."}
+                    </p>
+                  ) : null}
                 </div>
               );
             })}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Contactează suportul</CardTitle>
+            <CardDescription>
+              Cazurile deschise pe Pro intră automat în coada prioritară, fără
+              să pierdă prioritatea dacă planul se schimbă ulterior.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Categorie">
+            <Select
+              value={supportType}
+              onChange={(event) =>
+                setSupportType(event.target.value as typeof supportType)
+              }
+            >
+              <option value="BILLING">Abonament și plată</option>
+              <option value="ACCOUNT_ACCESS">Acces la cont</option>
+              <option value="BUG">Problemă tehnică</option>
+              <option value="SECURITY">Securitate</option>
+              <option value="OTHER">Altceva</option>
+            </Select>
+          </Field>
+          <Field label="Subiect">
+            <Input
+              value={supportSubject}
+              minLength={3}
+              maxLength={240}
+              onChange={(event) => setSupportSubject(event.target.value)}
+            />
+          </Field>
+          <Field label="Descriere">
+            <textarea
+              className="min-h-28 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+              value={supportDescription}
+              minLength={3}
+              maxLength={4000}
+              onChange={(event) => setSupportDescription(event.target.value)}
+            />
+          </Field>
+          <Button
+            loading={supportBusy}
+            disabled={
+              supportSubject.trim().length < 3 ||
+              supportDescription.trim().length < 3
+            }
+            onClick={() => void submitSupportCase()}
+          >
+            Trimite cererea
+          </Button>
         </CardContent>
       </Card>
 

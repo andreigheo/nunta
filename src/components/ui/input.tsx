@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -109,7 +110,7 @@ function inputClasses(invalid?: boolean) {
     "h-11 w-full rounded-lg border bg-surface px-3 text-sm text-ink shadow-none transition-colors placeholder:text-faint hover:border-line-strong focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-subtle disabled:text-faint",
     invalid
       ? "border-danger/60 focus-visible:border-danger focus-visible:outline-danger/40"
-      : "border-line",
+      : "border-line-strong",
   );
 }
 
@@ -128,7 +129,7 @@ export const Textarea = React.forwardRef<
       "min-h-[96px] w-full rounded-lg border bg-surface px-3 py-2.5 text-sm text-ink transition-colors placeholder:text-faint hover:border-line-strong focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-subtle",
       invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true"
         ? "border-danger/60 focus-visible:border-danger focus-visible:outline-danger/40"
-        : "border-line",
+        : "border-line-strong",
       className,
     )}
     {...props}
@@ -144,20 +145,26 @@ export const Select = React.forwardRef<
   HTMLSelectElement,
   React.SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean }
 >(({ className, invalid, children, ...props }, ref) => (
-  <select
-    ref={ref}
-    aria-invalid={invalid || props["aria-invalid"] || undefined}
-    className={cn(
-      "h-11 w-full cursor-pointer appearance-none rounded-lg border bg-surface bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236d6670%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[right_0.7rem_center] bg-no-repeat px-3 pr-9 text-sm text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-subtle",
-      invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true"
-        ? "border-danger/60 focus-visible:border-danger focus-visible:outline-danger/40"
-        : "border-line",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-  </select>
+  <span className={cn("relative block w-full", className)}>
+    <select
+      ref={ref}
+      aria-invalid={invalid || props["aria-invalid"] || undefined}
+      className={cn(
+        "h-11 w-full cursor-pointer appearance-none rounded-lg border bg-surface px-3 pr-9 text-sm text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-subtle",
+        invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true"
+          ? "border-danger/60 focus-visible:border-danger focus-visible:outline-danger/40"
+          : "border-line-strong",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </select>
+    <ChevronDown
+      className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-faint"
+      aria-hidden
+    />
+  </span>
 ));
 Select.displayName = "Select";
 

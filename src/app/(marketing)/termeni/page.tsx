@@ -11,7 +11,7 @@ const sections = [
   {
     title: "Operatorul serviciului",
     body: [
-      "Sarbato este un serviciu software operat de Andrei Vilcu, vânzător individual, sub brandul Sarbato. Ne poți contacta la andreivilcuro@gmail.com.",
+      "Sarbato este un serviciu software operat de Andrei Vilcu, vânzător individual, sub brandul Sarbato. Ne poți contacta la hello@sarbato.space.",
       "Prin crearea unui cont sau folosirea serviciului accepți acești termeni. Dacă folosești Sarbato în numele altor persoane, confirmi că ai permisiunea necesară.",
     ],
   },
@@ -71,7 +71,7 @@ const sections = [
     title: "Legea aplicabilă și contact",
     body: [
       "Acești termeni sunt guvernați de legea română, fără a afecta protecțiile obligatorii de care beneficiază consumatorul în țara sa de reședință.",
-      "Pentru întrebări despre serviciu sau acești termeni, scrie la andreivilcuro@gmail.com.",
+      "Pentru întrebări despre serviciu sau acești termeni, scrie la hello@sarbato.space.",
     ],
   },
 ];

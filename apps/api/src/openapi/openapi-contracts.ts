@@ -14,6 +14,9 @@ import {
   createSessionRequestSchema,
   createTeamInvitationRequestSchema,
   createWorkspaceRequestSchema,
+  createWorkspaceSubscriptionCheckoutSchema,
+  createMessageCreditCheckoutSchema,
+  createWorkspaceSupportCaseSchema,
   currentUserSchema,
   emailVerificationRequestSchema,
   emailVerificationSchema,
@@ -69,6 +72,7 @@ import {
   createTaskCommentSchema,
   createTaskSchema,
   dependencyImpactSchema,
+  planProposalItemCoreSchema,
   planProposalListSchema,
   planProposalSchema,
   planningDashboardSchema,
@@ -269,6 +273,9 @@ import {
   galleryItemsSchema,
   guestCheckInCommandSchema,
   guestMomentReportSchema,
+  mediaPortalSettingsSchema,
+  mediaPortalLiveGallerySchema,
+  mediaPortalUploadSchema,
   guestMomentTransitionSchema,
   runOfShowDependenciesSchema,
   runOfShowOrderSchema,
@@ -318,6 +325,14 @@ import {
   updateCopilotSettingsSchema,
   updateRiskSchema,
   platformReasonSchema,
+  platformCreateUserSchema,
+  platformCreateMembershipSchema,
+  platformUpdateUserSchema,
+  platformUserGrantSchema,
+  platformMembershipRoleSchema,
+  workspaceSubscriptionOverrideSchema,
+  platformLabelSchema,
+  platformLabelAssignmentSchema,
   createSupportCaseSchema,
   supportCaseTransitionSchema,
   supportNoteSchema,
@@ -460,6 +475,10 @@ const schemas: Record<string, ZodTypeAny> = {
   WorkspaceSummary: workspaceSummarySchema,
   WorkspaceMutation: workspaceMutationSchema,
   CreateWorkspaceRequest: createWorkspaceRequestSchema,
+  CreateWorkspaceSubscriptionCheckout:
+    createWorkspaceSubscriptionCheckoutSchema,
+  CreateMessageCreditCheckout: createMessageCreditCheckoutSchema,
+  CreateWorkspaceSupportCase: createWorkspaceSupportCaseSchema,
   UpdateWorkspaceRequest: updateWorkspaceRequestSchema,
   WorkspaceBootstrap: workspaceBootstrapSchema,
   TeamMember: teamMemberSchema,
@@ -790,6 +809,92 @@ const schemas: Record<string, ZodTypeAny> = {
   CompleteGuestMoment: completeGuestMomentSchema,
   GuestMomentTransition: guestMomentTransitionSchema,
   GuestMomentReport: guestMomentReportSchema,
+  MediaPortalSettings: mediaPortalSettingsSchema,
+  MediaPortalLiveGallery: mediaPortalLiveGallerySchema,
+  MediaPortalUpload: mediaPortalUploadSchema,
+  MediaPortalComplete: z.object({
+    uploadToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  }),
+  MediaPortalResource: z.object({
+    id: z.string().uuid(),
+    weddingEventId: z.string().uuid(),
+    eventName: z.string(),
+    active: z.boolean(),
+    expiresAt: z.string().datetime(),
+    version: z.number().int(),
+    uploadCount: z.number().int(),
+    reservedBytes: z.number(),
+    maximumBytes: z.number(),
+    maximumFiles: z.number().int(),
+    liveGalleryEnabled: z.boolean(),
+    liveGallery: z
+      .object({
+        id: z.string().uuid(),
+        name: z.string(),
+        status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
+        itemCount: z.number().int(),
+        updatedAt: z.string().datetime(),
+      })
+      .nullable(),
+    url: z.string().url(),
+    qrDataUrl: z.string(),
+  }),
+  MediaPortalList: z.object({
+    items: z.array(z.object({ id: z.string().uuid() }).passthrough()),
+    events: z.array(z.object({ id: z.string().uuid(), name: z.string() })),
+  }),
+  MediaPortalPublic: z.object({
+    eventName: z.string(),
+    active: z.boolean(),
+    expiresAt: z.string().datetime(),
+    imageMaxBytes: z.number(),
+    videoMaxBytes: z.number(),
+    contentTypes: z.array(z.string()),
+    liveGalleryEnabled: z.boolean(),
+  }),
+  MediaPortalPublicGallery: z.object({
+    enabled: z.boolean(),
+    gallery: z
+      .object({
+        id: z.string().uuid(),
+        name: z.string(),
+        description: z.string().nullable(),
+        updatedAt: z.string().datetime(),
+        items: z.array(
+          z.object({
+            id: z.string().uuid(),
+            momentId: z.string().uuid(),
+            position: z.number().int(),
+            caption: z.string().nullable(),
+            contributorName: z.string().nullable(),
+            mediaType: z.enum(["IMAGE", "VIDEO"]),
+            width: z.number().int().nullable(),
+            height: z.number().int().nullable(),
+            durationMs: z.number().int().nullable(),
+            previewUrl: z.string().url(),
+            contentUrl: z.string().url(),
+          }),
+        ),
+      })
+      .nullable(),
+  }),
+  MediaPortalUploadResult: z.object({
+    momentId: z.string().uuid(),
+    completed: z.boolean(),
+    upload: z
+      .object({
+        method: z.literal("PUT"),
+        url: z.string().url(),
+        headers: z.record(z.string()),
+        expiresAt: z.string().datetime(),
+      })
+      .optional(),
+  }),
+  MediaPortalCompleteResult: z.object({
+    id: z.string().uuid(),
+    status: z.string(),
+  }),
+  MediaPortalDownload: z.object({ url: z.string().url() }).passthrough(),
   CreateGalleryCollection: createGalleryCollectionSchema,
   UpdateGalleryCollection: updateGalleryCollectionSchema,
   GalleryItems: galleryItemsSchema,
@@ -797,6 +902,14 @@ const schemas: Record<string, ZodTypeAny> = {
   PublicAggregateConsent: publicAggregateConsentSchema,
   UpdatePublicAggregateConsent: updatePublicAggregateConsentSchema,
   PlatformReason: platformReasonSchema,
+  PlatformCreateUser: platformCreateUserSchema,
+  PlatformCreateMembership: platformCreateMembershipSchema,
+  PlatformUpdateUser: platformUpdateUserSchema,
+  PlatformUserGrant: platformUserGrantSchema,
+  PlatformMembershipRole: platformMembershipRoleSchema,
+  WorkspaceSubscriptionOverride: workspaceSubscriptionOverrideSchema,
+  PlatformLabel: platformLabelSchema,
+  PlatformLabelAssignment: platformLabelAssignmentSchema,
   CreateSupportCase: createSupportCaseSchema,
   SupportCaseTransition: supportCaseTransitionSchema,
   SupportNote: supportNoteSchema,
@@ -860,6 +973,19 @@ const schemas: Record<string, ZodTypeAny> = {
 };
 
 const requestByRoute: Array<[RegExp, string]> = [
+  [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals$/,
+    "MediaPortalSettings",
+  ],
+  [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals\/live-gallery$/,
+    "MediaPortalLiveGallery",
+  ],
+  [/^POST \/api\/v1\/event-media\/uploads$/, "MediaPortalUpload"],
+  [
+    /^POST \/api\/v1\/event-media\/uploads\/\{momentId\}\/complete$/,
+    "MediaPortalComplete",
+  ],
   [/POST \/api\/v1\/platform\/beta\/programs$/, "CreateBetaProgram"],
   [/POST \/api\/v1\/platform\/beta\/cohorts$/, "CreateBetaCohort"],
   [/POST \/api\/v1\/platform\/beta\/invitations$/, "CreateBetaInvitation"],
@@ -897,7 +1023,42 @@ const requestByRoute: Array<[RegExp, string]> = [
     /POST \/api\/v1\/platform\/(users\/\{userId\}|workspaces\/\{workspaceId\}|vendor-organizations\/\{organizationId\})\/(suspend|reactivate)$/,
     "PlatformReason",
   ],
+  [/POST \/api\/v1\/platform\/users$/, "PlatformCreateUser"],
+  [/PATCH \/api\/v1\/platform\/users\/\{userId\}$/, "PlatformUpdateUser"],
+  [
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/platform-grants$/,
+    "PlatformUserGrant",
+  ],
+  [
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/memberships\/\{membershipId\}\/role$/,
+    "PlatformMembershipRole",
+  ],
+  [
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/memberships$/,
+    "PlatformCreateMembership",
+  ],
+  [
+    /POST \/api\/v1\/platform\/workspaces\/\{workspaceId\}\/subscription-plan$/,
+    "WorkspaceSubscriptionOverride",
+  ],
+  [/POST \/api\/v1\/platform\/labels$/, "PlatformLabel"],
+  [
+    /POST \/api\/v1\/platform\/labels\/\{labelId\}\/assignments$/,
+    "PlatformLabelAssignment",
+  ],
   [/POST \/api\/v1\/platform\/support-cases$/, "CreateSupportCase"],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/billing\/checkout$/,
+    "CreateWorkspaceSubscriptionCheckout",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/billing\/message-credits\/checkout$/,
+    "CreateMessageCreditCheckout",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/billing\/support-cases$/,
+    "CreateWorkspaceSupportCase",
+  ],
   [
     /POST \/api\/v1\/platform\/support-cases\/\{caseId\}\/transitions$/,
     "SupportCaseTransition",
@@ -1925,9 +2086,32 @@ const requestByRoute: Array<[RegExp, string]> = [
 ];
 
 const responseByRoute: Array<[RegExp, string]> = [
+  [
+    /^GET \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals$/,
+    "MediaPortalList",
+  ],
+  [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals$/,
+    "MediaPortalResource",
+  ],
+  [
+    /^POST \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals\/live-gallery$/,
+    "MediaPortalResource",
+  ],
+  [
+    /^GET \/api\/v1\/workspaces\/\{workspaceId\}\/media-portals\/moments\/\{momentId\}\/(download|content)$/,
+    "MediaPortalDownload",
+  ],
+  [/^GET \/api\/v1\/event-media$/, "MediaPortalPublic"],
+  [/^GET \/api\/v1\/event-media\/gallery$/, "MediaPortalPublicGallery"],
+  [/^POST \/api\/v1\/event-media\/uploads$/, "MediaPortalUploadResult"],
+  [
+    /^POST \/api\/v1\/event-media\/uploads\/\{momentId\}\/complete$/,
+    "MediaPortalCompleteResult",
+  ],
   [/(GET|POST|PATCH) \/api\/v1\/(?:platform\/)?beta(?:\/.*)?$/, "BetaResource"],
   [
-    /(GET|POST|PATCH) \/api\/v1\/platform\/(dashboard|system-status|users|workspaces|vendor-organizations|support-cases|security-alerts|incidents|feature-flags|legal-documents|data-subject-requests|backups|restores|releases)(?:\/.*)?$/,
+    /(GET|POST|PATCH) \/api\/v1\/platform\/(dashboard|overview|traffic|commerce|audit-actions|access|labels|system-status|users|workspaces|vendor-organizations|support-cases|security-alerts|incidents|feature-flags|legal-documents|data-subject-requests|backups|restores|releases)(?:\/.*)?$/,
     "PlatformResource",
   ],
   [
@@ -2358,6 +2542,12 @@ const responseByRoute: Array<[RegExp, string]> = [
 export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
   document.components ??= {};
   document.components.securitySchemes ??= {};
+  document.components.securitySchemes.mediaPortalToken = {
+    type: "http",
+    scheme: "bearer",
+    description:
+      "Revocable event QR upload grant. Individual uploads also require their uploadToken.",
+  };
   document.components.securitySchemes.guestAccessToken = {
     type: "apiKey",
     in: "query",
@@ -2374,9 +2564,12 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
   document.components.schemas = Object.fromEntries(
     Object.entries(schemas).map(([name, schema]) => [
       name,
-      toOpenApiSchema(schema),
+      name === "PlanProposal" ? {} : toOpenApiSchema(schema),
     ]),
   );
+  document.components.schemas.PlanProposalItem =
+    recursivePlanProposalItemOpenApiSchema();
+  document.components.schemas.PlanProposal = planProposalOpenApiSchema();
   document.components.schemas.ApiDataResponse = {
     type: "object",
     required: ["data", "meta"],
@@ -2422,6 +2615,7 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
               schema:
                 path === "/health" ||
                 path === "/ready" ||
+                path.startsWith("/api/v1/event-media") ||
                 path === "/api/v1/public/product-proof"
                   ? { $ref: `#/components/schemas/${responseName}` }
                   : responseEnvelope(responseName ?? "ApiDataResponse"),
@@ -2473,6 +2667,7 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
         path === "/health" ||
         path === "/ready" ||
         path === "/api/v1/status" ||
+        path.startsWith("/api/v1/event-media") ||
         path === "/api/v1/public/product-proof" ||
         (path.startsWith("/api/v1/auth/") &&
           !path.startsWith("/api/v1/auth/csrf") &&
@@ -2482,11 +2677,13 @@ export function applyOpenApiContracts(document: OpenAPIObject): OpenAPIObject {
         path.startsWith("/api/v1/marketplace/portfolio-assets/") ||
         path.startsWith("/api/v1/provider-webhooks/") ||
         path.startsWith("/api/v1/webhooks/");
-      operation.security = path.startsWith("/api/v1/guest")
-        ? [{ guestAccessToken: [] }]
-        : isPublic
-          ? []
-          : [{ cookie: [] }];
+      operation.security = path.startsWith("/api/v1/event-media")
+        ? [{ mediaPortalToken: [] }]
+        : path.startsWith("/api/v1/guest")
+          ? [{ guestAccessToken: [] }]
+          : isPublic
+            ? []
+            : [{ cookie: [] }];
       if (path === "/api/v1/internal/metrics") {
         operation.security = [{ internalMetricsToken: [] }];
         delete operation.responses["401"];
@@ -2691,6 +2888,7 @@ function requiresIdempotencyKey(route: string): boolean {
     "POST /api/v1/platform/beta/cohorts",
     "POST /api/v1/platform/beta/invitations",
     "POST /api/v1/beta/feedback",
+    "POST /api/v1/platform/users",
     "/platform/users/",
     "/platform/workspaces/",
     "/platform/vendor-organizations/",
@@ -2833,6 +3031,12 @@ function requiresIfMatch(route: string): boolean {
     /POST \/api\/v1\/platform\/(?:users\/\{userId\}|workspaces\/\{workspaceId\}|vendor-organizations\/\{organizationId\})\/(?:suspend|reactivate)$/.test(
       route,
     ) ||
+    /PATCH \/api\/v1\/platform\/users\/\{userId\}$/.test(route) ||
+    /POST \/api\/v1\/platform\/users\/\{userId\}\/memberships\/\{membershipId\}\/role$/.test(
+      route,
+    ) ||
+    route ===
+      "POST /api/v1/platform/workspaces/{workspaceId}/subscription-plan" ||
     /PATCH \/api\/v1\/platform\/feature-flags\/\{flagId\}$/.test(route) ||
     /POST \/api\/v1\/platform\/(?:legal-documents\/\{documentId\}\/publish|legal-holds\/\{holdId\}\/release)$/.test(
       route,
@@ -3217,6 +3421,17 @@ function requiredCapability(route: string): string | undefined {
 
 function requiredPlatformCapability(route: string): string | undefined {
   if (!route.includes("/api/v1/platform/")) return undefined;
+  if (route.includes("/workspaces/{workspaceId}/subscription-plan"))
+    return "platform.subscription.manage";
+  if (route.includes("/traffic") || route.includes("/overview"))
+    return "platform.dashboard.read";
+  if (route.includes("/commerce")) return "platform.finance.read";
+  if (route.includes("/audit-actions") || route.includes("/access"))
+    return "platform.audit.read";
+  if (route.includes("/labels"))
+    return route.startsWith("GET")
+      ? "platform.feature_flag.read"
+      : "platform.feature_flag.write";
   if (route.includes("/platform/beta/")) {
     if (route.includes("/invitations")) return "platform.beta.invite";
     if (route.includes("/feedback") && !route.startsWith("GET"))
@@ -3230,12 +3445,20 @@ function requiredPlatformCapability(route: string): string | undefined {
   }
   if (route.includes("/dashboard") || route.includes("/system-status"))
     return "platform.dashboard.read";
+  if (route.includes("/users/{userId}/usage")) return "platform.usage.read";
   if (route.includes("/users"))
     return route.startsWith("GET")
       ? "platform.user.read"
-      : route.endsWith("/suspend")
-        ? "platform.user.suspend"
-        : "platform.user.reactivate";
+      : route === "POST /api/v1/platform/users"
+        ? "platform.user.create"
+        : route === "PATCH /api/v1/platform/users/{userId}"
+          ? "platform.user.update"
+          : route.includes("/platform-grants") ||
+              route.includes("/memberships/")
+            ? "platform.user.manage_access"
+            : route.endsWith("/suspend")
+              ? "platform.user.suspend"
+              : "platform.user.reactivate";
   if (route.includes("/workspaces"))
     return route.startsWith("GET")
       ? "platform.workspace.read"
@@ -3400,4 +3623,34 @@ function toOpenApiSchema(schema: ZodTypeAny): SchemaObject {
     target: "openApi3",
     $refStrategy: "none",
   }) as SchemaObject;
+}
+
+function recursivePlanProposalItemOpenApiSchema(): SchemaObject {
+  const schema = toOpenApiSchema(planProposalItemCoreSchema);
+  return {
+    ...schema,
+    required: [...(schema.required ?? []), "items"],
+    properties: {
+      ...schema.properties,
+      items: {
+        type: "array",
+        items: { $ref: "#/components/schemas/PlanProposalItem" },
+      },
+    },
+  };
+}
+
+function planProposalOpenApiSchema(): SchemaObject {
+  const schema = toOpenApiSchema(planProposalSchema.omit({ items: true }));
+  return {
+    ...schema,
+    required: [...(schema.required ?? []), "items"],
+    properties: {
+      ...schema.properties,
+      items: {
+        type: "array",
+        items: { $ref: "#/components/schemas/PlanProposalItem" },
+      },
+    },
+  };
 }

@@ -122,10 +122,39 @@ export type InvitationDesign = {
   buttonStyle: "solid" | "outline" | "pill";
 };
 
+export type InvitationEventType =
+  | "wedding"
+  | "baptism"
+  | "birthday"
+  | "corporate"
+  | "conference"
+  | "anniversary"
+  | "private_party"
+  | "festival"
+  | "fundraiser"
+  | "other";
+
+export type InvitationPurpose =
+  | "full"
+  | "save_the_date"
+  | "without_rsvp";
+
+export type InvitationEditorProfile = {
+  eventType: InvitationEventType;
+  purpose: InvitationPurpose;
+};
+
+export type InvitationInitialContext = Partial<InvitationEditorProfile> & {
+  title?: string | null;
+  eventDate?: string | null;
+  location?: string | null;
+};
+
 export type InvitationEditorSnapshot = {
   sections: InvitationSection[];
   design: InvitationDesign;
   experience: InvitationExperienceSettings;
+  profile: InvitationEditorProfile;
 };
 
 export type InvitationDocumentSection = {
@@ -539,7 +568,179 @@ export function createAdvancedSection(
   };
 }
 
-export function createInitialSnapshot(): InvitationEditorSnapshot {
+const invitationEventTypes = new Set<InvitationEventType>([
+  "wedding",
+  "baptism",
+  "birthday",
+  "corporate",
+  "conference",
+  "anniversary",
+  "private_party",
+  "festival",
+  "fundraiser",
+  "other",
+]);
+
+const invitationPurposes = new Set<InvitationPurpose>([
+  "full",
+  "save_the_date",
+  "without_rsvp",
+]);
+
+function invitationProfileFromSettings(
+  value: unknown,
+  fallback: InvitationEditorProfile,
+): InvitationEditorProfile {
+  if (!value || typeof value !== "object") return fallback;
+  const profile = value as Record<string, unknown>;
+  return {
+    eventType:
+      typeof profile.eventType === "string" &&
+      invitationEventTypes.has(profile.eventType as InvitationEventType)
+        ? (profile.eventType as InvitationEventType)
+        : fallback.eventType,
+    purpose:
+      typeof profile.purpose === "string" &&
+      invitationPurposes.has(profile.purpose as InvitationPurpose)
+        ? (profile.purpose as InvitationPurpose)
+        : fallback.purpose,
+  };
+}
+
+function invitationDisplayDate(value: string | null | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Data evenimentului";
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("ro-RO", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function applyInitialContext(
+  sections: InvitationSection[],
+  context: InvitationInitialContext,
+) {
+  const hero = sections.find((section) => section.type === "hero");
+  if (!hero) return;
+  const eventType = context.eventType ?? "other";
+  const title = context.title?.trim() || "Evenimentul nostru";
+  const date = invitationDisplayDate(context.eventDate);
+  const location = context.location?.trim() || "Locația va fi anunțată";
+  const copy: Record<InvitationEventType, { eyebrow: string; title: string; story: string }> = {
+    wedding: {
+      eyebrow: "Ne căsătorim",
+      title: "Vino să sărbătorim împreună",
+      story: "Povestea noastră",
+    },
+    baptism: {
+      eyebrow: "Botez",
+      title: "Vă invităm să sărbătorim împreună",
+      story: "Despre această zi",
+    },
+    birthday: {
+      eyebrow: "Aniversare",
+      title: "Sărbătorim împreună",
+      story: "Despre sărbătoare",
+    },
+    corporate: {
+      eyebrow: "Eveniment corporate",
+      title: "Ne întâlnim pentru idei care merg mai departe",
+      story: "Despre eveniment",
+    },
+    conference: {
+      eyebrow: "Conferință",
+      title: "O zi pentru idei, oameni și conversații relevante",
+      story: "Despre conferință",
+    },
+    anniversary: {
+      eyebrow: "Aniversare",
+      title: "Marcăm împreună un moment important",
+      story: "Povestea momentului",
+    },
+    private_party: {
+      eyebrow: "Eveniment privat",
+      title: "Te așteptăm să sărbătorim împreună",
+      story: "Despre întâlnirea noastră",
+    },
+    festival: {
+      eyebrow: "Festival",
+      title: "Ne vedem pentru o experiență memorabilă",
+      story: "Despre experiență",
+    },
+    fundraiser: {
+      eyebrow: "Eveniment caritabil",
+      title: "Împreună putem produce o schimbare reală",
+      story: "Despre cauză",
+    },
+    other: {
+      eyebrow: "Invitație",
+      title: "Te invităm să trăim împreună acest moment",
+      story: "Despre eveniment",
+    },
+  };
+  const eventCopy = copy[eventType];
+  hero.content.eyebrow = eventCopy.eyebrow;
+  hero.content.names = title;
+  hero.content.date = date;
+  hero.content.venue = location;
+  hero.content.title = eventCopy.title;
+  hero.content.subtitle =
+    "Toate detaliile importante, într-un singur loc, ușor de urmărit.";
+
+  const story = sections.find((section) => section.type === "story");
+  if (story) {
+    story.label = eventCopy.story;
+    story.content.title = eventCopy.story;
+    story.content.body =
+      "Adaugă aici contextul care îi ajută pe invitați să înțeleagă momentul și atmosfera evenimentului.";
+    story.content.quote = "Ne bucurăm să vă avem alături.";
+  }
+  const countdown = sections.find((section) => section.type === "countdown");
+  if (countdown) {
+    countdown.content.title = "Până ne întâlnim";
+    if (context.eventDate) countdown.content.date = `${context.eventDate}T12:00`;
+  }
+  const schedule = sections.find((section) => section.type === "schedule");
+  if (schedule) {
+    schedule.content.title =
+      eventType === "corporate" || eventType === "conference"
+        ? "Agenda evenimentului"
+        : "Programul evenimentului";
+    schedule.content.items = [
+      { time: "10:00", title: "Primirea invitaților", detail: location },
+      { time: "11:00", title: "Momentul principal", detail: title },
+      { time: "13:00", title: "Timp împreună", detail: "Detalii în curând" },
+    ];
+  }
+  const locations = sections.find((section) => section.type === "locations");
+  if (locations) {
+    locations.content.title = "Unde ne întâlnim";
+    locations.content.items = [{ name: "Locația evenimentului", address: location, url: "" }];
+  }
+  const rsvp = sections.find((section) => section.type === "rsvp");
+  if (rsvp) {
+    rsvp.content.title = "Confirmi participarea?";
+    rsvp.content.body = "Răspunsul tău ne ajută să pregătim experiența potrivită.";
+    rsvp.content.deadline = "Termenul de confirmare";
+  }
+  const dressCode = sections.find((section) => section.type === "dress_code");
+  if (dressCode) {
+    dressCode.content.title = "Recomandare vestimentară";
+    dressCode.content.body = "Adaugă aici indicațiile potrivite atmosferei evenimentului.";
+  }
+  const faq = sections.find((section) => section.type === "faq");
+  if (faq)
+    faq.content.items = [
+      { question: "Cum ajung la eveniment?", answer: `Ne întâlnim la ${location}.` },
+      { question: "Unde găsesc actualizările?", answer: "Toate detaliile sunt păstrate în această invitație." },
+    ];
+}
+
+export function createInitialSnapshot(
+  context: InvitationInitialContext = {},
+): InvitationEditorSnapshot {
   const hero = createDefaultSection("hero", "hero");
   hero.content.coverImage = "/invitation-art/nocturne-glass.webp";
   hero.content.imageAlt = "Compoziție abstractă din sticlă aubergine și coral";
@@ -548,22 +749,37 @@ export function createInitialSnapshot(): InvitationEditorSnapshot {
   hero.content.overlayOpacity = 34;
   hero.content.headingSize = 92;
 
+  const profile: InvitationEditorProfile = {
+    eventType: context.eventType ?? "wedding",
+    purpose: context.purpose ?? "full",
+  };
+  const sections = [
+    hero,
+    createDefaultSection("story", "story"),
+    createDefaultSection("countdown", "countdown"),
+    createDefaultSection("schedule", "schedule"),
+    createDefaultSection("locations", "locations"),
+    createDefaultSection("rsvp", "rsvp"),
+    createDefaultSection("dress_code", "dress-code"),
+    createDefaultSection("faq", "faq"),
+  ];
+  if (profile.eventType !== "wedding") applyInitialContext(sections, context);
+  if (profile.purpose === "save_the_date") {
+    for (const section of sections)
+      section.visible = ["hero", "countdown", "locations"].includes(section.type);
+  } else if (profile.purpose === "without_rsvp") {
+    const rsvp = sections.find((section) => section.type === "rsvp");
+    if (rsvp) rsvp.visible = false;
+  }
+
   return {
     design: {
       ...invitationTemplates[0].design,
       palette: [...invitationTemplates[0].design.palette],
     },
     experience: { ...defaultInvitationExperience },
-    sections: [
-      hero,
-      createDefaultSection("story", "story"),
-      createDefaultSection("countdown", "countdown"),
-      createDefaultSection("schedule", "schedule"),
-      createDefaultSection("locations", "locations"),
-      createDefaultSection("rsvp", "rsvp"),
-      createDefaultSection("dress_code", "dress-code"),
-      createDefaultSection("faq", "faq"),
-    ],
+    profile,
+    sections,
   };
 }
 
@@ -578,8 +794,12 @@ export function snapshotFromPersisted(
         [key: string]: unknown;
       }
     | undefined,
+  fallbackProfile: InvitationEditorProfile = {
+    eventType: "other",
+    purpose: "full",
+  },
 ): InvitationEditorSnapshot {
-  const initial = createInitialSnapshot();
+  const initial = createInitialSnapshot(fallbackProfile);
   if (!sections?.length) return initial;
   const template =
     invitationTemplates.find((item) => item.id === settings?.template) ??
@@ -640,9 +860,14 @@ export function snapshotFromPersisted(
           : template.design.buttonStyle,
   };
   const experience = invitationExperienceFromSettings(settings?.experience);
+  const profile = invitationProfileFromSettings(
+    settings?.editorProfile,
+    fallbackProfile,
+  );
   return {
     design,
     experience,
+    profile,
     sections: sections.map((item, index) => {
       const storedEditorType =
         typeof item.content?.editorType === "string" ? item.content.editorType : "";
@@ -746,6 +971,7 @@ export function serializeSnapshot(snapshot: InvitationEditorSnapshot) {
       template: snapshot.design.template,
       editorStyle: snapshot.design,
       experience: snapshot.experience,
+      editorProfile: snapshot.profile,
     },
   };
 }
@@ -850,9 +1076,16 @@ export function invitationReadiness(snapshot: InvitationEditorSnapshot) {
   const schedule = visible.find((section) => section.type === "schedule");
   const locations = visible.find((section) => section.type === "locations");
   const starterSectionId = invitationStarterSectionId(snapshot);
-  const checks = [
+  const checks: Array<{
+    label: string;
+    done: boolean;
+    sectionId?: string;
+  }> = [
     {
-      label: "Numele cuplului",
+      label:
+        snapshot.profile.eventType === "wedding"
+          ? "Numele cuplului"
+          : "Titlul evenimentului",
       done: Boolean(text(hero?.content.names)),
       sectionId: hero?.id,
     },
@@ -861,29 +1094,32 @@ export function invitationReadiness(snapshot: InvitationEditorSnapshot) {
       done: Boolean(text(hero?.content.date)),
       sectionId: hero?.id,
     },
-    {
-      label: "Programul zilei",
-      done: array(schedule?.content.items).length > 0,
-      sectionId: schedule?.id,
-    },
-    {
-      label: "Cel puțin o locație",
-      done: array(locations?.content.items).length > 0,
-      sectionId: locations?.id,
-    },
-    {
-      label: "Confirmare RSVP",
+  ];
+  if (schedule)
+    checks.push({
+      label: "Programul afișat este completat",
+      done: array(schedule.content.items).length > 0,
+      sectionId: schedule.id,
+    });
+  if (locations)
+    checks.push({
+      label: "Locațiile afișate sunt completate",
+      done: array(locations.content.items).length > 0,
+      sectionId: locations.id,
+    });
+  if (snapshot.profile.purpose === "full" || rsvp)
+    checks.push({
+      label: "Confirmarea RSVP este configurată",
       done: Boolean(rsvp && text(rsvp.content.deadline)),
       sectionId: rsvp?.id,
-    },
-    {
-      label: "Exemplele demonstrative au fost înlocuite",
-      done: !invitationContainsStarterContent({
-        sections: visible.map((section) => section.content),
-      }),
-      sectionId: starterSectionId ?? undefined,
-    },
-  ];
+    });
+  checks.push({
+    label: "Exemplele demonstrative au fost înlocuite",
+    done: !invitationContainsStarterContent({
+      sections: visible.map((section) => section.content),
+    }),
+    sectionId: starterSectionId ?? undefined,
+  });
   return {
     checks,
     completed: checks.filter((check) => check.done).length,

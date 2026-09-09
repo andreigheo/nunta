@@ -224,7 +224,7 @@ const planningInput: PlanGenerationInput = {
   onboardingDraftId: "00000000-0000-4000-8000-000000000002",
   onboardingVersion: 3,
   timezone: "Europe/Bucharest",
-  couple: { partnerOne: "Ana", partnerTwo: "Mihai" },
+  couple: { eventType: "wedding", partnerOne: "Ana", partnerTwo: "Mihai" },
   dateEvents: {
     date: "2027-09-12",
     civil: true,
@@ -283,6 +283,31 @@ describe("Slice 2B deterministic planning", () => {
       /Data exactă|Locația exactă|invitați/i,
     );
     expect(output.warnings.join(" ")).toMatch(/flexibilă/i);
+  });
+
+  it("builds a generic plan for non-wedding events", async () => {
+    const output = await new DeterministicPlanProvider().generatePlan({
+      ...planningInput,
+      couple: { eventType: "conference", organizerName: "Sarbato Events" },
+      dateEvents: { flexibleDate: true, eventType: "conference" },
+    });
+
+    expect(output.title).toBe("Planul inițial al evenimentului");
+    expect(output.assumptions.join(" ")).toContain(
+      "Data exactă a evenimentului nu este confirmată.",
+    );
+    expect(output.coverage.missing).toEqual([]);
+    expect(output.items.map((item) => item.category)).not.toEqual(
+      expect.arrayContaining(["civil_ceremony", "religious_ceremony", "rings"]),
+    );
+    const visibleCopy = [
+      output.title,
+      output.summary,
+      ...output.assumptions,
+      ...output.warnings,
+      ...output.items.flatMap((item) => [item.title, item.description]),
+    ].join(" ");
+    expect(visibleCopy).not.toMatch(/nunt|verighet/iu);
   });
 
   it("falls back without falsely claiming AI success", async () => {

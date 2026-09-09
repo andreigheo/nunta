@@ -42,6 +42,20 @@ export function PricingSection() {
 
             <p className={styles.description}>{plan.description}</p>
 
+            <dl
+              className={styles.highlights}
+              aria-label={`Limite incluse în planul ${plan.name}`}
+            >
+              {plan.highlights.map((highlight) => (
+                <div key={highlight.label}>
+                  <dd>{highlight.value}</dd>
+                  <dt>{highlight.label}</dt>
+                </div>
+              ))}
+            </dl>
+
+            <p className={styles.includesTitle}>Ce primești</p>
+
             <ul className={styles.features}>
               {plan.features.map((feature) => (
                 <li key={feature}>
@@ -53,7 +67,14 @@ export function PricingSection() {
               ))}
             </ul>
 
-            <Link className={styles.planAction} href={plan.cta.href}>
+            <Link
+              className={styles.planAction}
+              href={plan.cta.href}
+              data-analytics-event="select_plan"
+              data-analytics-plan={plan.name}
+              data-analytics-price={plan.price}
+              data-analytics-destination={plan.cta.href}
+            >
               <span>{plan.cta.label}</span>
               <ArrowRight aria-hidden />
             </Link>

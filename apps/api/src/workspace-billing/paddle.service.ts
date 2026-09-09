@@ -12,6 +12,13 @@ import {
 
 type PaddleEnvelope<T> = { data: T };
 
+export class PaddleRequestOutcomeUnknownError extends Error {
+  constructor(readonly mayHaveCommitted = true) {
+    super("Paddle request outcome is unknown");
+    this.name = "PaddleRequestOutcomeUnknownError";
+  }
+}
+
 export type PaddleWebhook = {
   event_id: string;
   event_type: string;
@@ -23,7 +30,8 @@ export type PaddleWebhook = {
 @Injectable()
 export class PaddleService {
   private readonly baseUrl: string;
-  private readonly verifiedPrices = new Set<string>();
+  private readonly verifiedSubscriptionPrices = new Set<string>();
+  private readonly verifiedMessageCreditPrices = new Set<string>();
 
   constructor(
     @Inject(API_ENVIRONMENT) private readonly environment: ApiEnvironment,
@@ -236,7 +244,7 @@ export class PaddleService {
   }
 
   checkoutUrl(transactionId: string) {
-    return `${this.environment.WEB_URL}/checkout?transaction_id=${encodeURIComponent(transactionId)}`;
+    return `${this.environment.WEB_URL}/checkout?_ptxn=${encodeURIComponent(transactionId)}`;
   }
 
   planFromProviderData(data: Record<string, unknown>): {
@@ -278,6 +286,15 @@ export class PaddleService {
     this.requireEnabled();
     const response = await this.call<PaddleEnvelope<Record<string, unknown>>>(
       `/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      { method: "GET" },
+    );
+    return response.data;
+  }
+
+  async getTransaction(transactionId: string) {
+    this.requireEnabled();
+    const response = await this.call<PaddleEnvelope<Record<string, unknown>>>(
+      `/transactions/${encodeURIComponent(transactionId)}`,
       { method: "GET" },
     );
     return response.data;
@@ -394,7 +411,8 @@ export class PaddleService {
     priceId: string,
     planKey: Exclude<WorkspaceSubscriptionPlanKey, "FREE">,
   ) {
-    if (this.verifiedPrices.has(priceId)) return;
+    const verificationKey = `${planKey}:${priceId}`;
+    if (this.verifiedSubscriptionPrices.has(verificationKey)) return;
     const response = await this.call<
       PaddleEnvelope<{
         unit_price: { amount: string; currency_code: string };
@@ -416,14 +434,15 @@ export class PaddleService {
         "Preț Paddle configurat greșit",
         `Planul ${plan.name} trebuie să fie exact €${(plan.amountMinor / 100).toFixed(2)}/lună.`,
       );
-    this.verifiedPrices.add(priceId);
+    this.verifiedSubscriptionPrices.add(verificationKey);
   }
 
   private async verifyMessageCreditPrice(
     priceId: string,
     packKey: MessageCreditPackKey,
   ) {
-    if (this.verifiedPrices.has(priceId)) return;
+    const verificationKey = `${packKey}:${priceId}`;
+    if (this.verifiedMessageCreditPrices.has(verificationKey)) return;
     const response = await this.call<
       PaddleEnvelope<{
         unit_price: { amount: string; currency_code: string };
@@ -444,21 +463,28 @@ export class PaddleService {
         "Preț Paddle configurat greșit",
         `Pachetul ${pack.name} trebuie să fie o plată unică de €${(pack.amountMinor / 100).toFixed(2)}.`,
       );
-    this.verifiedPrices.add(priceId);
+    this.verifiedMessageCreditPrices.add(verificationKey);
   }
 
   private async call<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${this.environment.PADDLE_API_KEY}`,
-        "Paddle-Version": "1",
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...init.headers,
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${this.environment.PADDLE_API_KEY}`,
+          "Paddle-Version": "1",
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...init.headers,
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new PaddleRequestOutcomeUnknownError(
+        (init.method ?? "GET").toUpperCase() !== "GET",
+      );
+    }
     const payload = (await response.json().catch(() => null)) as T | null;
     if (!response.ok || !payload)
       problem(

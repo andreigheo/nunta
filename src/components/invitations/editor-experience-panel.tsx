@@ -436,7 +436,7 @@ function ExperienceStyleButton({
       aria-pressed={active}
       className={`min-h-20 rounded-xl p-3 text-left outline-none transition-[background-color,color,box-shadow] focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
         active
-          ? "bg-brand text-on-brand shadow-sm"
+          ? "bg-action text-on-action shadow-sm"
           : "bg-subtle text-ink hover:bg-brand-softer"
       }`}
     >

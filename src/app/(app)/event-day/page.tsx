@@ -532,7 +532,7 @@ export default function EventDayPage() {
     <div className="mx-auto max-w-5xl space-y-4 pb-28">
       <OfflineBanner className="rounded-xl" />
 
-      <div className="rounded-2xl bg-brand p-5 text-on-brand">
+      <div className="rounded-2xl bg-brand-panel p-5 text-on-brand-panel">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -542,7 +542,7 @@ export default function EventDayPage() {
               >
                 {data.plan.status}
               </Badge>
-              <span className="flex items-center gap-1 text-xs text-on-brand/75">
+              <span className="flex items-center gap-1 text-xs text-on-brand-panel/75">
                 <CircleDot
                   className={cn("size-3", streamConnected && "text-success")}
                 />
@@ -554,7 +554,7 @@ export default function EventDayPage() {
             <h1 className="mt-2 font-brand text-3xl font-semibold tracking-tight">
               {data.plan.title}
             </h1>
-            <p className="mt-1 text-sm text-on-brand/75">
+            <p className="mt-1 text-sm text-on-brand-panel/75">
               Programul, echipa și incidentele, sincronizate într-o singură
               vedere
             </p>
@@ -1282,7 +1282,7 @@ function HeaderMetric({
 }) {
   return (
     <div className="rounded-lg bg-on-brand/10 px-3 py-2">
-      <p className="text-[11px] text-on-brand/65">{label}</p>
+      <p className="text-[11px] text-on-brand-panel/65">{label}</p>
       <p
         className={cn(
           "mt-0.5 text-lg font-semibold tabular-nums",

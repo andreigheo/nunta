@@ -279,7 +279,7 @@ function CommandPaletteContent() {
                     onClick={() => runAction(action)}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left",
-                      active && "bg-brand-soft dark:bg-brand-softer",
+                      active && "bg-brand-soft",
                     )}
                   >
                     <span

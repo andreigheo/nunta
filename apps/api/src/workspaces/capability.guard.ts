@@ -91,6 +91,7 @@ export class CapabilityGuard implements CanActivate {
     const effectivePlan = effectiveWorkspacePlanKey(
       membership.workspace.subscription?.planKey,
       membership.workspace.subscription?.status,
+      membership.workspace.subscription?.gracePeriodEndAt,
     );
     if (!capabilityAllowedByWorkspacePlan(required, effectivePlan)) {
       const minimumPlan = minimumPlanForCapability(required);

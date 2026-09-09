@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, ArrowUp } from "lucide-react";
-import { footer } from "@/content/marketing/sarbato";
+import { footer, previewCopy } from "@/content/marketing/sarbato";
 import { BrandMark } from "./brand-mark";
+import { CookieSettingsButton } from "./cookie-settings-button";
 import styles from "./marketing-footer.module.css";
 
 export function MarketingFooter() {
@@ -28,6 +29,9 @@ export function MarketingFooter() {
             {footer.columns.map((column) => (
               <div className={styles.linkColumn} key={column.title}>
                 <h3>{column.title}</h3>
+                {column.title === "În aplicație" ? (
+                  <p className={styles.accessNote}>{previewCopy.accountRequired}</p>
+                ) : null}
                 <ul>
                   {column.links.map((link) => (
                     <li key={link.label}>
@@ -48,6 +52,7 @@ export function MarketingFooter() {
                 {link.label}
               </Link>
             ))}
+            <CookieSettingsButton className={styles.cookieSettingsButton} />
           </nav>
           <a className={styles.backToTop} href="#continut">
             Sus

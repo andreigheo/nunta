@@ -1066,7 +1066,7 @@ function MemoryCenter({
                     className={cn(
                       "min-h-11 rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                       memoryScope === value
-                        ? "border-brand bg-brand text-on-brand"
+                        ? "border-action bg-action text-on-action"
                         : "border-line-strong bg-surface text-ink hover:border-brand/50",
                       value === "WORKSPACE" &&
                         !canConfigure &&
@@ -1203,7 +1203,7 @@ function MessageBubble({
           "max-w-[90%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
           assistant
             ? "border border-line bg-surface text-ink"
-            : "bg-brand text-on-brand",
+            : "bg-action text-on-action",
         )}
       >
         <p className="whitespace-pre-wrap">
@@ -1518,7 +1518,7 @@ function formatCopilotPayloadValue(
   if (Array.isArray(value) && value.every((item) => typeof item === "string"))
     return value.join(" · ");
   return (
-    <code className="block max-h-32 overflow-auto whitespace-pre-wrap rounded bg-canvas px-2 py-1 font-mono text-[12px] leading-relaxed">
+    <code className="block max-h-32 overflow-auto whitespace-pre-wrap rounded bg-sunken px-2 py-1 font-mono text-[12px] leading-relaxed">
       {JSON.stringify(value, null, 2)}
     </code>
   );

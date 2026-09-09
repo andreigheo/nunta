@@ -160,6 +160,53 @@ describe("invitation editor model", () => {
     });
   });
 
+  it("starts a non-wedding invitation from workspace data and keeps its profile", () => {
+    const snapshot = createInitialSnapshot({
+      eventType: "conference",
+      title: "Sarbato Summit 2027",
+      eventDate: "2027-05-18",
+      location: "Chișinău Arena",
+    });
+    const hero = snapshot.sections.find((section) => section.type === "hero")!;
+
+    expect(snapshot.profile).toEqual({
+      eventType: "conference",
+      purpose: "full",
+    });
+    expect(hero.content.names).toBe("Sarbato Summit 2027");
+    expect(hero.content.venue).toBe("Chișinău Arena");
+    expect(
+      snapshot.sections.find((section) => section.type === "schedule")?.content
+        .title,
+    ).toBe("Agenda evenimentului");
+
+    const serialized = serializeSnapshot(snapshot);
+    const restored = snapshotFromPersisted(
+      serialized.document.sections,
+      serialized.settings,
+    );
+    expect(restored.profile).toEqual(snapshot.profile);
+  });
+
+  it("does not require hidden RSVP or hidden program for a save-the-date", () => {
+    const snapshot = createInitialSnapshot({
+      eventType: "corporate",
+      purpose: "save_the_date",
+      title: "Lansare Sarbato",
+      eventDate: "2027-03-10",
+      location: "București",
+    });
+    const readiness = invitationReadiness(snapshot);
+
+    expect(readiness.checks.map((check) => check.label)).not.toContain(
+      "Confirmarea RSVP este configurată",
+    );
+    expect(readiness.checks.map((check) => check.label)).not.toContain(
+      "Programul afișat este completat",
+    );
+    expect(readiness.completed).toBe(readiness.total);
+  });
+
   it("persists the cinematic cover and device art direction", () => {
     const snapshot = createInitialSnapshot();
     snapshot.experience = {

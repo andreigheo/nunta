@@ -26,6 +26,7 @@ import {
   recipientName,
 } from "@/components/invitations/distribution-center";
 import { CampaignList } from "@/components/invitations/campaign-list";
+import { GuestMessagingCenter } from "@/components/invitations/guest-messaging-center";
 import { InvitationRenderer } from "@/components/invitations/invitation-renderer";
 import {
   Badge,
@@ -748,7 +749,7 @@ export default function InvitationsPage() {
                     <p className="text-xs font-semibold uppercase tracking-[.25em] text-faint">
                       Sarbato
                     </p>
-                    <p className="mt-2 font-display text-2xl font-semibold text-brand-strong dark:text-brand">
+                    <p className="mt-2 font-display text-2xl font-semibold text-brand-strong">
                       {site.slug}
                     </p>
                     <p className="mt-2 text-xs text-muted">
@@ -865,13 +866,14 @@ export default function InvitationsPage() {
             )}
           </Card> : null}
 
+          {canSendCampaign && currentWorkspace && !demoMode ? <GuestMessagingCenter key={currentWorkspace.id} workspaceId={currentWorkspace.id} /> : null}
           {canReadCampaigns ? <Card>
             <CardHeader className="flex-col sm:flex-row">
               <div>
                 <CardTitle>Campanii e-mail</CardTitle>
                 <p className="mt-1 text-xs text-muted">
-                  Livrarea automată este pe e-mail. WhatsApp rămâne o acțiune manuală,
-                  verificată de organizator.
+                  Creează și programează campanii de e-mail. Pentru SMS și WhatsApp,
+                  verifică disponibilitatea canalelor în panoul de comunicare.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Badge variant="neutral">{deliveredEmails} livrate</Badge>
@@ -983,7 +985,7 @@ export default function InvitationsPage() {
             <Field label="Audiență" required>
               <Select value={campaignAudienceType} onChange={(event) => { setCampaignAudienceType(event.target.value as AudienceType); setCampaignAudienceValue(""); }}>
                 <option value="all">Toți destinatarii eligibili</option>
-                <option value="tag">O etichetă</option>
+                <option value="tag">Un grup de invitați</option>
                 <option value="side">O parte a evenimentului</option>
                 <option value="country">O țară</option>
                 <option value="language">O limbă</option>
@@ -1485,7 +1487,7 @@ function AudienceValueField({ type, value, onChange, tags, households, loading }
   if (loading)
     return <div className="rounded-lg bg-subtle p-3 text-sm text-muted" role="status">Se încarcă segmentele reale…</div>;
   if (type === "tag")
-    return <Field label="Etichetă" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege eticheta</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name} · {tag.assignedGuests ?? 0} persoane</option>)}</Select></Field>;
+    return <Field label="Grup" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege grupul</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name} · {tag.assignedGuests ?? 0} persoane</option>)}</Select></Field>;
   if (type === "side")
     return <Field label="Parte" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege partea</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="COMMON">Comună</option><option value="VENDOR">Furnizori</option><option value="OTHER">Altele</option></Select></Field>;
   if (type === "country")

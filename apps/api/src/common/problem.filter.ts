@@ -77,7 +77,7 @@ export class ProblemFilter implements ExceptionFilter {
       .status(status)
       .type("application/problem+json")
       .send({
-        type: `https://weddingos.local/problems/${code.toLowerCase().replaceAll("_", "-")}`,
+        type: `https://sarbato.space/problems/${code.toLowerCase().replaceAll("_", "-")}`,
         title,
         status,
         code,

@@ -1,0 +1,64 @@
+.panel {
+  position: relative;
+  overflow: hidden;
+  animation: panel-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.thread {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--brand),
+    var(--accent),
+    var(--warning),
+    var(--success)
+  );
+  transform-origin: left;
+  animation: thread-reveal 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.icon {
+  animation: icon-enter 320ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.content {
+  animation: content-enter 260ms 100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes thread-reveal {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes icon-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+
+@keyframes content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .thread,
+  .icon,
+  .content {
+    animation: none;
+  }
+}

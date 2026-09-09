@@ -63,95 +63,107 @@ export class MessageCreditService {
     idempotencyKey: string,
     metadata?: Prisma.InputJsonValue,
   ) {
+    return this.database.withContext({ userId, workspaceId }, (transaction) =>
+      this.consumeInTransaction(
+        transaction,
+        userId,
+        workspaceId,
+        quantity,
+        idempotencyKey,
+        metadata,
+      ),
+    );
+  }
+
+  async consumeInTransaction(
+    transaction: Prisma.TransactionClient,
+    userId: string,
+    workspaceId: string,
+    quantity: number,
+    idempotencyKey: string,
+    metadata?: Prisma.InputJsonValue,
+  ) {
     if (!Number.isInteger(quantity) || quantity <= 0)
       problem(
         "VALIDATION_FAILED",
         HttpStatus.BAD_REQUEST,
         "Numărul de credite trebuie să fie pozitiv",
       );
-    return this.database.withContext(
-      { userId, workspaceId },
-      async (transaction) => {
-        await this.lock(transaction, workspaceId);
-        const subscription = await transaction.workspaceSubscription.upsert({
-          where: { workspaceId },
-          create: { workspaceId, createdById: userId, updatedById: userId },
-          update: {},
-        });
-        const account = await this.syncLocked(
-          transaction,
-          workspaceId,
-          subscription,
-        );
-        const previous =
-          await transaction.workspaceMessageCreditEntry.findFirst({
-            where: {
-              workspaceId,
-              idempotencyKey: { startsWith: `${idempotencyKey}:` },
-            },
-          });
-        if (previous)
-          return {
-            included: account.includedBalance,
-            purchased: account.purchasedBalance,
-            available: account.includedBalance + account.purchasedBalance,
-            reused: true,
-          };
-        if (account.includedBalance + account.purchasedBalance < quantity)
-          problem(
-            "USAGE_LIMIT_REACHED",
-            HttpStatus.CONFLICT,
-            "Credite de mesagerie insuficiente",
-            "Cumpără un pachet nou sau așteaptă reînnoirea creditelor incluse.",
-          );
-
-        const allocation = allocateMessageCreditConsumption(
-          account.includedBalance,
-          account.purchasedBalance,
-          quantity,
-        );
-        const updated = await transaction.workspaceMessageCreditAccount.update({
-          where: { id: account.id },
-          data: {
-            includedBalance: allocation.includedAfter,
-            purchasedBalance: allocation.purchasedAfter,
-            version: { increment: 1 },
-          },
-        });
-        const entries: Prisma.WorkspaceMessageCreditEntryCreateManyInput[] = [];
-        if (allocation.includedUsed > 0)
-          entries.push({
-            workspaceId,
-            accountId: account.id,
-            bucket: "INCLUDED",
-            type: "CONSUMPTION",
-            quantity: -allocation.includedUsed,
-            balanceAfter: allocation.includedAfter,
-            idempotencyKey: `${idempotencyKey}:included`,
-            metadata,
-          });
-        if (allocation.purchasedUsed > 0)
-          entries.push({
-            workspaceId,
-            accountId: account.id,
-            bucket: "PURCHASED",
-            type: "CONSUMPTION",
-            quantity: -allocation.purchasedUsed,
-            balanceAfter: allocation.purchasedAfter,
-            idempotencyKey: `${idempotencyKey}:purchased`,
-            metadata,
-          });
-        await transaction.workspaceMessageCreditEntry.createMany({
-          data: entries,
-        });
-        return {
-          included: updated.includedBalance,
-          purchased: updated.purchasedBalance,
-          available: updated.includedBalance + updated.purchasedBalance,
-          reused: false,
-        };
-      },
+    await this.lock(transaction, workspaceId);
+    const subscription = await transaction.workspaceSubscription.upsert({
+      where: { workspaceId },
+      create: { workspaceId, createdById: userId, updatedById: userId },
+      update: {},
+    });
+    const account = await this.syncLocked(
+      transaction,
+      workspaceId,
+      subscription,
     );
+    const previous = await transaction.workspaceMessageCreditEntry.findFirst({
+      where: {
+        workspaceId,
+        idempotencyKey: { startsWith: `${idempotencyKey}:` },
+      },
+    });
+    if (previous)
+      return {
+        included: account.includedBalance,
+        purchased: account.purchasedBalance,
+        available: account.includedBalance + account.purchasedBalance,
+        reused: true,
+      };
+    if (account.includedBalance + account.purchasedBalance < quantity)
+      problem(
+        "USAGE_LIMIT_REACHED",
+        HttpStatus.CONFLICT,
+        "Credite de mesagerie insuficiente",
+        "Cumpără un pachet nou sau așteaptă reînnoirea creditelor incluse.",
+      );
+
+    const allocation = allocateMessageCreditConsumption(
+      account.includedBalance,
+      account.purchasedBalance,
+      quantity,
+    );
+    const updated = await transaction.workspaceMessageCreditAccount.update({
+      where: { id: account.id },
+      data: {
+        includedBalance: allocation.includedAfter,
+        purchasedBalance: allocation.purchasedAfter,
+        version: { increment: 1 },
+      },
+    });
+    const entries: Prisma.WorkspaceMessageCreditEntryCreateManyInput[] = [];
+    if (allocation.includedUsed > 0)
+      entries.push({
+        workspaceId,
+        accountId: account.id,
+        bucket: "INCLUDED",
+        type: "CONSUMPTION",
+        quantity: -allocation.includedUsed,
+        balanceAfter: allocation.includedAfter,
+        idempotencyKey: `${idempotencyKey}:included`,
+        metadata,
+      });
+    if (allocation.purchasedUsed > 0)
+      entries.push({
+        workspaceId,
+        accountId: account.id,
+        bucket: "PURCHASED",
+        type: "CONSUMPTION",
+        quantity: -allocation.purchasedUsed,
+        balanceAfter: allocation.purchasedAfter,
+        idempotencyKey: `${idempotencyKey}:purchased`,
+        metadata,
+      });
+    await transaction.workspaceMessageCreditEntry.createMany({ data: entries });
+    return {
+      included: updated.includedBalance,
+      purchased: updated.purchasedBalance,
+      available: updated.includedBalance + updated.purchasedBalance,
+      reused: false,
+    };
   }
 
   async grantPurchase(
@@ -204,13 +216,152 @@ export class MessageCreditService {
     return { granted: true };
   }
 
+  async revokePurchase(
+    transaction: Prisma.TransactionClient,
+    input: {
+      workspaceId: string;
+      userId: string;
+      quantity: number;
+      providerTransactionId: string;
+      providerAdjustmentId: string;
+      action: string;
+    },
+  ) {
+    await this.lock(transaction, input.workspaceId);
+    const idempotencyKey = `adjustment:${input.providerAdjustmentId}:approved`;
+    const existing = await transaction.workspaceMessageCreditEntry.findUnique({
+      where: {
+        workspaceId_idempotencyKey: {
+          workspaceId: input.workspaceId,
+          idempotencyKey,
+        },
+      },
+    });
+    if (existing) return { revoked: false, quantity: -existing.quantity };
+    const subscription = await transaction.workspaceSubscription.upsert({
+      where: { workspaceId: input.workspaceId },
+      create: {
+        workspaceId: input.workspaceId,
+        createdById: input.userId,
+        updatedById: input.userId,
+      },
+      update: {},
+    });
+    const account = await this.syncLocked(
+      transaction,
+      input.workspaceId,
+      subscription,
+    );
+    const revoked = Math.min(account.purchasedBalance, input.quantity);
+    if (revoked === 0) return { revoked: false, quantity: 0 };
+    const nextBalance = account.purchasedBalance - revoked;
+    await transaction.workspaceMessageCreditAccount.update({
+      where: { id: account.id },
+      data: { purchasedBalance: nextBalance, version: { increment: 1 } },
+    });
+    await transaction.workspaceMessageCreditEntry.create({
+      data: {
+        workspaceId: input.workspaceId,
+        accountId: account.id,
+        bucket: "PURCHASED",
+        type: "REFUND",
+        quantity: -revoked,
+        balanceAfter: nextBalance,
+        idempotencyKey,
+        metadata: {
+          providerTransactionId: input.providerTransactionId,
+          providerAdjustmentId: input.providerAdjustmentId,
+          action: input.action,
+          requestedQuantity: input.quantity,
+          unrecoveredQuantity: input.quantity - revoked,
+        },
+      },
+    });
+    return { revoked: true, quantity: revoked };
+  }
+
+  async restoreReversedPurchase(
+    transaction: Prisma.TransactionClient,
+    input: {
+      workspaceId: string;
+      userId: string;
+      providerTransactionId: string;
+      providerAdjustmentId: string;
+      action: string;
+    },
+  ) {
+    await this.lock(transaction, input.workspaceId);
+    const refundKey = `adjustment:${input.providerAdjustmentId}:approved`;
+    const reversalKey = `adjustment:${input.providerAdjustmentId}:reversed`;
+    const [refund, reversal] = await Promise.all([
+      transaction.workspaceMessageCreditEntry.findUnique({
+        where: {
+          workspaceId_idempotencyKey: {
+            workspaceId: input.workspaceId,
+            idempotencyKey: refundKey,
+          },
+        },
+      }),
+      transaction.workspaceMessageCreditEntry.findUnique({
+        where: {
+          workspaceId_idempotencyKey: {
+            workspaceId: input.workspaceId,
+            idempotencyKey: reversalKey,
+          },
+        },
+      }),
+    ]);
+    if (!refund || refund.quantity >= 0 || reversal)
+      return { restored: false, quantity: reversal?.quantity ?? 0 };
+    const subscription = await transaction.workspaceSubscription.upsert({
+      where: { workspaceId: input.workspaceId },
+      create: {
+        workspaceId: input.workspaceId,
+        createdById: input.userId,
+        updatedById: input.userId,
+      },
+      update: {},
+    });
+    const account = await this.syncLocked(
+      transaction,
+      input.workspaceId,
+      subscription,
+    );
+    const restored = -refund.quantity;
+    const nextBalance = account.purchasedBalance + restored;
+    await transaction.workspaceMessageCreditAccount.update({
+      where: { id: account.id },
+      data: { purchasedBalance: nextBalance, version: { increment: 1 } },
+    });
+    await transaction.workspaceMessageCreditEntry.create({
+      data: {
+        workspaceId: input.workspaceId,
+        accountId: account.id,
+        bucket: "PURCHASED",
+        type: "ADJUSTMENT",
+        quantity: restored,
+        balanceAfter: nextBalance,
+        idempotencyKey: reversalKey,
+        metadata: {
+          providerTransactionId: input.providerTransactionId,
+          providerAdjustmentId: input.providerAdjustmentId,
+          action: input.action,
+          reverses: refundKey,
+        },
+      },
+    });
+    return { restored: true, quantity: restored };
+  }
+
   private async lock(
     transaction: Prisma.TransactionClient,
     workspaceId: string,
   ) {
-    await transaction.$queryRaw`SELECT pg_advisory_xact_lock(
+    await transaction.$queryRaw<
+      Array<{ locked: string }>
+    >`SELECT pg_advisory_xact_lock(
       hashtextextended(${`sarbato-message-credits:${workspaceId}`}, 0)
-    )`;
+    )::text AS locked`;
   }
 
   private async syncLocked(
@@ -260,6 +411,8 @@ export class MessageCreditService {
       const updated = await transaction.workspaceMessageCreditAccount.update({
         where: { id: account.id },
         data: {
+          // The Free allowance is a one-time test grant. Returning from a paid
+          // plan must not mint a second trial bucket.
           includedBalance: planKey === "FREE" ? 0 : allowance,
           allowancePlanKey: planKey,
           allowancePeriodStart: periodStart,

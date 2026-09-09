@@ -26,7 +26,9 @@ describe.sequential("Slice 2B planning integration", () => {
   let outsider!: Account;
 
   beforeAll(async () => {
-    await cleanDatabase();
+    if (process.env.WEDDINGOS_INTEGRATION_DATABASE_PREPARED !== "true") {
+      await cleanDatabase();
+    }
     const module = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

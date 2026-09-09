@@ -13,6 +13,8 @@ export type TenantContext = {
   invitationTokenHash?: string;
   guestTokenHash?: string;
   guestAccessGrantId?: string;
+  mediaPortalTokenHash?: string;
+  mediaUploadTokenHash?: string;
   invitationMediaObjectId?: string;
   workerId?: string;
   jobId?: string;
@@ -94,6 +96,8 @@ export class DatabaseService
           set_config('app.current_invitation_token_hash', ${context.invitationTokenHash ?? ""}, true),
           set_config('app.current_guest_token_hash', ${context.guestTokenHash ?? ""}, true),
           set_config('app.current_guest_access_grant_id', ${context.guestAccessGrantId ?? ""}, true),
+          set_config('app.media_portal_token_hash', ${context.mediaPortalTokenHash ?? ""}, true),
+          set_config('app.media_upload_token_hash', ${context.mediaUploadTokenHash ?? ""}, true),
           set_config('app.current_invitation_media_object_id', ${context.invitationMediaObjectId ?? ""}, true),
           set_config('app.current_worker_id', ${context.workerId ?? ""}, true),
           set_config('app.current_job_id', ${context.jobId ?? ""}, true),

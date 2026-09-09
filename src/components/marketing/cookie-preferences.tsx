@@ -2,30 +2,57 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui";
-
-const STORAGE_KEY = "weddingos.public-cookie-preferences.v1";
+import {
+  ANALYTICS_CONSENT_CHANGED_EVENT,
+  OPEN_COOKIE_PREFERENCES_EVENT,
+  PUBLIC_COOKIE_PREFERENCES_STORAGE_KEY,
+} from "@/lib/marketing/google-measurement";
 
 export function PublicCookiePreferences() {
   const [visible, setVisible] = React.useState(false);
 
   React.useEffect(() => {
     const timer = window.setTimeout(
-      () => setVisible(window.localStorage.getItem(STORAGE_KEY) === null),
+      () => {
+        try {
+          setVisible(
+            window.localStorage.getItem(
+              PUBLIC_COOKIE_PREFERENCES_STORAGE_KEY,
+            ) === null,
+          );
+        } catch {
+          setVisible(true);
+        }
+      },
       0,
     );
-    return () => window.clearTimeout(timer);
+    const openPreferences = () => setVisible(true);
+    window.addEventListener(OPEN_COOKIE_PREFERENCES_EVENT, openPreferences);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(OPEN_COOKIE_PREFERENCES_EVENT, openPreferences);
+    };
   }, []);
 
   const save = (analytics: boolean) => {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        essential: true,
-        preferences: false,
-        analytics,
-        marketing: false,
-        policyVersion: "2026-07-21",
-        recordedAt: new Date().toISOString(),
+    try {
+      window.localStorage.setItem(
+        PUBLIC_COOKIE_PREFERENCES_STORAGE_KEY,
+        JSON.stringify({
+          essential: true,
+          preferences: false,
+          analytics,
+          marketing: false,
+          policyVersion: "2026-07-21",
+          recordedAt: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      // The choice still applies for this document when persistent storage is unavailable.
+    }
+    window.dispatchEvent(
+      new CustomEvent(ANALYTICS_CONSENT_CHANGED_EVENT, {
+        detail: { analytics },
       }),
     );
     setVisible(false);
@@ -40,8 +67,8 @@ export function PublicCookiePreferences() {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">Preferințe cookie</p>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Folosim cookie-uri esențiale pentru funcționare. Analytics este
-          opțional, dezactivat implicit și nu se încarcă fără acord.
+          Cookie-uri esențiale pentru funcționare. Analytics se activează doar
+          cu acordul tău.
         </p>
         <a
           href="/cookies"

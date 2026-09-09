@@ -18,6 +18,20 @@ API key is bootstrapped from `/etc/sarbato-resend-smtp-password`; neither file
 belongs in the repository. The inbound relay runs as a read-only Compose
 service with a dedicated persistent event-journal volume.
 
+`GUEST_ACCESS_TOKEN_SECRET` is a dedicated random secret used only to derive
+retry-stable guest links for one campaign-recipient generation. It must not be
+reused as `OUTBOX_ENCRYPTION_KEY`; the bootstrap script adds it to older
+environment files without printing it.
+
+Object storage uses separate identities. `STORAGE_ROOT_ACCESS_KEY` and
+`STORAGE_ROOT_SECRET_KEY` are used only by MinIO and the one-shot bootstrap
+container. The API and worker receive the restricted `STORAGE_ACCESS_KEY` and
+`STORAGE_SECRET_KEY` identity, scoped to `sarbato-production-private` by
+`storage-app-policy.json`. Running `bootstrap-secrets.sh` once adds missing root
+credentials to an older environment file without printing them; deploy the
+storage service and `storage-init` together so the former root identity is
+re-created as the restricted application user before API and worker start.
+
 The following production features intentionally fail closed until a real
 provider is configured:
 
@@ -31,6 +45,16 @@ remain disabled and are not part of this integration.
 
 The free plan and all persistent planning modules can operate without those
 providers.
+
+Twilio guest notifications are also fail-closed. Keep `TWILIO_ENABLED=false`
+until the SMS sender, the production WhatsApp sender and approved Content
+Template SIDs exist. Both `TWILIO_STATUS_CALLBACK_URL` and
+`TWILIO_INBOUND_URL` must be public HTTPS endpoints on the active Sarbato
+release; the application validates every callback signature. Use
+`TWILIO_TEST_RECIPIENTS` as a comma-separated allowlist during a controlled
+activation, then remove it only after the paid account and sender compliance
+checks are complete. A Trial WhatsApp Sandbox proves provider connectivity but
+is not a production guest channel.
 
 Accommodation discovery is informational and never creates or processes a
 booking. The default adapter reads public OpenStreetMap data through Nominatim

@@ -5,6 +5,7 @@
 export type InvitationPreflightAction =
   | { kind: "route"; href: string; label: string }
   | { kind: "starter-section"; label: string }
+  | { kind: "media-section"; label: string }
   | { kind: "workflow"; label: string }
   | { kind: "save"; label: string }
   | { kind: "none" };
@@ -32,7 +33,11 @@ export function invitationPreflightGuide(
         title: "Lipsește un moment vizibil invitaților",
         detail:
           "Invitația are nevoie de cel puțin un moment confirmat, vizibil invitaților și cu RSVP activ. Momentele evenimentului nu se adaugă din editorul de invitații, deci această verificare nu se poate rezolva de aici.",
-        action: { kind: "none" },
+        action: {
+          kind: "route",
+          href: "/event-day",
+          label: "Adaugă momentul",
+        },
       };
     case "INVITATION_STARTER_CONTENT":
       return {
@@ -82,7 +87,10 @@ export function invitationPreflightGuide(
         title: "O imagine nu este disponibilă",
         detail:
           "O imagine a fost ștearsă, se verifică încă în fundal sau nu provine din biblioteca invitației. Reîncarcă imaginea în secțiunea care o folosește.",
-        action: { kind: "none" },
+        action: {
+          kind: "media-section",
+          label: "Verifică imaginile",
+        },
       };
     case "VARIANT_MEDIA_INVALID":
     case "VARIANT_MEDIA_UNAVAILABLE":

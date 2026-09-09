@@ -168,9 +168,10 @@ export class OnboardingService {
             draft.location,
             draft.budget,
           );
-          await materializeWeddingEvents(
+          await materializeOnboardingEvents(
             transaction,
             workspaceId,
+            draft.couple,
             draft.dateEvents,
             draft.location,
           );
@@ -209,12 +210,18 @@ export class OnboardingService {
           draft.location,
           draft.budget,
         );
-        await materializeWeddingEvents(
+        await materializeOnboardingEvents(
           transaction,
           workspaceId,
+          draft.couple,
           draft.dateEvents,
           draft.location,
         );
+        const eventType = onboardingEventType(
+          asRecord(draft.couple).eventType ??
+            asRecord(draft.dateEvents).eventType,
+        );
+        const wedding = eventType === "wedding";
         const eventId = randomUUID();
         const jobId = await this.asyncEvents.record(transaction, {
           eventName: "onboarding.ready_for_plan_generation.v1",
@@ -231,15 +238,20 @@ export class OnboardingService {
             notification: {
               recipientUserId: userId,
               kind: "onboarding",
-              title: "Configurarea nunții este gata",
-              body: "Datele au fost salvate. Următorul pas este propunerea planului nunții.",
+              title: wedding
+                ? "Configurarea nunții este gata"
+                : "Configurarea evenimentului este gata",
+              body: wedding
+                ? "Datele au fost salvate. Următorul pas este propunerea planului nunții."
+                : "Datele au fost salvate. Următorul pas este propunerea planului evenimentului.",
               actionUrl: "/plan?generate=1",
             },
             activity: {
               category: "onboarding",
               action: "ready_for_plan_generation",
-              summary:
-                "Onboardingul nunții este pregătit pentru generarea planului.",
+              summary: wedding
+                ? "Onboardingul nunții este pregătit pentru generarea planului."
+                : "Onboardingul evenimentului este pregătit pentru generarea planului.",
               entityType: "OnboardingDraft",
               entityId: draft.id,
             },
@@ -403,14 +415,19 @@ function onboardingEventType(value: unknown) {
   return typeof value === "string" && allowed.has(value) ? value : "wedding";
 }
 
-async function materializeWeddingEvents(
+async function materializeOnboardingEvents(
   transaction: Prisma.TransactionClient,
   workspaceId: string,
+  coupleValue: Prisma.JsonValue,
   dateEventsValue: Prisma.JsonValue,
   locationValue: Prisma.JsonValue,
 ) {
+  const couple = asRecord(coupleValue);
   const dateEvents = asRecord(dateEventsValue);
   const location = asRecord(locationValue);
+  const eventType = onboardingEventType(
+    couple.eventType ?? dateEvents.eventType,
+  );
   const workspace = await transaction.workspace.findUniqueOrThrow({
     where: { id: workspaceId },
   });
@@ -439,7 +456,7 @@ async function materializeWeddingEvents(
     typeof location.venueAddress === "string" && location.venueAddress.trim()
       ? location.venueAddress.trim()
       : null;
-  const definitions: Array<{
+  const weddingDefinitions: Array<{
     key: string;
     enabled: boolean;
     type:
@@ -488,6 +505,17 @@ async function materializeWeddingEvents(
       start: at(1, "11:00"),
     },
   ];
+  const genericDefinitions: typeof weddingDefinitions = [
+    {
+      key: "main",
+      enabled: true,
+      type: "CUSTOM",
+      title:
+        onboardingText(dateEvents.primaryTitle, 200) ??
+        onboardingEventTypeLabel(eventType),
+      start: at(0, "12:00"),
+    },
+  ];
   const custom = Array.isArray(dateEvents.extraEvents)
     ? dateEvents.extraEvents
         .filter(
@@ -503,6 +531,8 @@ async function materializeWeddingEvents(
           start: at(0, "12:00"),
         }))
     : [];
+  const definitions =
+    eventType === "wedding" ? weddingDefinitions : genericDefinitions;
   for (const [position, event] of [...definitions, ...custom].entries()) {
     if (!event.enabled) continue;
     await transaction.weddingEvent.upsert({
@@ -538,6 +568,21 @@ async function materializeWeddingEvents(
       },
     });
   }
+}
+
+function onboardingEventTypeLabel(eventType: string) {
+  const labels: Record<string, string> = {
+    baptism: "Botez",
+    birthday: "Aniversare",
+    corporate: "Eveniment corporate",
+    conference: "Conferință",
+    anniversary: "Jubileu",
+    private_party: "Petrecere privată",
+    festival: "Festival",
+    fundraiser: "Eveniment caritabil",
+    other: "Eveniment",
+  };
+  return labels[eventType] ?? "Eveniment";
 }
 
 function createStableKey(value: string) {

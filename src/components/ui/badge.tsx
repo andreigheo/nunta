@@ -13,7 +13,7 @@ export type BadgeVariant =
 
 const variantClasses: Record<BadgeVariant, string> = {
   neutral: "bg-subtle text-muted",
-  brand: "bg-brand-soft text-brand-strong dark:text-brand",
+  brand: "bg-brand-soft text-brand-strong",
   accent: "bg-accent-soft text-accent-strong",
   success: "bg-success-soft text-success",
   warning: "bg-warning-soft text-warning",
@@ -61,7 +61,7 @@ export function CountBadge({
   const tones = {
     danger: "bg-danger text-on-danger",
     warning: "bg-warning text-on-warning",
-    brand: "bg-brand text-on-brand",
+    brand: "bg-action text-on-action",
     neutral: "bg-subtle text-muted",
   };
   return (

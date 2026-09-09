@@ -15,6 +15,7 @@ import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import {
   createMessageCreditCheckoutSchema,
   createWorkspaceSubscriptionCheckoutSchema,
+  createWorkspaceSupportCaseSchema,
 } from "@weddingos/contracts";
 import { CurrentAuth } from "../auth/current-auth.decorator";
 import { SessionAuthGuard } from "../auth/session-auth.guard";
@@ -115,6 +116,56 @@ export class WorkspaceBillingController {
     );
   }
 
+  @Get("message-credits/checkouts/:transactionId")
+  @UseGuards(SessionAuthGuard, CapabilityGuard)
+  @RequireCapability("workspace.billing.read")
+  async messageCreditCheckoutStatus(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("transactionId") transactionId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    if (!/^txn_[a-z0-9]{26}$/.test(transactionId))
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.BAD_REQUEST,
+        "Identificatorul tranzacției Paddle este invalid",
+      );
+    return apiResponse(
+      request,
+      await this.billing.messageCreditCheckoutStatus(
+        auth.userId,
+        parseUuid(workspaceId, "workspaceId"),
+        transactionId,
+      ),
+    );
+  }
+
+  @Get("checkouts/:transactionId")
+  @UseGuards(SessionAuthGuard, CapabilityGuard)
+  @RequireCapability("workspace.billing.read")
+  async subscriptionCheckoutStatus(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("transactionId") transactionId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    if (!/^txn_[a-z0-9]{26}$/.test(transactionId))
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.BAD_REQUEST,
+        "Identificatorul tranzacției Paddle este invalid",
+      );
+    return apiResponse(
+      request,
+      await this.billing.subscriptionCheckoutStatus(
+        auth.userId,
+        parseUuid(workspaceId, "workspaceId"),
+        transactionId,
+      ),
+    );
+  }
+
   @Post("portal")
   @UseGuards(SessionAuthGuard, CapabilityGuard)
   @RequireCapability("workspace.billing.manage")
@@ -128,6 +179,33 @@ export class WorkspaceBillingController {
       await this.billing.portal(
         auth.userId,
         parseUuid(workspaceId, "workspaceId"),
+      ),
+    );
+  }
+
+  @Post("support-cases")
+  @UseGuards(SessionAuthGuard, CapabilityGuard)
+  @RequireCapability("workspace.read")
+  async createSupportCase(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    if (!idempotencyKey || idempotencyKey.length > 200)
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.BAD_REQUEST,
+        "Idempotency-Key required",
+      );
+    return apiResponse(
+      request,
+      await this.billing.createSupportCase(
+        auth.userId,
+        parseUuid(workspaceId, "workspaceId"),
+        parseWithSchema(createWorkspaceSupportCaseSchema, body),
+        idempotencyKey,
       ),
     );
   }

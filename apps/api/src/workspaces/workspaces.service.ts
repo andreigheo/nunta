@@ -91,6 +91,7 @@ export class WorkspacesService {
           effectiveWorkspacePlanKey(
             membership.workspace.subscription?.planKey,
             membership.workspace.subscription?.status,
+            membership.workspace.subscription?.gracePeriodEndAt,
           ),
         ),
         imageUrl: membership.workspace.imageUrl,
@@ -321,6 +322,7 @@ export class WorkspacesService {
           effectiveWorkspacePlanKey(
             result.membership.workspace.subscription?.planKey,
             result.membership.workspace.subscription?.status,
+            result.membership.workspace.subscription?.gracePeriodEndAt,
           ),
         ),
       },

@@ -3661,7 +3661,7 @@ export class CommercialService {
             : "contract_party_acknowledged",
           summary: agreed
             ? "Contractul operațional a fost confirmat de ambele părți."
-            : "O parte a confirmat contractul în WeddingOS.",
+            : "O parte a confirmat contractul în Sarbato.",
           entityType: "VendorContract",
           entityId: row.id,
         },
@@ -5424,7 +5424,7 @@ export class CommercialService {
       where: { workspaceId },
       create: {
         workspaceId,
-        name: "Bugetul nunții",
+        name: "Bugetul evenimentului",
         currency: workspace.currency,
         targetTotalMinor: offer.totalMinor,
         createdById: userId,
@@ -5690,7 +5690,7 @@ export class CommercialService {
         : [],
       disclaimer:
         "Document operațional generat pe baza datelor introduse. Pentru validitate juridică și conformitate locală, documentul trebuie verificat de un profesionist autorizat.",
-      acknowledgementLabel: "Confirmare în WeddingOS",
+      acknowledgementLabel: "Confirmare în Sarbato",
     });
   }
 

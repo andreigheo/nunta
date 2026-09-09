@@ -175,12 +175,12 @@ export default function DesignStudioPage() {
             </Badge>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="rounded-xl bg-gradient-to-br from-brand to-sage p-6 text-on-brand">
+            <div className="rounded-xl bg-gradient-to-br from-brand-panel to-brand-panel-strong p-6 text-on-brand-panel">
               <p className="flex items-center gap-2 font-brand text-2xl font-semibold tracking-tight">
                 <Leaf className="size-6" aria-hidden />
                 Grădină de seară elegantă
               </p>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-on-brand/85">
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-on-brand-panel/85">
                 Natură întâlnește rafinamentul: verde salvie și frunze
                 proaspete, accente de cupru mat, lumini calde în copaci, textile
                 naturale (in, iută fină) și flori de sezon în tonuri de șampanie
@@ -254,7 +254,7 @@ export default function DesignStudioPage() {
               className="mt-3"
               aria-label="Depășire buget decor"
             />
-            <div className="mt-4 rounded-lg border border-accent/40 bg-accent-soft/40 p-3 text-[13px] leading-relaxed text-muted dark:bg-accent-soft/20">
+            <div className="mt-4 rounded-lg border border-accent/40 bg-accent-soft/60 p-3 text-[13px] leading-relaxed text-muted">
               <span className="font-semibold text-ink">Copilot:</span>{" "}
               ghirlandele în copaci (+2.100 lei) sunt principala depășire.
               Varianta cu lumini doar pe alei reduce costul sub buget.
@@ -330,7 +330,7 @@ export default function DesignStudioPage() {
             <ul className="divide-y divide-line">
               {briefs.map((b) => (
                 <li key={b.id} className="flex items-center gap-3 py-3">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong dark:text-brand">
+                  <span className="flex size-10 items-center justify-center rounded-xl bg-brand-soft text-brand-strong">
                     <b.icon className="size-5" aria-hidden />
                   </span>
                   <div className="min-w-0 flex-1">

@@ -258,7 +258,7 @@ export default function VendorProfilePage() {
         className="overflow-hidden rounded-[18px] border border-line bg-surface"
         aria-labelledby="vendor-profile-title"
       >
-        <div className="relative h-48 bg-brand sm:h-64 lg:h-72">
+        <div className="relative h-48 bg-brand-panel sm:h-64 lg:h-72">
           {vendor.coverImageUrl ? (
             <Image
               src={String(vendor.coverImageUrl)}
@@ -270,7 +270,7 @@ export default function VendorProfilePage() {
               priority
             />
           ) : (
-            <div className="flex h-full items-end justify-end p-5 text-on-brand/75">
+            <div className="flex h-full items-end justify-end p-5 text-on-brand-panel/75">
               <span className="text-sm font-medium">Profil public Sarbato</span>
             </div>
           )}
@@ -379,7 +379,7 @@ export default function VendorProfilePage() {
               <TabsTrigger value="reviews">Recenzii</TabsTrigger>
             </TabsList>
 
-            <div className="-mx-2 border-t border-line bg-canvas px-2 py-5 sm:-mx-5 sm:px-5 lg:-mx-7 lg:px-7">
+            <div className="-mx-2 border-t border-line bg-background px-2 py-5 sm:-mx-5 sm:px-5 lg:-mx-7 lg:px-7">
               <TabsContent value="overview" className="mt-0">
                 <OverviewTab
                   vendor={vendor}

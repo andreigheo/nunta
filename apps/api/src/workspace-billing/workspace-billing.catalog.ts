@@ -45,6 +45,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         "Până la 50 de invitați",
         "2 colaboratori în afara proprietarului",
         "5 acțiuni AI pe lună",
+        "200 de livrări e-mail pe lună",
         "10 credite de mesagerie pentru test",
         "250 MB pentru fișiere și imagini",
       ],
@@ -52,6 +53,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         MAX_COLLABORATORS: 2,
         MAX_GUESTS: 50,
         AI_ACTIONS_MONTHLY: 5,
+        EMAIL_DELIVERIES_MONTHLY: 200,
         MAX_ACTIVE_AUTOMATIONS: 0,
         STORAGE_BYTES: 250 * MEBIBYTE,
         INVITATION_STUDIO: true,
@@ -84,12 +86,14 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         "Mese, transport, cazare și coordonare furnizori",
         "Documente, exporturi și 5 automatizări active",
         "30 de acțiuni AI pe lună",
+        "2.000 de livrări e-mail pe lună",
         "50 de credite de mesagerie pe lună",
       ],
       entitlements: {
         MAX_COLLABORATORS: 5,
         MAX_GUESTS: 200,
         AI_ACTIONS_MONTHLY: 30,
+        EMAIL_DELIVERIES_MONTHLY: 2_000,
         MAX_ACTIVE_AUTOMATIONS: 5,
         STORAGE_BYTES: 2 * GIBIBYTE,
         INVITATION_STUDIO: true,
@@ -120,14 +124,16 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
         "Până la 500 de invitați",
         "15 colaboratori și 10 GB stocare",
         "Riscuri, Plan B, check-in și comandament în ziua evenimentului",
-        "Semnături externe și 25 de automatizări active",
+        "Coordonare avansată și 25 de automatizări active",
         "150 de acțiuni AI pe lună",
+        "10.000 de livrări e-mail pe lună și suport prioritar",
         "100 de credite de mesagerie pe lună",
       ],
       entitlements: {
         MAX_COLLABORATORS: 15,
         MAX_GUESTS: 500,
         AI_ACTIONS_MONTHLY: 150,
+        EMAIL_DELIVERIES_MONTHLY: 10_000,
         MAX_ACTIVE_AUTOMATIONS: 25,
         STORAGE_BYTES: 10 * GIBIBYTE,
         INVITATION_STUDIO: true,
@@ -203,9 +209,18 @@ export function workspacePlan(
 export function effectiveWorkspacePlanKey(
   planKey: WorkspaceSubscriptionPlanKey | null | undefined,
   status: string | null | undefined,
+  gracePeriodEndAt?: Date | string | null,
+  now = new Date(),
 ): WorkspaceSubscriptionPlanKey {
   if (status === "FREE") return "FREE";
-  if (planKey && (status === "ACTIVE" || status === "PAST_DUE")) return planKey;
+  if (planKey && status === "ACTIVE") return planKey;
+  if (planKey && status === "PAST_DUE" && gracePeriodEndAt) {
+    const graceEnd =
+      gracePeriodEndAt instanceof Date
+        ? gracePeriodEndAt
+        : new Date(gracePeriodEndAt);
+    if (!Number.isNaN(graceEnd.getTime()) && now < graceEnd) return planKey;
+  }
   return "FREE";
 }
 

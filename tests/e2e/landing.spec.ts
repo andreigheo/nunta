@@ -141,7 +141,7 @@ test("landing desktop — Product-first control room V1", async ({
   ).toHaveAttribute("href", "/create-account");
   await expect(
     page.getByRole("link", { name: "Vezi produsul" }).first(),
-  ).toHaveAttribute("href", "#produs");
+  ).toHaveAttribute("href", "/produs");
   await expect(
     page.getByRole("link", { name: "Autentificare" }).first(),
   ).toHaveAttribute("href", "/sign-in");
@@ -170,12 +170,6 @@ test("landing desktop — Product-first control room V1", async ({
   await expect(page.getByRole("contentinfo")).toHaveCount(1);
 
   await dismissCookieBanner(page);
-  const pricing = page.locator("#abonamente");
-  await expect(pricing.getByText("27 €", { exact: true })).toBeVisible();
-  await expect(pricing.getByText("59 €", { exact: true })).toBeVisible();
-  await expect(pricing).toContainText("10 credite de mesagerie pentru test");
-  await expect(pricing).toContainText("50 de credite de mesagerie pe lună");
-  await expect(pricing).toContainText("100 de credite de mesagerie pe lună");
   await expectNoHorizontalOverflow(page);
   await expectSoundHeadingStructure(page);
   await expectNoAxeViolations(page);
@@ -207,7 +201,8 @@ test("landing mobil — meniu, ordine și adaptare", async ({
   await expect(mobileNav).toBeVisible();
   await mobileNav.getByRole("link", { name: "Produs" }).click();
   await expect(mobileNav).toBeHidden();
-  await expect(page).toHaveURL(/#produs$/);
+  await expect(page).toHaveURL(/\/produs$/);
+  await page.goto("/");
 
   for (const id of sectionIds)
     await expect(page.locator(`#${id}`)).toHaveCount(1);
@@ -268,7 +263,8 @@ test("footer — grupează toate destinațiile reale ale landingului", async ({
   expect(hrefs).toEqual(
     expect.arrayContaining([
       "/",
-      "/#produs",
+      "/produs",
+      "/contact",
       "/#solutii",
       "/#planificare",
       "/#invitatii",
@@ -276,7 +272,6 @@ test("footer — grupează toate destinațiile reale ale landingului", async ({
       "/#ziua-evenimentului",
       "/#abonamente",
       "/#intrebari",
-      "/#despre",
       "/plan",
       "/invitations",
       "/budget",
@@ -294,9 +289,118 @@ test("footer — grupează toate destinațiile reale ale landingului", async ({
   expect(hrefs).not.toContain("#abonamente");
 
   await footer.getByRole("link", { name: "Produs", exact: true }).click();
-  await expect(page).toHaveURL(/\/#produs$/);
-  await expect(page.locator("#produs")).toBeVisible();
+  await expect(page).toHaveURL(/\/produs$/);
   await expectNoHorizontalOverflow(page);
+});
+
+test("contact — oferă un formular accesibil și contact direct", async ({
+  page,
+}) => {
+  await page.goto("/contact");
+
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Spune-ne ce pregătești. Pornim de la întrebarea ta.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Nume")).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveAttribute("type", "email");
+  await expect(page.getByLabel("Subiect")).toBeVisible();
+  await expect(page.getByLabel("Mesaj")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Deschide mesajul în email" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "hello@sarbato.space" }),
+  ).toHaveAttribute("href", "mailto:hello@sarbato.space");
+  await expectNoHorizontalOverflow(page);
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Mesaj")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("analytics — Google Tag Manager se încarcă numai după acord", async ({
+  page,
+}) => {
+  test.skip(
+    !process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID,
+    "GTM is intentionally disabled when no environment-specific container is configured",
+  );
+  const googleRequests: string[] = [];
+  await page.addInitScript(() => window.localStorage.clear());
+  await page.route("https://www.googletagmanager.com/**", async (route) => {
+    googleRequests.push(route.request().url());
+    await route.abort();
+  });
+
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "Acceptă analytics" }),
+  ).toBeVisible();
+  expect(googleRequests).toEqual([]);
+
+  await page.getByRole("button", { name: "Acceptă analytics" }).click();
+  await expect.poll(() => googleRequests.length).toBe(1);
+  expect(googleRequests[0]).toContain(
+    `id=${process.env.NEXT_PUBLIC_GOOGLE_TAG_MANAGER_ID}`,
+  );
+
+  const consentCommands = await page.evaluate(() =>
+    window.dataLayer?.map((item) => {
+      if (
+        item &&
+        typeof item === "object" &&
+        "length" in item &&
+        typeof item.length === "number"
+      ) {
+        return Array.from(item as ArrayLike<unknown>);
+      }
+      return item;
+    }),
+  );
+  expect(consentCommands).toEqual(
+    expect.arrayContaining([
+      expect.arrayContaining([
+        "consent",
+        "update",
+        expect.objectContaining({
+          analytics_storage: "granted",
+          ad_storage: "denied",
+          ad_user_data: "denied",
+          ad_personalization: "denied",
+        }),
+      ]),
+    ]),
+  );
+});
+
+test("analytics — refuzul persistă și setările rămân accesibile", async ({
+  page,
+}) => {
+  const googleRequests: string[] = [];
+  await page.route("https://www.googletagmanager.com/**", async (route) => {
+    googleRequests.push(route.request().url());
+    await route.abort();
+  });
+
+  await page.goto("/");
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload();
+  await page.getByRole("button", { name: "Doar esențiale" }).click();
+  await page.reload();
+  expect(googleRequests).toEqual([]);
+  await expect(
+    page.getByRole("button", { name: "Acceptă analytics" }),
+  ).toBeHidden();
+
+  await page.getByRole("button", { name: "Setări cookie" }).click();
+  await expect(
+    page.getByRole("button", { name: "Acceptă analytics" }),
+  ).toBeVisible();
 });
 
 test("întrebări și răspunsuri — clarifică produsul și funcționează din tastatură", async ({
@@ -353,34 +457,68 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   await expect(plans).toHaveCount(3);
   await expect(plans.nth(0)).toContainText("Gratuit");
   await expect(plans.nth(0)).toContainText("0 €");
-  await expect(plans.nth(0)).toContainText(
-    "Până la 50 de invitați și 2 colaboratori",
-  );
+  await expect(plans.nth(0)).toContainText("50");
+  await expect(plans.nth(0)).toContainText("2");
+  await expect(plans.nth(0)).toContainText("5");
+  await expect(plans.nth(0)).toContainText("acțiuni AI / lună");
+  await expect(plans.nth(0)).toContainText("200 de livrări e-mail pe lună");
   await expect(plans.nth(1)).toContainText("Plus");
-  await expect(plans.nth(1)).toContainText("7 €");
+  await expect(plans.nth(1)).toContainText("27 €");
+  await expect(plans.nth(1)).toContainText("30");
+  await expect(plans.nth(1)).toContainText("acțiuni AI / lună");
+  await expect(plans.nth(1)).toContainText("5 automatizări active");
+  await expect(plans.nth(1)).toContainText("2.000 de livrări e-mail pe lună");
   await expect(plans.nth(1)).toContainText(
-    "Până la 200 de invitați și 5 colaboratori",
+    "50 de credite de mesagerie pe lună",
   );
   await expect(plans.nth(1)).toHaveAttribute("data-featured", "true");
   await expect(plans.nth(2)).toContainText("Pro");
-  await expect(plans.nth(2)).toContainText("17 €");
+  await expect(plans.nth(2)).toContainText("59 €");
+  await expect(plans.nth(2)).toContainText("150");
+  await expect(plans.nth(2)).toContainText("acțiuni AI / lună");
+  await expect(plans.nth(2)).toContainText("25 de automatizări active");
+  await expect(plans.nth(2)).toContainText("10.000 de livrări e-mail pe lună");
   await expect(plans.nth(2)).toContainText(
-    "Până la 500 de invitați și 15 colaboratori",
+    "100 de credite de mesagerie pe lună",
   );
+  await expect(plans.nth(2)).toContainText("Suport prioritar");
   await expect(section.getByRole("link", { name: /Începe/ })).toHaveCount(3);
-  for (const link of await section
-    .getByRole("link", { name: /Începe/ })
-    .all()) {
-    await expect(link).toHaveAttribute("href", "/create-account");
-  }
-  await expect(section).toContainText("Paddle procesează abonamentul Sarbato");
+  await expect(
+    section.getByRole("link", { name: "Începe gratuit" }),
+  ).toHaveAttribute("href", "/create-account?intent=EVENT_ORGANIZER");
+  await expect(
+    section.getByRole("link", { name: "Începe cu Plus" }),
+  ).toHaveAttribute(
+    "href",
+    "/create-account?intent=EVENT_ORGANIZER&returnTo=%2Fstart%3Fplan%3DPLUS",
+  );
+  await expect(
+    section.getByRole("link", { name: "Începe cu Pro" }),
+  ).toHaveAttribute(
+    "href",
+    "/create-account?intent=EVENT_ORGANIZER&returnTo=%2Fstart%3Fplan%3DPRO",
+  );
+  await expect(section).toContainText("10 credite de mesagerie pentru test");
   await expect(section).toContainText(
-    "Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
+    "Paddle procesează abonamentul și pachetele de credite Sarbato",
+  );
+  await expect(section).toContainText(
+    "Facturare lunară. Creezi evenimentul, apoi alegi sau schimbi planul din setările contului.",
   );
   await expectNoHorizontalOverflow(page);
 
   for (const width of [940, 941, 1024, 1214]) {
     await page.setViewportSize({ width, height: 900 });
+    if (width <= 1100) {
+      await expect(
+        page.getByRole("navigation", { name: "Navigație principală" }),
+      ).toBeHidden();
+      await expect(
+        page.getByRole("button", { name: "Deschide meniul" }),
+      ).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+      continue;
+    }
     const navBox = await page
       .getByRole("navigation", { name: "Navigație principală" })
       .boundingBox();
@@ -403,7 +541,9 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
     await expect(plan).toBeVisible();
     await expect(plan.getByRole("link", { name: /Începe/ })).toBeVisible();
   }
-  await expect(section).toContainText("Paddle procesează abonamentul Sarbato");
+  await expect(section).toContainText(
+    "Paddle procesează abonamentul și pachetele de credite Sarbato",
+  );
   await expect(
     section.getByRole("link", { name: "Vezi întrebările frecvente" }),
   ).toBeVisible();
@@ -436,19 +576,19 @@ test("landing reference 864 — geometria hero rămâne fidelă conceptului", as
 
   expect(heading!.x).toBeGreaterThanOrEqual(23);
   expect(heading!.x).toBeLessThanOrEqual(25);
-  expect(heading!.y).toBeGreaterThanOrEqual(176);
-  expect(heading!.y).toBeLessThanOrEqual(179);
+  expect(heading!.y).toBeGreaterThanOrEqual(131);
+  expect(heading!.y).toBeLessThanOrEqual(135);
   expect(heading!.height).toBeGreaterThanOrEqual(82);
   expect(heading!.height).toBeLessThanOrEqual(86);
 
-  expect(controlRoom!.x).toBeGreaterThanOrEqual(334);
-  expect(controlRoom!.x).toBeLessThanOrEqual(337);
-  expect(controlRoom!.y).toBeGreaterThanOrEqual(77);
-  expect(controlRoom!.y).toBeLessThanOrEqual(79);
-  expect(controlRoom!.width).toBeGreaterThanOrEqual(511);
-  expect(controlRoom!.width).toBeLessThanOrEqual(514);
-  expect(controlRoom!.height).toBeGreaterThanOrEqual(393);
-  expect(controlRoom!.height).toBeLessThanOrEqual(402);
+  expect(controlRoom!.x).toBeGreaterThanOrEqual(318);
+  expect(controlRoom!.x).toBeLessThanOrEqual(321);
+  expect(controlRoom!.y).toBeGreaterThanOrEqual(84);
+  expect(controlRoom!.y).toBeLessThanOrEqual(88);
+  expect(controlRoom!.width).toBeGreaterThanOrEqual(527);
+  expect(controlRoom!.width).toBeLessThanOrEqual(530);
+  expect(controlRoom!.height).toBeGreaterThanOrEqual(409);
+  expect(controlRoom!.height).toBeLessThanOrEqual(413);
 
   expect(Math.abs(primary!.y - secondary!.y)).toBeLessThan(1);
   await expectNoHorizontalOverflow(page);
@@ -1190,55 +1330,6 @@ test("comanda evenimentului — reproduce programul, echipa și furnizorii din c
   await expect(
     panel.locator('[class*="operationAvatar"]').first(),
   ).toBeVisible();
-  await expectNoHorizontalOverflow(page);
-});
-
-test("firul CTA final — unește bordura bannerului cu primul buton", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-
-  for (const width of [821, 864, 940, 941, 1024, 1214, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto("/");
-    await dismissCookieBanner(page);
-
-    const cta = page.locator("#despre");
-    const primary = cta.getByRole("link", { name: "Începe organizarea" });
-    const thread = cta.locator('[class*="finalThread"]');
-    const node = thread.locator("i");
-
-    await expect(thread, `firul final @ ${width}px`).toBeVisible();
-    await expect(thread.locator("path")).toHaveCount(1);
-
-    const ctaBox = await cta.boundingBox();
-    const primaryBox = await primary.boundingBox();
-    const threadBox = await thread.boundingBox();
-    const nodeBox = await node.boundingBox();
-    expect(ctaBox).not.toBeNull();
-    expect(primaryBox).not.toBeNull();
-    expect(threadBox).not.toBeNull();
-    expect(nodeBox).not.toBeNull();
-
-    const nodeCenterX = nodeBox!.x + nodeBox!.width / 2;
-    const nodeCenterY = nodeBox!.y + nodeBox!.height / 2;
-    const buttonCenterY = primaryBox!.y + primaryBox!.height / 2;
-    const threadBottom = threadBox!.y + threadBox!.height;
-    const ctaBottom = ctaBox!.y + ctaBox!.height;
-
-    expect(Math.abs(nodeCenterX - (primaryBox!.x + 1))).toBeLessThan(0.6);
-    expect(Math.abs(nodeCenterY - buttonCenterY)).toBeLessThan(0.6);
-    expect(Math.abs(threadBottom - ctaBottom)).toBeLessThan(0.6);
-    expect(nodeBox!.width).toBeGreaterThanOrEqual(8);
-    expect(nodeBox!.width).toBeLessThanOrEqual(9);
-    expect(Math.abs(nodeBox!.width - nodeBox!.height)).toBeLessThan(0.1);
-    expect(threadBox!.width).toBeGreaterThanOrEqual(99);
-    expect(threadBox!.width).toBeLessThanOrEqual(121);
-    await expectNoHorizontalOverflow(page);
-  }
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator("#despre [class*='finalThread']")).toBeHidden();
   await expectNoHorizontalOverflow(page);
 });
 

@@ -721,7 +721,7 @@ export default function PlanPage() {
                   key={number}
                   className="flex items-center gap-3 rounded-xl border border-line/80 bg-surface/85 px-3 py-2.5"
                 >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-on-brand">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-action text-xs font-semibold text-on-action">
                     {number}
                   </span>
                   <span className="font-medium text-ink">{copy}</span>

@@ -8,16 +8,16 @@ O suprafață nu este considerată controlabilă până când operația are adap
 
 ## Rezumat
 
-- Pagini: **83**
-- Operații API: **690**
-- Domenii API: **129**
+- Pagini: **97**
+- Operații API: **727**
+- Domenii API: **132**
 - Operații executabile prin propunere: **44**
-- Operații disponibile pentru citire contextuală: **231**
-- Operații explicate, dar neexecutate direct: **357**
+- Operații disponibile pentru citire contextuală: **249**
+- Operații explicate, dar neexecutate direct: **376**
 - Operații excluse intenționat: **58**
 - Operații neclasificate: **0**
-- Operații de citire candidate: **247**
-- Modificări numai prin propunere/aprobare: **401**
+- Operații de citire candidate: **265**
+- Modificări numai prin propunere/aprobare: **420**
 - Operații doar ghidate, fără execuție directă: **42**
 
 ## Domenii API
@@ -32,13 +32,13 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | activity                            |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | activity-exports                    |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
 | allergy-issues                      |    2 |      1 |         1 |            0 | menu.read_allergies, menu.resolve_allergies                                                                                                                                                                                    |
-| auth                                |   13 |      2 |         8 |            3 | —                                                                                                                                                                                                                              |
+| auth                                |   15 |      3 |         9 |            3 | —                                                                                                                                                                                                                              |
 | automation-executions               |    3 |      2 |         1 |            0 | automation.approve, automation.view_executions                                                                                                                                                                                 |
 | automation-rules                    |    6 |      3 |         3 |            0 | automation.execute, automation.read, automation.write                                                                                                                                                                          |
 | automation-templates                |    1 |      1 |         0 |            0 | automation.read                                                                                                                                                                                                                |
 | automations                         |    8 |      2 |         6 |            0 | automation.activate, automation.execute, automation.pause, automation.read, automation.write                                                                                                                                   |
 | beta                                |    8 |      3 |         5 |            0 | —                                                                                                                                                                                                                              |
-| billing                             |    3 |      1 |         2 |            0 | workspace.billing.manage, workspace.billing.read                                                                                                                                                                               |
+| billing                             |    7 |      3 |         4 |            0 | workspace.billing.manage, workspace.billing.read, workspace.read                                                                                                                                                               |
 | bookings                            |    4 |      2 |         2 |            0 | booking.read, booking.transition, booking.write                                                                                                                                                                                |
 | bootstrap                           |    1 |      1 |         0 |            0 | workspace.read                                                                                                                                                                                                                 |
 | budget                              |   11 |      4 |         7 |            0 | budget.read, budget.write                                                                                                                                                                                                      |
@@ -59,13 +59,15 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | documents                           |   12 |      4 |         8 |            0 | —                                                                                                                                                                                                                              |
 | event-day                           |   36 |      9 |        27 |            0 | announcement.publish, announcement.read, announcement.write, incident.read, incident.resolve, incident.write, wedding_day.go_live, wedding_day.manage_contacts, wedding_day.publish, wedding_day.transition, wedding_day.write |
 | event-day-exports                   |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
+| event-media                         |    4 |      2 |         2 |            0 | —                                                                                                                                                                                                                              |
 | expenses                            |    4 |      1 |         3 |            0 | expense.read, expense.write                                                                                                                                                                                                    |
 | galleries                           |    6 |      1 |         5 |            0 | gallery.publish, gallery.read, gallery.write                                                                                                                                                                                   |
-| guest                               |   15 |      9 |         6 |            0 | —                                                                                                                                                                                                                              |
+| guest                               |   17 |     11 |         6 |            0 | —                                                                                                                                                                                                                              |
 | guest-bulk-commands                 |    1 |      0 |         1 |            0 | guest.write                                                                                                                                                                                                                    |
 | guest-exports                       |    1 |      0 |         1 |            0 | guest.export                                                                                                                                                                                                                   |
 | guest-imports                       |    6 |      2 |         4 |            0 | guest.import                                                                                                                                                                                                                   |
 | guest-menu-selections               |    2 |      1 |         1 |            0 | menu.read, menu.write                                                                                                                                                                                                          |
+| guest-messaging                     |    3 |      1 |         2 |            0 | campaign.send                                                                                                                                                                                                                  |
 | guest-moments                       |    3 |      2 |         1 |            0 | guest_moment.moderate, guest_moment.read                                                                                                                                                                                       |
 | guest-tags                          |    4 |      1 |         3 |            0 | guest.write                                                                                                                                                                                                                    |
 | guests                              |    5 |      2 |         3 |            0 | guest.archive, guest.write                                                                                                                                                                                                     |
@@ -78,6 +80,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | jobs                                |    2 |      2 |         0 |            0 | —                                                                                                                                                                                                                              |
 | marketplace                         |    5 |      5 |         0 |            0 | —                                                                                                                                                                                                                              |
 | me                                  |   25 |      9 |         8 |            8 | —                                                                                                                                                                                                                              |
+| media-portals                       |    5 |      3 |         2 |            0 | gallery.publish, guest_moment.moderate                                                                                                                                                                                         |
 | members                             |    3 |      1 |         2 |            0 | team.read, team.remove, team.update_role                                                                                                                                                                                       |
 | menus                               |    5 |      2 |         3 |            0 | menu.read, menu.write                                                                                                                                                                                                          |
 | milestones                          |    3 |      0 |         3 |            0 | timeline.write                                                                                                                                                                                                                 |
@@ -92,7 +95,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | plan-generations                    |    1 |      0 |         1 |            0 | planning.generate                                                                                                                                                                                                              |
 | plan-proposals                      |    5 |      2 |         3 |            0 | planning.apply, planning.write                                                                                                                                                                                                 |
 | planning-exports                    |    1 |      0 |         1 |            0 | planning.read                                                                                                                                                                                                                  |
-| platform                            |   76 |     35 |        37 |            4 | —                                                                                                                                                                                                                              |
+| platform                            |   91 |     42 |        45 |            4 | —                                                                                                                                                                                                                              |
 | provider-webhooks                   |    2 |      0 |         2 |            0 | —                                                                                                                                                                                                                              |
 | public                              |    2 |      2 |         0 |            0 | —                                                                                                                                                                                                                              |
 | public-aggregate-consent            |    2 |      1 |         1 |            0 | workspace.manage_public_aggregation                                                                                                                                                                                            |
@@ -150,7 +153,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | vendor-trust-monetization-overview  |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | vendor-usage                        |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | venue-spaces                        |    5 |      2 |         3 |            0 | seating.write                                                                                                                                                                                                                  |
-| webhooks                            |    6 |      0 |         5 |            1 | —                                                                                                                                                                                                                              |
+| webhooks                            |    8 |      0 |         7 |            1 | —                                                                                                                                                                                                                              |
 | weekly-digests                      |    2 |      1 |         1 |            0 | copilot.read, copilot.use                                                                                                                                                                                                      |
 | workspaces                          |    3 |      1 |         2 |            0 | workspace.update                                                                                                                                                                                                               |
 
@@ -164,8 +167,16 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | /activity                       | organizer  | GUIDE_ONLY                |
 | /admin                          | platform   | GUIDE_ONLY                |
 | /admin/:section                 | platform   | GUIDE_ONLY                |
+| /admin/access                   | platform   | GUIDE_ONLY                |
+| /admin/audit                    | platform   | GUIDE_ONLY                |
 | /admin/beta                     | platform   | GUIDE_ONLY                |
+| /admin/commerce                 | platform   | GUIDE_ONLY                |
+| /admin/labels                   | platform   | GUIDE_ONLY                |
+| /admin/traffic                  | platform   | GUIDE_ONLY                |
 | /admin/trust                    | platform   | GUIDE_ONLY                |
+| /admin/users                    | platform   | GUIDE_ONLY                |
+| /admin/users/:userId            | platform   | GUIDE_ONLY                |
+| /admin/workspaces               | platform   | GUIDE_ONLY                |
 | /archive                        | organizer  | GUIDE_ONLY                |
 | /automations                    | organizer  | GUIDE_ONLY                |
 | /beta                           | organizer  | GUIDE_ONLY                |
@@ -177,18 +188,23 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | /calendar                       | organizer  | GUIDE_ONLY                |
 | /checkout                       | organizer  | GUIDE_ONLY                |
 | /confidentialitate              | organizer  | GUIDE_ONLY                |
+| /contact                        | organizer  | GUIDE_ONLY                |
 | /contingency-plans              | organizer  | GUIDE_ONLY                |
 | /contingency-plans/:id          | organizer  | GUIDE_ONLY                |
 | /contracts                      | organizer  | GUIDE_ONLY                |
 | /cookies                        | organizer  | GUIDE_ONLY                |
 | /create-account                 | organizer  | GUIDE_ONLY                |
 | /design-studio                  | organizer  | GUIDE_ONLY                |
+| /despre-noi                     | organizer  | GUIDE_ONLY                |
 | /documents                      | organizer  | GUIDE_ONLY                |
 | /event-day                      | organizer  | GUIDE_ONLY                |
+| /event-upload                   | organizer  | GUIDE_ONLY                |
 | /expired-link                   | organizer  | GUIDE_ONLY                |
 | /favorites                      | organizer  | GUIDE_ONLY                |
 | /forgot-password                | public     | INTENTIONALLY_UNSUPPORTED |
 | /guest                          | guest      | READ_ONLY                 |
+| /guest/companion                | guest      | READ_ONLY                 |
+| /guest/rsvp                     | guest      | READ_ONLY                 |
 | /guests                         | organizer  | GUIDE_ONLY                |
 | /invitation                     | organizer  | GUIDE_ONLY                |
 | /invitations                    | organizer  | GUIDE_ONLY                |
@@ -207,6 +223,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | /post-event                     | organizer  | GUIDE_ONLY                |
 | /post-wedding                   | organizer  | GUIDE_ONLY                |
 | /privacy                        | organizer  | GUIDE_ONLY                |
+| /produs                         | organizer  | GUIDE_ONLY                |
 | /provider/checkout/:checkoutId  | organizer  | GUIDE_ONLY                |
 | /provider/signature/:envelopeId | organizer  | GUIDE_ONLY                |
 | /rambursari                     | organizer  | GUIDE_ONLY                |

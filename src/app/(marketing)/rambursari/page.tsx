@@ -34,14 +34,14 @@ const sections = [
   {
     title: "Defecte și indisponibilitate materială",
     body: [
-      "Dacă o problemă tehnică persistentă împiedică accesul la funcțiile cumpărate, contactează-ne la andreivilcuro@gmail.com pentru diagnosticare. Include adresa contului, numărul tranzacției și o descriere a problemei, fără parole sau date de card.",
+      "Dacă o problemă tehnică persistentă împiedică accesul la funcțiile cumpărate, contactează-ne la hello@sarbato.space pentru diagnosticare. Include adresa contului, numărul tranzacției și o descriere a problemei, fără parole sau date de card.",
       "Dacă problema nu poate fi remediată într-un termen rezonabil, vom colabora cu Paddle pentru rambursarea integrală sau parțială datorată potrivit legii și politicilor aplicabile.",
     ],
   },
   {
     title: "Cum soliciți o rambursare",
     body: [
-      "Solicitările de rambursare se transmit prin portalul de asistență pentru cumpărători Paddle la paddle.net. Ne poți contacta și la andreivilcuro@gmail.com pentru informațiile despre produs necesare soluționării cererii.",
+      "Solicitările de rambursare se transmit prin portalul de asistență pentru cumpărători Paddle la paddle.net. Ne poți contacta și la hello@sarbato.space pentru informațiile despre produs necesare soluționării cererii.",
       "Rambursările aprobate sunt emise de Paddle către metoda de plată folosită la cumpărare. Sarbato nu solicită și nu procesează direct datele cardului.",
       "Decizia și durata procesării depind de drepturile legale aplicabile, motivul solicitării, utilizarea serviciului și regulile Paddle. Rambursările discreționare sunt evaluate individual.",
     ],

@@ -1,4 +1,10 @@
 import type {
+  GuestMessagingOverview,
+  GuestMessageInput,
+  GuestMessageConsent,
+  MediaPortalResource,
+  MediaPortalPublicGalleryResource,
+  MediaPortalPublicResource,
   ApiProblem,
   EventType,
   ApiResponse,
@@ -401,12 +407,196 @@ export type PlatformSystemStatusResource = {
 };
 
 export type PlatformUserResource = OperationResource & {
+  createdAt: string;
+  updatedAt: string;
   email: string;
   status: string;
   emailVerified: boolean;
   profile?: { firstName?: string; lastName?: string } | null;
+  registrationIntent: "EVENT_ORGANIZER" | "SERVICE_PROVIDER" | "INVITED_MEMBER";
+  platformRoleKeys: string[];
   membershipCount: number;
   sessionCount: number;
+};
+
+export type PlatformWorkspaceRoleResource = {
+  key: string;
+  name: string;
+  description: string;
+};
+
+export type PlatformRoleResource = PlatformWorkspaceRoleResource & {
+  critical: boolean;
+};
+
+export type PlatformGrantResource = OperationResource & {
+  roleKey: string;
+  roleName: string;
+  critical: boolean;
+  active: boolean;
+  validFrom: string;
+  validUntil: string | null;
+  revokedAt: string | null;
+};
+
+export type PlatformUserMembershipResource = OperationResource & {
+  workspaceId: string;
+  workspaceTitle: string;
+  workspaceStatus: string;
+  status: string;
+  roleTemplateKey: string;
+  roleTemplateName: string;
+  planKey: "FREE" | "PLUS" | "PRO";
+  subscriptionStatus: string;
+  subscriptionProviderManaged: boolean;
+  workspaceVersion: number;
+};
+
+export type PlatformUserDetailResource = OperationResource & {
+  createdAt: string;
+  updatedAt: string;
+  email: string;
+  status: string;
+  emailVerified: boolean;
+  termsAccepted: boolean;
+  registrationIntent: "EVENT_ORGANIZER" | "SERVICE_PROVIDER" | "INVITED_MEMBER";
+  profile?: { firstName?: string; lastName?: string } | null;
+  memberships: PlatformUserMembershipResource[];
+  platformGrants: PlatformGrantResource[];
+  availablePlatformRoles: PlatformRoleResource[];
+  availableWorkspaceRoles: PlatformWorkspaceRoleResource[];
+  sessions: Array<{
+    id: string;
+    active: boolean;
+    lastSeenAt: string;
+    createdAt: string;
+  }>;
+};
+
+export type PlatformUserUsageResource = {
+  range: "7d" | "30d" | "90d";
+  since: string;
+  generatedAt: string;
+  attribution: {
+    personalStorage: string;
+    ownedEventStorage: string;
+    accountingNote: string;
+  };
+  ai: {
+    runs: number;
+    inputUnits: number;
+    outputUnits: number;
+    estimatedCostMinor: number;
+  };
+  personalUploads: {
+    files: number;
+    bytes: number;
+    availableFiles: number;
+    quarantinedFiles: number;
+    imageFiles: number;
+    videoFiles: number;
+    otherFiles: number;
+  };
+  ownedEvents: {
+    count: number;
+    storedObjects: number;
+    totalBytes: number;
+    guestMedia: PlatformGuestMediaUsageResource;
+  };
+  events: Array<{
+    workspaceId: string;
+    title: string;
+    planKey: "FREE" | "PLUS" | "PRO";
+    storedObjects: number;
+    totalBytes: number;
+    guestMedia: PlatformGuestMediaUsageResource;
+    ai: {
+      runs: number;
+      inputUnits: number;
+      outputUnits: number;
+      estimatedCostMinor: number;
+    };
+  }>;
+};
+
+export type PlatformGuestMediaUsageResource = {
+  items: number;
+  bytes: number;
+  images: number;
+  videos: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+};
+
+export type PlatformPage<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type PlatformOverviewResource = {
+  range: "7d" | "30d" | "90d";
+  generatedAt: string;
+  counts: {
+    users: number;
+    activeUsers: number;
+    workspaces: number;
+    activeWorkspaces: number;
+    vendors: number;
+    supportOpen: number;
+    incidentsOpen: number;
+    alertsOpen: number;
+    failedJobs: number;
+    deadBillingEvents: number;
+  };
+  trend: Array<{
+    date: string;
+    users: number;
+    workspaces: number;
+    revenueMinor: string;
+  }>;
+  recentActions: OperationResource[];
+};
+
+export type PlatformTrafficResource = {
+  range: "7d" | "30d" | "90d";
+  generatedAt: string;
+  analytics: { status: string; provider: string; detail: string };
+  firstPartyFunnel: Array<{ key: string; label: string; value: number }>;
+};
+
+export type PlatformCommerceResource = {
+  range: "7d" | "30d" | "90d";
+  generatedAt: string;
+  subscriptions: Array<{ planKey: string; status: string; _count: number }>;
+  checkouts: Array<{ status: string; _count: number }>;
+  transactions: {
+    _count: number;
+    _sum: {
+      totalMinor: string | null;
+      taxMinor: string | null;
+      feeMinor: string | null;
+    };
+  };
+  volumeByCurrency: Array<{
+    currency: string;
+    _count: number;
+    _sum: {
+      totalMinor: string | null;
+      taxMinor: string | null;
+      feeMinor: string | null;
+    };
+  }>;
+  failedEvents: number;
+  recentTransactions: OperationResource[];
+  recentCheckouts: OperationResource[];
+};
+
+export type PlatformAccessResource = {
+  roles: OperationResource[];
+  grants: OperationResource[];
 };
 
 export type PersonalPrivacyResource = {
@@ -749,6 +939,51 @@ export const weddingOsApi = {
     }),
   platformDashboard: () =>
     request<PlatformDashboardResource>("/platform/dashboard"),
+  platformOverview: (range: "7d" | "30d" | "90d" = "30d") =>
+    request<PlatformOverviewResource>(`/platform/overview${queryString({ range })}`),
+  platformTraffic: (range: "7d" | "30d" | "90d" = "30d") =>
+    request<PlatformTrafficResource>(`/platform/traffic${queryString({ range })}`),
+  platformCommerce: (range: "7d" | "30d" | "90d" = "30d") =>
+    request<PlatformCommerceResource>(`/platform/commerce${queryString({ range })}`),
+  platformAuditActions: (input: {
+    query?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}) =>
+    request<PlatformPage<OperationResource>>(
+      `/platform/audit-actions${queryString(input)}`,
+    ),
+  platformAccess: () =>
+    request<PlatformAccessResource>("/platform/access"),
+  platformLabels: () =>
+    request<{ items: OperationResource[] }>("/platform/labels"),
+  createPlatformLabel: (input: {
+    name: string;
+    description?: string;
+    color: "plum" | "coral" | "amber" | "sage" | "blue";
+    reason: string;
+  }) =>
+    request<OperationResource>("/platform/labels", {
+      method: "POST",
+      body: input,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  assignPlatformLabel: (
+    labelId: string,
+    input: {
+      targetType: "USER" | "WORKSPACE" | "VENDOR_ORGANIZATION" | "SUPPORT_CASE";
+      targetId: string;
+      reason: string;
+    },
+  ) =>
+    request<OperationResource>(
+      `/platform/labels/${encodeURIComponent(labelId)}/assignments`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   platformSystemStatus: () =>
     request<PlatformSystemStatusResource>("/platform/system-status"),
   betaStatus: () => request<BetaStatusResource>("/beta/status"),
@@ -872,10 +1107,134 @@ export const weddingOsApi = {
       verdict: string;
       metrics: BetaMetricsResource;
     }>("/platform/beta/exit-criteria"),
-  platformUsers: () =>
-    request<{ items: PlatformUserResource[] }>("/platform/users"),
-  platformWorkspaces: () =>
-    request<{ items: OperationResource[] }>("/platform/workspaces"),
+  platformUsers: (input: {
+    query?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}) =>
+    request<PlatformPage<PlatformUserResource>>(
+      `/platform/users${queryString(input)}`,
+    ),
+  platformUser: (userId: string) =>
+    request<PlatformUserDetailResource>(
+      `/platform/users/${encodeURIComponent(userId)}`,
+    ),
+  platformUserUsage: (
+    userId: string,
+    range: "7d" | "30d" | "90d" = "30d",
+  ) =>
+    request<PlatformUserUsageResource>(
+      `/platform/users/${encodeURIComponent(userId)}/usage${queryString({ range })}`,
+    ),
+  createPlatformUser: (input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    registrationIntent: PlatformUserResource["registrationIntent"];
+    platformRoleKey?: string | null;
+    reason: string;
+  }) =>
+    request<PlatformUserResource>("/platform/users", {
+      method: "POST",
+      headers: adminStepUpTokens.get("USER_PROVISION")
+        ? { "X-Admin-Step-Up": adminStepUpTokens.get("USER_PROVISION")! }
+        : undefined,
+      body: input,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  updatePlatformUser: (
+    userId: string,
+    version: number,
+    input: {
+      firstName: string;
+      lastName: string;
+      registrationIntent: PlatformUserResource["registrationIntent"];
+      reason: string;
+    },
+  ) =>
+    request<OperationResource>(`/platform/users/${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      body: { ...input, version },
+      ifMatch: version,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  setPlatformUserGrant: (
+    userId: string,
+    input: {
+      roleKey: string;
+      active: boolean;
+      validUntil?: string | null;
+      version?: number | null;
+      reason: string;
+    },
+  ) =>
+    request<PlatformGrantResource>(
+      `/platform/users/${encodeURIComponent(userId)}/platform-grants`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("USER_ACCESS_CHANGE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("USER_ACCESS_CHANGE")!,
+            }
+          : undefined,
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  setPlatformUserMembershipRole: (
+    userId: string,
+    membershipId: string,
+    roleTemplateKey: string,
+    version: number,
+    reason: string,
+  ) =>
+    request<PlatformUserMembershipResource>(
+      `/platform/users/${encodeURIComponent(userId)}/memberships/${encodeURIComponent(membershipId)}/role`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("USER_ACCESS_CHANGE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("USER_ACCESS_CHANGE")!,
+            }
+          : undefined,
+        body: { roleTemplateKey, version, reason },
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  createPlatformUserMembership: (
+    userId: string,
+    workspaceId: string,
+    roleTemplateKey: string,
+    reason: string,
+  ) =>
+    request<PlatformUserMembershipResource>(
+      `/platform/users/${encodeURIComponent(userId)}/memberships`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("USER_ACCESS_CHANGE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("USER_ACCESS_CHANGE")!,
+            }
+          : undefined,
+        body: { workspaceId, roleTemplateKey, reason },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  platformWorkspaces: (input: {
+    query?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}) =>
+    request<PlatformPage<OperationResource>>(
+      `/platform/workspaces${queryString(input)}`,
+    ),
+  platformWorkspace: (workspaceId: string) =>
+    request<OperationResource>(
+      `/platform/workspaces/${encodeURIComponent(workspaceId)}`,
+    ),
   platformVendors: () =>
     request<{ items: OperationResource[] }>("/platform/vendor-organizations"),
   platformSupportCases: () =>
@@ -1005,6 +1364,26 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  setPlatformWorkspacePlan: (
+    workspaceId: string,
+    planKey: "FREE" | "PLUS" | "PRO",
+    version: number,
+    reason: string,
+  ) =>
+    request<OperationResource>(
+      `/platform/workspaces/${encodeURIComponent(workspaceId)}/subscription-plan`,
+      {
+        method: "POST",
+        headers: adminStepUpTokens.get("SUBSCRIPTION_OVERRIDE")
+          ? {
+              "X-Admin-Step-Up": adminStepUpTokens.get("SUBSCRIPTION_OVERRIDE")!,
+            }
+          : undefined,
+        body: { planKey, version, reason },
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   changePlatformVendorStatus: (
     organizationId: string,
     action: "suspend" | "reactivate",
@@ -1113,10 +1492,14 @@ export const weddingOsApi = {
       body: { email, returnTo: returnTo ?? undefined },
       problemPolicy: "inline",
     }),
-  resetPassword: (token: string, password: string) =>
+  resetPassword: (
+    token: string,
+    password: string,
+    acceptedTermsVersion?: string,
+  ) =>
     request<PasswordResetResponse>("/auth/password-resets", {
       method: "POST",
-      body: { token, password },
+      body: { token, password, acceptedTermsVersion },
       problemPolicy: "inline",
     }),
   requestMagicLink: (email: string, returnTo?: string | null) =>
@@ -1205,10 +1588,54 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  subscriptionCheckoutStatus: (
+    workspaceId: string,
+    transactionId: string,
+  ) =>
+    request<{
+      status: "CREATED" | "RECOVERY_PENDING" | "COMPLETED" | "EXPIRED" | "FAILED";
+      plan: WorkspaceSubscriptionPlanKey | null;
+      completedAt: string | null;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/billing/checkouts/${encodeURIComponent(transactionId)}`,
+    ),
+  messageCreditCheckoutStatus: (
+    workspaceId: string,
+    transactionId: string,
+  ) =>
+    request<{
+      status: "CREATED" | "RECOVERY_PENDING" | "COMPLETED" | "EXPIRED" | "FAILED";
+      credits: number;
+      completedAt: string | null;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/billing/message-credits/checkouts/${encodeURIComponent(transactionId)}`,
+    ),
   workspaceBillingPortal: (workspaceId: string) =>
     request<{ url: string }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/billing/portal`,
       { method: "POST" },
+    ),
+  createWorkspaceSupportCase: (
+    workspaceId: string,
+    input: {
+      type: "ACCOUNT_ACCESS" | "BILLING" | "BUG" | "SECURITY" | "OTHER";
+      subject: string;
+      description: string;
+    },
+  ) =>
+    request<{
+      id: string;
+      status: string;
+      priority: string;
+      prioritySupport: boolean;
+      createdAt: string;
+    }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/billing/support-cases`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
     ),
   publicAggregateConsent: (workspaceId: string) =>
     request<PublicAggregateConsent>(
@@ -2469,6 +2896,11 @@ export const weddingOsApi = {
     request<GuestListResource>(
       `/workspaces/${encodeURIComponent(workspaceId)}/guests${queryString(filters)}`,
     ),
+  guestMessaging: (workspaceId: string) => request<GuestMessagingOverview>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-messaging`),
+  saveGuestMessageConsent: (workspaceId: string, guestId: string, input: GuestMessageConsent) =>
+    request<{ saved: boolean }>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-messaging/consents/${encodeURIComponent(guestId)}`, { method: "PUT", body: input }),
+  sendGuestMessage: (workspaceId: string, input: GuestMessageInput, key: string) =>
+    request<{ ids: string[]; replayed: boolean }>(`/workspaces/${encodeURIComponent(workspaceId)}/guest-messaging/messages`, { method: "POST", body: input, idempotencyKey: key }),
   guest: (workspaceId: string, guestId: string) =>
     request<
       GuestResource & {
@@ -4290,6 +4722,18 @@ export const weddingOsApi = {
     request<{ items: OperationResource[] }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/guest-moments`,
     ),
+  mediaPortals: (workspaceId: string) => request<{ items: MediaPortalResource[]; events: { id: string; name: string }[] }>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals`),
+  saveMediaPortal: (workspaceId: string, input: { weddingEventId: string; version?: number; active?: boolean; rotate?: boolean; expiresAt?: string }) =>
+    request<MediaPortalResource>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals`, { method: "POST", body: input }),
+  saveMediaPortalLiveGallery: (workspaceId: string, input: { weddingEventId: string; enabled: boolean }) =>
+    request<MediaPortalResource>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals/live-gallery`, { method: "POST", body: input }),
+  downloadMoment: (workspaceId: string, momentId: string) => request<{ url: string; fileName: string }>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals/moments/${encodeURIComponent(momentId)}/download`),
+  momentContent: (workspaceId: string, momentId: string) => request<{ url: string; fileName: string }>(`/workspaces/${encodeURIComponent(workspaceId)}/media-portals/moments/${encodeURIComponent(momentId)}/content`),
+  publicMediaPortal: (token: string) => publicRequest<MediaPortalPublicResource>("/event-media", { headers: { Authorization: `Bearer ${token}` } }),
+  publicMediaGallery: (token: string) => publicRequest<MediaPortalPublicGalleryResource>("/event-media/gallery", { headers: { Authorization: `Bearer ${token}` } }),
+  createPublicMoment: (token: string, input: { uploadToken: string; consent: true; mediaType: "IMAGE" | "VIDEO"; originalFileName: string; contentType: string; sizeBytes: number; checksumSha256: string; contributorName?: string; caption?: string }) =>
+    publicRequest<{ momentId: string; completed: boolean; upload?: { url: string; headers: Record<string, string> } }>("/event-media/uploads", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: input }),
+  completePublicMoment: (token: string, momentId: string, uploadToken: string) => publicRequest<{ id: string; status: string }>(`/event-media/uploads/${encodeURIComponent(momentId)}/complete`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: { uploadToken } }),
   guestMomentPreview: (workspaceId: string, momentId: string) =>
     request<{ url: string; expiresAt: string }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/guest-moments/${encodeURIComponent(momentId)}/preview`,

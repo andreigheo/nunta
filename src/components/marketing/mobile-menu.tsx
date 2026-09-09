@@ -14,8 +14,17 @@ import { CtaLink } from "./section";
 export function MobileMenu() {
   const [open, setOpen] = React.useState(false);
 
+  React.useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1101px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) setOpen(false);
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
   return (
-    <div className="min-[821px]:hidden">
+    <div className="min-[1101px]:hidden">
       <button
         type="button"
         onClick={() => setOpen(true)}

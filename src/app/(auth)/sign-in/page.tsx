@@ -23,6 +23,7 @@ import {
   inferredRegistrationIntent,
   safeInternalPath,
 } from "@/lib/account-routing";
+import styles from "@/components/auth/signup-concept.module.css";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function SignInPage() {
   const [formError, setFormError] = React.useState("");
   const [info, setInfo] = React.useState("");
   const [needsVerification, setNeedsVerification] = React.useState(false);
+  const googleCompletionStarted = React.useRef(false);
   const demoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true";
   const returnTo = safeInternalPath(searchParams.get("returnTo"));
   const entryInfo = React.useMemo(() => {
@@ -60,6 +62,53 @@ export default function SignInPage() {
     return `/create-account?${next.toString()}`;
   }, [returnTo]);
 
+  const completeAuthenticatedNavigation = React.useCallback(async () => {
+    const [currentUser, workspaces] = await Promise.all([
+      weddingOsApi.me(),
+      weddingOsApi.workspaces(),
+    ]);
+    const destination = destinationAfterAuthentication({
+      returnTo,
+      registrationIntent: currentUser.preferences.registrationIntent,
+      workspaceCount: workspaces.length,
+      hasVendorOrganizations: currentUser.contexts.vendorOrganizations,
+      hasPlatformAccess: currentUser.contexts.platform,
+    });
+    window.location.assign(destination);
+  }, [returnTo]);
+
+  const oauthError = React.useMemo(() => {
+    const code = searchParams.get("oauthError");
+    if (code === "unavailable")
+      return "Conectarea cu Google nu este disponibilă momentan.";
+    if (code === "cancelled") return "Conectarea cu Google a fost anulată.";
+    if (code === "not_registered")
+      return "Nu există încă un cont Sarbato pentru acest cont Google. Creează contul mai întâi.";
+    if (code === "account_link_required")
+      return "Pentru siguranță, conectează-te întâi cu parola și asociază apoi contul Google.";
+    if (code === "account_unavailable")
+      return "Acest cont Sarbato nu este disponibil. Contactează suportul dacă ai nevoie de ajutor.";
+    if (code) return "Conectarea cu Google nu a putut fi finalizată. Încearcă din nou.";
+    return "";
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    if (
+      searchParams.get("google") !== "1" ||
+      googleCompletionStarted.current
+    )
+      return;
+    googleCompletionStarted.current = true;
+    setLoading(true);
+    setFormError("");
+    void completeAuthenticatedNavigation()
+      .catch((error) => {
+        setFormError(apiErrorMessage(error));
+        googleCompletionStarted.current = false;
+      })
+      .finally(() => setLoading(false));
+  }, [completeAuthenticatedNavigation, searchParams]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
@@ -74,21 +123,7 @@ export default function SignInPage() {
     setLoading(true);
     try {
       await weddingOsApi.signIn(email, password, remember);
-      const [currentUser, workspaces] = await Promise.all([
-        weddingOsApi.me(),
-        weddingOsApi.workspaces(),
-      ]);
-      const destination = destinationAfterAuthentication({
-        returnTo,
-        registrationIntent: currentUser.preferences.registrationIntent,
-        workspaceCount: workspaces.length,
-        hasVendorOrganizations: currentUser.contexts.vendorOrganizations,
-        hasPlatformAccess: currentUser.contexts.platform,
-      });
-
-      // The HttpOnly cookie changed during this request. A full navigation
-      // makes every server boundary evaluate the new session consistently.
-      window.location.assign(destination);
+      await completeAuthenticatedNavigation();
     } catch (error) {
       setFormError(apiErrorMessage(error));
       setNeedsVerification(
@@ -100,14 +135,18 @@ export default function SignInPage() {
   };
 
   return (
-    <div>
-      <AuthHeading title="Bine ai revenit" subtitle="Conectează-te la evenimentele, invitațiile sau serviciile tale." />
+    <div data-auth-concept="sign-in" className={styles.form}>
+      <div className={styles.heading}>
+        <AuthHeading title="Bine ai revenit" subtitle="Conectează-te la evenimentele, invitațiile sau serviciile tale." />
+      </div>
 
       <div className="space-y-4">
-        <SocialButtons mode="signin" />
-        <Divider label="sau cu email" />
+        <SocialButtons mode="sign-in" returnTo={returnTo} />
+        <Divider label="sau folosește emailul" />
 
-        {formError && <AuthError message={formError} />}
+        {(formError || oauthError) && (
+          <AuthError message={formError || oauthError} />
+        )}
         {needsVerification ? (
           <AuthActionLink
             href={`/verify-email?${new URLSearchParams({
@@ -208,16 +247,18 @@ export default function SignInPage() {
                 document.cookie = "weddingos_demo=1; Path=/; Max-Age=28800; SameSite=Lax";
                 router.push("/overview?demo=1");
               }}
-              className="w-full cursor-pointer rounded-xl px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-subtle hover:text-ink"
+              className={`${styles.demoEntry} w-full cursor-pointer rounded-xl px-4 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-subtle hover:text-ink`}
             >
               Încearcă demo-ul fără cont →
             </button>
           )}
         </div>
 
-        <p className="text-center text-xs leading-relaxed text-faint">
-          Autentificarea folosește o sesiune securizată HttpOnly. Modul demo este izolat și nu scrie în conturile reale.
-        </p>
+        {demoEnabled ? (
+          <p className={`${styles.demoNote} text-center text-xs leading-relaxed text-faint`}>
+            Modul demo este izolat și nu scrie în conturile reale.
+          </p>
+        ) : null}
       </div>
     </div>
   );

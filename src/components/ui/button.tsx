@@ -16,7 +16,7 @@ export type ButtonSize = "sm" | "md" | "lg" | "icon" | "icon-sm";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand text-on-brand hover:bg-brand-strong active:bg-brand-strong disabled:bg-brand/50",
+    "bg-action text-on-action hover:bg-action-hover active:bg-action-hover disabled:bg-action/50",
   accent:
     "bg-accent text-on-accent hover:bg-accent-strong active:bg-accent-strong disabled:bg-accent/50",
   secondary:

@@ -17,6 +17,8 @@ process.env["SMTP_PORT"] ??= "1025";
 process.env["REDIS_URL"] ??= "redis://127.0.0.1:56379/14";
 process.env["OUTBOX_ENCRYPTION_KEY"] ??=
   "weddingos-local-outbox-encryption-key-change-production";
+process.env["GUEST_ACCESS_TOKEN_SECRET"] ??=
+  "weddingos-local-guest-access-token-secret-change-production";
 process.env["WORKER_STALE_AFTER_SECONDS"] ??= "45";
 process.env["LOG_LEVEL"] ??= "silent";
 process.env["FEATURE_MAGIC_LINK_ENABLED"] ??= "true";

@@ -65,6 +65,7 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   await signInThroughUi(page, email);
   await expect(page).toHaveURL(/\/onboarding/);
 
+  await page.getByLabel("Tipul evenimentului").selectOption("wedding");
   await page.getByPlaceholder("Ana Dumitrescu").fill("Ana Pop");
   await page.getByPlaceholder("Mihai Ionescu").fill("Mihai Pop");
   await page.getByPlaceholder("Ana & Mihai").fill("Ana & Mihai E2E");
@@ -96,9 +97,7 @@ test("E2E 1B — provider registration preserves intent through verification and
 }) => {
   const email = uniqueEmail("provider-onboarding");
   await page.goto("/create-account");
-  await page
-    .getByRole("button", { name: /Ofer servicii pentru evenimente/ })
-    .click();
+  await page.getByRole("button", { name: /Ofer servicii/ }).click();
   await page.locator('input[autocomplete="given-name"]').fill("Irina");
   await page.locator('input[autocomplete="family-name"]').fill("Furnizor");
   await page.locator('input[type="email"]').fill(email);

@@ -218,7 +218,7 @@ export default function ArchivePage() {
         }
       />
 
-      <Card className="relative overflow-hidden border-brand/35 bg-brand text-on-brand">
+      <Card className="relative overflow-hidden border-brand-panel bg-brand-panel text-on-brand-panel">
         <div
           className="pointer-events-none absolute inset-0 opacity-20"
           aria-hidden
@@ -229,38 +229,38 @@ export default function ArchivePage() {
         </div>
         <CardContent className="relative grid gap-7 p-6 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <div className="flex items-center gap-2 text-on-brand/65">
+            <div className="flex items-center gap-2 text-on-brand-panel/65">
               <Sparkles className="size-4" aria-hidden />
               <span className="text-xs font-semibold uppercase tracking-[0.18em]">
                 12 septembrie 2027 · Brașov
               </span>
             </div>
-            <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h2 className="mt-3 font-brand text-3xl font-semibold tracking-tight sm:text-4xl">
               Ana & Mihai
             </h2>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-on-brand/75">
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-on-brand-panel/75">
               O grădină, 146 de oameni și o zi păstrată cu tot ce a făcut-o a
               voastră.
             </p>
           </div>
           <dl className="grid grid-cols-3 gap-5 rounded-xl bg-white/10 px-5 py-4 text-center backdrop-blur-sm">
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-on-brand/55">
+              <dt className="text-[10px] uppercase tracking-wide text-on-brand-panel/55">
                 Fișiere
               </dt>
-              <dd className="mt-1 font-display text-2xl font-semibold">746</dd>
+              <dd className="mt-1 font-brand text-2xl font-semibold">746</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-on-brand/55">
+              <dt className="text-[10px] uppercase tracking-wide text-on-brand-panel/55">
                 Documente
               </dt>
-              <dd className="mt-1 font-display text-2xl font-semibold">56</dd>
+              <dd className="mt-1 font-brand text-2xl font-semibold">56</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-on-brand/55">
+              <dt className="text-[10px] uppercase tracking-wide text-on-brand-panel/55">
                 Mesaje
               </dt>
-              <dd className="mt-1 font-display text-2xl font-semibold">132</dd>
+              <dd className="mt-1 font-brand text-2xl font-semibold">132</dd>
             </div>
           </dl>
         </CardContent>
@@ -364,7 +364,7 @@ export default function ArchivePage() {
                       <Badge variant="outline">{config.label}</Badge>
                     </div>
                   </div>
-                  <h3 className="mt-4 font-display text-lg font-semibold tracking-tight text-ink">
+                  <h3 className="mt-4 font-brand text-lg font-semibold tracking-tight text-ink">
                     {item.title}
                   </h3>
                   <p className="mt-1 min-h-10 text-[13px] leading-relaxed text-muted">
@@ -533,7 +533,7 @@ function ConnectedArchive({
         actions={canReadDocuments ? (
           <Link
             href="/documents"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-action px-4 text-sm font-semibold text-on-action hover:bg-action-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <Download className="size-4" aria-hidden />
             Deschide downloadurile securizate

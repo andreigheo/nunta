@@ -7,6 +7,7 @@ export * from "./marketing";
 export * from "./marketing-capability-manifest";
 
 export * from "./slice3";
+export * from "./guest-messaging";
 
 export const DEFAULT_LOCALE = "ro-RO" as const;
 export const DEFAULT_TIMEZONE = "Europe/Bucharest" as const;
@@ -58,6 +59,9 @@ export const problemCodes = [
   "REVIEW_ALREADY_EXISTS",
   "ENTITLEMENT_REQUIRED",
   "USAGE_LIMIT_REACHED",
+  "CAMPAIGN_ALREADY_ACTIVE",
+  "RECIPIENT_FREQUENCY_LIMIT_REACHED",
+  "CAMPAIGN_DELIVERY_PAUSED",
   "SUBSCRIPTION_EVENT_INVALID",
   "BILLING_NOT_CONFIGURED",
   "PADDLE_CHECKOUT_UNAVAILABLE",
@@ -69,6 +73,7 @@ export const problemCodes = [
   "CHECKOUT_ALREADY_STARTED",
   "CHECKOUT_RECOVERY_PENDING",
   "SUBSCRIPTION_PORTAL_UNAVAILABLE",
+  "SUBSCRIPTION_PROVIDER_MANAGED",
   "PADDLE_EVENT_COLLISION",
   "PAYOUT_ACCOUNT_NOT_READY",
   "SETTLEMENT_NOT_PAYABLE",
@@ -381,6 +386,10 @@ export const capabilityKeys = [
   "platform.payout.view_provider_details",
   "platform.dashboard.read",
   "platform.user.read",
+  "platform.user.create",
+  "platform.user.update",
+  "platform.user.manage_access",
+  "platform.usage.read",
   "platform.user.suspend",
   "platform.user.reactivate",
   "platform.user.request_deletion",
@@ -945,6 +954,7 @@ export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;
 export const passwordResetSchema = z.object({
   token: z.string().min(32),
   password: passwordSchema,
+  acceptedTermsVersion: z.string().min(1).max(40).optional(),
 });
 export type PasswordReset = z.infer<typeof passwordResetSchema>;
 
@@ -1212,6 +1222,7 @@ export const workspaceBootstrapSchema = z.object({
     ]),
     entitlements: z.record(z.union([z.boolean(), z.number()])),
     currentPeriodEnd: z.string().datetime().nullable(),
+    gracePeriodEndAt: z.string().datetime().nullable(),
     cancelAtPeriodEnd: z.boolean(),
   }),
 });
@@ -1291,6 +1302,12 @@ export const workspaceBillingOverviewSchema = z.object({
   subscription: workspaceBootstrapSchema.shape.subscription,
   transactions: z.array(workspaceBillingTransactionSchema),
   usage: workspaceSubscriptionUsageSchema,
+  emailHealth: z.object({
+    attempted: z.number().int().nonnegative(),
+    bounced: z.number().int().nonnegative(),
+    bounceRate: z.number().nonnegative(),
+    state: z.enum(["healthy", "warning", "paused"]),
+  }),
   rolePolicy: z.array(workspaceSubscriptionRolePolicySchema),
   messageCredits: z.object({
     included: z.number().int().nonnegative(),
@@ -1327,6 +1344,15 @@ export const createMessageCreditCheckoutSchema = z.object({
 });
 export type CreateMessageCreditCheckout = z.infer<
   typeof createMessageCreditCheckoutSchema
+>;
+
+export const createWorkspaceSupportCaseSchema = z.object({
+  type: z.enum(["ACCOUNT_ACCESS", "BILLING", "BUG", "SECURITY", "OTHER"]),
+  subject: z.string().trim().min(3).max(240),
+  description: z.string().trim().min(3).max(4000),
+});
+export type CreateWorkspaceSupportCase = z.infer<
+  typeof createWorkspaceSupportCaseSchema
 >;
 
 export const overrideInputSchema = z
@@ -1736,8 +1762,14 @@ export const semanticEvents = [
   "digest.weekly_delivered.v1",
   "platform.user_suspended.v1",
   "platform.user_reactivated.v1",
+  "platform.user_provisioned.v1",
+  "platform.user_updated.v1",
+  "platform.user_platform_access_changed.v1",
+  "platform.user_membership_role_changed.v1",
+  "platform.user_membership_added.v1",
   "platform.workspace_suspended.v1",
   "platform.workspace_reactivated.v1",
+  "platform.workspace_subscription_overridden.v1",
   "platform.vendor_suspended.v1",
   "platform.vendor_reactivated.v1",
   "support.case_created.v1",

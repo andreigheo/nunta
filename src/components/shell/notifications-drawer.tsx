@@ -42,7 +42,7 @@ const moduleLabels: Record<NotificationModule, string> = {
 };
 
 const moduleTones: Record<NotificationModule, string> = {
-  tasks: "bg-brand-soft text-brand-strong dark:text-brand",
+  tasks: "bg-brand-soft text-brand-strong",
   guests: "bg-info-soft text-info",
   vendors: "bg-accent-soft text-accent-strong",
   payments: "bg-warning-soft text-warning",
@@ -83,7 +83,7 @@ function NotificationRow({
     <div
       className={cn(
         "group flex gap-3 rounded-xl border px-3.5 py-3 transition-colors",
-        item.read ? "border-transparent" : "border-line bg-brand-softer/60 dark:bg-brand-softer/40",
+        item.read ? "border-transparent" : "border-line bg-brand-softer/60",
       )}
     >
       <span className={cn("mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg", moduleTones[item.module])}>

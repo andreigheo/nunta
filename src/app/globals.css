@@ -30,6 +30,14 @@
   --brand-softer: #f3ecf4;
   --on-brand: #fff9ff;
 
+  /* Product actions and large branded panels stay visually stable in both themes. */
+  --action: #3b183f;
+  --action-hover: #29102d;
+  --on-action: #fff9ff;
+  --brand-panel: #3b183f;
+  --brand-panel-strong: #29102d;
+  --on-brand-panel: #fff9ff;
+
   /* Accent: Sarbato coral */
   --accent: #f06449;
   --accent-strong: #9d3021;
@@ -77,24 +85,32 @@
 }
 
 .dark {
-  --bg: #151116;
-  --surface: #1d171f;
-  --elevated: #251d28;
-  --subtle: #2a212d;
-  --sunken: #100d12;
+  /* Neutral-first dark mode: brand colour is reserved for action and state. */
+  --bg: #101214;
+  --surface: #181b1e;
+  --elevated: #202428;
+  --subtle: #272b30;
+  --sunken: #0c0e10;
 
-  --ink: #f4eef5;
-  --muted: #c0b6c3;
-  --faint: #a297a6;
+  --ink: #f2f3f4;
+  --muted: #c2c6ca;
+  --faint: #9ca3aa;
 
-  --line: #352b38;
-  --line-strong: #4b3c50;
+  --line: #353a3f;
+  --line-strong: #525960;
 
-  --brand: #d3afd4;
-  --brand-strong: #e0c1e0;
-  --brand-soft: #3a263d;
-  --brand-softer: #2a1d2d;
+  --brand: #d7b6da;
+  --brand-strong: #ead3ec;
+  --brand-soft: #3a2b3d;
+  --brand-softer: #262128;
   --on-brand: #211023;
+
+  --action: #6c3f70;
+  --action-hover: #7d4b82;
+  --on-action: #fff9ff;
+  --brand-panel: #2b202d;
+  --brand-panel-strong: #342237;
+  --on-brand-panel: #fff9ff;
 
   --accent: #f38b74;
   --accent-strong: #ffad9b;
@@ -137,6 +153,12 @@
   --ring: rgba(211, 175, 212, 0.46);
 }
 
+/* In product dark mode, brand-coloured copy reads as neutral ink. Plum remains
+   available for actions, selected surfaces, borders and status indicators. */
+.dark :where(.text-brand, .text-brand-strong) {
+  color: var(--ink);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Tailwind theme mapping                                             */
 /* ------------------------------------------------------------------ */
@@ -160,6 +182,13 @@
   --color-brand-soft: var(--brand-soft);
   --color-brand-softer: var(--brand-softer);
   --color-on-brand: var(--on-brand);
+
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-on-action: var(--on-action);
+  --color-brand-panel: var(--brand-panel);
+  --color-brand-panel-strong: var(--brand-panel-strong);
+  --color-on-brand-panel: var(--on-brand-panel);
 
   --color-accent: var(--accent);
   --color-accent-strong: var(--accent-strong);

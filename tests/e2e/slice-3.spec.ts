@@ -257,33 +257,31 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   ).toBeVisible();
   const secondAdult = (await guestList("Elena")).items[0]!;
 
-  await page.getByRole("button", { name: "Gestionează etichete" }).click();
-  let tagDialog = page.getByRole("dialog", { name: "Gestionează etichetele" });
-  await tagDialog.getByLabel("Etichetă nouă").fill("Familie apropiată E2E");
+  await page.getByRole("button", { name: "Gestionează grupuri" }).click();
+  let tagDialog = page.getByRole("dialog", { name: "Grupuri de invitați" });
+  await tagDialog.getByLabel("Grup nou").fill("Familie apropiată E2E");
   await tagDialog.getByLabel("Culoare").fill("#7c3aed");
-  await tagDialog.getByRole("button", { name: "Creează" }).click();
-  await expect(page.getByText("Etichetă creată")).toBeVisible();
-  await page.getByRole("button", { name: "Gestionează etichete" }).click();
-  tagDialog = page.getByRole("dialog", { name: "Gestionează etichetele" });
+  await tagDialog.getByRole("button", { name: "Creează grupul" }).click();
+  await expect(page.getByText("Grup creat")).toBeVisible();
+  await page.getByRole("button", { name: "Gestionează grupuri" }).click();
+  tagDialog = page.getByRole("dialog", { name: "Grupuri de invitați" });
   await tagDialog
-    .getByRole("button", { name: "Editează eticheta Familie apropiată E2E" })
+    .getByRole("button", { name: "Editează grupul Familie apropiată E2E" })
     .click();
-  const editTagDialog = page.getByRole("dialog", { name: "Editează eticheta" });
+  const editTagDialog = page.getByRole("dialog", { name: "Editează grupul" });
   await editTagDialog.getByLabel("Nume").fill("Familie VIP E2E");
   await editTagDialog.getByRole("button", { name: "Salvează" }).click();
-  await expect(page.getByText("Etichetă actualizată")).toBeVisible();
-  await page.getByRole("button", { name: "Gestionează etichete" }).click();
-  tagDialog = page.getByRole("dialog", { name: "Gestionează etichetele" });
+  await expect(page.getByText("Grup actualizat")).toBeVisible();
+  await page.getByRole("button", { name: "Gestionează grupuri" }).click();
+  tagDialog = page.getByRole("dialog", { name: "Grupuri de invitați" });
   await tagDialog
-    .getByRole("button", { name: "Șterge eticheta Familie VIP E2E" })
+    .getByRole("button", { name: "Șterge grupul Familie VIP E2E" })
     .click();
   const deleteTagDialog = page.getByRole("dialog", {
-    name: "Ștergi eticheta?",
+    name: "Ștergi grupul?",
   });
-  await deleteTagDialog
-    .getByRole("button", { name: "Șterge eticheta" })
-    .click();
-  await expect(page.getByText("Etichetă ștearsă")).toBeVisible();
+  await deleteTagDialog.getByRole("button", { name: "Șterge grupul" }).click();
+  await expect(page.getByText("Grup șters")).toBeVisible();
   await tagDialog.getByText("Închide", { exact: true }).click();
 
   await expect(addGuestButton).toBeEnabled();
@@ -591,7 +589,7 @@ test("E2E 5 — Send campaign", async ({ page }) => {
     ),
   );
   expect(audience.valid).toBeGreaterThan(0);
-  await page.getByRole("button", { name: "Trimite" }).click();
+  await page.getByRole("button", { name: "Trimite", exact: true }).click();
   const sendDialog = page.getByRole("dialog", {
     name: "Confirmă distribuirea",
   });
@@ -967,11 +965,26 @@ test("E2E 13 — Guest export", async () => {
 });
 
 test("E2E 14 — Campaign partial failure", async () => {
+  const previousGuestToken = guestToken;
   const subject = `Campanie partială E2E ${Date.now()}`;
   const campaign = await createCampaign(subject, "INVITATION");
   await sendCampaign(campaign.id, campaign.version);
   await waitForCampaign(campaign.id, "completed");
   const message = await waitForCampaignEmail(subject, owner.email);
+  guestToken = message.token;
+  expect(guestToken).not.toBe(previousGuestToken);
+  const anonymousApi = await playwrightRequest.newContext({ baseURL: apiUrl });
+  try {
+    expect(
+      (
+        await anonymousApi.get(
+          `/api/v1/guest/bootstrap?token=${encodeURIComponent(previousGuestToken)}`,
+        )
+      ).status(),
+    ).toBe(401);
+  } finally {
+    await anonymousApi.dispose();
+  }
   const payload = {
     eventId: `provider-${crypto.randomUUID()}`,
     messageId: message.messageId,

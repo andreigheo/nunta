@@ -96,8 +96,22 @@ const options: Array<{ value: ThemePreference; label: string; icon: React.Elemen
 ];
 
 /** Segmented theme selector used in Settings → Appearance and auth screens. */
-export function ThemeSegmentedControl({ className }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
+export function ThemeSegmentedControl({
+  className,
+  compactOnMobile = false,
+  showSystem = true,
+  iconOnly = false,
+}: {
+  className?: string;
+  compactOnMobile?: boolean;
+  showSystem?: boolean;
+  iconOnly?: boolean;
+}) {
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const visibleOptions = showSystem
+    ? options
+    : options.filter((option) => option.value !== "system");
+  const selectedTheme = !showSystem && theme === "system" ? resolvedTheme : theme;
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
       return;
@@ -116,7 +130,7 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
             ? (currentIndex + 1) % buttons.length
             : (currentIndex - 1 + buttons.length) % buttons.length;
     event.preventDefault();
-    setTheme(options[nextIndex].value);
+    setTheme(visibleOptions[nextIndex].value);
     buttons[nextIndex].focus();
   };
 
@@ -127,25 +141,28 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
       onKeyDown={onKeyDown}
       className={cn("inline-flex items-center gap-1 rounded-xl border border-line bg-subtle p-1", className)}
     >
-      {options.map(({ value, label, icon: Icon }) => {
-        const active = theme === value;
+      {visibleOptions.map(({ value, label, icon: Icon }) => {
+        const active = selectedTheme === value;
         return (
           <button
             key={value}
             type="button"
             role="radio"
             aria-checked={active}
+            aria-label={label}
+            title={iconOnly ? label : undefined}
             tabIndex={active ? 0 : -1}
             onClick={() => setTheme(value)}
             className={cn(
-              "inline-flex h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              "inline-flex h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+              iconOnly ? "w-11 px-0" : "px-3",
               active
                 ? "bg-elevated text-ink shadow-card"
                 : "text-muted hover:text-ink",
             )}
           >
             <Icon className="size-4" aria-hidden />
-            {label}
+            <span className={cn((iconOnly || compactOnMobile) && "sr-only", !iconOnly && compactOnMobile && "sm:not-sr-only")}>{label}</span>
           </button>
         );
       })}
@@ -153,18 +170,17 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
   );
 }
 
-/** Compact icon button that cycles themes, used in the sidebar footer. */
+/** Compact light/dark toggle used in the sidebar footer. */
 export function ThemeCycleButton({ className }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
-  const order: ThemePreference[] = ["light", "dark", "system"];
-  const next = order[(order.indexOf(theme) + 1) % order.length];
-  const current = options.find((o) => o.value === theme) ?? options[2];
+  const { resolvedTheme, setTheme } = useTheme();
+  const next: ThemePreference = resolvedTheme === "dark" ? "light" : "dark";
+  const current = options.find((option) => option.value === resolvedTheme) ?? options[0];
   const Icon = current.icon;
   return (
     <button
       type="button"
       onClick={() => setTheme(next)}
-      aria-label={`Temă: ${current.label}. Comută la ${options.find((o) => o.value === next)?.label}.`}
+      aria-label={`Temă: ${current.label}. Comută la ${next === "dark" ? "Întunecată" : "Luminoasă"}.`}
       title={`Temă: ${current.label}`}
       className={cn(
         "inline-flex size-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",

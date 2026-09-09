@@ -43,7 +43,9 @@ describe.sequential("Slice 3 guest journey integration", () => {
   let submissionVersion = 1;
 
   beforeAll(async () => {
-    await cleanDatabase();
+    if (process.env.WEDDINGOS_INTEGRATION_DATABASE_PREPARED !== "true") {
+      await cleanDatabase();
+    }
     const testingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -525,7 +527,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
     });
   });
 
-  it("keeps legacy recipient links valid across republish and isolates deterministic access channels", async () => {
+  it("keeps active recipient links valid across republish and rotates revoked channel grants", async () => {
     const site = await owner.agent
       .get(`/api/v1/workspaces/${workspaceId}/invitation-site`)
       .expect(200);
@@ -829,8 +831,25 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("Origin", origin)
       .send({ channels: ["MANUAL"] })
       .expect(201);
-    expect(reactivated.body.data.items[0].url).toBe(manualUrl);
+    const rotatedManualUrl = reactivated.body.data.items[0].url as string;
+    expect(rotatedManualUrl).not.toBe(manualUrl);
     expect(reactivated.body.data.items[0].reused).toBe(false);
+    const revokedManualToken = new URL(manualUrl).searchParams.get("token");
+    const rotatedManualToken = new URL(rotatedManualUrl).searchParams.get(
+      "token",
+    );
+    expect(revokedManualToken).toBeTruthy();
+    expect(rotatedManualToken).toBeTruthy();
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(revokedManualToken!)}`,
+      )
+      .expect(401);
+    await request(application.getHttpServer())
+      .get(
+        `/api/v1/guest/bootstrap?token=${encodeURIComponent(rotatedManualToken!)}`,
+      )
+      .expect(200);
     expect(
       await database.guestAccessGrant.count({
         where: {
