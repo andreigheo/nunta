@@ -24,25 +24,28 @@ describe("Sarbato system email templates", () => {
     expect(rendered.text).toContain("50 de credite de mesagerie");
     expect(rendered.text).toContain("https://sarbato.space/overview");
     expect(rendered.html).toContain(
-      "https://sarbato.space/email-assets/welcome-plus-hero.png",
+      "https://sarbato.space/email-assets/welcome-plus-hero-v2.jpg",
     );
     expect(rendered.html).toContain(
-      "https://sarbato.space/email-assets/welcome-plus-intro.png",
+      "https://sarbato.space/email-assets/welcome-plus-intro-v2.png",
     );
     expect(rendered.html).toContain(
-      "https://sarbato.space/email-assets/welcome-plus-cta-strip.png",
+      "https://sarbato.space/email-assets/welcome-plus-cta-strip-v2.png",
     );
     expect(rendered.html).toContain(
-      "https://sarbato.space/email-assets/welcome-plus-features.png",
+      "https://sarbato.space/email-assets/welcome-plus-features-v2.png",
     );
     expect(rendered.html).toContain(
-      "https://sarbato.space/email-assets/welcome-plus-story.png",
+      "https://sarbato.space/email-assets/welcome-plus-story-v2.jpg",
     );
     expect(rendered.html).toContain(
-      "https://sarbato.space/email-assets/welcome-plus-footer.png",
+      "https://sarbato.space/email-assets/welcome-plus-footer-v2.jpg",
     );
     expect(rendered.html).toContain('href="https://sarbato.space/overview"');
-    expect(rendered.html).toContain('width="764"');
+    expect(rendered.html).toContain('width="760"');
+    expect(rendered.html).toContain("mso-line-height-rule:exactly");
+    expect(rendered.html).toContain(".outer-pad { padding: 0 !important; }");
+    expect(rendered.html).toContain("vertical-align:top");
     expect(rendered.html).not.toContain("cid:");
     expect(rendered.html).toContain('lang="ro"');
     expect(rendered.html).toContain('name="viewport"');
@@ -63,13 +66,16 @@ describe("Sarbato system email templates", () => {
     );
 
     expect(assetNames).toHaveLength(6);
+    let totalAssetBytes = 0;
     for (const assetName of assetNames) {
       const asset = statSync(
         resolve(repositoryRoot, "public", "email-assets", assetName ?? ""),
       );
       expect(asset.isFile()).toBe(true);
       expect(asset.size).toBeGreaterThan(10_000);
+      totalAssetBytes += asset.size;
     }
+    expect(totalAssetBytes).toBeLessThan(600_000);
   });
 
   it("escapes personalized content and does not duplicate URL separators", () => {
