@@ -60,6 +60,8 @@ import {
   requestCopilotEmbedding,
   copilotDomainCatalog,
   copilotImplementedActionDefinitions,
+  maximumCopilotRisk,
+  minimumRiskForCopilotAction,
   copilotReadToolDefinitions,
   COPILOT_POLICY_VERSION,
   RISK_RULES_VERSION,
@@ -1004,6 +1006,21 @@ async function processPersistedConsumer(
         });
       }
     }
+    if (terminal && consumerName === "copilot_run" && payload.copilotRun) {
+      try {
+        await recordCopilotPermanentFailure(
+          snapshot,
+          payload.copilotRun.runId,
+          classifyJobError(error).code,
+        );
+      } catch (recoveryError) {
+        logger.error({
+          event: "copilot.failure_recovery_failed",
+          runId: payload.copilotRun.runId,
+          code: classifyJobError(recoveryError).code,
+        });
+      }
+    }
     logger[terminal ? "error" : "warn"]({
       event: terminal ? "consumer.dead_letter" : "consumer.retrying",
       executionId: snapshot.execution_id,
@@ -1016,6 +1033,30 @@ async function processPersistedConsumer(
     });
     if (!terminal) throw error;
   }
+}
+
+async function recordCopilotPermanentFailure(
+  snapshot: PersistedConsumer,
+  runId: string,
+  errorCode: string,
+) {
+  requireIntelligenceContext(snapshot, "COPILOT_FAILURE_CONTEXT_INVALID");
+  await withPersistedContext(snapshot, async (transaction) => {
+    const run = await transaction.copilotRun.findFirst({
+      where: { id: runId, workspaceId: snapshot.workspace_id! },
+    });
+    if (!run || ["COMPLETED", "CANCELLED", "FAILED"].includes(run.status))
+      return;
+    await transaction.copilotRun.update({
+      where: { id: run.id },
+      data: {
+        status: "FAILED",
+        errorCode: errorCode.slice(0, 120),
+        errorRedacted: "Copilot nu a putut finaliza această cerere.",
+        completedAt: new Date(),
+      },
+    });
+  });
 }
 
 async function recordAutomationPermanentFailure(
@@ -5809,7 +5850,8 @@ async function processCopilotRun(
         "Copilot run does not match persisted job context",
         "COPILOT_RUN_CONTEXT_MISMATCH",
       );
-    if (run.status === "COMPLETED") return { completed: true as const, run };
+    if (["COMPLETED", "CANCELLED"].includes(run.status))
+      return { completed: true as const, run };
     const message = await transaction.copilotMessage.findFirst({
       where: {
         id: run.userMessageId,
@@ -5854,6 +5896,15 @@ async function processCopilotRun(
       typeof messageMetadata.surface === "string"
         ? messageMetadata.surface
         : conversation.surface;
+    const messageResearchAllowed = messageMetadata.research !== false;
+    const selectedResourceType =
+      typeof messageMetadata.resourceType === "string"
+        ? messageMetadata.resourceType
+        : null;
+    const selectedResourceId =
+      typeof messageMetadata.resourceId === "string"
+        ? messageMetadata.resourceId
+        : null;
     await transaction.copilotRun.update({
       where: { id: run.id },
       data: { status: "RUNNING", startedAt: run.startedAt ?? new Date() },
@@ -6209,6 +6260,62 @@ async function processCopilotRun(
           })
         : Promise.resolve([]),
     ]);
+    const seatingIntent =
+      currentSurface.includes("seating") ||
+      /masă|masa|mese|așez|asez|mută|muta|loc|seating/iu.test(message.content);
+    const guestLookupRows =
+      seatingIntent && effectiveCapabilities.has("guest.read")
+        ? await transaction.guest.findMany({
+            where: {
+              workspaceId: snapshot.workspace_id!,
+              deletedAt: null,
+              status: "ACTIVE",
+            },
+            select: {
+              id: true,
+              version: true,
+              firstName: true,
+              lastName: true,
+              displayName: true,
+              updatedAt: true,
+            },
+            orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+            take: 500,
+          })
+        : [];
+    const normalizedMessage = normalizeCopilotLookupText(message.content);
+    const mentionedGuests = guestLookupRows
+      .flatMap((guest) => {
+        const fullName =
+          guest.displayName?.trim() ||
+          `${guest.firstName} ${guest.lastName}`.trim();
+        const candidateNames = [fullName, guest.firstName]
+          .map(normalizeCopilotLookupText)
+          .filter((name) => name.length >= 2);
+        const paddedMessage = ` ${normalizedMessage} `;
+        if (!candidateNames.some((name) => paddedMessage.includes(` ${name} `)))
+          return [];
+        return [{ ...guest, fullName }];
+      })
+      .slice(0, 10);
+    const mentionedAssignments = mentionedGuests.length
+      ? await transaction.guestSeatingAssignment.findMany({
+          where: {
+            workspaceId: snapshot.workspace_id!,
+            guestId: { in: mentionedGuests.map((guest) => guest.id) },
+            status: { in: ["ACTIVE", "CONFLICT"] },
+          },
+          select: {
+            id: true,
+            guestId: true,
+            seatingPlanId: true,
+            seatingTableId: true,
+            seatingSeatId: true,
+            locked: true,
+            version: true,
+          },
+        })
+      : [];
     const totalMoney = (values: bigint[], currency: string) =>
       formatCopilotMoneyMinor(
         values.reduce((sum, value) => sum + value, 0n),
@@ -6447,6 +6554,25 @@ async function processCopilotRun(
         sensitivity: "normal" as const,
       })),
     ];
+    const mentionedGuestResources: CopilotContextResource[] =
+      mentionedGuests.map((guest) => {
+        const assignment = mentionedAssignments.find(
+          (candidate) => candidate.guestId === guest.id,
+        );
+        const table = assignment
+          ? seatingTables.find(
+              (candidate) => candidate.id === assignment.seatingTableId,
+            )
+          : null;
+        return {
+          type: "Guest",
+          id: guest.id,
+          title: guest.fullName,
+          summary: `invitat numit explicit în cerere; versiune ${guest.version}${assignment ? `; alocare ${assignment.id}; plan ${assignment.seatingPlanId}; masă ${table?.label ?? assignment.seatingTableId}; loc ${assignment.seatingSeatId ?? "nealocat"}; alocare blocată ${assignment.locked ? "da" : "nu"}` : "; fără alocare activă la masă"}`,
+          updatedAt: guest.updatedAt.toISOString(),
+          sensitivity: "normal" as const,
+        };
+      });
     const surfaceTypes = currentSurface.includes("budget")
       ? new Set(["BudgetCategory", "BudgetItem", "ExpenseRecord"])
       : currentSurface.includes("guest")
@@ -6484,7 +6610,8 @@ async function processCopilotRun(
         (resource) => !surfaceTypes.has(resource.type),
       ),
     ].slice(0, 24);
-    const resources: CopilotContextResource[] = [
+    const resourceCandidates: CopilotContextResource[] = [
+      ...mentionedGuestResources,
       ...memories.slice(0, 8).map((memory) => ({
         type: `CopilotMemory:${memory.kind}`,
         id: memory.id,
@@ -6555,6 +6682,45 @@ async function processCopilotRun(
           },
         ];
       }),
+    ];
+    const selectedResourceTypeKey = selectedResourceType
+      ? normalizeCopilotLookupText(selectedResourceType).replaceAll(" ", "")
+      : null;
+    const selectedResourceAlreadyLoaded = resourceCandidates.some(
+      (resource) =>
+        resource.id === selectedResourceId &&
+        resource.sensitivity === "normal" &&
+        normalizeCopilotLookupText(resource.type).replaceAll(" ", "") ===
+          selectedResourceTypeKey,
+    );
+    const directlySelectedResource =
+      !selectedResourceAlreadyLoaded &&
+      selectedResourceType &&
+      selectedResourceId
+        ? await resolveSelectedCopilotResource(
+            transaction,
+            snapshot.workspace_id!,
+            selectedResourceType,
+            selectedResourceId,
+            effectiveCapabilities,
+          )
+        : null;
+    const resources: CopilotContextResource[] = [
+      ...(directlySelectedResource ? [directlySelectedResource] : []),
+      ...resourceCandidates.filter(
+        (resource) =>
+          selectedResourceTypeKey !== null &&
+          selectedResourceId !== null &&
+          normalizeCopilotLookupText(resource.type).replaceAll(" ", "") ===
+            selectedResourceTypeKey &&
+          resource.id === selectedResourceId,
+      ),
+      ...resourceCandidates.filter(
+        (resource) =>
+          resource.id !== selectedResourceId ||
+          normalizeCopilotLookupText(resource.type).replaceAll(" ", "") !==
+            selectedResourceTypeKey,
+      ),
     ].slice(0, 50);
     const maximumContextBytes = Math.max(
       8_000,
@@ -6571,6 +6737,7 @@ async function processCopilotRun(
       message,
       memoryEnabled: copilotSettings?.memoryEnabled !== false,
       webResearchEnabled: copilotSettings?.webResearchEnabled === true,
+      messageResearchAllowed,
       memoryRetentionDays: copilotSettings?.memoryRetentionDays ?? 180,
       context: {
         workspaceId: snapshot.workspace_id!,
@@ -6615,11 +6782,17 @@ async function processCopilotRun(
       },
     };
   });
-  if (prepared.completed) return { runId, status: "completed", replayed: true };
+  if (prepared.completed)
+    return {
+      runId,
+      status: prepared.run.status.toLocaleLowerCase("en-US"),
+      replayed: true,
+    };
 
   const researchRequested = copilotWebResearchRequested(
     prepared.message.content,
     prepared.webResearchEnabled,
+    prepared.messageResearchAllowed,
   );
   const researchQueryHash = researchRequested
     ? createHash("sha256")
@@ -6757,8 +6930,12 @@ async function processCopilotRun(
         "Copilot run disappeared from persisted context",
         "COPILOT_RUN_CONTEXT_MISMATCH",
       );
-    if (latest.status === "COMPLETED")
-      return { runId, status: "completed", replayed: true };
+    if (["COMPLETED", "CANCELLED"].includes(latest.status))
+      return {
+        runId,
+        status: latest.status.toLocaleLowerCase("en-US"),
+        replayed: true,
+      };
     const explicitMemory = explicitMemoryRequest;
     let memoryNotice = "";
     let rememberedMemoryId: string | null = null;
@@ -6863,6 +7040,7 @@ async function processCopilotRun(
           provider: generated.provider,
           model: generated.model,
           fallbackUsed: generated.fallbackUsed,
+          fallbackReason: generated.fallbackReason ?? null,
           policyVersion: COPILOT_POLICY_VERSION,
           assumptions: generated.assumptions,
           warnings: generated.warnings,
@@ -7008,6 +7186,8 @@ async function processCopilotRun(
         ...(generatedProposal.additionalActions ?? []),
       ].map((action) => ({
         ...action,
+        riskLevel:
+          minimumRiskForCopilotAction(action.actionType) ?? action.riskLevel,
         preview: parseCopilotActionPayload(action.actionType, action.preview),
       }));
       const proposal = await transaction.copilotProposal.create({
@@ -7019,7 +7199,7 @@ async function processCopilotRun(
           title: generatedProposal.title,
           summary:
             "Acțiune structurată pregătită pentru verificare și aprobare.",
-          riskLevel: generatedProposal.riskLevel,
+          riskLevel: maximumCopilotRisk(proposedActions),
           createdById: latest.requestedById,
         },
       });
@@ -7120,6 +7300,137 @@ function jsonObjectValue(value: Prisma.JsonValue | null | undefined) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Prisma.JsonObject)
     : {};
+}
+
+function normalizeCopilotLookupText(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .toLocaleLowerCase("ro-RO")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+async function resolveSelectedCopilotResource(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  resourceType: string,
+  resourceId: string,
+  capabilities: ReadonlySet<string>,
+): Promise<CopilotContextResource | null> {
+  const type = normalizeCopilotLookupText(resourceType).replaceAll(" ", "");
+  if (type === "guest" && capabilities.has("guest.read")) {
+    const row = await transaction.guest.findFirst({
+      where: { id: resourceId, workspaceId, deletedAt: null },
+      select: {
+        id: true,
+        version: true,
+        firstName: true,
+        lastName: true,
+        displayName: true,
+        householdId: true,
+        updatedAt: true,
+      },
+    });
+    if (!row) return null;
+    return {
+      type: "Guest",
+      id: row.id,
+      title: row.displayName || `${row.firstName} ${row.lastName}`.trim(),
+      summary: `resursa deschisă explicit; versiune ${row.version}; gospodărie ${row.householdId}`,
+      updatedAt: row.updatedAt.toISOString(),
+      sensitivity: "normal",
+    };
+  }
+  if (type === "seatingplan" && capabilities.has("seating.read")) {
+    const row = await transaction.seatingPlan.findFirst({
+      where: { id: resourceId, workspaceId, deletedAt: null },
+    });
+    return row
+      ? {
+          type: "SeatingPlan",
+          id: row.id,
+          title: row.name,
+          summary: `resursa deschisă explicit; versiune ${row.version}; spațiu ${row.venueSpaceId}; stare ${copilotEnumLabel(row.status)}`,
+          updatedAt: row.updatedAt.toISOString(),
+          sensitivity: "normal",
+        }
+      : null;
+  }
+  if (type === "seatingtable" && capabilities.has("seating.read")) {
+    const row = await transaction.seatingTable.findFirst({
+      where: { id: resourceId, workspaceId, deletedAt: null },
+    });
+    return row
+      ? {
+          type: "SeatingTable",
+          id: row.id,
+          title: row.name,
+          summary: `resursa deschisă explicit; versiune ${row.version}; plan ${row.seatingPlanId}; etichetă ${row.label}; capacitate ${row.capacity}; x ${row.x}; y ${row.y}; rotație ${row.rotation}`,
+          updatedAt: row.updatedAt.toISOString(),
+          sensitivity: "normal",
+        }
+      : null;
+  }
+  if (type === "task" && capabilities.has("task.read")) {
+    const row = await transaction.task.findFirst({
+      where: { id: resourceId, workspaceId, deletedAt: null },
+    });
+    return row
+      ? {
+          type: "Task",
+          id: row.id,
+          title: row.title,
+          summary: `resursa deschisă explicit; versiune ${row.version}; stare ${copilotEnumLabel(row.status)}; prioritate ${copilotEnumLabel(row.priority)}`,
+          updatedAt: row.updatedAt.toISOString(),
+          sensitivity: "normal",
+        }
+      : null;
+  }
+  if (type === "budgetitem" && capabilities.has("budget.read")) {
+    const row = await transaction.budgetItem.findFirst({
+      where: { id: resourceId, workspaceId, deletedAt: null },
+    });
+    return row
+      ? {
+          type: "BudgetItem",
+          id: row.id,
+          title: row.name,
+          summary: `resursa deschisă explicit; versiune ${row.version}; categorie ${row.categoryId}; estimat ${row.estimatedMinor}; plătit ${row.paidMinor}`,
+          updatedAt: row.updatedAt.toISOString(),
+          sensitivity: "normal",
+        }
+      : null;
+  }
+  if (
+    ["document", "vaultdocument"].includes(type) &&
+    capabilities.has("document.read")
+  ) {
+    const row = await transaction.vaultDocument.findFirst({
+      where: { id: resourceId, workspaceId, deletedAt: null },
+      select: {
+        id: true,
+        version: true,
+        title: true,
+        description: true,
+        folderId: true,
+        classification: true,
+        status: true,
+        updatedAt: true,
+      },
+    });
+    return row
+      ? {
+          type: "VaultDocument",
+          id: row.id,
+          title: row.title,
+          summary: `metadatele resursei deschise explicit; versiune ${row.version}; stare ${copilotEnumLabel(row.status)}; clasificare ${copilotEnumLabel(row.classification)}; dosar ${row.folderId ?? "rădăcină"}; descriere ${row.description ?? "nespecificată"}`,
+          updatedAt: row.updatedAt.toISOString(),
+          sensitivity: "normal",
+        }
+      : null;
+  }
+  return null;
 }
 
 async function semanticCopilotMemoryContext(

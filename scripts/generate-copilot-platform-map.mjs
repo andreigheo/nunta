@@ -106,6 +106,7 @@ const activeAdapters = new Map(
       "post:/api/v1/workspaces/:workspaceId/invitation-site/sync-apply",
       "SYNC_INVITATION_DATA",
     ],
+    ["patch:/api/v1/documents/:documentId", "UPDATE_DOCUMENT_METADATA"],
     [
       "post:/api/v1/workspaces/:workspaceId/transport-plans",
       "CREATE_TRANSPORT_PLAN",

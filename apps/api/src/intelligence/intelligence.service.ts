@@ -21,11 +21,14 @@ import type {
   UpdateTask,
 } from "@weddingos/contracts";
 import { parseCopilotActionPayload, riskScore } from "@weddingos/contracts";
+import type { ApiEnvironment } from "@weddingos/config";
 import type { Prisma } from "@weddingos/database";
 import {
   AUTOMATION_DSL_VERSION,
   copilotDefinitionForAction,
   COPILOT_POLICY_VERSION,
+  maximumCopilotRisk,
+  minimumRiskForCopilotAction,
   RISK_RULES_VERSION,
   requiredCapabilityForCopilotAction,
 } from "@weddingos/jobs";
@@ -41,6 +44,8 @@ import { RsvpMenuService } from "../guests/rsvp-menu.service";
 import { OperationsService } from "../operations/operations.service";
 import { PlanningService } from "../planning/planning.service";
 import { EventDayService } from "../event-day/event-day.service";
+import { API_ENVIRONMENT } from "../common/environment.module";
+import { SecureCommerceService } from "../secure-commerce/secure-commerce.service";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -60,6 +65,9 @@ export class IntelligenceService {
     private readonly invitations: InvitationCampaignService,
     @Inject(EventDayService)
     private readonly eventDay: EventDayService,
+    @Inject(API_ENVIRONMENT) private readonly environment: ApiEnvironment,
+    @Inject(SecureCommerceService)
+    private readonly secureCommerce: SecureCommerceService,
   ) {}
 
   conversations(
@@ -186,10 +194,10 @@ export class IntelligenceService {
         where: { id: conversationId, workspaceId, createdById: userId },
       });
       if (!conversation) notFound("Conversația nu a fost găsită.");
-      const [messages, proposals] = await Promise.all([
+      const [latestMessages, proposals] = await Promise.all([
         tx.copilotMessage.findMany({
           where: { conversationId, workspaceId },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 200,
         }),
         tx.copilotProposal.findMany({
@@ -202,7 +210,7 @@ export class IntelligenceService {
       ]);
       return {
         ...mapConversation(conversation),
-        messages: messages.map(mapMessage),
+        messages: latestMessages.reverse().map(mapMessage),
         proposals: proposals.map(mapProposal),
       };
     });
@@ -240,21 +248,16 @@ export class IntelligenceService {
           workspaceId,
           "AI_ACTIONS_MONTHLY",
           await tx.copilotRun.count({
-            where: { workspaceId, createdAt: { gte: monthStart } },
+            where: {
+              workspaceId,
+              status: { in: ["QUEUED", "RUNNING", "COMPLETED"] },
+              createdAt: { gte: monthStart },
+            },
           }),
         );
-        const dailyLimit = Math.max(
-          1,
-          Number(process.env.COPILOT_DAILY_RUN_LIMIT ?? 100),
-        );
-        const dailyCostLimit = Math.max(
-          1,
-          Number(process.env.COPILOT_DAILY_COST_LIMIT_MINOR ?? 500),
-        );
-        const maximumRunCost = Math.max(
-          1,
-          Number(process.env.COPILOT_MAX_RUN_COST_MINOR ?? 25),
-        );
+        const dailyLimit = this.environment.COPILOT_DAILY_RUN_LIMIT;
+        const dailyCostLimit = this.environment.COPILOT_DAILY_COST_LIMIT_MINOR;
+        const maximumRunCost = this.environment.COPILOT_MAX_RUN_COST_MINOR;
         const dailyStart = new Date(Date.now() - 86_400_000);
         await tx.$executeRaw`
           SELECT pg_advisory_xact_lock(hashtextextended(${`copilot.daily-budget:${workspaceId}`}, 0))
@@ -265,12 +268,14 @@ export class IntelligenceService {
               where: {
                 workspaceId,
                 requestedById: userId,
+                status: { in: ["QUEUED", "RUNNING", "COMPLETED"] },
                 createdAt: { gte: dailyStart },
               },
             }),
             tx.copilotRun.count({
               where: {
                 workspaceId,
+                status: { in: ["QUEUED", "RUNNING", "COMPLETED"] },
                 createdAt: { gte: dailyStart },
               },
             }),
@@ -324,7 +329,7 @@ export class IntelligenceService {
             metadata: {
               ...(input.context ?? {}),
               surface: input.surface ?? conversation.surface,
-              research: true,
+              research: input.research ?? true,
             } as Prisma.InputJsonValue,
           },
         });
@@ -454,6 +459,31 @@ export class IntelligenceService {
     });
   }
 
+  cancelRun(userId: string, workspaceId: string, runId: string) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const run = await tx.copilotRun.findFirst({
+        where: { id: runId, workspaceId, requestedById: userId },
+      });
+      if (!run) notFound("Rularea Copilot nu a fost găsită.");
+      if (["COMPLETED", "FAILED", "CANCELLED"].includes(run.status))
+        return mapRun(run);
+      await tx.copilotRun.updateMany({
+        where: {
+          id: runId,
+          workspaceId,
+          requestedById: userId,
+          status: { in: ["QUEUED", "RUNNING"] },
+        },
+        data: { status: "CANCELLED", completedAt: new Date() },
+      });
+      return mapRun(
+        await tx.copilotRun.findFirstOrThrow({
+          where: { id: runId, workspaceId, requestedById: userId },
+        }),
+      );
+    });
+  }
+
   feedback(
     userId: string,
     workspaceId: string,
@@ -517,7 +547,7 @@ export class IntelligenceService {
       actions?: Array<{
         actionType: string;
         payload: Record<string, unknown>;
-        riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+        riskLevel?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
         position: number;
       }>;
     },
@@ -533,19 +563,32 @@ export class IntelligenceService {
         versionMatch(current.version, expectedVersion);
         if (current.status !== "READY_FOR_REVIEW")
           conflict("Numai o propunere aflată în review poate fi editată.");
+        const normalizedActions = input.actions?.map((action) => {
+          const riskLevel = minimumRiskForCopilotAction(action.actionType);
+          if (!riskLevel)
+            problem(
+              "VALIDATION_FAILED",
+              HttpStatus.UNPROCESSABLE_ENTITY,
+              "Acțiunea Copilot nu are un adaptor autorizat.",
+            );
+          return { ...action, riskLevel };
+        });
         const updated = await tx.copilotProposal.update({
           where: { id: proposalId },
           data: {
             title: input.title,
             summary: input.summary,
+            ...(normalizedActions
+              ? { riskLevel: maximumCopilotRisk(normalizedActions) }
+              : {}),
             version: { increment: 1 },
           },
         });
-        if (input.actions) {
+        if (normalizedActions) {
           await tx.copilotProposalAction.deleteMany({
             where: { proposalId, workspaceId },
           });
-          for (const action of input.actions) {
+          for (const action of normalizedActions) {
             await tx.copilotProposalAction.create({
               data: {
                 workspaceId,
@@ -615,6 +658,11 @@ export class IntelligenceService {
         versionMatch(proposal.version, input.version);
         if (proposal.status !== "READY_FOR_REVIEW")
           conflict("Propunerea a fost deja revizuită.");
+        const proposalActions = await tx.copilotProposalAction.findMany({
+          where: { proposalId, workspaceId },
+          select: { actionType: true },
+        });
+        const authoritativeRisk = maximumCopilotRisk(proposalActions);
         const approved = input.decision === "APPROVE";
         const updated = await tx.copilotProposal.update({
           where: { id: proposalId },
@@ -623,6 +671,7 @@ export class IntelligenceService {
             ...(approved
               ? { approvedAt: new Date() }
               : { rejectedAt: new Date() }),
+            riskLevel: authoritativeRisk,
             version: { increment: 1 },
           },
         });
@@ -679,8 +728,27 @@ export class IntelligenceService {
         versionMatch(proposal.version, input.version);
         if (proposal.status !== "APPROVED")
           conflict("Propunerea trebuie aprobată înainte de execuție.");
+        const actions = await tx.copilotProposalAction.findMany({
+          where: { proposalId, workspaceId },
+          orderBy: { position: "asc" },
+        });
+        const authoritativeRisk = maximumCopilotRisk(actions);
+        if (proposal.riskLevel !== authoritativeRisk) {
+          await tx.copilotProposal.update({
+            where: { id: proposalId },
+            data: {
+              riskLevel: authoritativeRisk,
+              status: "READY_FOR_REVIEW",
+              approvedAt: null,
+              version: { increment: 1 },
+            },
+          });
+          conflict(
+            "Nivelul de risc al propunerii a fost actualizat de platformă. Revizuiește și aprobă din nou propunerea.",
+          );
+        }
         if (
-          ["HIGH", "CRITICAL"].includes(proposal.riskLevel) &&
+          ["HIGH", "CRITICAL"].includes(authoritativeRisk) &&
           !input.confirmHighRisk
         )
           problem(
@@ -695,10 +763,6 @@ export class IntelligenceService {
             requestedById: userId,
             idempotencyKey,
           },
-        });
-        const actions = await tx.copilotProposalAction.findMany({
-          where: { proposalId, workspaceId },
-          orderBy: { position: "asc" },
         });
         assertCopilotActionCapabilities(actions, actorCapabilities);
         for (const action of actions) {
@@ -1175,6 +1239,17 @@ export class IntelligenceService {
         correlationId,
       );
       return resourceReference("InvitationSite", row);
+    }
+    if (actionType === "UPDATE_DOCUMENT_METADATA") {
+      const row = await this.secureCommerce.updateDocument(
+        userId,
+        { workspaceId },
+        targetId!,
+        targetVersion,
+        payload as Parameters<SecureCommerceService["updateDocument"]>[4],
+        correlationId,
+      );
+      return resourceReference("VaultDocument", row);
     }
     if (actionType === "CREATE_TRANSPORT_PLAN") {
       const row = await this.operations.createTransportPlan(

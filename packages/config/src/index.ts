@@ -159,6 +159,7 @@ export const apiEnvironmentSchema = z
       .min(8_000)
       .max(256_000)
       .default(64_000),
+    COPILOT_DAILY_RUN_LIMIT: z.coerce.number().int().min(1).default(100),
     COPILOT_DAILY_COST_LIMIT_MINOR: z.coerce.number().int().min(1).default(500),
     COPILOT_MAX_RUN_COST_MINOR: z.coerce.number().int().min(1).default(25),
     COPILOT_INPUT_COST_MINOR_PER_MILLION: z.coerce.number().min(0).default(10),

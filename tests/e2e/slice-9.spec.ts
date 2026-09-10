@@ -635,6 +635,75 @@ test("E2E 16B — Copilot executes a logistics adapter through approval", async 
   expect(createdProperty.name).toBe("Hotel E2E Copilot");
 });
 
+test("E2E 16C — Copilot derives high risk on the server and ignores a downgraded client hint", async () => {
+  const riskConversation = await apiData<Resource>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `risk-policy-conversation-${randomUUID()}`,
+        }),
+        data: { title: "Politică risc Copilot", surface: "/risks" },
+      },
+    ),
+  );
+  const request = await apiData<{ run: { id: string }; job: { id: string } }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/copilot/conversations/${riskConversation.id}/messages`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `risk-policy-proposal-${randomUUID()}`,
+        }),
+        data: {
+          content: "Creează un task temporar pentru testarea politicii de risc",
+          mode: "deterministic",
+        },
+      },
+    ),
+  );
+  await waitForJob(request.job.id);
+  const completedRun = await apiData<{
+    proposal: { id: string } | null;
+  }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/runs/${request.run.id}`,
+    ),
+  );
+  const draft = await apiData<
+    Resource & { actions: Array<{ riskLevel: string }> }
+  >(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${completedRun.proposal!.id}`,
+    ),
+  );
+  const normalized = await apiData<
+    Resource & { actions: Array<{ riskLevel: string }> }
+  >(
+    await owner.api.patch(
+      `/api/v1/workspaces/${workspaceId}/copilot/proposals/${draft.id}`,
+      {
+        headers: mutationHeaders({ "If-Match": `"${draft.version}"` }),
+        data: {
+          version: draft.version,
+          actions: [
+            {
+              actionType: "CREATE_CONTINGENCY_PLAN",
+              payload: {
+                title: "Plan B cu risc derivat",
+                actions: [{ title: "Activează echipa", position: 0 }],
+              },
+              riskLevel: "LOW",
+              position: 0,
+            },
+          ],
+        },
+      },
+    ),
+  );
+  expect(normalized.riskLevel).toBe("high");
+  expect(normalized.actions[0]?.riskLevel).toBe("HIGH");
+});
+
 test("E2E 17 — Create a canonical risk and open its real detail page", async ({
   page,
 }) => {

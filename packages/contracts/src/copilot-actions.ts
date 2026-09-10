@@ -11,6 +11,7 @@ import {
   updateExpenseSchema,
   updateRfqSchema,
 } from "./commercial";
+import { updateDocumentSchema } from "./secure-commerce";
 import {
   createAccommodationPropertySchema,
   createAccommodationStaySchema,
@@ -83,6 +84,7 @@ export const copilotProposalActionTypes = [
   "ADD_VENDOR_TO_SHORTLIST",
   "FAVORITE_VENDOR",
   "SYNC_INVITATION_DATA",
+  "UPDATE_DOCUMENT_METADATA",
   "CREATE_TRANSPORT_PLAN",
   "UPDATE_TRANSPORT_PLAN",
   "CREATE_TRANSPORT_STOP",
@@ -207,6 +209,11 @@ export const copilotActionPayloadSchemas = {
     targetVersion: version,
     paths: z.array(invitationSyncPathSchema).min(1).max(7),
   }),
+  UPDATE_DOCUMENT_METADATA: target.and(
+    updateDocumentSchema
+      .omit({ status: true })
+      .refine((input) => Object.keys(input).length > 0),
+  ),
   CREATE_TRANSPORT_PLAN: createTransportPlanSchema,
   UPDATE_TRANSPORT_PLAN: target.and(updateTransportPlanSchema),
   CREATE_TRANSPORT_STOP: createTransportStopSchema,

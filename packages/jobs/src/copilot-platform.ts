@@ -106,6 +106,7 @@ export const copilotReadToolDefinitions = [
   readTool("invitation.site", "invitations", "invitation.read", [
     "InvitationSite",
   ]),
+  readTool("documents.recent", "documents", "document.read", ["VaultDocument"]),
   readTool("campaigns.summary", "campaigns", "campaign.read", [
     "CampaignSummary",
   ]),
@@ -169,6 +170,7 @@ export const copilotImplementedActionDefinitions = [
   action("ADD_VENDOR_TO_SHORTLIST", "marketplace.shortlist", "LOW"),
   action("FAVORITE_VENDOR", "marketplace.favorite", "LOW"),
   action("SYNC_INVITATION_DATA", "invitation.write", "MEDIUM"),
+  action("UPDATE_DOCUMENT_METADATA", "document.write", "MEDIUM"),
   action("CREATE_TRANSPORT_PLAN", "transport.write", "LOW"),
   action("UPDATE_TRANSPORT_PLAN", "transport.write", "MEDIUM"),
   action("CREATE_TRANSPORT_STOP", "transport.write", "LOW"),
@@ -207,6 +209,37 @@ export function copilotDefinitionForAction(actionType: string) {
   return copilotImplementedActionDefinitions.find(
     (definition) => definition.actionType === actionType,
   );
+}
+
+export type CopilotRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+const copilotRiskOrder: readonly CopilotRiskLevel[] = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "CRITICAL",
+];
+
+/**
+ * Risk is a server-owned policy value. Callers and model output may suggest a
+ * risk level for display, but authorization must always use this minimum.
+ */
+export function minimumRiskForCopilotAction(
+  actionType: string,
+): CopilotRiskLevel | null {
+  return copilotDefinitionForAction(actionType)?.minimumRisk ?? null;
+}
+
+export function maximumCopilotRisk(
+  actions: ReadonlyArray<{ actionType: string }>,
+): CopilotRiskLevel {
+  return actions.reduce<CopilotRiskLevel>((maximum, action) => {
+    const minimum = minimumRiskForCopilotAction(action.actionType);
+    if (!minimum) return maximum;
+    return copilotRiskOrder.indexOf(minimum) > copilotRiskOrder.indexOf(maximum)
+      ? minimum
+      : maximum;
+  }, "LOW");
 }
 
 export const copilotDomainCatalog = [

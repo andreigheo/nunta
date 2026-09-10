@@ -176,7 +176,10 @@ export const updateCopilotProposalSchema = z.object({
         .object({
           actionType: copilotProposalActionTypeSchema,
           payload: z.record(z.unknown()),
-          riskLevel: proposalRiskLevelSchema,
+          // Kept as an optional compatibility hint for existing clients. The
+          // backend derives and persists the authoritative risk from its
+          // action registry and never trusts this value for authorization.
+          riskLevel: proposalRiskLevelSchema.optional(),
           position: z.number().int().min(0),
         })
         .superRefine((action, context) => {
@@ -193,7 +196,21 @@ export const updateCopilotProposalSchema = z.object({
         }),
     )
     .min(1)
-    .max(1)
+    .max(10)
+    .superRefine((actions, context) => {
+      const positions = actions.map((action) => action.position);
+      if (new Set(positions).size !== positions.length)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Pozițiile acțiunilor trebuie să fie unice.",
+        });
+      const ordered = [...positions].sort((left, right) => left - right);
+      if (ordered.some((position, index) => position !== index))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Pozițiile acțiunilor trebuie să fie consecutive de la 0.",
+        });
+    })
     .optional(),
 });
 

@@ -51,6 +51,7 @@ import {
   copilotApiOperations,
   copilotDomainCatalog,
   copilotImplementedActionDefinitions,
+  maximumCopilotRisk,
   copilotPageSurfaces,
   sarbatoCopilotPolicy,
   SARBATO_COPILOT_POLICY_VERSION,
@@ -367,6 +368,20 @@ export class IntelligenceController {
     );
   }
 
+  @Post("copilot/runs/:runId/cancel")
+  @RequireCapability("copilot.use")
+  async cancelRun(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("runId") runId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.cancelRun(auth.userId, uuid(workspaceId), uuid(runId)),
+    );
+  }
+
   @Post("copilot/messages/:messageId/feedback")
   @RequireCapability("copilot.use")
   async feedback(
@@ -461,7 +476,10 @@ export class IntelligenceController {
         uuid(workspaceId),
         uuid(proposalId),
       );
-      requireProposalApprovalCapability(request, proposal.riskLevel);
+      requireProposalApprovalCapability(
+        request,
+        maximumCopilotRisk(proposal.actions),
+      );
     }
     const data = await this.service.reviewProposal(
       auth.userId,
@@ -494,7 +512,10 @@ export class IntelligenceController {
       uuid(workspaceId),
       uuid(proposalId),
     );
-    requireProposalApprovalCapability(request, proposal.riskLevel);
+    requireProposalApprovalCapability(
+      request,
+      maximumCopilotRisk(proposal.actions),
+    );
     const data = await this.service.reviewProposal(
       auth.userId,
       uuid(workspaceId),

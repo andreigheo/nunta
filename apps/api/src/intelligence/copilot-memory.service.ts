@@ -212,6 +212,18 @@ export class CopilotMemoryService {
             );
           return existing.responseBody as ReturnType<typeof mapMemory>;
         }
+        const settings = input.expiresAt
+          ? null
+          : await tx.copilotWorkspaceSettings.findUnique({
+              where: { workspaceId },
+              select: { memoryRetentionDays: true },
+            });
+        const expiresAt = input.expiresAt
+          ? new Date(input.expiresAt)
+          : new Date(
+              Date.now() +
+                (settings?.memoryRetentionDays ?? 180) * 24 * 60 * 60 * 1_000,
+            );
         const created = await tx.copilotMemory.create({
           data: {
             workspaceId,
@@ -227,7 +239,7 @@ export class CopilotMemoryService {
             confidence: input.confidence,
             confirmedByUser: input.confirmedByUser,
             sensitivity: input.sensitivity,
-            expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+            expiresAt,
             metadata: input.metadata as Prisma.InputJsonValue,
             createdById: userId,
             updatedById: userId,

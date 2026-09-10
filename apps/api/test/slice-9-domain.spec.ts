@@ -34,6 +34,8 @@ import {
   extractExplicitCopilotMemory,
   formatCopilotMoneyMinor,
   intelligenceDedupeKey,
+  maximumCopilotRisk,
+  minimumRiskForCopilotAction,
   OpenRouterCopilotProvider,
   parseOpenRouterCitations,
   requiredCapabilityForCopilotAction,
@@ -77,7 +79,7 @@ describe("Slice 9 intelligence contracts", () => {
       copilotApiOperations.filter(
         (operation) => operation.adapterStatus === "ACTIVE",
       ),
-    ).toHaveLength(44);
+    ).toHaveLength(copilotImplementedActionDefinitions.length);
     expect(
       copilotApiOperations.every((operation) =>
         [
@@ -238,6 +240,10 @@ describe("Slice 9 intelligence contracts", () => {
         { targetId: id, targetVersion: 1, name: "Invitația finală" },
       ],
       [
+        "UPDATE_DOCUMENT_METADATA",
+        { targetId: id, targetVersion: 1, title: "Contract locație" },
+      ],
+      [
         "CREATE_WEDDING_DAY_INCIDENT",
         {
           planId: id,
@@ -290,6 +296,67 @@ describe("Slice 9 intelligence contracts", () => {
         context.allowedActions,
       ),
     ).toEqual(["CREATE_CALENDAR_EVENT", "UPDATE_CALENDAR_EVENT"]);
+  });
+
+  it("exposes every implemented logistics and communication adapter to relevant requests", () => {
+    const cases: Array<[string, string, string[]]> = [
+      [
+        "Adaugă o oprire pentru autocar",
+        "/transport",
+        ["CREATE_TRANSPORT_STOP", "UPDATE_TRANSPORT_STOP"],
+      ],
+      [
+        "Schimbă perioada de cazare la hotel",
+        "/accommodation",
+        ["CREATE_ACCOMMODATION_STAY", "UPDATE_ACCOMMODATION_STAY"],
+      ],
+      ["Actualizează cererea de ofertă", "/requests", ["UPDATE_RFQ"]],
+      [
+        "Pregătește o campanie pentru invitați",
+        "/campaigns",
+        ["CREATE_CAMPAIGN_DRAFT", "UPDATE_CAMPAIGN_DRAFT"],
+      ],
+      [
+        "Creează un anunț pentru ziua evenimentului",
+        "/event-day",
+        ["CREATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT"],
+      ],
+      [
+        "Redenumește fișierul deschis",
+        "/documents",
+        ["UPDATE_DOCUMENT_METADATA"],
+      ],
+    ];
+    for (const [message, surface, expected] of cases)
+      expect(
+        selectRelevantCopilotActions(message, surface, context.allowedActions),
+      ).toEqual(expect.arrayContaining(expected));
+  });
+
+  it("uses the selected resource type to expose edit adapters for ambiguous commands", () => {
+    expect(
+      selectRelevantCopilotActions(
+        "Schimbă-l pe acesta",
+        "/overview",
+        context.allowedActions,
+        ["SeatingTable"],
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        "UPDATE_SEATING_TABLE",
+        "REPLACE_SEATING_ASSIGNMENTS",
+      ]),
+    );
+  });
+
+  it("keeps Copilot risk server-owned", () => {
+    expect(minimumRiskForCopilotAction("CREATE_CONTINGENCY_PLAN")).toBe("HIGH");
+    expect(
+      maximumCopilotRisk([
+        { actionType: "CREATE_TASK" },
+        { actionType: "REPLACE_SEATING_ASSIGNMENTS" },
+      ]),
+    ).toBe("HIGH");
   });
 
   it("accepts normal user language but blocks obscene generated communication", () => {
@@ -388,6 +455,26 @@ describe("Slice 9 intelligence contracts", () => {
             position: 0,
           },
         ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a bounded atomic batch without trusting client risk hints", () => {
+    const action = (position: number) => ({
+      actionType: "CREATE_TASK" as const,
+      payload: { title: `Task ${position}`, priority: "medium" },
+      position,
+    });
+    expect(
+      updateCopilotProposalSchema.safeParse({
+        version: 1,
+        actions: Array.from({ length: 10 }, (_, position) => action(position)),
+      }).success,
+    ).toBe(true);
+    expect(
+      updateCopilotProposalSchema.safeParse({
+        version: 1,
+        actions: Array.from({ length: 11 }, (_, position) => action(position)),
       }).success,
     ).toBe(false);
   });
@@ -743,6 +830,9 @@ describe("Slice 9 intelligence contracts", () => {
       copilotWebResearchRequested("Caută online prețuri actuale", true),
     ).toBe(true);
     expect(copilotWebResearchRequested("Schimbă bugetul", true)).toBe(false);
+    expect(
+      copilotWebResearchRequested("Caută online prețuri actuale", true, false),
+    ).toBe(false);
   });
 
   it("never requests embeddings when workspace memory is disabled", () => {

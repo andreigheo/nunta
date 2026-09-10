@@ -8,6 +8,7 @@ import { GuestsModule } from "../guests/guests.module";
 import { OperationsModule } from "../operations/operations.module";
 import { PlanningModule } from "../planning/planning.module";
 import { EventDayModule } from "../event-day/event-day.module";
+import { SecureCommerceModule } from "../secure-commerce/secure-commerce.module";
 import { IntelligenceController } from "./intelligence.controller";
 import { IntelligenceService } from "./intelligence.service";
 import { CopilotMemoryService } from "./copilot-memory.service";
@@ -23,6 +24,7 @@ import { CopilotMemoryService } from "./copilot-memory.service";
     GuestsModule,
     OperationsModule,
     EventDayModule,
+    SecureCommerceModule,
   ],
   controllers: [IntelligenceController],
   providers: [IntelligenceService, CopilotMemoryService],

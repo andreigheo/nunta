@@ -204,6 +204,7 @@ export type CopilotProviderOutput = {
   provider: string;
   model: string | null;
   fallbackUsed: boolean;
+  fallbackReason?: string;
   assumptions: string[];
   warnings: string[];
   followUpSuggestions: string[];
@@ -512,7 +513,12 @@ export class ConfiguredAiCopilotProvider implements CopilotProvider {
   }): Promise<CopilotProviderOutput> {
     if (!this.endpoint || !this.apiKey) {
       const output = await this.fallback.run(input);
-      return { ...output, provider: this.name, fallbackUsed: true };
+      return {
+        ...output,
+        provider: this.name,
+        fallbackUsed: true,
+        fallbackReason: "provider_not_configured",
+      };
     }
     try {
       const providerContext = relevantProviderContext(input);
@@ -595,9 +601,14 @@ export class ConfiguredAiCopilotProvider implements CopilotProvider {
           outputUnits: payload.answer.length,
         },
       };
-    } catch {
+    } catch (error) {
       const output = await this.fallback.run(input);
-      return { ...output, provider: this.name, fallbackUsed: true };
+      return {
+        ...output,
+        provider: this.name,
+        fallbackUsed: true,
+        fallbackReason: providerFallbackReason(error),
+      };
     }
   }
 }
@@ -644,7 +655,8 @@ export class OpenRouterCopilotProvider implements CopilotProvider {
     context: CopilotContext;
     research?: boolean;
   }): Promise<CopilotProviderOutput> {
-    if (!this.endpoint || !this.apiKey) return this.fallbackOutput(input);
+    if (!this.endpoint || !this.apiKey)
+      return this.fallbackOutput(input, "provider_not_configured");
 
     try {
       const providerContext = relevantProviderContext({
@@ -730,20 +742,28 @@ export class OpenRouterCopilotProvider implements CopilotProvider {
         ...output,
         ...(webCitations.length ? { webCitations } : {}),
       };
-    } catch {
-      return this.fallbackOutput(input);
+    } catch (error) {
+      return this.fallbackOutput(input, providerFallbackReason(error));
     }
   }
 
-  private async fallbackOutput(input: {
-    message: string;
-    context: CopilotContext;
-    research?: boolean;
-  }) {
+  private async fallbackOutput(
+    input: {
+      message: string;
+      context: CopilotContext;
+      research?: boolean;
+    },
+    fallbackReason = "provider_unavailable",
+  ) {
     if (input.research && explicitWebResearchRequested(input.message))
       return this.researchUnavailable(input);
     const output = await this.fallback.run(input);
-    return { ...output, provider: this.name, fallbackUsed: true };
+    return {
+      ...output,
+      provider: this.name,
+      fallbackUsed: true,
+      fallbackReason,
+    };
   }
 
   private researchUnavailable(input: {
@@ -773,6 +793,24 @@ export class OpenRouterCopilotProvider implements CopilotProvider {
       },
     };
   }
+}
+
+function providerFallbackReason(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/^provider_http_\d{3}$/u.test(message)) return message;
+  if (
+    [
+      "provider_invalid_response",
+      "provider_action_not_authorized",
+      "provider_content_policy_rejected",
+    ].includes(message)
+  )
+    return message;
+  if (error instanceof SyntaxError) return "provider_invalid_json";
+  if (error instanceof z.ZodError) return "provider_contract_rejected";
+  if (error instanceof Error && error.name === "TimeoutError")
+    return "provider_timeout";
+  return "provider_request_failed";
 }
 
 function openRouterSystemInstructions(context: CopilotContext) {
@@ -808,16 +846,20 @@ Return only one valid JSON object with this shape:
     "riskLevel": "LOW|MEDIUM|HIGH|CRITICAL",
     "title": "string",
     "preview": { "complete reviewable proposed fields": "values" },
-    "additionalActions": []
+    "additionalActions": [{
+      "actionType": "another allowed action",
+      "riskLevel": "LOW|MEDIUM|HIGH|CRITICAL",
+      "preview": { "complete reviewable proposed fields": "values" }
+    }]
   },
   "plan": null OR {
     "title": "string",
     "summary": "string",
-    "steps": ["2-6 proposal-shaped objects, each with additionalActions: []"]
+    "steps": ["2-6 objects with the same shape as proposal"]
   }
 }
 
-Use proposal or plan, never both. A plan is required only when the request clearly needs multiple ordered mutations. Each preview must contain the complete reviewable diff. Safe single changes may be applied automatically by Sarbato after validation; high-impact or external actions require one explicit confirmation. Omit unsupported mutations and explain the limitation naturally in the answer. Platform policy:
+Use proposal or plan, never both. additionalActions may contain 0-9 related atomic actions that belong in the same approved transaction. A plan is required only when the request clearly needs multiple ordered mutations. Each preview must contain the complete reviewable diff. Safe single changes may be applied automatically by Sarbato after validation; high-impact or external actions require one explicit confirmation. Omit unsupported mutations and explain the limitation naturally in the answer. Platform policy:
 ${JSON.stringify(sarbatoCopilotPolicy)}`;
 }
 
@@ -888,6 +930,7 @@ function relevantProviderContext(input: {
       ].join(" "),
       input.context.surface ?? "",
       input.context.allowedActions,
+      input.context.resources.map((resource) => resource.type),
     ),
   };
 }
@@ -901,8 +944,11 @@ export function explicitWebResearchRequested(message: string) {
 export function copilotWebResearchRequested(
   message: string,
   workspaceEnabled: boolean,
+  messageAllowed = true,
 ) {
-  return workspaceEnabled && explicitWebResearchRequested(message);
+  return (
+    workspaceEnabled && messageAllowed && explicitWebResearchRequested(message)
+  );
 }
 
 export function copilotEmbeddingRequested(input: {
@@ -939,8 +985,12 @@ export function selectRelevantCopilotActions(
   message: string,
   surface: string,
   allowedActions: CopilotProposalActionType[],
+  resourceTypes: readonly string[] = [],
 ) {
-  const text = `${surface} ${message}`.toLocaleLowerCase("ro-RO");
+  const text =
+    `${surface} ${message} ${resourceTypes.join(" ")}`.toLocaleLowerCase(
+      "ro-RO",
+    );
   const domains: Array<{
     pattern: RegExp;
     actions: CopilotProposalActionType[];
@@ -1004,13 +1054,54 @@ export function selectRelevantCopilotActions(
       pattern: /invitație|invitatie|invitation|studio|copert|plic/iu,
       actions: ["SYNC_INVITATION_DATA"],
     },
+    {
+      pattern: /document|fișier|fisier|vaultdocument|dosar/iu,
+      actions: ["UPDATE_DOCUMENT_METADATA"],
+    },
+    {
+      pattern:
+        /transport|autocar|microbuz|mașin|masin|șofer|sofer|rută|ruta|oprire|transportplan|transportroute/iu,
+      actions: [
+        "CREATE_TRANSPORT_PLAN",
+        "UPDATE_TRANSPORT_PLAN",
+        "CREATE_TRANSPORT_STOP",
+        "UPDATE_TRANSPORT_STOP",
+      ],
+    },
+    {
+      pattern:
+        /cazare|hotel|pensiune|cameră|camera|check[ -]?in|check[ -]?out|accommodation|accommodationproperty|accommodationstay/iu,
+      actions: [
+        "CREATE_ACCOMMODATION_PROPERTY",
+        "UPDATE_ACCOMMODATION_PROPERTY",
+        "CREATE_ACCOMMODATION_STAY",
+        "UPDATE_ACCOMMODATION_STAY",
+      ],
+    },
+    {
+      pattern: /cerere.*ofert|ofertă|oferta|rfq|requestforquote/iu,
+      actions: ["CREATE_RFQ", "UPDATE_RFQ"],
+    },
+    {
+      pattern: /campani|mesaj.*invita|distribu|campaignsummary/iu,
+      actions: ["CREATE_CAMPAIGN_DRAFT", "UPDATE_CAMPAIGN_DRAFT"],
+    },
+    {
+      pattern:
+        /ziua evenimentului|event[ -]?day|incident|anunț|anunt|urgență|urgenta|weddingday/iu,
+      actions: [
+        "CREATE_WEDDING_DAY_INCIDENT",
+        "CREATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT",
+        "UPDATE_WEDDING_DAY_ANNOUNCEMENT_DRAFT",
+      ],
+    },
   ];
   const relevant = new Set(
     domains
       .filter((domain) => domain.pattern.test(text))
       .flatMap((domain) => domain.actions),
   );
-  return allowedActions.filter((action) => relevant.has(action)).slice(0, 10);
+  return allowedActions.filter((action) => relevant.has(action)).slice(0, 20);
 }
 
 function stableOpenRouterUser(workspaceId: string) {
@@ -1140,7 +1231,7 @@ const configuredProposalSchema = z
     configuredActionBaseSchema,
     z.object({
       title: z.string().trim().min(1).max(180),
-      additionalActions: z.array(configuredActionSchema).length(0).optional(),
+      additionalActions: z.array(configuredActionSchema).max(9).optional(),
     }),
   )
   .superRefine(enforceConfiguredActionRisk);

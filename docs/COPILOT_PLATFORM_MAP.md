@@ -9,15 +9,15 @@ O suprafață nu este considerată controlabilă până când operația are adap
 ## Rezumat
 
 - Pagini: **97**
-- Operații API: **727**
+- Operații API: **728**
 - Domenii API: **132**
-- Operații executabile prin propunere: **44**
+- Operații executabile prin propunere: **45**
 - Operații disponibile pentru citire contextuală: **249**
 - Operații explicate, dar neexecutate direct: **376**
 - Operații excluse intenționat: **58**
 - Operații neclasificate: **0**
 - Operații de citire candidate: **265**
-- Modificări numai prin propunere/aprobare: **420**
+- Modificări numai prin propunere/aprobare: **421**
 - Operații doar ghidate, fără execuție directă: **42**
 
 ## Domenii API
@@ -50,7 +50,7 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | commercial-exports                  |    1 |      0 |         1 |            0 | budget.export                                                                                                                                                                                                                  |
 | contingency-plans                   |   10 |      2 |         8 |            0 | contingency.activate, contingency.approve, contingency.complete, contingency.read, contingency.write                                                                                                                           |
 | contracts                           |   11 |      4 |         6 |            1 | contract.acknowledge, contract.export, contract.read, contract.review, contract.write, signature.create                                                                                                                        |
-| copilot                             |   24 |      8 |        16 |            0 | copilot.create_proposal, copilot.execute_proposals, copilot.read, copilot.review_proposals, copilot.use, workspace.update                                                                                                      |
+| copilot                             |   25 |      8 |        17 |            0 | copilot.create_proposal, copilot.execute_proposals, copilot.read, copilot.review_proposals, copilot.use, workspace.update                                                                                                      |
 | creative-state                      |    2 |      1 |         1 |            0 | invitation.read, invitation.write                                                                                                                                                                                              |
 | dashboard                           |    1 |      1 |         0 |            0 | planning.read                                                                                                                                                                                                                  |
 | data-exports                        |    1 |      0 |         1 |            0 | —                                                                                                                                                                                                                              |
