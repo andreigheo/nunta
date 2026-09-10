@@ -116,6 +116,86 @@ function renderPlusWelcome(
   };
 }
 
+function renderProWelcome(
+  values: Record<string, string>,
+  baseUrl: string,
+): RenderedEmail {
+  const firstName = (values.firstName ?? "").trim();
+  const greeting = firstName ? `Salut, ${firstName}!` : "Salut!";
+  const dashboardUrl = absoluteUrl(baseUrl, "/overview");
+  const assetUrl = (name: string) =>
+    absoluteUrl(baseUrl, `/email-assets/${name}`);
+  const heroUrl = assetUrl("welcome-pro-v1-hero.jpg");
+  const ctaUrl = assetUrl("welcome-pro-v1-cta.png");
+  const journeyUrl = assetUrl("welcome-pro-v1-journey.jpg");
+  const footerUrl = assetUrl("welcome-pro-v1-footer.jpg");
+  const subject = "Bun venit în Sarbato Pro — totul se leagă";
+  const text = `${greeting}\n\nPlanul Pro este activ. De la prima decizie până la ultimul invitat, fiecare detaliu rămâne în același fir.\n\nPlanul tău include până la 500 de invitați, 15 colaboratori, 150 de acțiuni AI, 10 GB de stocare și 100 de credite de mesagerie în fiecare lună. Ai acces la riscuri și planuri de rezervă, check-in, operațiuni în ziua evenimentului și suport prioritar.\n\nPornește organizarea Pro: ${dashboardUrl}\n\nSarbato — Plan · Oameni · Furnizori · Ziua evenimentului`;
+  const safeDashboardUrl = escapeHtml(dashboardUrl);
+
+  return {
+    subject,
+    text,
+    html: `<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light only">
+    <meta name="supported-color-schemes" content="light">
+    <title>${escapeHtml(subject)}</title>
+    <style>
+      html, body { color-scheme: light only; }
+      body { margin: 0 !important; padding: 0 !important; }
+      img { border: 0; display: block; height: auto; line-height: 0; margin: 0; max-width: 100%; outline: none; padding: 0; text-decoration: none; vertical-align: top; }
+      table { border-collapse: collapse !important; border-spacing: 0 !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+      a, a img { border: 0; outline: none; text-decoration: none; }
+      .slice-cell { font-size: 0 !important; line-height: 0 !important; mso-line-height-rule: exactly; padding: 0 !important; vertical-align: top; }
+      @media only screen and (max-width: 800px) {
+        .email-shell { width: 100% !important; }
+        .outer-pad { padding: 0 !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f9f8fb;color:#19151d;">
+    <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">
+      ${escapeHtml(greeting)} Planul Pro este activ. Totul se leagă, iar tu păstrezi controlul.
+    </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:0;padding:0;background:#f9f8fb;border-collapse:collapse;border-spacing:0;">
+      <tr>
+        <td class="outer-pad" align="center" style="padding:16px 20px 24px;">
+          <table role="presentation" class="email-shell" width="760" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:760px;margin:0 auto;padding:0;background:#fffaff;border-collapse:collapse;border-spacing:0;">
+            <tr>
+              <td class="slice-cell" style="font-size:0;line-height:0;mso-line-height-rule:exactly;padding:0;vertical-align:top;">
+                <img src="${escapeHtml(heroUrl)}" width="760" border="0" alt="Sarbato. Bun venit în Sarbato Pro. Totul se leagă, iar tu păstrezi controlul." style="display:block;width:100%;max-width:760px;height:auto;margin:0;padding:0;border:0;outline:none;vertical-align:top;">
+              </td>
+            </tr>
+            <tr>
+              <td class="slice-cell" style="font-size:0;line-height:0;mso-line-height-rule:exactly;padding:0;vertical-align:top;">
+                <a href="${safeDashboardUrl}" target="_blank" aria-label="Pornește organizarea Pro în Sarbato" style="display:block;margin:0;padding:0;border:0;outline:none;text-decoration:none;">
+                  <img src="${escapeHtml(ctaUrl)}" width="760" border="0" alt="Pornește organizarea Pro" style="display:block;width:100%;max-width:760px;height:auto;margin:0;padding:0;border:0;outline:none;vertical-align:top;">
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td class="slice-cell" style="font-size:0;line-height:0;mso-line-height-rule:exactly;padding:0;vertical-align:top;">
+                <img src="${escapeHtml(journeyUrl)}" width="760" border="0" alt="500 de invitați, 15 colaboratori, 150 de acțiuni AI, riscuri și planuri de rezervă, check-in și operațiuni live, 100 de credite de mesagerie și suport prioritar." style="display:block;width:100%;max-width:760px;height:auto;margin:0;padding:0;border:0;outline:none;vertical-align:top;">
+              </td>
+            </tr>
+            <tr>
+              <td class="slice-cell" style="font-size:0;line-height:0;mso-line-height-rule:exactly;padding:0;vertical-align:top;">
+                <img src="${escapeHtml(footerUrl)}" width="760" border="0" alt="Sarbato — Plan, Oameni, Furnizori, Ziua evenimentului. Mai multe momente care contează." style="display:block;width:100%;max-width:760px;height:auto;margin:0;padding:0;border:0;outline:none;vertical-align:top;">
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`,
+  };
+}
+
 export function renderSystemEmail(
   command: EmailCommand,
   baseUrl: string,
@@ -124,6 +204,8 @@ export function renderSystemEmail(
   const firstName = v.firstName ?? "";
   if (command.kind === "workspace-plus-welcome")
     return renderPlusWelcome(v, baseUrl);
+  if (command.kind === "workspace-pro-welcome")
+    return renderProWelcome(v, baseUrl);
   if (command.kind === "email-verification") {
     const url = `${baseUrl}/verify-email?token=${encodeURIComponent(v.token ?? "")}&email=${encodeURIComponent(command.recipient)}`;
     return emailContent(

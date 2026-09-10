@@ -1221,7 +1221,13 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
               },
               data: { status: "COMPLETED", completedAt: stored.occurredAt },
             });
-            if (resolvedPlan.planKey === "PLUS" && next.status === "ACTIVE") {
+            const welcomeKind =
+              resolvedPlan.planKey === "PLUS"
+                ? "workspace-plus-welcome"
+                : resolvedPlan.planKey === "PRO"
+                  ? "workspace-pro-welcome"
+                  : null;
+            if (welcomeKind && next.status === "ACTIVE") {
               const [recipient, workspace] = await Promise.all([
                 transaction.user.findUniqueOrThrow({
                   where: { id: actorUserId },
@@ -1242,17 +1248,17 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
                 aggregateVersion: subscription.version + 1,
                 workspaceId,
                 actorUserId,
-                deduplicationKey: `workspace-plus-welcome:${stored.checkoutId}`,
+                deduplicationKey: `${welcomeKind}:${stored.checkoutId}`,
                 payload: {
                   subject: {
                     workspaceId,
                     subscriptionId: subscription.id,
                     checkoutId: stored.checkoutId,
-                    planKey: "PLUS",
+                    planKey: resolvedPlan.planKey,
                   },
                 },
                 email: {
-                  kind: "workspace-plus-welcome",
+                  kind: welcomeKind,
                   recipient: recipient.email,
                   values: {
                     firstName: recipient.profile?.firstName ?? "",

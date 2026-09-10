@@ -976,6 +976,7 @@ export const emailCommandSchema = z.object({
     "campaign-email",
     "weekly-digest",
     "workspace-plus-welcome",
+    "workspace-pro-welcome",
   ]),
   recipient: z.string().email(),
   values: z.record(z.string()),

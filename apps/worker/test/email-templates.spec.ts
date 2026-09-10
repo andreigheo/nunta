@@ -4,7 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { renderSystemEmail } from "../src/email-templates";
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const repositoryRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
 
 describe("Sarbato system email templates", () => {
   it("renders the Plus welcome as an accessible, responsive transactional email", () => {
@@ -76,6 +79,64 @@ describe("Sarbato system email templates", () => {
       totalAssetBytes += asset.size;
     }
     expect(totalAssetBytes).toBeLessThan(600_000);
+  });
+
+  it("renders the approved Pro welcome concept with a working CTA", () => {
+    const rendered = renderSystemEmail(
+      {
+        kind: "workspace-pro-welcome",
+        recipient: "ana@example.test",
+        values: { firstName: "Ana", workspaceTitle: "Conferința anuală" },
+      },
+      "https://sarbato.space/",
+    );
+
+    expect(rendered.subject).toBe("Bun venit în Sarbato Pro — totul se leagă");
+    expect(rendered.text).toContain("Salut, Ana!");
+    expect(rendered.text).toContain("500 de invitați");
+    expect(rendered.text).toContain("100 de credite de mesagerie");
+    expect(rendered.html).toContain(
+      "https://sarbato.space/email-assets/welcome-pro-v1-hero.jpg",
+    );
+    expect(rendered.html).toContain(
+      "https://sarbato.space/email-assets/welcome-pro-v1-cta.png",
+    );
+    expect(rendered.html).toContain(
+      "https://sarbato.space/email-assets/welcome-pro-v1-journey.jpg",
+    );
+    expect(rendered.html).toContain(
+      "https://sarbato.space/email-assets/welcome-pro-v1-footer.jpg",
+    );
+    expect(rendered.html).toContain('href="https://sarbato.space/overview"');
+    expect(rendered.html).toContain('width="760"');
+    expect(rendered.html).not.toContain("cid:");
+  });
+
+  it("ships a lightweight asset set for the Pro welcome", () => {
+    const rendered = renderSystemEmail(
+      {
+        kind: "workspace-pro-welcome",
+        recipient: "ana@example.test",
+        values: { firstName: "Ana" },
+      },
+      "https://sarbato.space",
+    );
+    const assetNames = Array.from(
+      rendered.html.matchAll(/\/email-assets\/([^"?]+)/g),
+      (match) => match[1],
+    );
+
+    expect(assetNames).toHaveLength(4);
+    let totalAssetBytes = 0;
+    for (const assetName of assetNames) {
+      const asset = statSync(
+        resolve(repositoryRoot, "public", "email-assets", assetName ?? ""),
+      );
+      expect(asset.isFile()).toBe(true);
+      expect(asset.size).toBeGreaterThan(10_000);
+      totalAssetBytes += asset.size;
+    }
+    expect(totalAssetBytes).toBeLessThan(400_000);
   });
 
   it("escapes personalized content and does not duplicate URL separators", () => {
