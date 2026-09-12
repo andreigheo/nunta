@@ -2737,6 +2737,87 @@ describe.sequential("Slice 3 guest journey integration", () => {
     ).toBe(true);
   }, 180_000);
 
+  it("bootstraps the first seating plan without forcing full onboarding", async () => {
+    const workspace = await owner.agent
+      .post("/api/v1/workspaces")
+      .set("Origin", origin)
+      .set("Idempotency-Key", `workspace-seating-${randomUUID()}`)
+      .send({
+        title: "Aniversarea Marei",
+        eventType: "birthday",
+        eventDate: "2027-10-04",
+        location: "Sala Atlas",
+        timezone: "Europe/Chisinau",
+      })
+      .expect(201);
+    const freshWorkspaceId = workspace.body.data.id as string;
+    await database.workspaceSubscription.update({
+      where: { workspaceId: freshWorkspaceId },
+      data: {
+        planKey: "PLUS",
+        status: "ACTIVE",
+        provider: "integration-test",
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 86_400_000),
+      },
+    });
+    expect(
+      await database.weddingEvent.count({
+        where: { workspaceId: freshWorkspaceId },
+      }),
+    ).toBe(0);
+
+    const key = `seating-bootstrap-${randomUUID()}`;
+    const payload = {
+      eventTitle: "Petrecerea Marei",
+      eventDate: "2027-10-04",
+      locationName: "Sala Atlas",
+      planName: "Plan principal",
+      venueName: "Sala Atlas",
+    };
+    const created = await owner.agent
+      .post(`/api/v1/workspaces/${freshWorkspaceId}/seating-plans/bootstrap`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", key)
+      .send(payload)
+      .expect(201);
+    const replay = await owner.agent
+      .post(`/api/v1/workspaces/${freshWorkspaceId}/seating-plans/bootstrap`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", key)
+      .send(payload)
+      .expect(201);
+    expect(replay.body.data.id).toBe(created.body.data.id);
+    expect(created.body.data).toMatchObject({
+      name: "Plan principal",
+      status: "draft",
+    });
+    expect(
+      await database.weddingEvent.count({
+        where: { workspaceId: freshWorkspaceId },
+      }),
+    ).toBe(1);
+    expect(
+      await database.venueSpace.count({
+        where: { workspaceId: freshWorkspaceId },
+      }),
+    ).toBe(1);
+    expect(
+      await database.seatingPlan.count({
+        where: { workspaceId: freshWorkspaceId },
+      }),
+    ).toBe(1);
+    const options = await owner.agent
+      .get(`/api/v1/workspaces/${freshWorkspaceId}/seating-events`)
+      .expect(200);
+    expect(options.body.data.items).toEqual([
+      expect.objectContaining({ title: "Petrecerea Marei" }),
+    ]);
+    await outsider.agent
+      .get(`/api/v1/workspaces/${freshWorkspaceId}/seating-events`)
+      .expect(403);
+  });
+
   it("covers Slice 4 seating, transport, accommodation and tenant isolation", async () => {
     const eventId = eventIds[0]!;
     const venue = await owner.agent

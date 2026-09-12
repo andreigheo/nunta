@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import type { MenuResource } from "@weddingos/contracts";
 import {
   Accessibility,
   AlertCircle,
   Armchair,
-  ArrowRight,
   CheckCircle2,
   ChevronDown,
   Camera,
@@ -80,6 +80,11 @@ import {
 } from "@/components/ui";
 
 type WeddingEventOption = { id: string; title: string };
+type SeatingSetupDraft = {
+  eventTitle: string;
+  eventDate: string;
+  locationName: string;
+};
 type SeatingTable = SeatingPlanResource["tables"][number];
 type SeatingFloorObject = SeatingPlanResource["floorObjects"][number];
 type SeatingGuest = SeatingPlanResource["guests"][number];
@@ -195,6 +200,7 @@ const issueLabels: Record<string, string> = {
 };
 
 export default function SeatingPage() {
+  const router = useRouter();
   const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const { toast } = useToast();
   const [plans, setPlans] = React.useState<OperationResource[]>([]);
@@ -206,6 +212,12 @@ export default function SeatingPage() {
   const [action, setAction] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [planOpen, setPlanOpen] = React.useState(false);
+  const [setupOpen, setSetupOpen] = React.useState(false);
+  const [setupDraft, setSetupDraft] = React.useState<SeatingSetupDraft>({
+    eventTitle: "",
+    eventDate: "",
+    locationName: "",
+  });
   const [planEditOpen, setPlanEditOpen] = React.useState(false);
   const [deletePlanOpen, setDeletePlanOpen] = React.useState(false);
   const [tableOpen, setTableOpen] = React.useState(false);
@@ -299,21 +311,28 @@ export default function SeatingPage() {
     setLoading(true);
     setError(null);
     try {
-      const [planList, venueList, calendar, menuList] = await Promise.all([
+      const [planList, venueList, eventList, menuList] = await Promise.all([
         weddingOsApi.seatingPlans(currentWorkspace.id),
         weddingOsApi.venueSpaces(currentWorkspace.id),
-        weddingOsApi.calendar(currentWorkspace.id),
+        weddingOsApi.seatingEvents(currentWorkspace.id),
         weddingOsApi.menus(currentWorkspace.id),
       ]);
       setPlans(planList.items);
       setSpaces(venueList.items);
       setMenus(menuList.items.filter((menu) => menu.status === "active"));
-      const weddingEvents = calendar.items
-        .filter((item) => item.sourceType === "wedding_event")
-        .map((item) => ({ id: item.sourceId, title: item.title }));
+      const weddingEvents = eventList.items.map((item) => ({
+        id: item.id,
+        title: item.title,
+      }));
       setEvents(weddingEvents);
-      setEventId((current) => current || weddingEvents[0]?.id || "");
-      setSpaceId((current) => current || String(venueList.items[0]?.id ?? ""));
+      setEventId((current) =>
+        weddingEvents.some((item) => item.id === current)
+          ? current
+          : weddingEvents[0]?.id || "",
+      );
+      setSpaceId((current) =>
+        venueList.items.some((item) => item.id === current) ? current : "",
+      );
       const params = new URLSearchParams(window.location.search);
       const requestedPlan = params.get("plan");
       const requestedTable = params.get("table");
@@ -356,7 +375,12 @@ export default function SeatingPage() {
     if (!currentWorkspace || !eventId || !planName.trim()) return;
     setAction("plan-create");
     try {
-      let venueId = spaceId;
+      let venueId = spaces.some(
+        (space) =>
+          space.id === spaceId && space.weddingEventId === eventId,
+      )
+        ? spaceId
+        : "";
       if (!venueId) {
         const venue = await weddingOsApi.createVenueSpace(currentWorkspace.id, {
           weddingEventId: eventId,
@@ -382,6 +406,48 @@ export default function SeatingPage() {
     } catch (cause) {
       toast({
         title: "Planul nu a putut fi creat",
+        description: apiErrorMessage(cause),
+        variant: "error",
+      });
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const openInitialSetup = () => {
+    setSetupDraft({
+      eventTitle: currentWorkspace?.title ?? "",
+      eventDate: currentWorkspace?.eventDate ?? "",
+      locationName: currentWorkspace?.location ?? "",
+    });
+    setSetupOpen(true);
+  };
+
+  const createInitialPlan = async () => {
+    if (!currentWorkspace || !setupDraft.eventTitle.trim()) return;
+    setAction("plan-bootstrap");
+    try {
+      const created = await weddingOsApi.bootstrapSeatingPlan(
+        currentWorkspace.id,
+        {
+          eventTitle: setupDraft.eventTitle.trim(),
+          eventDate: setupDraft.eventDate || null,
+          locationName: setupDraft.locationName.trim() || null,
+          planName: "Plan principal",
+          venueName: setupDraft.locationName.trim() || "Sala principală",
+        },
+      );
+      setSetupOpen(false);
+      await load();
+      await choosePlan(created.id);
+      toast({
+        title: "Planul de mese este pregătit",
+        description: "Poți începe direct cu mesele și invitații.",
+        variant: "success",
+      });
+    } catch (cause) {
+      toast({
+        title: "Planul nu a putut fi pregătit",
         description: apiErrorMessage(cause),
         variant: "error",
       });
@@ -1194,22 +1260,21 @@ export default function SeatingPage() {
             !canWrite
               ? "Planul de mese este disponibil în Plus"
               : events.length === 0
-                ? "Adaugă mai întâi evenimentul nunții"
+                ? "Începe planul de mese"
                 : "Nu există încă un plan de mese"
           }
           description={
             !canWrite
               ? "Poți consulta planurile existente după revenirea la Free, dar crearea și așezarea invitaților necesită funcțiile logistice din Plus."
               : events.length === 0
-                ? "Planul de mese trebuie legat de un eveniment confirmat. Completează programul nunții, apoi revino aici pentru primul draft."
+                ? "Spune-ne pentru ce eveniment lucrezi. Creăm evenimentul, sala și primul plan într-un singur pas, apoi intri direct în editor."
                 : "Creează spațiul și primul draft. Vei așeza doar invitații care au confirmat participarea."
           }
           action={
             !canWrite
               ? {
                   label: "Vezi opțiunile Plus",
-                  onClick: () =>
-                    window.location.assign("/settings?tab=billing"),
+                  onClick: () => router.push("/settings?tab=billing"),
                   icon: <Lock className="size-4" />,
                 }
               : events.length
@@ -1219,9 +1284,9 @@ export default function SeatingPage() {
                   icon: <Plus className="size-4" />,
                 }
               : {
-                  label: "Completează programul",
-                  onClick: () => window.location.assign("/onboarding"),
-                  icon: <ArrowRight className="size-4" />,
+                  label: "Creează primul plan",
+                  onClick: openInitialSetup,
+                  icon: <Plus className="size-4" />,
                 }
           }
         />
@@ -1238,6 +1303,14 @@ export default function SeatingPage() {
           setPlanName={setPlanName}
           save={createPlan}
           saving={action === "plan-create"}
+        />
+        <SeatingSetupModal
+          open={setupOpen}
+          draft={setupDraft}
+          setDraft={setSetupDraft}
+          saving={action === "plan-bootstrap"}
+          onClose={() => setSetupOpen(false)}
+          onSave={createInitialPlan}
         />
       </>
     );
@@ -1382,7 +1455,7 @@ export default function SeatingPage() {
                 </DropdownItem>
                 <DropdownItem
                   icon={<UtensilsCrossed />}
-                  onSelect={() => window.location.assign("/menus")}
+                  onSelect={() => router.push("/menus")}
                 >
                   Meniuri și alergii
                 </DropdownItem>
@@ -3878,7 +3951,15 @@ function PlanModal(props: {
         <Field label="Eveniment">
           <Select
             value={props.eventId}
-            onChange={(event) => props.setEventId(event.target.value)}
+            onChange={(event) => {
+              const nextEventId = event.target.value;
+              props.setEventId(nextEventId);
+              const selectedSpace = props.spaces.find(
+                (space) => space.id === props.spaceId,
+              );
+              if (selectedSpace?.weddingEventId !== nextEventId)
+                props.setSpaceId("");
+            }}
           >
             {props.events.map((event) => (
               <option key={event.id} value={event.id}>
@@ -3905,6 +3986,74 @@ function PlanModal(props: {
               ))}
           </Select>
         </Field>
+      </div>
+    </Modal>
+  );
+}
+
+function SeatingSetupModal(props: {
+  open: boolean;
+  draft: SeatingSetupDraft;
+  setDraft: React.Dispatch<React.SetStateAction<SeatingSetupDraft>>;
+  saving: boolean;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const update = (field: keyof SeatingSetupDraft, value: string) =>
+    props.setDraft((current) => ({ ...current, [field]: value }));
+
+  return (
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      title="Pregătește primul plan"
+      description="Doar informațiile necesare ca să intri în editor. Data și locația pot rămâne necompletate."
+      footer={
+        <>
+          <Button variant="ghost" onClick={props.onClose}>
+            Renunță
+          </Button>
+          <Button
+            onClick={props.onSave}
+            loading={props.saving}
+            disabled={!props.draft.eventTitle.trim() || props.saving}
+          >
+            Creează și deschide planul
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Numele evenimentului" required>
+          <Input
+            autoFocus
+            value={props.draft.eventTitle}
+            maxLength={200}
+            placeholder="De exemplu, Gala companiei"
+            onChange={(event) => update("eventTitle", event.target.value)}
+          />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Data evenimentului" hint="Opțional">
+            <Input
+              type="date"
+              value={props.draft.eventDate}
+              onChange={(event) => update("eventDate", event.target.value)}
+            />
+          </Field>
+          <Field label="Locația sau sala" hint="Opțional">
+            <Input
+              value={props.draft.locationName}
+              maxLength={240}
+              placeholder="De exemplu, Sala Atlas"
+              onChange={(event) => update("locationName", event.target.value)}
+            />
+          </Field>
+        </div>
+        <p className="rounded-lg bg-subtle px-3 py-2 text-xs leading-5 text-muted">
+          Vei primi automat o sală goală și un plan principal. Mesele, formele și
+          invitații se configurează imediat după creare.
+        </p>
       </div>
     </Modal>
   );

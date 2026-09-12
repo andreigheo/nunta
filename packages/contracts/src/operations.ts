@@ -25,6 +25,13 @@ export const createSeatingPlanSchema = z.object({
   venueSpaceId: uuid,
   name: shortText,
 });
+export const bootstrapSeatingPlanSchema = z.object({
+  eventTitle: z.string().trim().min(1).max(200),
+  eventDate: z.string().date().nullable().optional(),
+  locationName: z.string().trim().max(240).nullable().optional(),
+  planName: shortText.default("Plan principal"),
+  venueName: shortText.default("Sala principală"),
+});
 export const updateSeatingPlanSchema = z.object({
   name: shortText.optional(),
   venueSpaceId: uuid.optional(),
@@ -378,6 +385,7 @@ export const roomingListSchema = z.object({
 
 export type CreateVenueSpace = z.infer<typeof createVenueSpaceSchema>;
 export type CreateSeatingPlan = z.infer<typeof createSeatingPlanSchema>;
+export type BootstrapSeatingPlan = z.infer<typeof bootstrapSeatingPlanSchema>;
 export type SeatingAssignmentBatch = z.infer<
   typeof seatingAssignmentBatchSchema
 >;

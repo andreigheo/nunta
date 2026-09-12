@@ -18,6 +18,7 @@ import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import {
   accommodationAllocationBatchSchema,
   accommodationOperationsQuerySchema,
+  bootstrapSeatingPlanSchema,
   createAccommodationPropertySchema,
   createAccommodationRoomSchema,
   createAccommodationRoomTypeSchema,
@@ -176,6 +177,35 @@ export class SeatingController {
       request,
       await this.operations.seatingPlans(auth.userId, uuid(workspaceId)),
     );
+  }
+  @Get("seating-events")
+  async seatingEvents(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.operations.seatingEvents(auth.userId, uuid(workspaceId)),
+    );
+  }
+  @Post("seating-plans/bootstrap")
+  @RequireCapability("seating.write")
+  async bootstrapPlan(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.operations.bootstrapSeatingPlan(
+      auth.userId,
+      uuid(workspaceId),
+      idempotencyKey(key),
+      parseWithSchema(bootstrapSeatingPlanSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
   }
   @Post("seating-plans")
   @RequireCapability("seating.write")

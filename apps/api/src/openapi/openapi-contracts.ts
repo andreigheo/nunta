@@ -154,6 +154,7 @@ import {
   updateAccommodationProviderLeadSchema,
   updateAccommodationRecommendationSchema,
   accommodationAllocationBatchSchema,
+  bootstrapSeatingPlanSchema,
   createAccommodationPropertySchema,
   createAccommodationRoomSchema,
   createAccommodationRoomTypeSchema,
@@ -614,6 +615,7 @@ const schemas: Record<string, ZodTypeAny> = {
   CreateVenueSpace: createVenueSpaceSchema,
   UpdateVenueSpace: updateVenueSpaceSchema,
   CreateSeatingPlan: createSeatingPlanSchema,
+  BootstrapSeatingPlan: bootstrapSeatingPlanSchema,
   UpdateSeatingPlan: updateSeatingPlanSchema,
   CreateSeatingFloorObject: createSeatingFloorObjectSchema,
   UpdateSeatingFloorObject: updateSeatingFloorObjectSchema,
@@ -1610,6 +1612,10 @@ const requestByRoute: Array<[RegExp, string]> = [
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/venue-spaces\/\{spaceId\}$/,
     "UpdateVenueSpace",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/seating-plans\/bootstrap$/,
+    "BootstrapSeatingPlan",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/seating-plans$/,
@@ -3006,6 +3012,7 @@ function requiresIdempotencyKey(route: string): boolean {
     "catering-exports",
     "POST /api/v1/workspaces/{workspaceId}/venue-spaces",
     "POST /api/v1/workspaces/{workspaceId}/seating-plans",
+    "POST /api/v1/workspaces/{workspaceId}/seating-plans/bootstrap",
     "/seating-plans/{planId}/suggestions",
     "/seating-plans/{planId}/assignments",
     "/seating-plans/{planId}/publish",
@@ -3407,7 +3414,11 @@ function requiredCapability(route: string): string | undefined {
         ? "payment.read"
         : "payment.write";
   if (route.includes("commercial-exports")) return "budget.export";
-  if (route.includes("venue-spaces") || route.includes("seating-plans")) {
+  if (
+    route.includes("venue-spaces") ||
+    route.includes("seating-plans") ||
+    route.includes("seating-events")
+  ) {
     if (route.includes("/assignments")) return "seating.assign";
     if (route.includes("/suggestions") && route.endsWith("/apply"))
       return "seating.assign";

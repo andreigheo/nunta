@@ -2206,6 +2206,27 @@ export const weddingOsApi = {
     request<{ items: OperationResource[] }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans`,
     ),
+  seatingEvents: (workspaceId: string) =>
+    request<{
+      items: Array<{
+        id: string;
+        title: string;
+        startAt: string | null;
+        locationName: string | null;
+      }>;
+    }>(`/workspaces/${encodeURIComponent(workspaceId)}/seating-events`),
+  bootstrapSeatingPlan: (
+    workspaceId: string,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/bootstrap`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
   seatingPlan: (workspaceId: string, planId: string) =>
     request<SeatingPlanResource>(
       `/workspaces/${encodeURIComponent(workspaceId)}/seating-plans/${encodeURIComponent(planId)}`,

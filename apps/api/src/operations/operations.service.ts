@@ -207,6 +207,123 @@ export class OperationsService {
     });
   }
 
+  async seatingEvents(userId: string, workspaceId: string) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => ({
+      items: (
+        await tx.weddingEvent.findMany({
+          where: {
+            workspaceId,
+            deletedAt: null,
+            status: { not: "CANCELLED" },
+          },
+          orderBy: [{ startAt: "asc" }, { position: "asc" }],
+          take: 200,
+        })
+      ).map((event) => ({
+        id: event.id,
+        title: event.title,
+        startAt: event.startAt?.toISOString() ?? null,
+        locationName: event.locationName,
+      })),
+    }));
+  }
+
+  async bootstrapSeatingPlan(
+    userId: string,
+    workspaceId: string,
+    key: string,
+    input: Input,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const replay = await this.replay(
+          tx,
+          userId,
+          workspaceId,
+          "seating.plan.bootstrap",
+          key,
+          input,
+        );
+        if (replay) return replay;
+
+        const workspace = await tx.workspace.findFirst({
+          where: { id: workspaceId, deletedAt: null },
+        });
+        if (!workspace) notFound("Spațiul de lucru nu există.");
+        const eventDate = nullableDateOnly(input.eventDate);
+        const event = await tx.weddingEvent.create({
+          data: {
+            workspaceId,
+            type: "CUSTOM",
+            title: string(input.eventTitle),
+            startAt: eventDate,
+            timezone: workspace.timezone,
+            locationName: nullableString(input.locationName),
+            status: eventDate ? "CONFIRMED" : "DRAFT",
+            source: "seating_setup",
+            sourceKey: `seating-bootstrap:${hash(key).slice(0, 40)}`,
+          },
+        });
+        const venue = await tx.venueSpace.create({
+          data: {
+            workspaceId,
+            weddingEventId: event.id,
+            name: string(input.venueName),
+            locationName: nullableString(input.locationName),
+            widthUnits: 100,
+            heightUnits: 70,
+            unit: "ARBITRARY_GRID",
+          },
+        });
+        const plan = await tx.seatingPlan.create({
+          data: {
+            workspaceId,
+            weddingEventId: event.id,
+            venueSpaceId: venue.id,
+            name: string(input.planName),
+            createdById: userId,
+          },
+        });
+        await this.asyncEvents.record(tx, {
+          eventName: "seating.plan_created.v1",
+          aggregateType: "SeatingPlan",
+          aggregateId: plan.id,
+          workspaceId,
+          actorUserId: userId,
+          correlationId,
+          deduplicationKey: `seating-plan-created:${plan.id}`,
+          payload: {
+            subject: {
+              planId: plan.id,
+              weddingEventId: event.id,
+              venueSpaceId: venue.id,
+            },
+            activity: {
+              category: "seating",
+              action: "plan_created",
+              summary: `Planul de mese ${plan.name} a fost creat pentru ${event.title}.`,
+              entityType: "SeatingPlan",
+              entityId: plan.id,
+            },
+          },
+        });
+        const response = resource(plan);
+        await this.saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          "seating.plan.bootstrap",
+          key,
+          input,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
   async seatingPlan(
     userId: string,
     workspaceId: string,
@@ -5680,6 +5797,12 @@ function nullableDate(value: unknown): Date | null {
   return value === null || value === undefined || value === ""
     ? null
     : date(value);
+}
+function nullableDateOnly(value: unknown): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = new Date(`${string(value)}T12:00:00.000Z`);
+  if (Number.isNaN(parsed.valueOf())) validation("Dată invalidă.");
+  return parsed;
 }
 function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
