@@ -3255,20 +3255,32 @@ describe.sequential("Slice 3 guest journey integration", () => {
         country: "Moldova",
       })
       .expect(201);
-    const room = await owner.agent
+    const roomType = await owner.agent
       .post(
-        `/api/v1/workspaces/${workspaceId}/accommodation-properties/${property.body.data.id}/rooms`,
+        `/api/v1/workspaces/${workspaceId}/accommodation-properties/${property.body.data.id}/room-types`,
       )
       .set("Origin", origin)
-      .set("Idempotency-Key", `room-${randomUUID()}`)
+      .set("Idempotency-Key", `room-type-${randomUUID()}`)
       .send({
-        name: "Camera 101",
+        name: "Dublă Slice 4",
         capacityAdults: 2,
         capacityChildren: 1,
+        bedConfiguration: "1 pat dublu și 1 canapea",
         accessible: false,
-        status: "available",
+        quantity: 2,
+        materializeRooms: true,
+        roomNamePrefix: "Camera Slice 4",
       })
       .expect(201);
+    expect(roomType.body.data.roomsCreated).toBe(2);
+    const propertyDetail = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/accommodation-properties/${property.body.data.id}`,
+      )
+      .expect(200);
+    expect(propertyDetail.body.data.roomTypes).toHaveLength(1);
+    expect(propertyDetail.body.data.rooms).toHaveLength(2);
+    const room = { body: { data: propertyDetail.body.data.rooms[0] } };
     const stay = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/accommodation-stays`)
       .set("Origin", origin)
@@ -3305,6 +3317,16 @@ describe.sequential("Slice 3 guest journey integration", () => {
       })
       .expect(200);
     expect(allocation.body.data.changed).toBe(1);
+    const publishedStay = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/accommodation-stays/${stay.body.data.id}/publish`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${allocation.body.data.version}"`)
+      .set("Idempotency-Key", `publish-accommodation-${randomUUID()}`)
+      .send({})
+      .expect(201);
+    expect(publishedStay.body.data.status).toBe("published");
     await owner.agent
       .post(
         `/api/v1/workspaces/${workspaceId}/accommodation-stays/${stay.body.data.id}/rooming-lists`,

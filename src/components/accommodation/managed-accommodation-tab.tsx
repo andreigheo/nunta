@@ -20,11 +20,13 @@ import {
   weddingOsApi,
 } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { planHouseholdRoomAssignments } from "./allocation-planner";
 import {
   Badge,
   Button,
   Card,
   CardContent,
+  Checkbox,
   ConfirmDialog,
   EmptyState,
   Field,
@@ -59,6 +61,9 @@ export function ManagedAccommodationTab() {
   const [roomOpen, setRoomOpen] = React.useState(false);
   const [editingRoomId, setEditingRoomId] = React.useState<string | null>(null);
   const [deleteRoom, setDeleteRoom] = React.useState<OperationResource | null>(null);
+  const [roomTypeOpen, setRoomTypeOpen] = React.useState(false);
+  const [editingRoomTypeId, setEditingRoomTypeId] = React.useState<string | null>(null);
+  const [deleteRoomType, setDeleteRoomType] = React.useState<OperationResource | null>(null);
   const [stayOpen, setStayOpen] = React.useState(false);
   const [editingStayId, setEditingStayId] = React.useState<string | null>(null);
   const [deleteStay, setDeleteStay] = React.useState<OperationResource | null>(null);
@@ -79,6 +84,17 @@ export function ManagedAccommodationTab() {
   const [roomAccessible, setRoomAccessible] = React.useState(false);
   const [roomStatus, setRoomStatus] = React.useState("available");
   const [roomNotes, setRoomNotes] = React.useState("");
+  const [roomTypeId, setRoomTypeId] = React.useState("");
+  const [roomTypeName, setRoomTypeName] = React.useState("");
+  const [roomTypeAdults, setRoomTypeAdults] = React.useState("2");
+  const [roomTypeChildren, setRoomTypeChildren] = React.useState("0");
+  const [roomTypeBeds, setRoomTypeBeds] = React.useState("1 pat dublu");
+  const [roomTypeQuantity, setRoomTypeQuantity] = React.useState("1");
+  const [roomTypeAccessible, setRoomTypeAccessible] = React.useState(false);
+  const [roomTypeNotes, setRoomTypeNotes] = React.useState("");
+  const [roomTypePrefix, setRoomTypePrefix] = React.useState("");
+  const [roomTypeFloor, setRoomTypeFloor] = React.useState("");
+  const [materializeRooms, setMaterializeRooms] = React.useState(true);
   const [propertyId, setPropertyId] = React.useState("");
   const [stayName, setStayName] = React.useState("Cazare nuntă");
   const [checkIn, setCheckIn] = React.useState("");
@@ -92,6 +108,13 @@ export function ManagedAccommodationTab() {
     checkInDate: string;
     checkOutDate: string;
   } | null>(null);
+  const [selectedRequestIds, setSelectedRequestIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+  const [bulkRoomId, setBulkRoomId] = React.useState("");
+  const [pendingBulkAssignments, setPendingBulkAssignments] = React.useState<
+    Array<NonNullable<typeof pendingAssignment>>
+  >([]);
   const capabilities = bootstrap?.membership.capabilities ?? [];
   const canWrite = capabilities.includes("accommodation.write");
   const canAssign = capabilities.includes("accommodation.assign");
@@ -109,6 +132,8 @@ export function ManagedAccommodationTab() {
       );
       setStay(selectedStay);
       setEventId(selectedStay.weddingEventId);
+      setSelectedRequestIds(new Set());
+      setBulkRoomId("");
     },
     [currentWorkspace],
   );
@@ -161,6 +186,7 @@ export function ManagedAccommodationTab() {
       await load();
       setPropertyOpen(false);
       setRoomOpen(false);
+      setRoomTypeOpen(false);
       setStayOpen(false);
       toast({ title: success, variant: "success" });
       return true;
@@ -210,6 +236,41 @@ export function ManagedAccommodationTab() {
         ),
       "Invitatul a fost alocat în cameră",
     );
+  };
+
+  const applyAllocationBatch = async (
+    assignments: Array<NonNullable<typeof pendingAssignment>>,
+    confirmHouseholdSplit = false,
+    reason: string | null = null,
+  ) => {
+    if (!currentWorkspace || !stay || assignments.length === 0) return false;
+    const applied = await run(
+      () =>
+        weddingOsApi.replaceAccommodationAllocations(
+          currentWorkspace.id,
+          stay.id,
+          stay.version,
+          {
+            allocations: assignments.map((assignment) => ({
+              roomId: assignment.roomId,
+              guestId: assignment.guestId,
+              householdId: assignment.householdId,
+              requestId: assignment.requestId,
+              checkInDate: assignment.checkInDate,
+              checkOutDate: assignment.checkOutDate,
+              overrideReason: assignment.requestId
+                ? null
+                : "Alocare manuală fără cerere RSVP",
+            })),
+            removeAllocationIds: [],
+            confirmHouseholdSplit,
+            reason,
+          },
+        ),
+      `${assignments.length} invitați au fost alocați`,
+    );
+    if (applied) setSelectedRequestIds(new Set());
+    return applied;
   };
 
   const requestAllocation = (
@@ -352,6 +413,7 @@ export function ManagedAccommodationTab() {
     setRoomAccessible(false);
     setRoomStatus("available");
     setRoomNotes("");
+    setRoomTypeId("");
     setPropertyId(stay?.propertyId ?? properties[0]?.id ?? "");
     setRoomOpen(true);
   };
@@ -366,11 +428,13 @@ export function ManagedAccommodationTab() {
     setRoomAccessible(room.accessible === true);
     setRoomStatus(String(room.status ?? "available"));
     setRoomNotes(String(room.notesPrivate ?? ""));
+    setRoomTypeId(String(room.roomTypeId ?? ""));
     setRoomOpen(true);
   };
 
   const saveRoom = () => {
     const input = {
+      roomTypeId: roomTypeId || null,
       name: roomName.trim(),
       floor: roomFloor.trim() || null,
       capacityAdults: Number(roomAdults),
@@ -396,6 +460,76 @@ export function ManagedAccommodationTab() {
               input,
             ),
       current ? "Camera a fost actualizată" : "Camera a fost adăugată",
+    );
+  };
+
+  const openNewRoomType = () => {
+    setEditingRoomTypeId(null);
+    setPropertyId(stay?.propertyId ?? properties[0]?.id ?? "");
+    setRoomTypeName("");
+    setRoomTypeAdults("2");
+    setRoomTypeChildren("0");
+    setRoomTypeBeds("1 pat dublu");
+    setRoomTypeQuantity("1");
+    setRoomTypeAccessible(false);
+    setRoomTypeNotes("");
+    setRoomTypePrefix("");
+    setRoomTypeFloor("");
+    setMaterializeRooms(true);
+    setRoomTypeOpen(true);
+  };
+
+  const openEditRoomType = (roomType: OperationResource) => {
+    setEditingRoomTypeId(roomType.id);
+    setPropertyId(stay?.propertyId ?? propertyId);
+    setRoomTypeName(String(roomType.name ?? ""));
+    setRoomTypeAdults(String(roomType.capacityAdults ?? 0));
+    setRoomTypeChildren(String(roomType.capacityChildren ?? 0));
+    setRoomTypeBeds(String(roomType.bedConfiguration ?? ""));
+    setRoomTypeQuantity(String(roomType.quantity ?? 1));
+    setRoomTypeAccessible(roomType.accessible === true);
+    setRoomTypeNotes(String(roomType.notes ?? ""));
+    setRoomTypeOpen(true);
+  };
+
+  const saveRoomType = () => {
+    const current = stay?.roomTypes.find(
+      (item) => item.id === editingRoomTypeId,
+    );
+    const common = {
+      name: roomTypeName.trim(),
+      capacityAdults: Number(roomTypeAdults),
+      capacityChildren: Number(roomTypeChildren),
+      bedConfiguration: roomTypeBeds.trim(),
+      accessible: roomTypeAccessible,
+      quantity: Number(roomTypeQuantity),
+      notes: roomTypeNotes.trim() || null,
+    };
+    return run(
+      () =>
+        current
+          ? weddingOsApi.updateAccommodationRoomType(
+              currentWorkspace!.id,
+              propertyId,
+              current.id,
+              current.version,
+              common,
+            )
+          : weddingOsApi.createAccommodationRoomType(
+              currentWorkspace!.id,
+              propertyId,
+              {
+                ...common,
+                materializeRooms,
+                roomNamePrefix: roomTypePrefix.trim() || null,
+                floor: roomTypeFloor.trim() || null,
+              },
+            ),
+      current
+        ? "Tipul de cameră a fost actualizat"
+        : materializeRooms
+          ? "Tipul și camerele au fost create"
+          : "Tipul de cameră a fost creat",
     );
   };
 
@@ -476,11 +610,120 @@ export function ManagedAccommodationTab() {
     (request) =>
       !stay || String(request.weddingEventId ?? "") === stay.weddingEventId,
   );
+  const selfBookedRequests = relevantRequests.filter(
+    (request) =>
+      request.requested === true &&
+      String(request.bookingMode) === "recommendations_only",
+  );
   const unassigned = relevantRequests.filter(
     (request) =>
-      request.requested === true && !assignedRequestIds.has(request.id),
+      request.requested === true &&
+      String(request.bookingMode) !== "recommendations_only" &&
+      !assignedRequestIds.has(request.id),
   );
   const activeIssues = stay?.issues.filter((issue) => issue.status !== "resolved") ?? [];
+  const selectedProperty = properties.find((item) => item.id === propertyId);
+  const propertyRoomTypes = Array.isArray(selectedProperty?.roomTypes)
+    ? (selectedProperty.roomTypes as OperationResource[])
+    : stay?.propertyId === propertyId
+      ? stay.roomTypes
+      : [];
+
+  const assignmentFor = (request: OperationResource, targetRoomId: string) => ({
+    guestId: String(request.guestId),
+    guestName: String(request.guestName ?? "Invitat"),
+    householdId: String(request.householdId),
+    requestId: request.id,
+    roomId: targetRoomId,
+    checkInDate: String(request.arrivalDate ?? stay?.checkInDate ?? "").slice(
+      0,
+      10,
+    ),
+    checkOutDate: String(
+      request.departureDate ?? stay?.checkOutDate ?? "",
+    ).slice(0, 10),
+  });
+
+  const toggleHouseholdSelection = (householdId: string) => {
+    const ids = unassigned
+      .filter((request) => String(request.householdId) === householdId)
+      .map((request) => request.id);
+    setSelectedRequestIds((current) => {
+      const next = new Set(current);
+      const select = ids.some((id) => !next.has(id));
+      for (const id of ids) select ? next.add(id) : next.delete(id);
+      return next;
+    });
+  };
+
+  const allocateSelected = () => {
+    if (!stay || !bulkRoomId) return;
+    const assignments = unassigned
+      .filter((request) => selectedRequestIds.has(request.id))
+      .map((request) => assignmentFor(request, bulkRoomId));
+    const incomingGuestIds = new Set(
+      assignments.map((assignment) => assignment.guestId),
+    );
+    const split = assignments.some((assignment) =>
+      stay.rooms.some((room) =>
+        room.allocations.some(
+          (allocation) =>
+            String(allocation.householdId) === assignment.householdId &&
+            !incomingGuestIds.has(String(allocation.guestId)) &&
+            room.id !== assignment.roomId,
+        ),
+      ),
+    );
+    if (split) {
+      setPendingBulkAssignments(assignments);
+      return;
+    }
+    void applyAllocationBatch(assignments);
+  };
+
+  const autoAllocateHouseholds = () => {
+    if (!stay) return;
+    const plan = planHouseholdRoomAssignments(
+      unassigned.map((request) => ({
+        id: request.id,
+        householdId: String(request.householdId),
+        isChild: request.isChild === true,
+        requiresAccessibleRoom: request.requiresAccessibleRoom === true,
+      })),
+      stay.rooms.map((room) => ({
+        id: room.id,
+        status: String(room.status),
+        accessible: room.accessible === true,
+        capacityAdults: Number(room.capacityAdults ?? 0),
+        capacityChildren: Number(room.capacityChildren ?? 0),
+        allocatedGuests: room.allocations.map((allocation) => ({
+          isChild: allocation.isChild === true,
+        })),
+      })),
+    );
+    const requestsById = new Map(unassigned.map((request) => [request.id, request]));
+    const assignments = plan.assignments.flatMap((assignment) => {
+      const request = requestsById.get(assignment.requestId);
+      return request ? [assignmentFor(request, assignment.roomId)] : [];
+    });
+    if (!assignments.length) {
+      toast({
+        title: "Nu există o combinație sigură",
+        description:
+          "Adaugă camere sau mărește capacitatea. Familiile nu sunt separate automat.",
+        variant: "warning",
+      });
+      return;
+    }
+    if (plan.unassignedHouseholdIds.length) {
+      toast({
+        title: "Plan parțial pregătit",
+        description: `${plan.unassignedHouseholdIds.length} familii nu încap fără separare și rămân nealocate.`,
+        variant: "info",
+      });
+    }
+    void applyAllocationBatch(assignments);
+  };
 
   return (
     <div className="space-y-5" data-testid="managed-accommodation-tab">
@@ -533,6 +776,14 @@ export function ManagedAccommodationTab() {
                 {stay.status === "published" ? "Publicat" : "Draft"}
               </Badge>
           )}
+          <Button
+              variant="outline"
+              size="sm"
+              onClick={openNewRoomType}
+              disabled={!canWrite || !properties.length}
+            >
+              <Plus className="size-3.5" /> Tip de cameră
+          </Button>
           <Button
               variant="outline"
               size="sm"
@@ -708,6 +959,63 @@ export function ManagedAccommodationTab() {
                   tone={totalCapacity && allocations / totalCapacity > 0.9 ? "warning" : "brand"}
                 />
               </div>
+              {stay.roomTypes.length > 0 ? (
+                <section className="mb-5 rounded-xl bg-subtle/70 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-ink">
+                        Blocuri de camere
+                      </h3>
+                      <p className="text-xs text-muted">
+                        Inventarul contractat, grupat după tip și capacitate.
+                      </p>
+                    </div>
+                    <Badge variant="neutral">{stay.roomTypes.length}</Badge>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {stay.roomTypes.map((roomType) => (
+                      <div
+                        key={roomType.id}
+                        className="rounded-lg border border-line bg-surface p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-ink">
+                              {String(roomType.name)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted">
+                              {String(roomType.quantity)} camere · {String(roomType.capacityAdults)} adulți · {String(roomType.capacityChildren)} copii
+                            </p>
+                            <p className="mt-1 text-xs text-faint">
+                              {String(roomType.bedConfiguration)}
+                            </p>
+                          </div>
+                          {canWrite ? (
+                            <div className="flex shrink-0 gap-1">
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                aria-label={`Editează tipul ${String(roomType.name)}`}
+                                onClick={() => openEditRoomType(roomType)}
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                aria-label={`Șterge tipul ${String(roomType.name)}`}
+                                onClick={() => setDeleteRoomType(roomType)}
+                              >
+                                <Trash2 className="size-4 text-danger" />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {stay.rooms.map((room) => (
                   <div key={room.id} className="rounded-xl border border-line p-3">
@@ -789,6 +1097,62 @@ export function ManagedAccommodationTab() {
                 </div>
                 <Badge variant={unassigned.length ? "warning" : "success"}>{unassigned.length}</Badge>
               </div>
+              {unassigned.length > 0 ? (
+                <div className="mb-3 grid gap-3 rounded-xl bg-subtle/70 p-3 lg:grid-cols-[auto_minmax(180px,1fr)_auto_auto] lg:items-center">
+                  <Checkbox
+                    checked={
+                      unassigned.length > 0 &&
+                      unassigned.every((request) =>
+                        selectedRequestIds.has(request.id),
+                      )
+                    }
+                    onCheckedChange={(checked) =>
+                      setSelectedRequestIds(
+                        checked
+                          ? new Set(unassigned.map((request) => request.id))
+                          : new Set(),
+                      )
+                    }
+                    label={`${selectedRequestIds.size} selectați`}
+                    disabled={!canAssign}
+                  />
+                  <Select
+                    aria-label="Camera pentru invitații selectați"
+                    value={bulkRoomId}
+                    onChange={(event) => setBulkRoomId(event.target.value)}
+                    disabled={!canAssign || !stay.rooms.length}
+                  >
+                    <option value="">Alege camera pentru selecție…</option>
+                    {stay.rooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {String(room.name)}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={allocateSelected}
+                    disabled={
+                      !canAssign || !bulkRoomId || selectedRequestIds.size === 0
+                    }
+                  >
+                    Alocă selecția
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={autoAllocateHouseholds}
+                    disabled={!canAssign || !stay.rooms.length}
+                  >
+                    Alocă automat familiile
+                  </Button>
+                </div>
+              ) : null}
+              {selfBookedRequests.length > 0 ? (
+                <p className="mb-3 rounded-lg border border-line px-3 py-2 text-xs text-muted">
+                  {selfBookedRequests.length} invitați au cerut numai recomandări și își rezervă singuri; nu sunt incluși în alocarea camerelor.
+                </p>
+              ) : null}
               {unassigned.length === 0 ? (
                 <p className="py-5 text-center text-sm text-muted">Nu există cereri nealocate.</p>
               ) : (
@@ -798,14 +1162,37 @@ export function ManagedAccommodationTab() {
                       key={request.id}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line p-3"
                     >
-                      <div>
+                      <div className="flex min-w-0 items-start gap-3">
+                        <Checkbox
+                          checked={selectedRequestIds.has(request.id)}
+                          onCheckedChange={(checked) =>
+                            setSelectedRequestIds((current) => {
+                              const next = new Set(current);
+                              checked
+                                ? next.add(request.id)
+                                : next.delete(request.id);
+                              return next;
+                            })
+                          }
+                          aria-label={`Selectează ${String(request.guestName ?? "invitatul")}`}
+                          disabled={!canAssign}
+                        />
+                        <div className="min-w-0">
                         <p className="text-sm font-medium text-ink">
                           {String(request.guestName ?? "Invitat")}
                         </p>
                         {request.householdName ? (
-                          <p className="text-xs text-muted">
-                            {String(request.householdName)}
-                          </p>
+                          <button
+                            type="button"
+                            className="text-left text-xs font-medium text-brand underline decoration-brand/30 underline-offset-2"
+                            onClick={() =>
+                              toggleHouseholdSelection(
+                                String(request.householdId),
+                              )
+                            }
+                          >
+                            {String(request.householdName)} · selectează familia
+                          </button>
                         ) : null}
                         <p className="text-xs text-faint">
                           {request.arrivalDate
@@ -816,6 +1203,12 @@ export function ManagedAccommodationTab() {
                             ? String(request.departureDate).slice(0, 10)
                             : "Plecare nespecificată"}
                         </p>
+                        {request.requiresAccessibleRoom === true ? (
+                          <Badge className="mt-1" variant="info">
+                            Cameră accesibilă necesară
+                          </Badge>
+                        ) : null}
+                        </div>
                       </div>
                       <Select
                         aria-label={`Alocă ${String(request.guestName ?? "invitatul")} într-o cameră`}
@@ -903,6 +1296,132 @@ export function ManagedAccommodationTab() {
       </Modal>
 
       <Modal
+        open={roomTypeOpen}
+        onClose={() => setRoomTypeOpen(false)}
+        title={editingRoomTypeId ? "Editează tipul de cameră" : "Bloc de camere nou"}
+        description="Definește o singură dată capacitatea și configurația. La creare poți genera automat toate camerele din bloc."
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRoomTypeOpen(false)}>
+              Renunță
+            </Button>
+            <Button
+              disabled={
+                saving ||
+                !propertyId ||
+                !roomTypeName.trim() ||
+                !roomTypeBeds.trim() ||
+                Number(roomTypeQuantity) < 1 ||
+                Number(roomTypeAdults) + Number(roomTypeChildren) < 1
+              }
+              onClick={() => void saveRoomType()}
+            >
+              {editingRoomTypeId ? "Salvează tipul" : "Creează blocul"}
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Proprietate" className="sm:col-span-2">
+            <Select
+              value={propertyId}
+              onChange={(event) => setPropertyId(event.target.value)}
+              disabled={Boolean(editingRoomTypeId)}
+            >
+              {properties.map((property) => (
+                <option key={property.id} value={property.id}>
+                  {String(property.name)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Denumire tip" className="sm:col-span-2">
+            <Input
+              value={roomTypeName}
+              onChange={(event) => setRoomTypeName(event.target.value)}
+              placeholder="Cameră dublă standard"
+            />
+          </Field>
+          <Field label="Adulți / cameră">
+            <Input
+              type="number"
+              min="0"
+              value={roomTypeAdults}
+              onChange={(event) => setRoomTypeAdults(event.target.value)}
+            />
+          </Field>
+          <Field label="Copii / cameră">
+            <Input
+              type="number"
+              min="0"
+              value={roomTypeChildren}
+              onChange={(event) => setRoomTypeChildren(event.target.value)}
+            />
+          </Field>
+          <Field label="Număr de camere">
+            <Input
+              type="number"
+              min="1"
+              max="500"
+              value={roomTypeQuantity}
+              onChange={(event) => setRoomTypeQuantity(event.target.value)}
+            />
+          </Field>
+          <Field label="Configurație paturi">
+            <Input
+              value={roomTypeBeds}
+              onChange={(event) => setRoomTypeBeds(event.target.value)}
+              placeholder="1 pat dublu + 1 canapea"
+            />
+          </Field>
+          {!editingRoomTypeId ? (
+            <>
+              <Switch
+                checked={materializeRooms}
+                onCheckedChange={setMaterializeRooms}
+                label="Creează automat camerele"
+                description="Generează inventarul concret folosind numărul de camere de mai sus."
+                className="sm:col-span-2"
+              />
+              {materializeRooms ? (
+                <>
+                  <Field label="Prefix camere">
+                    <Input
+                      value={roomTypePrefix}
+                      onChange={(event) => setRoomTypePrefix(event.target.value)}
+                      placeholder={roomTypeName || "Camera dublă"}
+                    />
+                  </Field>
+                  <Field label="Etaj / zonă">
+                    <Input
+                      value={roomTypeFloor}
+                      onChange={(event) => setRoomTypeFloor(event.target.value)}
+                      placeholder="Etajul 1"
+                    />
+                  </Field>
+                </>
+              ) : null}
+            </>
+          ) : null}
+          <Switch
+            checked={roomTypeAccessible}
+            onCheckedChange={setRoomTypeAccessible}
+            label="Tip accesibil"
+            description="Camere potrivite pentru invitați cu cerințe de accesibilitate."
+            className="sm:col-span-2"
+          />
+          <Field label="Note" className="sm:col-span-2">
+            <Textarea
+              rows={3}
+              value={roomTypeNotes}
+              onChange={(event) => setRoomTypeNotes(event.target.value)}
+            />
+          </Field>
+        </div>
+      </Modal>
+
+      <Modal
         open={roomOpen}
         onClose={() => setRoomOpen(false)}
         title={editingRoomId ? "Editează camera" : "Cameră nouă"}
@@ -934,6 +1453,19 @@ export function ManagedAccommodationTab() {
               onChange={(event) => setRoomName(event.target.value)}
               placeholder="Camera 101"
             />
+          </Field>
+          <Field label="Tip de cameră" className="sm:col-span-2">
+            <Select
+              value={roomTypeId}
+              onChange={(event) => setRoomTypeId(event.target.value)}
+            >
+              <option value="">Fără tip asociat</option>
+              {propertyRoomTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {String(type.name)}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label="Adulți">
             <Input
@@ -1056,6 +1588,30 @@ export function ManagedAccommodationTab() {
         loading={saving}
       />
       <ConfirmDialog
+        open={Boolean(deleteRoomType)}
+        onClose={() => setDeleteRoomType(null)}
+        onConfirm={async () => {
+          const current = deleteRoomType;
+          if (!current || !stay) return;
+          const deleted = await run(
+            () =>
+              weddingOsApi.deleteAccommodationRoomType(
+                currentWorkspace!.id,
+                stay.propertyId,
+                current.id,
+                current.version,
+              ),
+            "Tipul de cameră a fost eliminat",
+          );
+          if (deleted) setDeleteRoomType(null);
+        }}
+        title="Ștergi tipul de cameră?"
+        description="Tipul poate fi șters numai după ce nicio cameră activă nu îl mai folosește."
+        confirmLabel="Șterge tipul"
+        destructive
+        loading={saving}
+      />
+      <ConfirmDialog
         open={Boolean(deleteRoom)}
         onClose={() => setDeleteRoom(null)}
         onConfirm={async () => {
@@ -1103,6 +1659,23 @@ export function ManagedAccommodationTab() {
         description="Sejurul poate fi eliminat numai cât timp este draft și nu are alocări active."
         confirmLabel="Șterge sejurul"
         destructive
+        loading={saving}
+      />
+      <ConfirmDialog
+        open={pendingBulkAssignments.length > 0}
+        onClose={() => setPendingBulkAssignments([])}
+        onConfirm={async () => {
+          const assignments = pendingBulkAssignments;
+          const applied = await applyAllocationBatch(
+            assignments,
+            true,
+            "Separare confirmată de organizator la alocarea multiplă",
+          );
+          if (applied) setPendingBulkAssignments([]);
+        }}
+        title="Separi una sau mai multe familii?"
+        description="Cel puțin o familie are deja membri în altă cameră. Confirmă numai dacă separarea este intenționată."
+        confirmLabel="Confirmă alocarea"
         loading={saving}
       />
       <ConfirmDialog

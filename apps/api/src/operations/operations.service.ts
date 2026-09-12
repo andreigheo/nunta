@@ -2722,7 +2722,13 @@ export class OperationsService {
       const [guests, households] = await Promise.all([
         tx.guest.findMany({
           where: { workspaceId, id: { in: rows.map((row) => row.guestId) } },
-          select: { id: true, firstName: true, lastName: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            isChild: true,
+            accessibilityNotesEncrypted: true,
+          },
         }),
         tx.household.findMany({
           where: {
@@ -2738,6 +2744,7 @@ export class OperationsService {
           [guest.firstName, guest.lastName].filter(Boolean).join(" "),
         ]),
       );
+      const guestsById = new Map(guests.map((guest) => [guest.id, guest]));
       const householdNames = new Map(
         households.map((household) => [household.id, household.name]),
       );
@@ -2746,6 +2753,11 @@ export class OperationsService {
           ...resource(row),
           guestName: guestNames.get(row.guestId) ?? "Invitat fără nume",
           householdName: householdNames.get(row.householdId) ?? null,
+          isChild: guestsById.get(row.guestId)?.isChild ?? false,
+          requiresAccessibleRoom: Boolean(
+            row.accessibilityRequirementsEncrypted ??
+            guestsById.get(row.guestId)?.accessibilityNotesEncrypted,
+          ),
         })),
       };
     });
@@ -2812,14 +2824,27 @@ export class OperationsService {
   }
 
   async accommodationProperties(userId: string, workspaceId: string) {
-    return this.database.withContext({ userId, workspaceId }, async (tx) => ({
-      items: (
-        await tx.accommodationProperty.findMany({
-          where: { workspaceId, deletedAt: null },
-          orderBy: { name: "asc" },
-        })
-      ).map(resource),
-    }));
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const properties = await tx.accommodationProperty.findMany({
+        where: { workspaceId, deletedAt: null },
+        orderBy: { name: "asc" },
+      });
+      const roomTypes = await tx.accommodationRoomType.findMany({
+        where: {
+          workspaceId,
+          propertyId: { in: properties.map((row) => row.id) },
+        },
+        orderBy: { name: "asc" },
+      });
+      return {
+        items: properties.map((property) => ({
+          ...resource(property),
+          roomTypes: roomTypes
+            .filter((roomType) => roomType.propertyId === property.id)
+            .map(resource),
+        })),
+      };
+    });
   }
 
   async accommodationProperty(
@@ -3014,6 +3039,13 @@ export class OperationsService {
   ) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       await this.requireProperty(tx, workspaceId, propertyId);
+      const roomTypeId = nullableString(input.roomTypeId);
+      if (roomTypeId) {
+        const roomType = await tx.accommodationRoomType.findFirst({
+          where: { id: roomTypeId, workspaceId, propertyId },
+        });
+        if (!roomType) validation("Tipul de cameră nu aparține proprietății.");
+      }
       const adults = number(input.capacityAdults);
       const children = number(input.capacityChildren);
       if (adults + children < 1)
@@ -3023,7 +3055,7 @@ export class OperationsService {
           data: {
             workspaceId,
             propertyId,
-            roomTypeId: nullableString(input.roomTypeId),
+            roomTypeId,
             name: string(input.name),
             floor: nullableString(input.floor),
             capacityAdults: adults,
@@ -3035,6 +3067,196 @@ export class OperationsService {
           },
         }),
       );
+    });
+  }
+
+  async createRoomType(
+    userId: string,
+    workspaceId: string,
+    propertyId: string,
+    key: string,
+    input: Input,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const operation = `accommodation.room_type.create:${propertyId}`;
+        const request = { propertyId, ...input };
+        const replay = await this.replay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          key,
+          request,
+        );
+        if (replay) return replay;
+        await this.requireProperty(tx, workspaceId, propertyId);
+        const adults = number(input.capacityAdults);
+        const children = number(input.capacityChildren);
+        if (adults + children < 1)
+          validation("Tipul de cameră trebuie să aibă cel puțin un loc.");
+        const quantity = number(input.quantity);
+        const row = await tx.accommodationRoomType.create({
+          data: {
+            workspaceId,
+            propertyId,
+            name: string(input.name),
+            capacityAdults: adults,
+            capacityChildren: children,
+            bedConfiguration: string(input.bedConfiguration),
+            accessible: boolean(input.accessible),
+            quantity,
+            notes: nullableString(input.notes),
+          },
+        });
+        let roomsCreated = 0;
+        if (boolean(input.materializeRooms)) {
+          const prefix = nullableString(input.roomNamePrefix) ?? row.name;
+          const existingNames = new Set(
+            (
+              await tx.accommodationRoom.findMany({
+                where: { workspaceId, propertyId },
+                select: { name: true },
+              })
+            ).map((room) => room.name),
+          );
+          const rooms: Array<{
+            workspaceId: string;
+            propertyId: string;
+            roomTypeId: string;
+            name: string;
+            floor: string | null;
+            capacityAdults: number;
+            capacityChildren: number;
+            accessible: boolean;
+          }> = [];
+          let suffix = 1;
+          while (rooms.length < quantity) {
+            const name =
+              quantity === 1 && !existingNames.has(prefix)
+                ? prefix
+                : `${prefix} ${suffix}`;
+            suffix += 1;
+            if (existingNames.has(name)) continue;
+            existingNames.add(name);
+            rooms.push({
+              workspaceId,
+              propertyId,
+              roomTypeId: row.id,
+              name,
+              floor: nullableString(input.floor),
+              capacityAdults: adults,
+              capacityChildren: children,
+              accessible: row.accessible,
+            });
+          }
+          const created = await tx.accommodationRoom.createMany({
+            data: rooms,
+          });
+          roomsCreated = created.count;
+        }
+        const response = { ...resource(row), roomsCreated };
+        await this.saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          key,
+          request,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
+  async updateRoomType(
+    userId: string,
+    workspaceId: string,
+    propertyId: string,
+    roomTypeId: string,
+    version: number,
+    input: Input,
+  ) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const current = await tx.accommodationRoomType.findFirst({
+        where: { id: roomTypeId, workspaceId, propertyId },
+      });
+      if (!current) notFound("Tipul de cameră nu există.");
+      assertVersion(current.version, version);
+      const adults =
+        input.capacityAdults === undefined
+          ? current.capacityAdults
+          : number(input.capacityAdults);
+      const children =
+        input.capacityChildren === undefined
+          ? current.capacityChildren
+          : number(input.capacityChildren);
+      if (adults + children < 1)
+        validation("Tipul de cameră trebuie să aibă cel puțin un loc.");
+      if (input.quantity !== undefined) {
+        const activeRooms = await tx.accommodationRoom.count({
+          where: { workspaceId, propertyId, roomTypeId, deletedAt: null },
+        });
+        if (number(input.quantity) < activeRooms)
+          validation(
+            `Cantitatea nu poate fi mai mică decât cele ${activeRooms} camere active.`,
+          );
+      }
+      return resource(
+        await tx.accommodationRoomType.update({
+          where: { id: roomTypeId },
+          data: {
+            ...(input.name ? { name: string(input.name) } : {}),
+            ...(input.capacityAdults !== undefined
+              ? { capacityAdults: adults }
+              : {}),
+            ...(input.capacityChildren !== undefined
+              ? { capacityChildren: children }
+              : {}),
+            ...(input.bedConfiguration
+              ? { bedConfiguration: string(input.bedConfiguration) }
+              : {}),
+            ...(input.accessible !== undefined
+              ? { accessible: boolean(input.accessible) }
+              : {}),
+            ...(input.quantity !== undefined
+              ? { quantity: number(input.quantity) }
+              : {}),
+            ...(input.notes !== undefined
+              ? { notes: nullableString(input.notes) }
+              : {}),
+            version: { increment: 1 },
+          },
+        }),
+      );
+    });
+  }
+
+  async deleteRoomType(
+    userId: string,
+    workspaceId: string,
+    propertyId: string,
+    roomTypeId: string,
+    version: number,
+  ) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => {
+      const current = await tx.accommodationRoomType.findFirst({
+        where: { id: roomTypeId, workspaceId, propertyId },
+      });
+      if (!current) notFound("Tipul de cameră nu există.");
+      assertVersion(current.version, version);
+      const roomCount = await tx.accommodationRoom.count({
+        where: { workspaceId, propertyId, roomTypeId, deletedAt: null },
+      });
+      if (roomCount)
+        conflict(
+          "Tipul este folosit de camere active. Elimină sau schimbă întâi camerele.",
+        );
+      await tx.accommodationRoomType.delete({ where: { id: roomTypeId } });
+      return { deleted: true, id: roomTypeId };
     });
   }
 
@@ -3052,6 +3274,16 @@ export class OperationsService {
       });
       if (!current) notFound("Camera nu există.");
       assertVersion(current.version, version);
+      if (input.roomTypeId) {
+        const roomType = await tx.accommodationRoomType.findFirst({
+          where: {
+            id: string(input.roomTypeId),
+            workspaceId,
+            propertyId,
+          },
+        });
+        if (!roomType) validation("Tipul de cameră nu aparține proprietății.");
+      }
       return resource(
         await tx.accommodationRoom.update({
           where: { id: roomId },
@@ -4037,6 +4269,10 @@ export class OperationsService {
       where: { workspaceId, propertyId: stay.propertyId, deletedAt: null },
       orderBy: { name: "asc" },
     });
+    const roomTypes = await tx.accommodationRoomType.findMany({
+      where: { workspaceId, propertyId: stay.propertyId },
+      orderBy: { name: "asc" },
+    });
     const allocations = await tx.accommodationAllocation.findMany({
       where: {
         workspaceId,
@@ -4049,7 +4285,7 @@ export class OperationsService {
         workspaceId,
         id: { in: allocations.map((allocation) => allocation.guestId) },
       },
-      select: { id: true, firstName: true, lastName: true },
+      select: { id: true, firstName: true, lastName: true, isChild: true },
     });
     const guestNames = new Map(
       guests.map((guest) => [
@@ -4058,6 +4294,9 @@ export class OperationsService {
           "Invitat fără nume",
       ]),
     );
+    const guestKinds = new Map(
+      guests.map((guest) => [guest.id, guest.isChild]),
+    );
     const issues = await tx.accommodationIssue.findMany({
       where: { workspaceId, stayId },
       orderBy: [{ status: "asc" }, { severity: "desc" }],
@@ -4065,6 +4304,7 @@ export class OperationsService {
     return {
       ...resource(stay),
       property: resource(property),
+      roomTypes: roomTypes.map(resource),
       rooms: rooms.map((room) => ({
         ...resource(room),
         allocations: allocations
@@ -4073,6 +4313,7 @@ export class OperationsService {
             ...resource(allocation),
             guestName:
               guestNames.get(allocation.guestId) ?? "Invitat fără nume",
+            isChild: guestKinds.get(allocation.guestId) ?? false,
           })),
       })),
       issues: issues.map(resource),

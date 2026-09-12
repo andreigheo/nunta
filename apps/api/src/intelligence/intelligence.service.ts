@@ -1310,6 +1310,18 @@ export class IntelligenceService {
       );
       return resourceReference("AccommodationProperty", row);
     }
+    if (actionType === "CREATE_ACCOMMODATION_ROOM_TYPE") {
+      const propertyId = stringValue(payload.propertyId, "");
+      const row = await this.operations.createRoomType(
+        userId,
+        workspaceId,
+        propertyId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("AccommodationRoomType", row);
+    }
     if (actionType === "CREATE_ACCOMMODATION_STAY") {
       const row = await this.operations.createAccommodationStay(
         userId,
@@ -1329,6 +1341,31 @@ export class IntelligenceService {
         payload,
       );
       return resourceReference("AccommodationStay", row);
+    }
+    if (actionType === "PROMOTE_ACCOMMODATION_RECOMMENDATION") {
+      const recommendationId = stringValue(payload.recommendationId, "");
+      const row = await this.operations.promoteAccommodationRecommendation(
+        userId,
+        workspaceId,
+        recommendationId,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return resourceReference("AccommodationStay", row);
+    }
+    if (actionType === "REPLACE_ACCOMMODATION_ALLOCATIONS") {
+      const stayId = stringValue(payload.stayId, "");
+      await this.operations.replaceAccommodationAllocations(
+        userId,
+        workspaceId,
+        stayId,
+        targetVersion,
+        replayKey,
+        payload,
+        correlationId,
+      );
+      return { type: "AccommodationStay", id: stayId };
     }
     if (actionType === "CREATE_RFQ") {
       const row = await this.commercial.createRfq(

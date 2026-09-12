@@ -200,6 +200,17 @@ describe("Slice 9 intelligence contracts", () => {
         { targetId: id, targetVersion: 1, status: "active" },
       ],
       [
+        "CREATE_ACCOMMODATION_ROOM_TYPE",
+        {
+          propertyId: id,
+          name: "Dublă",
+          capacityAdults: 2,
+          capacityChildren: 1,
+          bedConfiguration: "1 pat dublu",
+          quantity: 4,
+        },
+      ],
+      [
         "CREATE_ACCOMMODATION_STAY",
         {
           propertyId: id,
@@ -212,6 +223,24 @@ describe("Slice 9 intelligence contracts", () => {
       [
         "UPDATE_ACCOMMODATION_STAY",
         { targetId: id, targetVersion: 1, status: "ready" },
+      ],
+      [
+        "PROMOTE_ACCOMMODATION_RECOMMENDATION",
+        {
+          recommendationId: id,
+          checkInDate: "2027-09-11",
+          checkOutDate: "2027-09-13",
+        },
+      ],
+      [
+        "REPLACE_ACCOMMODATION_ALLOCATIONS",
+        {
+          stayId: id,
+          targetVersion: 1,
+          allocations: [],
+          removeAllocationIds: [],
+          confirmHouseholdSplit: false,
+        },
       ],
       [
         "CREATE_RFQ",
@@ -307,9 +336,15 @@ describe("Slice 9 intelligence contracts", () => {
         ["CREATE_TRANSPORT_STOP", "UPDATE_TRANSPORT_STOP"],
       ],
       [
-        "Schimbă perioada de cazare la hotel",
+        "Schimbă perioada de cazare și alocă familiile la hotel",
         "/accommodation",
-        ["CREATE_ACCOMMODATION_STAY", "UPDATE_ACCOMMODATION_STAY"],
+        [
+          "CREATE_ACCOMMODATION_ROOM_TYPE",
+          "CREATE_ACCOMMODATION_STAY",
+          "UPDATE_ACCOMMODATION_STAY",
+          "PROMOTE_ACCOMMODATION_RECOMMENDATION",
+          "REPLACE_ACCOMMODATION_ALLOCATIONS",
+        ],
       ],
       ["Actualizează cererea de ofertă", "/requests", ["UPDATE_RFQ"]],
       [

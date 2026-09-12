@@ -305,6 +305,22 @@ export const updateAccommodationPropertySchema =
   createAccommodationPropertySchema.partial().extend({
     status: z.enum(["draft", "active", "full", "archived"]).optional(),
   });
+export const createAccommodationRoomTypeSchema = z.object({
+  name: shortText,
+  capacityAdults: z.number().int().min(0),
+  capacityChildren: z.number().int().min(0),
+  bedConfiguration: z.string().trim().min(1).max(500),
+  accessible: z.boolean().default(false),
+  quantity: z.number().int().min(1).max(500).default(1),
+  notes: z.string().trim().max(1000).nullable().optional(),
+  materializeRooms: z.boolean().default(true),
+  roomNamePrefix: z.string().trim().min(1).max(120).nullable().optional(),
+  floor: z.string().trim().max(80).nullable().optional(),
+});
+export const updateAccommodationRoomTypeSchema =
+  createAccommodationRoomTypeSchema
+    .omit({ materializeRooms: true, roomNamePrefix: true, floor: true })
+    .partial();
 export const createAccommodationRoomSchema = z.object({
   roomTypeId: uuid.nullable().optional(),
   name: shortText,
@@ -371,6 +387,9 @@ export type TransportAssignmentBatch = z.infer<
 >;
 export type CreateAccommodationProperty = z.infer<
   typeof createAccommodationPropertySchema
+>;
+export type CreateAccommodationRoomType = z.infer<
+  typeof createAccommodationRoomTypeSchema
 >;
 export type AccommodationAllocationBatch = z.infer<
   typeof accommodationAllocationBatchSchema

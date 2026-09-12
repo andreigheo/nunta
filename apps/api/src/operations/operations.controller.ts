@@ -20,6 +20,7 @@ import {
   accommodationOperationsQuerySchema,
   createAccommodationPropertySchema,
   createAccommodationRoomSchema,
+  createAccommodationRoomTypeSchema,
   createAccommodationStaySchema,
   createSeatingPlanSchema,
   createSeatingFloorObjectSchema,
@@ -41,6 +42,7 @@ import {
   updateAccommodationPropertySchema,
   updateAccommodationRequestSchema,
   updateAccommodationRoomSchema,
+  updateAccommodationRoomTypeSchema,
   updateAccommodationStaySchema,
   updateSeatingPlanSchema,
   updateSeatingFloorObjectSchema,
@@ -1210,6 +1212,68 @@ export class AccommodationController {
       parseWithSchema(createAccommodationRoomSchema, body),
     );
     return apiResponse(request, data, { version: versionOf(data) });
+  }
+  @Post("accommodation-properties/:propertyId/room-types")
+  @RequireCapability("accommodation.write")
+  async createRoomType(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("propertyId") propertyId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.operations.createRoomType(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(propertyId),
+      idempotencyKey(key),
+      parseWithSchema(createAccommodationRoomTypeSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+  @Patch("accommodation-properties/:propertyId/room-types/:roomTypeId")
+  @RequireCapability("accommodation.write")
+  async updateRoomType(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("propertyId") propertyId: string,
+    @Param("roomTypeId") roomTypeId: string,
+    @Headers("if-match") match: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.operations.updateRoomType(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(propertyId),
+      uuid(roomTypeId),
+      version(match),
+      parseWithSchema(updateAccommodationRoomTypeSchema, body),
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
+  }
+  @Delete("accommodation-properties/:propertyId/room-types/:roomTypeId")
+  @RequireCapability("accommodation.write")
+  async deleteRoomType(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("propertyId") propertyId: string,
+    @Param("roomTypeId") roomTypeId: string,
+    @Headers("if-match") match: string | undefined,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.operations.deleteRoomType(
+        auth.userId,
+        uuid(workspaceId),
+        uuid(propertyId),
+        uuid(roomTypeId),
+        version(match),
+      ),
+    );
   }
   @Patch("accommodation-properties/:propertyId/rooms/:roomId")
   @RequireCapability("accommodation.write")

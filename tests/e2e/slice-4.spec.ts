@@ -717,7 +717,9 @@ test("E2E 14 — Accommodation request projection", async () => {
   expect(requests.items).toEqual([]);
 });
 
-test("E2E 15 — Properties, room types and rooms", async ({ page }) => {
+test("E2E 15 — Properties, room types and materialized room blocks", async ({
+  page,
+}) => {
   const property = await apiData<{ id: string }>(
     await owner.api.post(
       `/api/v1/workspaces/${workspaceId}/accommodation-properties`,
@@ -736,24 +738,43 @@ test("E2E 15 — Properties, room types and rooms", async ({ page }) => {
     ),
   );
   propertyId = property.id;
-  const room = await apiData<{ id: string }>(
+  const roomType = await apiData<{ id: string; roomsCreated: number }>(
     await owner.api.post(
-      `/api/v1/workspaces/${workspaceId}/accommodation-properties/${propertyId}/rooms`,
+      `/api/v1/workspaces/${workspaceId}/accommodation-properties/${propertyId}/room-types`,
       {
         headers: mutationHeaders({
-          "Idempotency-Key": `room-${crypto.randomUUID()}`,
+          "Idempotency-Key": `room-type-${crypto.randomUUID()}`,
         }),
         data: {
-          name: "Camera 101",
+          name: "Dublă E2E",
           capacityAdults: 2,
           capacityChildren: 1,
+          bedConfiguration: "1 pat dublu și 1 canapea",
           accessible: false,
-          status: "available",
+          quantity: 2,
+          materializeRooms: true,
+          roomNamePrefix: "Camera E2E",
         },
       },
     ),
   );
-  roomId = room.id;
+  expect(roomType.roomsCreated).toBe(2);
+  const propertyDetail = await apiData<{
+    roomTypes: Array<{ id: string }>;
+    rooms: Array<{ id: string; roomTypeId: string }>;
+  }>(
+    await owner.api.get(
+      `/api/v1/workspaces/${workspaceId}/accommodation-properties/${propertyId}`,
+    ),
+  );
+  expect(propertyDetail.roomTypes.map((item) => item.id)).toContain(
+    roomType.id,
+  );
+  expect(propertyDetail.rooms).toHaveLength(2);
+  expect(
+    propertyDetail.rooms.every((item) => item.roomTypeId === roomType.id),
+  ).toBe(true);
+  roomId = propertyDetail.rooms[0]!.id;
   expect(roomId).toBeTruthy();
 
   await authorizePage(page, owner);
@@ -844,7 +865,7 @@ test("E2E 17 — Accommodation capacity conflict", async () => {
   expect(response.status()).toBe(412);
 });
 
-test("E2E 18 — Publish accommodation and Guest Companion contract", async () => {
+test("E2E 18 — Publish accommodation", async () => {
   const published = await apiData<{ status: string; version: number }>(
     await owner.api.post(
       `/api/v1/workspaces/${workspaceId}/accommodation-stays/${stayId}/publish`,
@@ -887,7 +908,7 @@ test("E2E 20 — Overview and global search", async ({ page }) => {
   }>(await owner.api.get(`/api/v1/workspaces/${workspaceId}/dashboard`));
   expect(dashboard.operations.seating.plans).toBe(1);
   expect(dashboard.operations.transport.routes).toBe(1);
-  expect(dashboard.operations.accommodation.rooms).toBe(1);
+  expect(dashboard.operations.accommodation.rooms).toBe(2);
   const search = await apiData<{ items: Array<{ type: string }> }>(
     await owner.api.get(`/api/v1/workspaces/${workspaceId}/search?q=E2E`),
   );

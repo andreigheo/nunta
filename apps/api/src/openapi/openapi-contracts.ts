@@ -149,6 +149,7 @@ import {
   accommodationAllocationBatchSchema,
   createAccommodationPropertySchema,
   createAccommodationRoomSchema,
+  createAccommodationRoomTypeSchema,
   createAccommodationStaySchema,
   createSeatingPlanSchema,
   createSeatingFloorObjectSchema,
@@ -170,6 +171,7 @@ import {
   updateAccommodationPropertySchema,
   updateAccommodationRequestSchema,
   updateAccommodationRoomSchema,
+  updateAccommodationRoomTypeSchema,
   updateAccommodationStaySchema,
   updateSeatingPlanSchema,
   updateSeatingFloorObjectSchema,
@@ -632,6 +634,8 @@ const schemas: Record<string, ZodTypeAny> = {
   UpdateAccommodationRequest: updateAccommodationRequestSchema,
   CreateAccommodationProperty: createAccommodationPropertySchema,
   UpdateAccommodationProperty: updateAccommodationPropertySchema,
+  CreateAccommodationRoomType: createAccommodationRoomTypeSchema,
+  UpdateAccommodationRoomType: updateAccommodationRoomTypeSchema,
   CreateAccommodationRoom: createAccommodationRoomSchema,
   UpdateAccommodationRoom: updateAccommodationRoomSchema,
   CreateAccommodationStay: createAccommodationStaySchema,
@@ -1716,6 +1720,14 @@ const requestByRoute: Array<[RegExp, string]> = [
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-properties\/\{propertyId\}\/rooms$/,
     "CreateAccommodationRoom",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-properties\/\{propertyId\}\/room-types$/,
+    "CreateAccommodationRoomType",
+  ],
+  [
+    /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-properties\/\{propertyId\}\/room-types\/\{roomTypeId\}$/,
+    "UpdateAccommodationRoomType",
   ],
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-properties\/\{propertyId\}\/rooms\/\{roomId\}$/,

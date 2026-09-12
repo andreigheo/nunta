@@ -132,12 +132,24 @@ const activeAdapters = new Map(
       "UPDATE_ACCOMMODATION_PROPERTY",
     ],
     [
+      "post:/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/room-types",
+      "CREATE_ACCOMMODATION_ROOM_TYPE",
+    ],
+    [
       "post:/api/v1/workspaces/:workspaceId/accommodation-stays",
       "CREATE_ACCOMMODATION_STAY",
     ],
     [
       "patch:/api/v1/workspaces/:workspaceId/accommodation-stays/:stayId",
       "UPDATE_ACCOMMODATION_STAY",
+    ],
+    [
+      "post:/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/promote",
+      "PROMOTE_ACCOMMODATION_RECOMMENDATION",
+    ],
+    [
+      "put:/api/v1/workspaces/:workspaceId/accommodation-stays/:stayId/allocations",
+      "REPLACE_ACCOMMODATION_ALLOCATIONS",
     ],
     ["post:/api/v1/workspaces/:workspaceId/rfqs", "CREATE_RFQ"],
     ["patch:/api/v1/workspaces/:workspaceId/rfqs/:rfqId", "UPDATE_RFQ"],

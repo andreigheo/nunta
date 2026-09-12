@@ -900,6 +900,7 @@ export type AccommodationStayResource = OperationResource & {
   checkInDate: string;
   checkOutDate: string;
   property: OperationResource;
+  roomTypes: OperationResource[];
   rooms: Array<OperationResource & { allocations: OperationResource[] }>;
   issues: OperationResource[];
 };
@@ -2762,6 +2763,36 @@ export const weddingOsApi = {
         body: input,
         idempotencyKey: crypto.randomUUID(),
       },
+    ),
+  createAccommodationRoomType: (
+    workspaceId: string,
+    propertyId: string,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource & { roomsCreated: number }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}/room-types`,
+      { method: "POST", body: input, idempotencyKey: crypto.randomUUID() },
+    ),
+  updateAccommodationRoomType: (
+    workspaceId: string,
+    propertyId: string,
+    roomTypeId: string,
+    version: number,
+    input: Record<string, unknown>,
+  ) =>
+    request<OperationResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}/room-types/${encodeURIComponent(roomTypeId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  deleteAccommodationRoomType: (
+    workspaceId: string,
+    propertyId: string,
+    roomTypeId: string,
+    version: number,
+  ) =>
+    request<{ deleted: true; id: string }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}/room-types/${encodeURIComponent(roomTypeId)}`,
+      { method: "DELETE", ifMatch: version },
     ),
   updateAccommodationRoom: (
     workspaceId: string,

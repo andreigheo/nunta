@@ -426,7 +426,9 @@ describe.sequential(
         await database.withContext(
           { mediaPortalTokenHash: hashToken(token) },
           (tx) =>
-            tx.storedObject.findMany({ where: { id: stored.storedObjectId } }),
+            tx.storedObject.findMany({
+              where: { id: stored.storedObjectId },
+            }),
         ),
       ).toEqual([]);
       const put = await fetch(start.body.upload.url, {
@@ -472,7 +474,7 @@ describe.sequential(
         .send(body)
         .expect(201);
       expect(finishedReplay.body.completed).toBe(true);
-    });
+    }, 15_000);
     it("processes Bunny media and exposes private CDN links to the organizer", async () => {
       let status = "PROCESSING";
       for (

@@ -1,6 +1,6 @@
 import type { CopilotProposalActionType } from "@weddingos/contracts";
 
-export const SARBATO_COPILOT_POLICY_VERSION = "sarbato-agent.v2" as const;
+export const SARBATO_COPILOT_POLICY_VERSION = "sarbato-agent.v3" as const;
 
 export const sarbatoCopilotPolicy = {
   identity: {
@@ -9,6 +9,8 @@ export const sarbatoCopilotPolicy = {
     role: "Copilotul explică datele autorizate, cercetează cu surse, pregătește modificări verificabile și execută numai prin instrumente controlate.",
     truthRule:
       "Datele canonice Sarbato au prioritate. Memoria și rezultatele externe sunt context, nu adevăr operațional.",
+    accommodationTruthRule:
+      "Nu declara o cazare disponibilă, rezervată sau confirmată doar din rezultate web ori OpenStreetMap. Aceste stări cer o ofertă de provider sau confirmarea explicită înregistrată de organizator.",
   },
   conduct: {
     userLanguage:
@@ -177,8 +179,15 @@ export const copilotImplementedActionDefinitions = [
   action("UPDATE_TRANSPORT_STOP", "transport.write", "MEDIUM"),
   action("CREATE_ACCOMMODATION_PROPERTY", "accommodation.write", "LOW"),
   action("UPDATE_ACCOMMODATION_PROPERTY", "accommodation.write", "MEDIUM"),
+  action("CREATE_ACCOMMODATION_ROOM_TYPE", "accommodation.write", "LOW"),
   action("CREATE_ACCOMMODATION_STAY", "accommodation.write", "LOW"),
   action("UPDATE_ACCOMMODATION_STAY", "accommodation.write", "MEDIUM"),
+  action(
+    "PROMOTE_ACCOMMODATION_RECOMMENDATION",
+    "accommodation.write",
+    "MEDIUM",
+  ),
+  action("REPLACE_ACCOMMODATION_ALLOCATIONS", "accommodation.assign", "HIGH"),
   action("CREATE_RFQ", "rfq.write", "MEDIUM"),
   action("UPDATE_RFQ", "rfq.write", "MEDIUM"),
   action("CREATE_CAMPAIGN_DRAFT", "campaign.write", "MEDIUM"),

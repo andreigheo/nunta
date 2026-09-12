@@ -12,8 +12,11 @@ import {
   updateRfqSchema,
 } from "./commercial";
 import { updateDocumentSchema } from "./secure-commerce";
+import { promoteAccommodationRecommendationSchema } from "./accommodation-discovery";
 import {
+  accommodationAllocationBatchSchema,
   createAccommodationPropertySchema,
+  createAccommodationRoomTypeSchema,
   createAccommodationStaySchema,
   createSeatingPlanSchema,
   createSeatingTableSchema,
@@ -91,8 +94,11 @@ export const copilotProposalActionTypes = [
   "UPDATE_TRANSPORT_STOP",
   "CREATE_ACCOMMODATION_PROPERTY",
   "UPDATE_ACCOMMODATION_PROPERTY",
+  "CREATE_ACCOMMODATION_ROOM_TYPE",
   "CREATE_ACCOMMODATION_STAY",
   "UPDATE_ACCOMMODATION_STAY",
+  "PROMOTE_ACCOMMODATION_RECOMMENDATION",
+  "REPLACE_ACCOMMODATION_ALLOCATIONS",
   "CREATE_RFQ",
   "UPDATE_RFQ",
   "CREATE_CAMPAIGN_DRAFT",
@@ -220,8 +226,17 @@ export const copilotActionPayloadSchemas = {
   UPDATE_TRANSPORT_STOP: target.and(updateTransportStopSchema),
   CREATE_ACCOMMODATION_PROPERTY: createAccommodationPropertySchema,
   UPDATE_ACCOMMODATION_PROPERTY: target.and(updateAccommodationPropertySchema),
+  CREATE_ACCOMMODATION_ROOM_TYPE: z
+    .object({ propertyId: uuid })
+    .and(createAccommodationRoomTypeSchema),
   CREATE_ACCOMMODATION_STAY: createAccommodationStaySchema,
   UPDATE_ACCOMMODATION_STAY: target.and(updateAccommodationStaySchema),
+  PROMOTE_ACCOMMODATION_RECOMMENDATION: z
+    .object({ recommendationId: uuid })
+    .and(promoteAccommodationRecommendationSchema),
+  REPLACE_ACCOMMODATION_ALLOCATIONS: z
+    .object({ stayId: uuid, targetVersion: version })
+    .and(accommodationAllocationBatchSchema),
   CREATE_RFQ: createRfqSchema,
   UPDATE_RFQ: target.and(updateRfqSchema),
   CREATE_CAMPAIGN_DRAFT: createCampaignSchema,

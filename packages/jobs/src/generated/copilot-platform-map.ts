@@ -670,6 +670,48 @@ export const copilotApiOperations = [
     actionType: "UPDATE_ACCOMMODATION_PROPERTY",
   },
   {
+    id: "post:/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/room-types",
+    verb: "POST",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/room-types",
+    domain: "accommodation-properties",
+    controller: "apps/api/src/operations/operations.controller.ts",
+    method: "createRoomType",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "ACTIVE",
+    actionType: "CREATE_ACCOMMODATION_ROOM_TYPE",
+  },
+  {
+    id: "delete:/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/room-types/:roomTypeId",
+    verb: "DELETE",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/room-types/:roomTypeId",
+    domain: "accommodation-properties",
+    controller: "apps/api/src/operations/operations.controller.ts",
+    method: "deleteRoomType",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "HIGH",
+    adapterStatus: "GUIDE_ONLY",
+    actionType: null,
+  },
+  {
+    id: "patch:/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/room-types/:roomTypeId",
+    verb: "PATCH",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/room-types/:roomTypeId",
+    domain: "accommodation-properties",
+    controller: "apps/api/src/operations/operations.controller.ts",
+    method: "updateRoomType",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "GUIDE_ONLY",
+    actionType: null,
+  },
+  {
     id: "post:/api/v1/workspaces/:workspaceId/accommodation-properties/:propertyId/rooms",
     verb: "POST",
     route:
@@ -785,6 +827,21 @@ export const copilotApiOperations = [
     actionType: null,
   },
   {
+    id: "post:/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/promote",
+    verb: "POST",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/promote",
+    domain: "accommodation-recommendations",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "promoteRecommendation",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "ACTIVE",
+    actionType: "PROMOTE_ACCOMMODATION_RECOMMENDATION",
+  },
+  {
     id: "post:/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/publish",
     verb: "POST",
     route:
@@ -846,7 +903,7 @@ export const copilotApiOperations = [
     route: "/api/v1/workspaces/:workspaceId/accommodation-stays",
     domain: "accommodation-stays",
     controller: "apps/api/src/operations/operations.controller.ts",
-    method: "unknown",
+    method: "uuid",
     capability: null,
     operation: "READ",
     risk: "LOW",
@@ -916,8 +973,8 @@ export const copilotApiOperations = [
     capability: "accommodation.assign",
     operation: "PROPOSE",
     risk: "MEDIUM",
-    adapterStatus: "GUIDE_ONLY",
-    actionType: null,
+    adapterStatus: "ACTIVE",
+    actionType: "REPLACE_ACCOMMODATION_ALLOCATIONS",
   },
   {
     id: "post:/api/v1/workspaces/:workspaceId/accommodation-stays/:stayId/publish",
