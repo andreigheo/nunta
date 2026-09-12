@@ -151,6 +151,26 @@ const activeAdapters = new Map(
       "put:/api/v1/workspaces/:workspaceId/accommodation-stays/:stayId/allocations",
       "REPLACE_ACCOMMODATION_ALLOCATIONS",
     ],
+    [
+      "post:/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/provider-lead",
+      "CREATE_ACCOMMODATION_PROVIDER_LEAD",
+    ],
+    [
+      "patch:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId",
+      "UPDATE_ACCOMMODATION_PROVIDER_LEAD",
+    ],
+    [
+      "post:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries",
+      "CREATE_ACCOMMODATION_PROVIDER_INQUIRY",
+    ],
+    [
+      "post:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId/contact",
+      "RECORD_ACCOMMODATION_PROVIDER_CONTACT",
+    ],
+    [
+      "post:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId/response",
+      "RECORD_ACCOMMODATION_PROVIDER_RESPONSE",
+    ],
     ["post:/api/v1/workspaces/:workspaceId/rfqs", "CREATE_RFQ"],
     ["patch:/api/v1/workspaces/:workspaceId/rfqs/:rfqId", "UPDATE_RFQ"],
     ["post:/api/v1/workspaces/:workspaceId/campaigns", "CREATE_CAMPAIGN_DRAFT"],

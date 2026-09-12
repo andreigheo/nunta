@@ -9,15 +9,15 @@ O suprafață nu este considerată controlabilă până când operația are adap
 ## Rezumat
 
 - Pagini: **97**
-- Operații API: **732**
-- Domenii API: **132**
-- Operații executabile prin propunere: **48**
-- Operații disponibile pentru citire contextuală: **249**
-- Operații explicate, dar neexecutate direct: **377**
+- Operații API: **740**
+- Domenii API: **133**
+- Operații executabile prin propunere: **53**
+- Operații disponibile pentru citire contextuală: **251**
+- Operații explicate, dar neexecutate direct: **378**
 - Operații excluse intenționat: **58**
 - Operații neclasificate: **0**
-- Operații de citire candidate: **265**
-- Modificări numai prin propunere/aprobare: **425**
+- Operații de citire candidate: **267**
+- Modificări numai prin propunere/aprobare: **431**
 - Operații doar ghidate, fără execuție directă: **42**
 
 ## Domenii API
@@ -26,7 +26,8 @@ O suprafață nu este considerată controlabilă până când operația are adap
 | ----------------------------------- | ---: | -----: | --------: | -----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | accommodation-discovery             |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |
 | accommodation-properties            |   11 |      2 |         9 |            0 | accommodation.write                                                                                                                                                                                                            |
-| accommodation-recommendations       |    8 |      1 |         7 |            0 | accommodation.publish, accommodation.write                                                                                                                                                                                     |
+| accommodation-provider-leads        |    7 |      2 |         5 |            0 | accommodation.write                                                                                                                                                                                                            |
+| accommodation-recommendations       |    9 |      1 |         8 |            0 | accommodation.publish, accommodation.write                                                                                                                                                                                     |
 | accommodation-requests              |    2 |      1 |         1 |            0 | accommodation.write                                                                                                                                                                                                            |
 | accommodation-stays                 |    8 |      2 |         6 |            0 | accommodation.assign, accommodation.export, accommodation.publish, accommodation.write                                                                                                                                         |
 | activity                            |    1 |      1 |         0 |            0 | —                                                                                                                                                                                                                              |

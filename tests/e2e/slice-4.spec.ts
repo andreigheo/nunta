@@ -814,6 +814,59 @@ test("E2E 15 — Properties, room types and materialized room blocks", async ({
   ).toBe(true);
 });
 
+test("E2E 15B — Provider lead and inquiry preparation UX", async ({ page }) => {
+  const recommendation = await apiData<{ id: string }>(
+    await owner.api.post(
+      `/api/v1/workspaces/${workspaceId}/accommodation-recommendations`,
+      {
+        headers: mutationHeaders({
+          "Idempotency-Key": `provider-recommendation-${crypto.randomUUID()}`,
+        }),
+        data: {
+          weddingEventId: eventId,
+          source: "organizer",
+          name: "Pensiunea Furnizor E2E",
+          type: "guest_house",
+          address: "Strada Furnizorului 15",
+          city: "Orhei",
+          country: "Moldova",
+          contactPhone: "+37360000015",
+          contactUrl: "https://pensiune.example/contact",
+          facilities: [],
+        },
+      },
+    ),
+  );
+  expect(recommendation.id).toBeTruthy();
+
+  await authorizePage(page, owner);
+  await page.goto("/accommodation");
+  await page.getByRole("tab", { name: /Recomand/ }).click();
+  const recommendationButton = page.getByRole("button", {
+    name: /^Pensiunea Furnizor E2E/,
+  });
+  await expect(recommendationButton).toBeVisible();
+  await recommendationButton.click();
+  await page.getByRole("button", { name: "Începe verificarea" }).click();
+  await expect(page.getByText("Relația cu furnizorul")).toBeVisible();
+  await page.getByLabel("Email").fill("receptie@pensiune-furnizor.example");
+  await page
+    .getByLabel("Cum ai verificat datele?")
+    .fill("Verificat manual pe pagina oficială de contact.");
+  await page.getByRole("button", { name: "Marchează verificat" }).click();
+  await expect(page.getByText("Pregătit pentru contact")).toBeVisible();
+  await page.getByRole("button", { name: "Cerere nouă" }).click();
+  await page.getByLabel("Canal").selectOption("email");
+  await page.getByLabel("Check-in").last().fill("2027-09-11");
+  await page.getByLabel("Check-out").last().fill("2027-09-13");
+  await page
+    .getByLabel("Mesaj")
+    .fill("Vă rugăm să confirmați disponibilitatea pentru trei camere.");
+  await page.getByRole("button", { name: "Pregătește cererea" }).click();
+  await expect(page.getByText("Cererea a fost pregătită")).toBeVisible();
+  await expect(page.getByText(/Cerere ofertă de grup/)).toBeVisible();
+});
+
 test("E2E 16 — Accommodation allocations", async () => {
   const stay = await apiData<{ id: string; version: number }>(
     await owner.api.post(

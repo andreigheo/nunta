@@ -12,7 +12,14 @@ import {
   updateRfqSchema,
 } from "./commercial";
 import { updateDocumentSchema } from "./secure-commerce";
-import { promoteAccommodationRecommendationSchema } from "./accommodation-discovery";
+import {
+  createAccommodationProviderInquirySchema,
+  createAccommodationProviderLeadSchema,
+  promoteAccommodationRecommendationSchema,
+  recordAccommodationProviderContactSchema,
+  recordAccommodationProviderResponseSchema,
+  updateAccommodationProviderLeadSchema,
+} from "./accommodation-discovery";
 import {
   accommodationAllocationBatchSchema,
   createAccommodationPropertySchema,
@@ -99,6 +106,11 @@ export const copilotProposalActionTypes = [
   "UPDATE_ACCOMMODATION_STAY",
   "PROMOTE_ACCOMMODATION_RECOMMENDATION",
   "REPLACE_ACCOMMODATION_ALLOCATIONS",
+  "CREATE_ACCOMMODATION_PROVIDER_LEAD",
+  "UPDATE_ACCOMMODATION_PROVIDER_LEAD",
+  "CREATE_ACCOMMODATION_PROVIDER_INQUIRY",
+  "RECORD_ACCOMMODATION_PROVIDER_CONTACT",
+  "RECORD_ACCOMMODATION_PROVIDER_RESPONSE",
   "CREATE_RFQ",
   "UPDATE_RFQ",
   "CREATE_CAMPAIGN_DRAFT",
@@ -237,6 +249,21 @@ export const copilotActionPayloadSchemas = {
   REPLACE_ACCOMMODATION_ALLOCATIONS: z
     .object({ stayId: uuid, targetVersion: version })
     .and(accommodationAllocationBatchSchema),
+  CREATE_ACCOMMODATION_PROVIDER_LEAD: z
+    .object({ recommendationId: uuid })
+    .and(createAccommodationProviderLeadSchema),
+  UPDATE_ACCOMMODATION_PROVIDER_LEAD: target.and(
+    updateAccommodationProviderLeadSchema,
+  ),
+  CREATE_ACCOMMODATION_PROVIDER_INQUIRY: z
+    .object({ leadId: uuid })
+    .and(createAccommodationProviderInquirySchema),
+  RECORD_ACCOMMODATION_PROVIDER_CONTACT: z
+    .object({ leadId: uuid, inquiryId: uuid, targetVersion: version })
+    .and(recordAccommodationProviderContactSchema),
+  RECORD_ACCOMMODATION_PROVIDER_RESPONSE: z
+    .object({ leadId: uuid, inquiryId: uuid, targetVersion: version })
+    .and(recordAccommodationProviderResponseSchema),
   CREATE_RFQ: createRfqSchema,
   UPDATE_RFQ: target.and(updateRfqSchema),
   CREATE_CAMPAIGN_DRAFT: createCampaignSchema,

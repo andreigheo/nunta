@@ -7,6 +7,8 @@ import type {
   CreateGuest,
   CreateHousehold,
   CreateMenu,
+  CreateAccommodationProviderInquiry,
+  CreateAccommodationProviderLead,
   CreateTask,
   CreateAutomationRule,
   CreateContingencyPlan,
@@ -19,6 +21,9 @@ import type {
   UpdateHousehold,
   UpdateRisk,
   UpdateTask,
+  UpdateAccommodationProviderLead,
+  RecordAccommodationProviderContact,
+  RecordAccommodationProviderResponse,
 } from "@weddingos/contracts";
 import { parseCopilotActionPayload, riskScore } from "@weddingos/contracts";
 import type { ApiEnvironment } from "@weddingos/config";
@@ -46,6 +51,7 @@ import { PlanningService } from "../planning/planning.service";
 import { EventDayService } from "../event-day/event-day.service";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { SecureCommerceService } from "../secure-commerce/secure-commerce.service";
+import { AccommodationDiscoveryService } from "../accommodation-discovery/accommodation-discovery.service";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -61,6 +67,8 @@ export class IntelligenceService {
     @Inject(GuestCrmService) private readonly guests: GuestCrmService,
     @Inject(RsvpMenuService) private readonly menus: RsvpMenuService,
     @Inject(OperationsService) private readonly operations: OperationsService,
+    @Inject(AccommodationDiscoveryService)
+    private readonly accommodationDiscovery: AccommodationDiscoveryService,
     @Inject(InvitationCampaignService)
     private readonly invitations: InvitationCampaignService,
     @Inject(EventDayService)
@@ -1366,6 +1374,71 @@ export class IntelligenceService {
         correlationId,
       );
       return { type: "AccommodationStay", id: stayId };
+    }
+    if (actionType === "CREATE_ACCOMMODATION_PROVIDER_LEAD") {
+      const recommendationId = stringValue(payload.recommendationId, "");
+      const row = await this.accommodationDiscovery.createProviderLead(
+        userId,
+        workspaceId,
+        recommendationId,
+        replayKey,
+        payload as CreateAccommodationProviderLead,
+        correlationId,
+      );
+      return resourceReference("AccommodationProviderLead", row);
+    }
+    if (actionType === "UPDATE_ACCOMMODATION_PROVIDER_LEAD") {
+      const row = await this.accommodationDiscovery.updateProviderLead(
+        userId,
+        workspaceId,
+        targetId!,
+        targetVersion,
+        payload as UpdateAccommodationProviderLead,
+        correlationId,
+      );
+      return resourceReference("AccommodationProviderLead", row);
+    }
+    if (actionType === "CREATE_ACCOMMODATION_PROVIDER_INQUIRY") {
+      const leadId = stringValue(payload.leadId, "");
+      const row = await this.accommodationDiscovery.createProviderInquiry(
+        userId,
+        workspaceId,
+        leadId,
+        replayKey,
+        payload as CreateAccommodationProviderInquiry,
+        correlationId,
+      );
+      return resourceReference("AccommodationProviderLead", row);
+    }
+    if (actionType === "RECORD_ACCOMMODATION_PROVIDER_CONTACT") {
+      const leadId = stringValue(payload.leadId, "");
+      const inquiryId = stringValue(payload.inquiryId, "");
+      const row = await this.accommodationDiscovery.recordProviderContact(
+        userId,
+        workspaceId,
+        leadId,
+        inquiryId,
+        targetVersion,
+        replayKey,
+        payload as RecordAccommodationProviderContact,
+        correlationId,
+      );
+      return resourceReference("AccommodationProviderLead", row);
+    }
+    if (actionType === "RECORD_ACCOMMODATION_PROVIDER_RESPONSE") {
+      const leadId = stringValue(payload.leadId, "");
+      const inquiryId = stringValue(payload.inquiryId, "");
+      const row = await this.accommodationDiscovery.recordProviderResponse(
+        userId,
+        workspaceId,
+        leadId,
+        inquiryId,
+        targetVersion,
+        replayKey,
+        payload as RecordAccommodationProviderResponse,
+        correlationId,
+      );
+      return resourceReference("AccommodationProviderLead", row);
     }
     if (actionType === "CREATE_RFQ") {
       const row = await this.commercial.createRfq(

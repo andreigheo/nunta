@@ -92,9 +92,17 @@ import type {
   UpdateHousehold,
   AccommodationDiscoveryQuery,
   AccommodationDiscoveryResponse,
+  AccommodationProviderLeadResource,
+  AccommodationProviderLeadStatus,
   AccommodationRecommendationResource,
   AccommodationRecommendationStatus,
+  CreateAccommodationProviderInquiry,
+  CreateAccommodationProviderLead,
   CreateAccommodationRecommendation,
+  RecordAccommodationProviderContact,
+  RecordAccommodationProviderResponse,
+  UpdateAccommodationProviderInquiry,
+  UpdateAccommodationProviderLead,
   UpdateAccommodationRecommendation,
   UpdateWorkspaceCreativeState,
   VerifiedResponse,
@@ -2623,6 +2631,96 @@ export const weddingOsApi = {
   ) =>
     request<{ items: AccommodationRecommendationResource[] }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations${queryString(input)}`,
+    ),
+  accommodationProviderLeads: (
+    workspaceId: string,
+    input: { eventId?: string; status?: AccommodationProviderLeadStatus } = {},
+  ) =>
+    request<{ items: AccommodationProviderLeadResource[] }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-provider-leads${queryString(input)}`,
+    ),
+  accommodationProviderLead: (workspaceId: string, leadId: string) =>
+    request<AccommodationProviderLeadResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-provider-leads/${encodeURIComponent(leadId)}`,
+    ),
+  createAccommodationProviderLead: (
+    workspaceId: string,
+    recommendationId: string,
+    input: CreateAccommodationProviderLead,
+  ) =>
+    request<AccommodationProviderLeadResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations/${encodeURIComponent(recommendationId)}/provider-lead`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  updateAccommodationProviderLead: (
+    workspaceId: string,
+    leadId: string,
+    version: number,
+    input: UpdateAccommodationProviderLead,
+  ) =>
+    request<AccommodationProviderLeadResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-provider-leads/${encodeURIComponent(leadId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  createAccommodationProviderInquiry: (
+    workspaceId: string,
+    leadId: string,
+    input: CreateAccommodationProviderInquiry,
+  ) =>
+    request<AccommodationProviderLeadResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-provider-leads/${encodeURIComponent(leadId)}/inquiries`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  updateAccommodationProviderInquiry: (
+    workspaceId: string,
+    leadId: string,
+    inquiryId: string,
+    version: number,
+    input: UpdateAccommodationProviderInquiry,
+  ) =>
+    request<AccommodationProviderLeadResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-provider-leads/${encodeURIComponent(leadId)}/inquiries/${encodeURIComponent(inquiryId)}`,
+      { method: "PATCH", body: input, ifMatch: version },
+    ),
+  recordAccommodationProviderContact: (
+    workspaceId: string,
+    leadId: string,
+    inquiryId: string,
+    version: number,
+    input: RecordAccommodationProviderContact,
+  ) =>
+    request<AccommodationProviderLeadResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-provider-leads/${encodeURIComponent(leadId)}/inquiries/${encodeURIComponent(inquiryId)}/contact`,
+      {
+        method: "POST",
+        body: input,
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
+    ),
+  recordAccommodationProviderResponse: (
+    workspaceId: string,
+    leadId: string,
+    inquiryId: string,
+    version: number,
+    input: RecordAccommodationProviderResponse,
+  ) =>
+    request<AccommodationProviderLeadResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-provider-leads/${encodeURIComponent(leadId)}/inquiries/${encodeURIComponent(inquiryId)}/response`,
+      {
+        method: "POST",
+        body: input,
+        ifMatch: version,
+        idempotencyKey: crypto.randomUUID(),
+      },
     ),
   createAccommodationRecommendation: (
     workspaceId: string,

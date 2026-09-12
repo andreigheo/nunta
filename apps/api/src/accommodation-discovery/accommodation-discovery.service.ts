@@ -5,14 +5,23 @@ import type {
   AccommodationDiscoveryQuery,
   AccommodationDiscoveryResponse,
   AccommodationFacility,
+  AccommodationProviderLeadResource,
+  AccommodationProviderLeadsQuery,
   AccommodationRecommendationResource,
   AccommodationRecommendationsQuery,
+  CreateAccommodationProviderInquiry,
+  CreateAccommodationProviderLead,
   CreateAccommodationRecommendation,
   OrderAccommodationRecommendations,
+  RecordAccommodationProviderContact,
+  RecordAccommodationProviderResponse,
+  UpdateAccommodationProviderInquiry,
+  UpdateAccommodationProviderLead,
   UpdateAccommodationRecommendation,
 } from "@weddingos/contracts";
 import {
   accommodationDiscoveryItemSchema,
+  accommodationProviderLeadResourceSchema,
   accommodationPriceSnapshotSchema,
   accommodationRecommendationResourceSchema,
 } from "@weddingos/contracts";
@@ -184,6 +193,579 @@ export class AccommodationDiscoveryService {
         })
       ).map(recommendationResource),
     }));
+  }
+
+  async providerLeads(
+    userId: string,
+    workspaceId: string,
+    query: AccommodationProviderLeadsQuery,
+  ) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) => ({
+      items: await providerLeadResources(tx, workspaceId, {
+        ...(query.eventId ? { weddingEventId: query.eventId } : {}),
+        ...(query.status
+          ? { status: query.status.toUpperCase() as never }
+          : {}),
+      }),
+    }));
+  }
+
+  async providerLead(userId: string, workspaceId: string, leadId: string) {
+    return this.database.withContext({ userId, workspaceId }, async (tx) =>
+      requireProviderLeadResource(tx, workspaceId, leadId),
+    );
+  }
+
+  async createProviderLead(
+    userId: string,
+    workspaceId: string,
+    recommendationId: string,
+    idempotencyKey: string,
+    input: CreateAccommodationProviderLead,
+    correlationId: string,
+  ): Promise<AccommodationProviderLeadResource> {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const operation = `accommodation.provider-lead.create:${recommendationId}`;
+        const request = { recommendationId, ...input };
+        const prior = await replay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (prior) return accommodationProviderLeadResourceSchema.parse(prior);
+        const recommendation = await requireRecommendation(
+          tx,
+          workspaceId,
+          recommendationId,
+        );
+        const existing = await tx.accommodationProviderLead.findFirst({
+          where: { workspaceId, recommendationId, deletedAt: null },
+        });
+        if (existing) {
+          const response = await requireProviderLeadResource(
+            tx,
+            workspaceId,
+            existing.id,
+          );
+          await saveReplay(
+            tx,
+            userId,
+            workspaceId,
+            operation,
+            idempotencyKey,
+            request,
+            response,
+          );
+          return response;
+        }
+        const row = await tx.accommodationProviderLead.create({
+          data: {
+            workspaceId,
+            weddingEventId: recommendation.weddingEventId,
+            recommendationId,
+            contactName: input.contactName ?? null,
+            contactEmail: input.contactEmail ?? null,
+            contactPhone: input.contactPhone ?? recommendation.contactPhone,
+            contactUrl: input.contactUrl ?? recommendation.contactUrl,
+            verificationNote: input.verificationNote ?? null,
+            createdById: userId,
+            updatedById: userId,
+          },
+        });
+        const response = await requireProviderLeadResource(
+          tx,
+          workspaceId,
+          row.id,
+        );
+        await saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        await audit(tx, {
+          action: "accommodation.provider_lead.created",
+          userId,
+          workspaceId,
+          entityType: "AccommodationProviderLead",
+          entityId: row.id,
+          correlationId,
+          metadata: {
+            recommendationId,
+            eventId: recommendation.weddingEventId,
+          },
+        });
+        return response;
+      },
+    );
+  }
+
+  async updateProviderLead(
+    userId: string,
+    workspaceId: string,
+    leadId: string,
+    expectedVersion: number,
+    input: UpdateAccommodationProviderLead,
+    correlationId: string,
+  ): Promise<AccommodationProviderLeadResource> {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const current = await requireProviderLead(tx, workspaceId, leadId);
+        assertVersion(current.version, expectedVersion);
+        const nextStatus = (input.status?.toUpperCase() ??
+          current.status) as string;
+        assertLeadTransition(current.status, nextStatus);
+        const contactEmail =
+          input.contactEmail === undefined
+            ? current.contactEmail
+            : input.contactEmail;
+        const contactPhone =
+          input.contactPhone === undefined
+            ? current.contactPhone
+            : input.contactPhone;
+        const contactUrl =
+          input.contactUrl === undefined
+            ? current.contactUrl
+            : input.contactUrl;
+        const verificationNote =
+          input.verificationNote === undefined
+            ? current.verificationNote
+            : input.verificationNote;
+        if (nextStatus === "READY_TO_CONTACT") {
+          if (!contactEmail && !contactPhone && !contactUrl)
+            validation(
+              "Adaugă cel puțin un canal de contact înainte de verificare.",
+            );
+          if (!verificationNote?.trim())
+            validation(
+              "Notează cum ai verificat datele înainte de contactare.",
+            );
+        }
+        await tx.accommodationProviderLead.update({
+          where: { id: leadId },
+          data: {
+            ...(input.contactName !== undefined
+              ? { contactName: input.contactName }
+              : {}),
+            ...(input.contactEmail !== undefined ? { contactEmail } : {}),
+            ...(input.contactPhone !== undefined ? { contactPhone } : {}),
+            ...(input.contactUrl !== undefined ? { contactUrl } : {}),
+            ...(input.verificationNote !== undefined
+              ? { verificationNote }
+              : {}),
+            ...(input.status !== undefined
+              ? { status: nextStatus as never }
+              : {}),
+            ...(nextStatus === "READY_TO_CONTACT" && !current.verifiedAt
+              ? { verifiedAt: new Date(), verifiedById: userId }
+              : {}),
+            updatedById: userId,
+            version: { increment: 1 },
+          },
+        });
+        await audit(tx, {
+          action: "accommodation.provider_lead.updated",
+          userId,
+          workspaceId,
+          entityType: "AccommodationProviderLead",
+          entityId: leadId,
+          correlationId,
+          metadata: { fromStatus: current.status, toStatus: nextStatus },
+        });
+        return requireProviderLeadResource(tx, workspaceId, leadId);
+      },
+    );
+  }
+
+  async createProviderInquiry(
+    userId: string,
+    workspaceId: string,
+    leadId: string,
+    idempotencyKey: string,
+    input: CreateAccommodationProviderInquiry,
+    correlationId: string,
+  ): Promise<AccommodationProviderLeadResource> {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const operation = `accommodation.provider-inquiry.create:${leadId}`;
+        const request = { leadId, ...input };
+        const prior = await replay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (prior) return accommodationProviderLeadResourceSchema.parse(prior);
+        const lead = await requireProviderLead(tx, workspaceId, leadId);
+        if (
+          ["NEEDS_VERIFICATION", "REJECTED", "ARCHIVED"].includes(lead.status)
+        )
+          validation(
+            "Verifică lead-ul și canalul de contact înainte de a pregăti cererea.",
+          );
+        assertInquiryContactChannel(lead, input.channel);
+        const checkInDate = new Date(`${input.checkInDate}T00:00:00.000Z`);
+        const checkOutDate = new Date(`${input.checkOutDate}T00:00:00.000Z`);
+        if (checkOutDate <= checkInDate)
+          validation("Data de check-out trebuie să fie după check-in.");
+        const row = await tx.accommodationProviderInquiry.create({
+          data: {
+            workspaceId,
+            weddingEventId: lead.weddingEventId,
+            leadId,
+            channel: input.channel.toUpperCase() as never,
+            checkInDate,
+            checkOutDate,
+            rooms: input.rooms,
+            adults: input.adults,
+            children: input.children,
+            budgetMaxMinor: input.budgetMaxMinor ?? null,
+            currency: input.currency,
+            subject: input.subject,
+            message: input.message,
+            responseDeadline: input.responseDeadline
+              ? new Date(input.responseDeadline)
+              : null,
+            createdById: userId,
+            updatedById: userId,
+          },
+        });
+        const response = await requireProviderLeadResource(
+          tx,
+          workspaceId,
+          leadId,
+        );
+        await saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        await audit(tx, {
+          action: "accommodation.provider_inquiry.created",
+          userId,
+          workspaceId,
+          entityType: "AccommodationProviderInquiry",
+          entityId: row.id,
+          correlationId,
+          metadata: { leadId, eventId: lead.weddingEventId },
+        });
+        return response;
+      },
+    );
+  }
+
+  async updateProviderInquiry(
+    userId: string,
+    workspaceId: string,
+    leadId: string,
+    inquiryId: string,
+    expectedVersion: number,
+    input: UpdateAccommodationProviderInquiry,
+    correlationId: string,
+  ): Promise<AccommodationProviderLeadResource> {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const lead = await requireProviderLead(tx, workspaceId, leadId);
+        const current = await requireProviderInquiry(
+          tx,
+          workspaceId,
+          leadId,
+          inquiryId,
+        );
+        assertVersion(current.version, expectedVersion);
+        if (!["DRAFT", "READY"].includes(current.status))
+          validation("O cerere contactată nu mai poate fi rescrisă.");
+        const nextStatus = input.status?.toUpperCase() ?? current.status;
+        if (
+          !["DRAFT", "READY", "ARCHIVED"].includes(nextStatus) ||
+          (current.status === "READY" && nextStatus === "DRAFT")
+        )
+          validation("Tranziția cererii nu este permisă.");
+        const channel = input.channel ?? current.channel.toLowerCase();
+        assertInquiryContactChannel(lead, channel);
+        const checkInDate = input.checkInDate
+          ? new Date(`${input.checkInDate}T00:00:00.000Z`)
+          : current.checkInDate;
+        const checkOutDate = input.checkOutDate
+          ? new Date(`${input.checkOutDate}T00:00:00.000Z`)
+          : current.checkOutDate;
+        if (checkOutDate <= checkInDate)
+          validation("Data de check-out trebuie să fie după check-in.");
+        const adults = input.adults ?? current.adults;
+        const children = input.children ?? current.children;
+        if (adults + children < 1)
+          validation("Cererea trebuie să includă cel puțin o persoană.");
+        await tx.accommodationProviderInquiry.update({
+          where: { id: inquiryId },
+          data: {
+            ...(input.status ? { status: nextStatus as never } : {}),
+            ...(input.channel
+              ? { channel: input.channel.toUpperCase() as never }
+              : {}),
+            ...(input.checkInDate ? { checkInDate } : {}),
+            ...(input.checkOutDate ? { checkOutDate } : {}),
+            ...(input.rooms !== undefined ? { rooms: input.rooms } : {}),
+            ...(input.adults !== undefined ? { adults } : {}),
+            ...(input.children !== undefined ? { children } : {}),
+            ...(input.budgetMaxMinor !== undefined
+              ? { budgetMaxMinor: input.budgetMaxMinor }
+              : {}),
+            ...(input.currency ? { currency: input.currency } : {}),
+            ...(input.subject ? { subject: input.subject } : {}),
+            ...(input.message ? { message: input.message } : {}),
+            ...(input.responseDeadline !== undefined
+              ? {
+                  responseDeadline: input.responseDeadline
+                    ? new Date(input.responseDeadline)
+                    : null,
+                }
+              : {}),
+            updatedById: userId,
+            version: { increment: 1 },
+          },
+        });
+        await audit(tx, {
+          action: "accommodation.provider_inquiry.updated",
+          userId,
+          workspaceId,
+          entityType: "AccommodationProviderInquiry",
+          entityId: inquiryId,
+          correlationId,
+          metadata: { leadId, status: nextStatus },
+        });
+        return requireProviderLeadResource(tx, workspaceId, leadId);
+      },
+    );
+  }
+
+  async recordProviderContact(
+    userId: string,
+    workspaceId: string,
+    leadId: string,
+    inquiryId: string,
+    expectedVersion: number,
+    idempotencyKey: string,
+    input: RecordAccommodationProviderContact,
+    correlationId: string,
+  ): Promise<AccommodationProviderLeadResource> {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const operation = `accommodation.provider-inquiry.contact:${inquiryId}`;
+        const request = { leadId, inquiryId, expectedVersion, ...input };
+        const prior = await replay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (prior) return accommodationProviderLeadResourceSchema.parse(prior);
+        const lead = await requireProviderLead(tx, workspaceId, leadId);
+        const inquiry = await requireProviderInquiry(
+          tx,
+          workspaceId,
+          leadId,
+          inquiryId,
+        );
+        assertVersion(inquiry.version, expectedVersion);
+        if (!["DRAFT", "READY"].includes(inquiry.status))
+          validation("Contactul inițial a fost deja înregistrat.");
+        if (
+          ["NEEDS_VERIFICATION", "REJECTED", "ARCHIVED"].includes(lead.status)
+        )
+          validation("Lead-ul nu este pregătit pentru contactare.");
+        assertInquiryContactChannel(lead, input.channel);
+        const occurredAt = input.occurredAt
+          ? new Date(input.occurredAt)
+          : new Date();
+        await tx.accommodationContactEntry.create({
+          data: {
+            workspaceId,
+            leadId,
+            inquiryId,
+            direction: "OUTBOUND",
+            channel: input.channel.toUpperCase() as never,
+            occurredAt,
+            summary: input.summary,
+            createdById: userId,
+          },
+        });
+        await tx.accommodationProviderInquiry.update({
+          where: { id: inquiryId },
+          data: {
+            status: "CONTACTED",
+            channel: input.channel.toUpperCase() as never,
+            contactedAt: occurredAt,
+            updatedById: userId,
+            version: { increment: 1 },
+          },
+        });
+        if (["READY_TO_CONTACT", "CONTACTED"].includes(lead.status)) {
+          await tx.accommodationProviderLead.update({
+            where: { id: leadId },
+            data: {
+              status: "CONTACTED",
+              updatedById: userId,
+              version: { increment: 1 },
+            },
+          });
+        }
+        const response = await requireProviderLeadResource(
+          tx,
+          workspaceId,
+          leadId,
+        );
+        await saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        await audit(tx, {
+          action: "accommodation.provider_contact.recorded",
+          userId,
+          workspaceId,
+          entityType: "AccommodationProviderInquiry",
+          entityId: inquiryId,
+          correlationId,
+          metadata: { leadId, channel: input.channel },
+        });
+        return response;
+      },
+    );
+  }
+
+  async recordProviderResponse(
+    userId: string,
+    workspaceId: string,
+    leadId: string,
+    inquiryId: string,
+    expectedVersion: number,
+    idempotencyKey: string,
+    input: RecordAccommodationProviderResponse,
+    correlationId: string,
+  ): Promise<AccommodationProviderLeadResource> {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const operation = `accommodation.provider-inquiry.response:${inquiryId}`;
+        const request = { leadId, inquiryId, expectedVersion, ...input };
+        const prior = await replay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+        );
+        if (prior) return accommodationProviderLeadResourceSchema.parse(prior);
+        const lead = await requireProviderLead(tx, workspaceId, leadId);
+        const inquiry = await requireProviderInquiry(
+          tx,
+          workspaceId,
+          leadId,
+          inquiryId,
+        );
+        assertVersion(inquiry.version, expectedVersion);
+        if (!["CONTACTED", "RESPONDED"].includes(inquiry.status))
+          validation("Înregistrează mai întâi contactarea furnizorului.");
+        if (
+          input.decision === "accepted" &&
+          input.availability === "unavailable"
+        )
+          validation("O ofertă indisponibilă nu poate fi acceptată.");
+        const occurredAt = input.occurredAt
+          ? new Date(input.occurredAt)
+          : new Date();
+        await tx.accommodationContactEntry.create({
+          data: {
+            workspaceId,
+            leadId,
+            inquiryId,
+            direction: "INBOUND",
+            channel: input.channel.toUpperCase() as never,
+            occurredAt,
+            summary: input.responseNote,
+            createdById: userId,
+          },
+        });
+        await tx.accommodationProviderInquiry.update({
+          where: { id: inquiryId },
+          data: {
+            status: input.decision.toUpperCase() as never,
+            respondedAt: occurredAt,
+            availability: input.availability.toUpperCase() as never,
+            quotedTotalMinor: input.quotedTotalMinor ?? null,
+            quoteCurrency: input.quoteCurrency ?? null,
+            responseNote: input.responseNote,
+            declaredByContact: input.declaredByContact ?? null,
+            declarationRecordedAt: occurredAt,
+            updatedById: userId,
+            version: { increment: 1 },
+          },
+        });
+        if (!["QUALIFIED", "REJECTED", "ARCHIVED"].includes(lead.status)) {
+          await tx.accommodationProviderLead.update({
+            where: { id: leadId },
+            data: {
+              status: input.decision === "accepted" ? "QUALIFIED" : "RESPONDED",
+              updatedById: userId,
+              version: { increment: 1 },
+            },
+          });
+        }
+        const response = await requireProviderLeadResource(
+          tx,
+          workspaceId,
+          leadId,
+        );
+        await saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          idempotencyKey,
+          request,
+          response,
+        );
+        await audit(tx, {
+          action: "accommodation.provider_response.recorded",
+          userId,
+          workspaceId,
+          entityType: "AccommodationProviderInquiry",
+          entityId: inquiryId,
+          correlationId,
+          metadata: {
+            leadId,
+            availability: input.availability,
+            decision: input.decision,
+          },
+        });
+        return response;
+      },
+    );
   }
 
   async createRecommendation(
@@ -1246,6 +1828,208 @@ function geocodingCenter(value: unknown) {
     .parse(value);
 }
 
+async function providerLeadResources(
+  tx: Transaction,
+  workspaceId: string,
+  filter: Prisma.AccommodationProviderLeadWhereInput = {},
+): Promise<AccommodationProviderLeadResource[]> {
+  const leads = await tx.accommodationProviderLead.findMany({
+    where: { workspaceId, deletedAt: null, ...filter },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+  });
+  if (!leads.length) return [];
+  const leadIds = leads.map((lead) => lead.id);
+  const [recommendations, inquiries, entries] = await Promise.all([
+    tx.accommodationRecommendation.findMany({
+      where: {
+        workspaceId,
+        id: { in: leads.map((lead) => lead.recommendationId) },
+        deletedAt: null,
+      },
+    }),
+    tx.accommodationProviderInquiry.findMany({
+      where: { workspaceId, leadId: { in: leadIds } },
+      orderBy: { createdAt: "desc" },
+    }),
+    tx.accommodationContactEntry.findMany({
+      where: { workspaceId, leadId: { in: leadIds } },
+      orderBy: { occurredAt: "desc" },
+    }),
+  ]);
+  const recommendationById = new Map(
+    recommendations.map((recommendation) => [
+      recommendation.id,
+      recommendation,
+    ]),
+  );
+  const entriesByInquiry = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    if (!entry.inquiryId) continue;
+    const current = entriesByInquiry.get(entry.inquiryId) ?? [];
+    current.push(entry);
+    entriesByInquiry.set(entry.inquiryId, current);
+  }
+  const inquiriesByLead = new Map<string, typeof inquiries>();
+  for (const inquiry of inquiries) {
+    const current = inquiriesByLead.get(inquiry.leadId) ?? [];
+    current.push(inquiry);
+    inquiriesByLead.set(inquiry.leadId, current);
+  }
+  return leads.map((lead) => {
+    const recommendation = recommendationById.get(lead.recommendationId);
+    if (!recommendation)
+      problem(
+        "NOT_FOUND",
+        HttpStatus.NOT_FOUND,
+        "Recomandarea lead-ului nu mai există",
+      );
+    return accommodationProviderLeadResourceSchema.parse({
+      id: lead.id,
+      workspaceId: lead.workspaceId,
+      weddingEventId: lead.weddingEventId,
+      recommendationId: lead.recommendationId,
+      recommendation: {
+        name: recommendation.name,
+        type: recommendation.type.toLowerCase(),
+        address: recommendation.address,
+        city: recommendation.city,
+        source: recommendation.source.toLowerCase(),
+      },
+      status: lead.status.toLowerCase(),
+      contactName: lead.contactName,
+      contactEmail: lead.contactEmail,
+      contactPhone: lead.contactPhone,
+      contactUrl: lead.contactUrl,
+      verificationNote: lead.verificationNote,
+      verifiedAt: lead.verifiedAt?.toISOString() ?? null,
+      inquiries: (inquiriesByLead.get(lead.id) ?? []).map((inquiry) => ({
+        id: inquiry.id,
+        workspaceId: inquiry.workspaceId,
+        weddingEventId: inquiry.weddingEventId,
+        leadId: inquiry.leadId,
+        status: inquiry.status.toLowerCase(),
+        channel: inquiry.channel.toLowerCase(),
+        checkInDate: dateOnly(inquiry.checkInDate),
+        checkOutDate: dateOnly(inquiry.checkOutDate),
+        rooms: inquiry.rooms,
+        adults: inquiry.adults,
+        children: inquiry.children,
+        budgetMaxMinor: inquiry.budgetMaxMinor,
+        currency: inquiry.currency,
+        subject: inquiry.subject,
+        message: inquiry.message,
+        responseDeadline: inquiry.responseDeadline?.toISOString() ?? null,
+        contactedAt: inquiry.contactedAt?.toISOString() ?? null,
+        respondedAt: inquiry.respondedAt?.toISOString() ?? null,
+        availability: inquiry.availability.toLowerCase(),
+        quotedTotalMinor: inquiry.quotedTotalMinor,
+        quoteCurrency: inquiry.quoteCurrency,
+        responseNote: inquiry.responseNote,
+        declaredByContact: inquiry.declaredByContact,
+        declarationRecordedAt:
+          inquiry.declarationRecordedAt?.toISOString() ?? null,
+        contactEntries: (entriesByInquiry.get(inquiry.id) ?? []).map(
+          (entry) => ({
+            id: entry.id,
+            leadId: entry.leadId,
+            inquiryId: entry.inquiryId,
+            direction: entry.direction.toLowerCase(),
+            channel: entry.channel.toLowerCase(),
+            occurredAt: entry.occurredAt.toISOString(),
+            summary: entry.summary,
+            createdAt: entry.createdAt.toISOString(),
+          }),
+        ),
+        version: inquiry.version,
+        createdAt: inquiry.createdAt.toISOString(),
+        updatedAt: inquiry.updatedAt.toISOString(),
+      })),
+      version: lead.version,
+      createdAt: lead.createdAt.toISOString(),
+      updatedAt: lead.updatedAt.toISOString(),
+    });
+  });
+}
+
+async function requireProviderLeadResource(
+  tx: Transaction,
+  workspaceId: string,
+  leadId: string,
+) {
+  const [lead] = await providerLeadResources(tx, workspaceId, { id: leadId });
+  if (!lead) problem("NOT_FOUND", HttpStatus.NOT_FOUND, "Lead-ul nu există");
+  return lead;
+}
+
+async function requireProviderLead(
+  tx: Transaction,
+  workspaceId: string,
+  leadId: string,
+) {
+  const lead = await tx.accommodationProviderLead.findFirst({
+    where: { id: leadId, workspaceId, deletedAt: null },
+  });
+  if (!lead) problem("NOT_FOUND", HttpStatus.NOT_FOUND, "Lead-ul nu există");
+  return lead;
+}
+
+async function requireProviderInquiry(
+  tx: Transaction,
+  workspaceId: string,
+  leadId: string,
+  inquiryId: string,
+) {
+  const inquiry = await tx.accommodationProviderInquiry.findFirst({
+    where: { id: inquiryId, workspaceId, leadId },
+  });
+  if (!inquiry) problem("NOT_FOUND", HttpStatus.NOT_FOUND, "Cererea nu există");
+  return inquiry;
+}
+
+function assertLeadTransition(current: string, next: string) {
+  const allowed: Record<string, string[]> = {
+    NEEDS_VERIFICATION: [
+      "NEEDS_VERIFICATION",
+      "READY_TO_CONTACT",
+      "REJECTED",
+      "ARCHIVED",
+    ],
+    READY_TO_CONTACT: [
+      "READY_TO_CONTACT",
+      "NEEDS_VERIFICATION",
+      "REJECTED",
+      "ARCHIVED",
+    ],
+    CONTACTED: ["CONTACTED", "READY_TO_CONTACT", "REJECTED", "ARCHIVED"],
+    RESPONDED: ["RESPONDED", "QUALIFIED", "REJECTED", "ARCHIVED"],
+    QUALIFIED: ["QUALIFIED", "REJECTED", "ARCHIVED"],
+    REJECTED: ["REJECTED", "READY_TO_CONTACT", "ARCHIVED"],
+    ARCHIVED: ["ARCHIVED", "NEEDS_VERIFICATION"],
+  };
+  if (!allowed[current]?.includes(next))
+    validation("Tranziția lead-ului nu este permisă.");
+}
+
+function assertInquiryContactChannel(
+  lead: {
+    contactEmail: string | null;
+    contactPhone: string | null;
+    contactUrl: string | null;
+  },
+  channel: string,
+) {
+  if (channel === "email" && !lead.contactEmail)
+    validation("Completează adresa de email pentru acest canal.");
+  if (["phone", "whatsapp"].includes(channel) && !lead.contactPhone)
+    validation("Completează numărul de telefon pentru acest canal.");
+  if (channel === "contact_form" && !lead.contactUrl)
+    validation("Completează URL-ul formularului de contact.");
+}
+
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
 function recommendationResource(row: {
   id: string;
   workspaceId: string;
@@ -1427,6 +2211,7 @@ async function audit(
     action: string;
     userId: string;
     workspaceId: string;
+    entityType?: string;
     entityId: string;
     correlationId: string;
     metadata: Prisma.InputJsonObject;
@@ -1437,7 +2222,7 @@ async function audit(
       action: input.action,
       actorUserId: input.userId,
       workspaceId: input.workspaceId,
-      entityType: "AccommodationRecommendation",
+      entityType: input.entityType ?? "AccommodationRecommendation",
       entityId: input.entityId,
       correlationId: input.correlationId,
       metadata: input.metadata,

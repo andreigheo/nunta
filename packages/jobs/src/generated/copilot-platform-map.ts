@@ -754,6 +754,110 @@ export const copilotApiOperations = [
     actionType: null,
   },
   {
+    id: "get:/api/v1/workspaces/:workspaceId/accommodation-provider-leads",
+    verb: "GET",
+    route: "/api/v1/workspaces/:workspaceId/accommodation-provider-leads",
+    domain: "accommodation-provider-leads",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "providerLeads",
+    capability: null,
+    operation: "READ",
+    risk: "LOW",
+    adapterStatus: "READ_ONLY",
+    actionType: null,
+  },
+  {
+    id: "get:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId",
+    verb: "GET",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId",
+    domain: "accommodation-provider-leads",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "providerLead",
+    capability: null,
+    operation: "READ",
+    risk: "LOW",
+    adapterStatus: "READ_ONLY",
+    actionType: null,
+  },
+  {
+    id: "patch:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId",
+    verb: "PATCH",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId",
+    domain: "accommodation-provider-leads",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "updateProviderLead",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "ACTIVE",
+    actionType: "UPDATE_ACCOMMODATION_PROVIDER_LEAD",
+  },
+  {
+    id: "post:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries",
+    verb: "POST",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries",
+    domain: "accommodation-provider-leads",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "createProviderInquiry",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "ACTIVE",
+    actionType: "CREATE_ACCOMMODATION_PROVIDER_INQUIRY",
+  },
+  {
+    id: "patch:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId",
+    verb: "PATCH",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId",
+    domain: "accommodation-provider-leads",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "updateProviderInquiry",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "GUIDE_ONLY",
+    actionType: null,
+  },
+  {
+    id: "post:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId/contact",
+    verb: "POST",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId/contact",
+    domain: "accommodation-provider-leads",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "recordProviderContact",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "ACTIVE",
+    actionType: "RECORD_ACCOMMODATION_PROVIDER_CONTACT",
+  },
+  {
+    id: "post:/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId/response",
+    verb: "POST",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-provider-leads/:leadId/inquiries/:inquiryId/response",
+    domain: "accommodation-provider-leads",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "recordProviderResponse",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "ACTIVE",
+    actionType: "RECORD_ACCOMMODATION_PROVIDER_RESPONSE",
+  },
+  {
     id: "get:/api/v1/workspaces/:workspaceId/accommodation-recommendations",
     verb: "GET",
     route: "/api/v1/workspaces/:workspaceId/accommodation-recommendations",
@@ -840,6 +944,21 @@ export const copilotApiOperations = [
     risk: "MEDIUM",
     adapterStatus: "ACTIVE",
     actionType: "PROMOTE_ACCOMMODATION_RECOMMENDATION",
+  },
+  {
+    id: "post:/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/provider-lead",
+    verb: "POST",
+    route:
+      "/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/provider-lead",
+    domain: "accommodation-recommendations",
+    controller:
+      "apps/api/src/accommodation-discovery/accommodation-discovery.controller.ts",
+    method: "createProviderLead",
+    capability: "accommodation.write",
+    operation: "PROPOSE",
+    risk: "MEDIUM",
+    adapterStatus: "ACTIVE",
+    actionType: "CREATE_ACCOMMODATION_PROVIDER_LEAD",
   },
   {
     id: "post:/api/v1/workspaces/:workspaceId/accommodation-recommendations/:recommendationId/publish",

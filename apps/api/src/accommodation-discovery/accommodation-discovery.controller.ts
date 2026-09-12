@@ -18,11 +18,18 @@ import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import {
   accommodationDiscoveryQuerySchema,
+  accommodationProviderLeadsQuerySchema,
   accommodationRecommendationTransitionSchema,
   accommodationRecommendationsQuerySchema,
+  createAccommodationProviderInquirySchema,
+  createAccommodationProviderLeadSchema,
   createAccommodationRecommendationSchema,
   orderAccommodationRecommendationsSchema,
   promoteAccommodationRecommendationSchema,
+  recordAccommodationProviderContactSchema,
+  recordAccommodationProviderResponseSchema,
+  updateAccommodationProviderInquirySchema,
+  updateAccommodationProviderLeadSchema,
   updateAccommodationRecommendationSchema,
 } from "@weddingos/contracts";
 import { CurrentAuth } from "../auth/current-auth.decorator";
@@ -85,6 +92,174 @@ export class AccommodationDiscoveryController {
         parseWithSchema(accommodationRecommendationsQuerySchema, query),
       ),
     );
+  }
+
+  @Get("accommodation-provider-leads")
+  async providerLeads(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Query() query: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    return apiResponse(
+      request,
+      await this.service.providerLeads(
+        auth.userId,
+        uuid(workspaceId),
+        parseWithSchema(accommodationProviderLeadsQuerySchema, query),
+      ),
+    );
+  }
+
+  @Get("accommodation-provider-leads/:leadId")
+  async providerLead(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("leadId") leadId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.providerLead(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(leadId),
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
+  @Post("accommodation-recommendations/:recommendationId/provider-lead")
+  @RequireCapability("accommodation.write")
+  async createProviderLead(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("recommendationId") recommendationId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.createProviderLead(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(recommendationId),
+      idempotencyKey(key),
+      parseWithSchema(createAccommodationProviderLeadSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
+  @Patch("accommodation-provider-leads/:leadId")
+  @RequireCapability("accommodation.write")
+  async updateProviderLead(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("leadId") leadId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.updateProviderLead(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(leadId),
+      version(ifMatch),
+      parseWithSchema(updateAccommodationProviderLeadSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
+  @Post("accommodation-provider-leads/:leadId/inquiries")
+  @RequireCapability("accommodation.write")
+  async createProviderInquiry(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("leadId") leadId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.createProviderInquiry(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(leadId),
+      idempotencyKey(key),
+      parseWithSchema(createAccommodationProviderInquirySchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
+  @Patch("accommodation-provider-leads/:leadId/inquiries/:inquiryId")
+  @RequireCapability("accommodation.write")
+  async updateProviderInquiry(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("leadId") leadId: string,
+    @Param("inquiryId") inquiryId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.updateProviderInquiry(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(leadId),
+      uuid(inquiryId),
+      version(ifMatch),
+      parseWithSchema(updateAccommodationProviderInquirySchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
+  @Post("accommodation-provider-leads/:leadId/inquiries/:inquiryId/contact")
+  @RequireCapability("accommodation.write")
+  async recordProviderContact(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("leadId") leadId: string,
+    @Param("inquiryId") inquiryId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.recordProviderContact(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(leadId),
+      uuid(inquiryId),
+      version(ifMatch),
+      idempotencyKey(key),
+      parseWithSchema(recordAccommodationProviderContactSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
+  }
+
+  @Post("accommodation-provider-leads/:leadId/inquiries/:inquiryId/response")
+  @RequireCapability("accommodation.write")
+  async recordProviderResponse(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("leadId") leadId: string,
+    @Param("inquiryId") inquiryId: string,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.service.recordProviderResponse(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(leadId),
+      uuid(inquiryId),
+      version(ifMatch),
+      idempotencyKey(key),
+      parseWithSchema(recordAccommodationProviderResponseSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: data.version });
   }
 
   @Post("accommodation-recommendations")

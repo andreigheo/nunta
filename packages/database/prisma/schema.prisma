@@ -649,6 +649,48 @@ enum AccommodationRecommendationStatus {
   ARCHIVED
 }
 
+enum AccommodationProviderLeadStatus {
+  NEEDS_VERIFICATION
+  READY_TO_CONTACT
+  CONTACTED
+  RESPONDED
+  QUALIFIED
+  REJECTED
+  ARCHIVED
+}
+
+enum AccommodationInquiryStatus {
+  DRAFT
+  READY
+  CONTACTED
+  RESPONDED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  ARCHIVED
+}
+
+enum AccommodationInquiryChannel {
+  EMAIL
+  PHONE
+  CONTACT_FORM
+  WHATSAPP
+  OTHER
+}
+
+enum AccommodationAvailabilityDeclaration {
+  UNKNOWN
+  AVAILABLE
+  PARTIALLY_AVAILABLE
+  UNAVAILABLE
+}
+
+enum AccommodationContactDirection {
+  OUTBOUND
+  INBOUND
+  INTERNAL_NOTE
+}
+
 enum AccommodationDiscoveryCacheKind {
   GEOCODING
   DISCOVERY
@@ -3317,6 +3359,84 @@ model AccommodationRecommendation {
   @@index([workspaceId, weddingEventId, status, position])
   @@index([workspaceId, source, externalId])
   @@map("accommodation_recommendations")
+}
+
+model AccommodationProviderLead {
+  id               String                          @id @default(uuid()) @db.Uuid
+  workspaceId      String                          @map("workspace_id") @db.Uuid
+  weddingEventId   String                          @map("wedding_event_id") @db.Uuid
+  recommendationId String                          @map("recommendation_id") @db.Uuid
+  status           AccommodationProviderLeadStatus @default(NEEDS_VERIFICATION)
+  contactName      String?                         @map("contact_name") @db.VarChar(180)
+  contactEmail     String?                         @map("contact_email") @db.VarChar(320)
+  contactPhone     String?                         @map("contact_phone") @db.VarChar(80)
+  contactUrl       String?                         @map("contact_url") @db.VarChar(2048)
+  verificationNote String?                         @map("verification_note") @db.VarChar(2000)
+  verifiedAt       DateTime?                       @map("verified_at")
+  verifiedById     String?                         @map("verified_by") @db.Uuid
+  createdById      String                          @map("created_by") @db.Uuid
+  updatedById      String                          @map("updated_by") @db.Uuid
+  version          Int                             @default(1)
+  deletedAt        DateTime?                       @map("deleted_at")
+  createdAt        DateTime                        @default(now()) @map("created_at")
+  updatedAt        DateTime                        @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, recommendationId])
+  @@index([workspaceId, weddingEventId, status, updatedAt])
+  @@map("accommodation_provider_leads")
+}
+
+model AccommodationProviderInquiry {
+  id                    String                               @id @default(uuid()) @db.Uuid
+  workspaceId           String                               @map("workspace_id") @db.Uuid
+  weddingEventId        String                               @map("wedding_event_id") @db.Uuid
+  leadId                String                               @map("lead_id") @db.Uuid
+  status                AccommodationInquiryStatus           @default(DRAFT)
+  channel               AccommodationInquiryChannel
+  checkInDate           DateTime                             @map("check_in_date") @db.Date
+  checkOutDate          DateTime                             @map("check_out_date") @db.Date
+  rooms                 Int
+  adults                Int
+  children              Int
+  budgetMaxMinor        Int?                                 @map("budget_max_minor")
+  currency              String                               @db.Char(3)
+  subject               String                               @db.VarChar(240)
+  message               String                               @db.Text
+  responseDeadline      DateTime?                            @map("response_deadline")
+  contactedAt           DateTime?                            @map("contacted_at")
+  respondedAt           DateTime?                            @map("responded_at")
+  availability          AccommodationAvailabilityDeclaration @default(UNKNOWN)
+  quotedTotalMinor      Int?                                 @map("quoted_total_minor")
+  quoteCurrency         String?                              @map("quote_currency") @db.Char(3)
+  responseNote          String?                              @map("response_note") @db.VarChar(4000)
+  declaredByContact     String?                              @map("declared_by_contact") @db.VarChar(180)
+  declarationRecordedAt DateTime?                            @map("declaration_recorded_at")
+  createdById           String                               @map("created_by") @db.Uuid
+  updatedById           String                               @map("updated_by") @db.Uuid
+  version               Int                                  @default(1)
+  createdAt             DateTime                             @default(now()) @map("created_at")
+  updatedAt             DateTime                             @updatedAt @map("updated_at")
+
+  @@index([workspaceId, weddingEventId, status, responseDeadline])
+  @@index([workspaceId, leadId, createdAt])
+  @@map("accommodation_provider_inquiries")
+}
+
+model AccommodationContactEntry {
+  id          String                        @id @default(uuid()) @db.Uuid
+  workspaceId String                        @map("workspace_id") @db.Uuid
+  leadId      String                        @map("lead_id") @db.Uuid
+  inquiryId   String?                       @map("inquiry_id") @db.Uuid
+  direction   AccommodationContactDirection
+  channel     AccommodationInquiryChannel
+  occurredAt  DateTime                      @map("occurred_at")
+  summary     String                        @db.VarChar(2000)
+  createdById String                        @map("created_by") @db.Uuid
+  createdAt   DateTime                      @default(now()) @map("created_at")
+
+  @@index([workspaceId, leadId, occurredAt])
+  @@index([workspaceId, inquiryId, occurredAt])
+  @@map("accommodation_contact_entries")
 }
 
 model AccommodationDiscoveryCache {

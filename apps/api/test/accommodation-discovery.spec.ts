@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import {
   accommodationDiscoveryQuerySchema,
+  createAccommodationProviderInquirySchema,
   createAccommodationRecommendationSchema,
   guestAccommodationRecommendationSchema,
   guestCompanionBootstrapSchema,
   orderAccommodationRecommendationsSchema,
+  recordAccommodationProviderResponseSchema,
 } from "@weddingos/contracts";
 import { describe, expect, it, vi } from "vitest";
 import type { DatabaseService } from "../src/common/database.service";
@@ -210,6 +212,39 @@ describe("accommodation discovery contracts and provider mapping", () => {
         checkOutDate: "2027-09-13",
       }),
     ).toMatchObject({ adults: 2, children: 0, rooms: 1 });
+  });
+
+  it("keeps provider declarations separate and validates sourcing inquiries", () => {
+    expect(
+      createAccommodationProviderInquirySchema.safeParse({
+        channel: "email",
+        checkInDate: "2027-09-13",
+        checkOutDate: "2027-09-11",
+        rooms: 2,
+        adults: 4,
+        children: 0,
+        currency: "RON",
+        subject: "Cerere ofertă",
+        message: "Confirmați disponibilitatea pentru grup.",
+      }).success,
+    ).toBe(false);
+    expect(
+      recordAccommodationProviderResponseSchema.safeParse({
+        channel: "email",
+        availability: "available",
+        quotedTotalMinor: 100_000,
+        responseNote: "Disponibilitate declarată de recepție.",
+      }).success,
+    ).toBe(false);
+    expect(
+      recordAccommodationProviderResponseSchema.safeParse({
+        channel: "email",
+        availability: "available",
+        quotedTotalMinor: 100_000,
+        quoteCurrency: "RON",
+        responseNote: "Disponibilitate declarată de recepție.",
+      }).success,
+    ).toBe(true);
   });
 });
 

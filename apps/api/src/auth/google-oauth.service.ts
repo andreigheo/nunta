@@ -112,6 +112,7 @@ export function decodeGoogleOAuthFlow(
     return null;
   }
   if (
+    receivedSignature.toString("base64url") !== suppliedSignature ||
     receivedSignature.length !== expectedSignature.length ||
     !timingSafeEqual(receivedSignature, expectedSignature)
   ) {

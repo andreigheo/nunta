@@ -243,6 +243,55 @@ describe("Slice 9 intelligence contracts", () => {
         },
       ],
       [
+        "CREATE_ACCOMMODATION_PROVIDER_LEAD",
+        { recommendationId: id, contactEmail: "hotel@example.com" },
+      ],
+      [
+        "UPDATE_ACCOMMODATION_PROVIDER_LEAD",
+        {
+          targetId: id,
+          targetVersion: 1,
+          status: "ready_to_contact",
+          verificationNote: "Date verificate pe site-ul oficial.",
+        },
+      ],
+      [
+        "CREATE_ACCOMMODATION_PROVIDER_INQUIRY",
+        {
+          leadId: id,
+          channel: "email",
+          checkInDate: "2027-09-11",
+          checkOutDate: "2027-09-13",
+          rooms: 3,
+          adults: 6,
+          children: 0,
+          currency: "RON",
+          subject: "Cerere ofertă grup",
+          message: "Confirmați disponibilitatea și tariful total.",
+        },
+      ],
+      [
+        "RECORD_ACCOMMODATION_PROVIDER_CONTACT",
+        {
+          leadId: id,
+          inquiryId: id,
+          targetVersion: 1,
+          channel: "email",
+          summary: "Cererea a fost transmisă manual.",
+        },
+      ],
+      [
+        "RECORD_ACCOMMODATION_PROVIDER_RESPONSE",
+        {
+          leadId: id,
+          inquiryId: id,
+          targetVersion: 2,
+          channel: "email",
+          availability: "available",
+          responseNote: "Disponibilitate declarată de recepție.",
+        },
+      ],
+      [
         "CREATE_RFQ",
         {
           title: "Fotografie nuntă",

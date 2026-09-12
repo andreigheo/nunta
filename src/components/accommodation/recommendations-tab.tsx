@@ -47,6 +47,7 @@ import {
   safeExternalUrl,
   typeLabel,
 } from "./model";
+import { ProviderSourcingPanel } from "./provider-sourcing-panel";
 
 type EventOption = Pick<CalendarItem, "sourceId" | "title">;
 type StatusFilter = "all" | AccommodationRecommendationStatus;
@@ -709,6 +710,13 @@ export function AccommodationRecommendationsTab({
 
                 <p className="mt-4 text-xs text-faint">{formatFreshness(selected.updatedAt)}</p>
               </section>
+
+              <ProviderSourcingPanel
+                key={`provider:${selected.id}`}
+                recommendation={selected}
+                currency={currency}
+                canWrite={canWrite}
+              />
 
               <section aria-labelledby="guest-preview-title">
                 <div className="mb-3 flex items-center gap-2">

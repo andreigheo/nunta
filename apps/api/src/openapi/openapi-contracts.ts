@@ -140,11 +140,18 @@ import {
   updateHouseholdSchema,
   updateMenuSchema,
   accommodationDiscoveryResponseSchema,
+  accommodationProviderLeadResourceSchema,
   accommodationRecommendationResourceSchema,
   accommodationRecommendationTransitionSchema,
+  createAccommodationProviderInquirySchema,
+  createAccommodationProviderLeadSchema,
   createAccommodationRecommendationSchema,
   orderAccommodationRecommendationsSchema,
   promoteAccommodationRecommendationSchema,
+  recordAccommodationProviderContactSchema,
+  recordAccommodationProviderResponseSchema,
+  updateAccommodationProviderInquirySchema,
+  updateAccommodationProviderLeadSchema,
   updateAccommodationRecommendationSchema,
   accommodationAllocationBatchSchema,
   createAccommodationPropertySchema,
@@ -647,6 +654,17 @@ const schemas: Record<string, ZodTypeAny> = {
   AccommodationRecommendationList: z.object({
     items: z.array(accommodationRecommendationResourceSchema),
   }),
+  AccommodationProviderLead: accommodationProviderLeadResourceSchema,
+  AccommodationProviderLeadList: z.object({
+    items: z.array(accommodationProviderLeadResourceSchema),
+  }),
+  CreateAccommodationProviderLead: createAccommodationProviderLeadSchema,
+  UpdateAccommodationProviderLead: updateAccommodationProviderLeadSchema,
+  CreateAccommodationProviderInquiry: createAccommodationProviderInquirySchema,
+  UpdateAccommodationProviderInquiry: updateAccommodationProviderInquirySchema,
+  RecordAccommodationProviderContact: recordAccommodationProviderContactSchema,
+  RecordAccommodationProviderResponse:
+    recordAccommodationProviderResponseSchema,
   CreateAccommodationRecommendation: createAccommodationRecommendationSchema,
   UpdateAccommodationRecommendation: updateAccommodationRecommendationSchema,
   AccommodationRecommendationTransition:
@@ -1758,6 +1776,30 @@ const requestByRoute: Array<[RegExp, string]> = [
     "CreateAccommodationRecommendation",
   ],
   [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}\/provider-lead$/,
+    "CreateAccommodationProviderLead",
+  ],
+  [
+    /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads\/\{leadId\}$/,
+    "UpdateAccommodationProviderLead",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads\/\{leadId\}\/inquiries$/,
+    "CreateAccommodationProviderInquiry",
+  ],
+  [
+    /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads\/\{leadId\}\/inquiries\/\{inquiryId\}$/,
+    "UpdateAccommodationProviderInquiry",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads\/\{leadId\}\/inquiries\/\{inquiryId\}\/contact$/,
+    "RecordAccommodationProviderContact",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads\/\{leadId\}\/inquiries\/\{inquiryId\}\/response$/,
+    "RecordAccommodationProviderResponse",
+  ],
+  [
     /PUT \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/order$/,
     "OrderAccommodationRecommendations",
   ],
@@ -2471,6 +2513,18 @@ const responseByRoute: Array<[RegExp, string]> = [
     "AccommodationRecommendationList",
   ],
   [
+    /GET \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads$/,
+    "AccommodationProviderLeadList",
+  ],
+  [
+    /(GET|POST|PATCH) \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads(?:\/.*)?$/,
+    "AccommodationProviderLead",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}\/provider-lead$/,
+    "AccommodationProviderLead",
+  ],
+  [
     /(POST|PATCH|PUT|DELETE) \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations(?:\/.*)?$/,
     "AccommodationRecommendation",
   ],
@@ -3120,6 +3174,12 @@ function requiresIfMatch(route: string): boolean {
       route,
     ) ||
     /(?:PATCH|PUT|DELETE) \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations(?:\/.*)?$/.test(
+      route,
+    ) ||
+    /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads(?:\/.*)?$/.test(
+      route,
+    ) ||
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-provider-leads\/\{leadId\}\/inquiries\/\{inquiryId\}\/(contact|response)$/.test(
       route,
     ) ||
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}\/(publish|archive)$/.test(

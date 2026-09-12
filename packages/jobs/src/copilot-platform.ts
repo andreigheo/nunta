@@ -1,6 +1,6 @@
 import type { CopilotProposalActionType } from "@weddingos/contracts";
 
-export const SARBATO_COPILOT_POLICY_VERSION = "sarbato-agent.v3" as const;
+export const SARBATO_COPILOT_POLICY_VERSION = "sarbato-agent.v4" as const;
 
 export const sarbatoCopilotPolicy = {
   identity: {
@@ -104,6 +104,8 @@ export const copilotReadToolDefinitions = [
     "AccommodationProperty",
     "AccommodationStay",
     "AccommodationIssueSummary",
+    "AccommodationProviderLead",
+    "AccommodationProviderInquiry",
   ]),
   readTool("invitation.site", "invitations", "invitation.read", [
     "InvitationSite",
@@ -188,6 +190,23 @@ export const copilotImplementedActionDefinitions = [
     "MEDIUM",
   ),
   action("REPLACE_ACCOMMODATION_ALLOCATIONS", "accommodation.assign", "HIGH"),
+  action("CREATE_ACCOMMODATION_PROVIDER_LEAD", "accommodation.write", "LOW"),
+  action("UPDATE_ACCOMMODATION_PROVIDER_LEAD", "accommodation.write", "MEDIUM"),
+  action(
+    "CREATE_ACCOMMODATION_PROVIDER_INQUIRY",
+    "accommodation.write",
+    "MEDIUM",
+  ),
+  action(
+    "RECORD_ACCOMMODATION_PROVIDER_CONTACT",
+    "accommodation.write",
+    "HIGH",
+  ),
+  action(
+    "RECORD_ACCOMMODATION_PROVIDER_RESPONSE",
+    "accommodation.write",
+    "HIGH",
+  ),
   action("CREATE_RFQ", "rfq.write", "MEDIUM"),
   action("UPDATE_RFQ", "rfq.write", "MEDIUM"),
   action("CREATE_CAMPAIGN_DRAFT", "campaign.write", "MEDIUM"),

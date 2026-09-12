@@ -227,6 +227,244 @@ export type AccommodationRecommendationStatus = z.infer<
   typeof accommodationRecommendationStatusSchema
 >;
 
+export const accommodationProviderLeadStatusSchema = z.enum([
+  "needs_verification",
+  "ready_to_contact",
+  "contacted",
+  "responded",
+  "qualified",
+  "rejected",
+  "archived",
+]);
+export type AccommodationProviderLeadStatus = z.infer<
+  typeof accommodationProviderLeadStatusSchema
+>;
+
+export const accommodationInquiryStatusSchema = z.enum([
+  "draft",
+  "ready",
+  "contacted",
+  "responded",
+  "accepted",
+  "declined",
+  "expired",
+  "archived",
+]);
+export type AccommodationInquiryStatus = z.infer<
+  typeof accommodationInquiryStatusSchema
+>;
+
+export const accommodationInquiryChannelSchema = z.enum([
+  "email",
+  "phone",
+  "contact_form",
+  "whatsapp",
+  "other",
+]);
+export type AccommodationInquiryChannel = z.infer<
+  typeof accommodationInquiryChannelSchema
+>;
+
+export const accommodationAvailabilityDeclarationSchema = z.enum([
+  "unknown",
+  "available",
+  "partially_available",
+  "unavailable",
+]);
+export type AccommodationAvailabilityDeclaration = z.infer<
+  typeof accommodationAvailabilityDeclarationSchema
+>;
+
+export const accommodationContactEntryResourceSchema = z.object({
+  id: uuid,
+  leadId: uuid,
+  inquiryId: uuid.nullable(),
+  direction: z.enum(["outbound", "inbound", "internal_note"]),
+  channel: accommodationInquiryChannelSchema,
+  occurredAt: z.string().datetime(),
+  summary: z.string().trim().min(1).max(2000),
+  createdAt: z.string().datetime(),
+});
+export type AccommodationContactEntryResource = z.infer<
+  typeof accommodationContactEntryResourceSchema
+>;
+
+export const accommodationProviderInquiryResourceSchema = z.object({
+  id: uuid,
+  workspaceId: uuid,
+  weddingEventId: uuid,
+  leadId: uuid,
+  status: accommodationInquiryStatusSchema,
+  channel: accommodationInquiryChannelSchema,
+  checkInDate: z.string().date(),
+  checkOutDate: z.string().date(),
+  rooms: z.number().int().positive(),
+  adults: z.number().int().nonnegative(),
+  children: z.number().int().nonnegative(),
+  budgetMaxMinor: z.number().int().nonnegative().nullable(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  subject: z.string().trim().min(1).max(240),
+  message: z.string().trim().min(1).max(10_000),
+  responseDeadline: nullableDateTime,
+  contactedAt: nullableDateTime,
+  respondedAt: nullableDateTime,
+  availability: accommodationAvailabilityDeclarationSchema,
+  quotedTotalMinor: z.number().int().nonnegative().nullable(),
+  quoteCurrency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .nullable(),
+  responseNote: z.string().trim().max(4000).nullable(),
+  declaredByContact: z.string().trim().max(180).nullable(),
+  declarationRecordedAt: nullableDateTime,
+  contactEntries: z.array(accommodationContactEntryResourceSchema),
+  version: z.number().int().positive(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type AccommodationProviderInquiryResource = z.infer<
+  typeof accommodationProviderInquiryResourceSchema
+>;
+
+export const accommodationProviderLeadResourceSchema = z.object({
+  id: uuid,
+  workspaceId: uuid,
+  weddingEventId: uuid,
+  recommendationId: uuid,
+  recommendation: z.object({
+    name: z.string().trim().min(1).max(180),
+    type: accommodationDiscoveryTypeSchema,
+    address: z.string().trim().max(500).nullable(),
+    city: z.string().trim().max(120).nullable(),
+    source: accommodationDiscoverySourceSchema,
+  }),
+  status: accommodationProviderLeadStatusSchema,
+  contactName: z.string().trim().max(180).nullable(),
+  contactEmail: z.string().email().max(320).nullable(),
+  contactPhone: nullablePhone,
+  contactUrl: nullableUrl,
+  verificationNote: z.string().trim().max(2000).nullable(),
+  verifiedAt: nullableDateTime,
+  inquiries: z.array(accommodationProviderInquiryResourceSchema),
+  version: z.number().int().positive(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type AccommodationProviderLeadResource = z.infer<
+  typeof accommodationProviderLeadResourceSchema
+>;
+
+export const accommodationProviderLeadsQuerySchema = z.object({
+  eventId: uuid.optional(),
+  status: accommodationProviderLeadStatusSchema.optional(),
+});
+export type AccommodationProviderLeadsQuery = z.output<
+  typeof accommodationProviderLeadsQuerySchema
+>;
+
+export const createAccommodationProviderLeadSchema = z.object({
+  contactName: z.string().trim().min(1).max(180).nullable().optional(),
+  contactEmail: z.string().trim().email().max(320).nullable().optional(),
+  contactPhone: nullablePhone.optional(),
+  contactUrl: nullableUrl.optional(),
+  verificationNote: z.string().trim().max(2000).nullable().optional(),
+});
+export type CreateAccommodationProviderLead = z.output<
+  typeof createAccommodationProviderLeadSchema
+>;
+
+export const updateAccommodationProviderLeadSchema =
+  createAccommodationProviderLeadSchema.extend({
+    status: accommodationProviderLeadStatusSchema.optional(),
+  });
+export type UpdateAccommodationProviderLead = z.output<
+  typeof updateAccommodationProviderLeadSchema
+>;
+
+const accommodationInquiryFields = z.object({
+  channel: accommodationInquiryChannelSchema,
+  checkInDate: z.string().date(),
+  checkOutDate: z.string().date(),
+  rooms: z.number().int().min(1).max(500),
+  adults: z.number().int().min(0).max(5000),
+  children: z.number().int().min(0).max(5000),
+  budgetMaxMinor: z.number().int().nonnegative().nullable().optional(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  subject: z.string().trim().min(1).max(240),
+  message: z.string().trim().min(1).max(10_000),
+  responseDeadline: nullableDateTime.optional(),
+});
+
+export const createAccommodationProviderInquirySchema =
+  accommodationInquiryFields.superRefine((value, context) => {
+    if (value.checkOutDate <= value.checkInDate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkOutDate"],
+        message: "Data de check-out trebuie să fie după check-in.",
+      });
+    }
+    if (value.adults + value.children < 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["adults"],
+        message: "Cererea trebuie să includă cel puțin o persoană.",
+      });
+    }
+  });
+export type CreateAccommodationProviderInquiry = z.output<
+  typeof createAccommodationProviderInquirySchema
+>;
+
+export const updateAccommodationProviderInquirySchema =
+  accommodationInquiryFields.partial().extend({
+    status: z.enum(["draft", "ready", "archived"]).optional(),
+  });
+export type UpdateAccommodationProviderInquiry = z.output<
+  typeof updateAccommodationProviderInquirySchema
+>;
+
+export const recordAccommodationProviderContactSchema = z.object({
+  channel: accommodationInquiryChannelSchema,
+  occurredAt: z.string().datetime().optional(),
+  summary: z.string().trim().min(3).max(2000),
+});
+export type RecordAccommodationProviderContact = z.output<
+  typeof recordAccommodationProviderContactSchema
+>;
+
+export const recordAccommodationProviderResponseSchema = z
+  .object({
+    channel: accommodationInquiryChannelSchema,
+    occurredAt: z.string().datetime().optional(),
+    availability: accommodationAvailabilityDeclarationSchema.exclude([
+      "unknown",
+    ]),
+    quotedTotalMinor: z.number().int().nonnegative().nullable().optional(),
+    quoteCurrency: z
+      .string()
+      .regex(/^[A-Z]{3}$/)
+      .nullable()
+      .optional(),
+    responseNote: z.string().trim().min(3).max(4000),
+    declaredByContact: z.string().trim().max(180).nullable().optional(),
+    decision: z
+      .enum(["responded", "accepted", "declined"])
+      .default("responded"),
+  })
+  .superRefine((value, context) => {
+    if ((value.quotedTotalMinor == null) !== (value.quoteCurrency == null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["quoteCurrency"],
+        message: "Suma și moneda ofertei trebuie completate împreună.",
+      });
+    }
+  });
+export type RecordAccommodationProviderResponse = z.output<
+  typeof recordAccommodationProviderResponseSchema
+>;
+
 export const accommodationRecommendationResourceSchema = z.object({
   id: uuid,
   workspaceId: uuid,

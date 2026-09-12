@@ -3205,6 +3205,121 @@ describe.sequential("Slice 3 guest journey integration", () => {
         facilities: ["parking"],
       })
       .expect(201);
+
+    const leadKey = `provider-lead-${randomUUID()}`;
+    const leadPayload = {
+      contactName: "Irina Recepție",
+      contactEmail: "receptie@pensiune.example",
+      contactPhone: "+373 60 000 004",
+      contactUrl: "https://pensiune.example/contact",
+      verificationNote:
+        "Date verificate manual pe site-ul oficial al proprietății.",
+    };
+    const lead = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/accommodation-recommendations/${recommendation.body.data.id}/provider-lead`,
+      )
+      .set("Origin", origin)
+      .set("Idempotency-Key", leadKey)
+      .send(leadPayload)
+      .expect(201);
+    const replayedLead = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/accommodation-recommendations/${recommendation.body.data.id}/provider-lead`,
+      )
+      .set("Origin", origin)
+      .set("Idempotency-Key", leadKey)
+      .send(leadPayload)
+      .expect(201);
+    expect(replayedLead.body.data.id).toBe(lead.body.data.id);
+    expect(lead.body.data.status).toBe("needs_verification");
+
+    const readyLead = await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/accommodation-provider-leads/${lead.body.data.id}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${lead.body.data.version}"`)
+      .send({ ...leadPayload, status: "ready_to_contact" })
+      .expect(200);
+    expect(readyLead.body.data.verifiedAt).toBeTruthy();
+
+    const inquiry = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/accommodation-provider-leads/${lead.body.data.id}/inquiries`,
+      )
+      .set("Origin", origin)
+      .set("Idempotency-Key", `provider-inquiry-${randomUUID()}`)
+      .send({
+        channel: "email",
+        checkInDate: "2027-09-11",
+        checkOutDate: "2027-09-13",
+        rooms: 3,
+        adults: 5,
+        children: 1,
+        budgetMaxMinor: 120_000,
+        currency: "RON",
+        subject: "Cerere ofertă grup Sarbato",
+        message:
+          "Vă rugăm să confirmați disponibilitatea și tariful total pentru grup.",
+        responseDeadline: "2027-08-20T12:00:00.000Z",
+      })
+      .expect(201);
+    const inquiryDraft = inquiry.body.data.inquiries[0];
+    expect(inquiryDraft.status).toBe("draft");
+
+    const contacted = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/accommodation-provider-leads/${lead.body.data.id}/inquiries/${inquiryDraft.id}/contact`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${inquiryDraft.version}"`)
+      .set("Idempotency-Key", `provider-contact-${randomUUID()}`)
+      .send({
+        channel: "email",
+        summary: "Cererea a fost transmisă manual prin email.",
+      })
+      .expect(201);
+    const contactedInquiry = contacted.body.data.inquiries[0];
+    expect(contactedInquiry.status).toBe("contacted");
+    expect(contactedInquiry.contactEntries).toHaveLength(1);
+
+    const responded = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/accommodation-provider-leads/${lead.body.data.id}/inquiries/${inquiryDraft.id}/response`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${contactedInquiry.version}"`)
+      .set("Idempotency-Key", `provider-response-${randomUUID()}`)
+      .send({
+        channel: "email",
+        availability: "available",
+        quotedTotalMinor: 108_000,
+        quoteCurrency: "RON",
+        responseNote:
+          "Proprietatea a declarat trei camere disponibile pentru interval.",
+        declaredByContact: "Irina Recepție",
+      })
+      .expect(201);
+    expect(responded.body.data.status).toBe("responded");
+    expect(responded.body.data.inquiries[0]).toMatchObject({
+      status: "responded",
+      availability: "available",
+      quotedTotalMinor: 108_000,
+      quoteCurrency: "RON",
+    });
+    expect(responded.body.data.inquiries[0].contactEntries).toHaveLength(2);
+
+    const listedLeads = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/accommodation-provider-leads?eventId=${eventId}&status=responded`,
+      )
+      .expect(200);
+    expect(listedLeads.body.data.items).toHaveLength(1);
+    await outsider.agent
+      .get(`/api/v1/workspaces/${workspaceId}/accommodation-provider-leads`)
+      .expect(403);
+
     const promotionKey = `promotion-${randomUUID()}`;
     const promotionPayload = {
       checkInDate: "2027-09-11",
