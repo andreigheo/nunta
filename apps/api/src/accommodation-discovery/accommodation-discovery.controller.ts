@@ -22,6 +22,7 @@ import {
   accommodationRecommendationsQuerySchema,
   createAccommodationRecommendationSchema,
   orderAccommodationRecommendationsSchema,
+  promoteAccommodationRecommendationSchema,
   updateAccommodationRecommendationSchema,
 } from "@weddingos/contracts";
 import { CurrentAuth } from "../auth/current-auth.decorator";
@@ -35,6 +36,7 @@ import { problem } from "../common/problem";
 import { parseUuid, parseWithSchema } from "../common/validation";
 import { RequireCapability } from "../workspaces/capability.decorator";
 import { CapabilityGuard } from "../workspaces/capability.guard";
+import { OperationsService } from "../operations/operations.service";
 import { AccommodationDiscoveryService } from "./accommodation-discovery.service";
 
 @ApiTags("accommodation-discovery")
@@ -46,6 +48,8 @@ export class AccommodationDiscoveryController {
   constructor(
     @Inject(AccommodationDiscoveryService)
     private readonly service: AccommodationDiscoveryService,
+    @Inject(OperationsService)
+    private readonly operations: OperationsService,
   ) {}
 
   @Get("accommodation-discovery")
@@ -121,6 +125,27 @@ export class AccommodationDiscoveryController {
         request.correlationId,
       ),
     );
+  }
+
+  @Post("accommodation-recommendations/:recommendationId/promote")
+  @RequireCapability("accommodation.write")
+  async promoteRecommendation(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("recommendationId") recommendationId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Body() body: unknown,
+    @Req() request: WeddingOsRequest,
+  ) {
+    const data = await this.operations.promoteAccommodationRecommendation(
+      auth.userId,
+      uuid(workspaceId),
+      uuid(recommendationId),
+      idempotencyKey(key),
+      parseWithSchema(promoteAccommodationRecommendationSchema, body),
+      request.correlationId,
+    );
+    return apiResponse(request, data, { version: versionOf(data) });
   }
 
   @Patch("accommodation-recommendations/:recommendationId")
@@ -216,6 +241,11 @@ export class AccommodationDiscoveryController {
 
 function uuid(value: string) {
   return parseUuid(value, "id");
+}
+
+function versionOf(value: unknown) {
+  const version = Number((value as { version?: unknown })?.version);
+  return Number.isInteger(version) && version > 0 ? version : undefined;
 }
 
 function idempotencyKey(value: string | undefined) {

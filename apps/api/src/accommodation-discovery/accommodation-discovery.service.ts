@@ -21,6 +21,7 @@ import { z } from "zod";
 import { DatabaseService } from "../common/database.service";
 import { problem } from "../common/problem";
 import { SafeOutboundHttpClient } from "../common/safe-outbound-http.client";
+import { ACTIVE_ACCOMMODATION_PROVIDER } from "./providers/accommodation-provider";
 
 type Transaction = Prisma.TransactionClient;
 type RecommendationStatus = "PUBLISHED" | "ARCHIVED";
@@ -1211,12 +1212,18 @@ function filterDiscovery(
       `${unknownPriceCount} opțiuni fără preț public comparabil au rămas în rezultate și trebuie verificate direct la proprietate.`,
     );
   }
+  if (query.checkInDate && query.checkOutDate) {
+    warnings.push(
+      "OpenStreetMap nu confirmă disponibilitatea sau tariful pentru datele alese. Verifică direct cu proprietatea înainte de rezervare.",
+    );
+  }
   return {
     items: filtered.slice(0, RESULT_LIMIT),
     center: snapshot.center,
     radiusKm: snapshot.radiusKm,
     metadata: {
-      provider: "openstreetmap",
+      provider: ACTIVE_ACCOMMODATION_PROVIDER.id,
+      capabilities: ACTIVE_ACCOMMODATION_PROVIDER.capabilities,
       attribution: ATTRIBUTION,
       fetchedAt: snapshot.fetchedAt,
       cache,

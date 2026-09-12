@@ -263,11 +263,21 @@ export const updateAccommodationRequestSchema = z.object({
   arrivalDate: z.string().date().nullable().optional(),
   departureDate: z.string().date().nullable().optional(),
   roomPreference: z.string().trim().max(500).nullable().optional(),
+  bookingMode: z.enum(["recommendations_only", "organizer_managed"]).optional(),
+  budgetMaxMinor: z.number().int().nonnegative().nullable().optional(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .nullable()
+    .optional(),
   accessibilityRequirements: z.string().trim().max(1000).nullable().optional(),
   status: z
     .enum(["requested", "confirmed", "declined", "cancelled"])
     .optional(),
   overrideReason: z.string().trim().min(3).max(1000),
+});
+export const accommodationOperationsQuerySchema = z.object({
+  eventId: uuid.optional(),
 });
 export const createAccommodationPropertySchema = z.object({
   name: shortText,
@@ -311,6 +321,7 @@ export const updateAccommodationRoomSchema =
   createAccommodationRoomSchema.partial();
 export const createAccommodationStaySchema = z.object({
   propertyId: uuid,
+  weddingEventId: uuid,
   name: shortText,
   checkInDate: z.string().date(),
   checkOutDate: z.string().date(),

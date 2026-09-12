@@ -625,6 +625,10 @@ enum AccommodationPropertyType {
 
 enum AccommodationDiscoverySource {
   OSM
+  FOURSQUARE
+  GOOGLE_PLACES
+  BOOKING_COM
+  EXPEDIA
   ORGANIZER
   OTHER
 }
@@ -2543,16 +2547,23 @@ model RsvpSubmission {
 }
 
 model GuestEventResponse {
-  id             String          @id @default(uuid()) @db.Uuid
-  workspaceId    String          @map("workspace_id") @db.Uuid
-  submissionId   String          @map("submission_id") @db.Uuid
-  guestId        String          @map("guest_id") @db.Uuid
-  weddingEventId String          @map("wedding_event_id") @db.Uuid
-  attendance     GuestAttendance @default(NO_RESPONSE)
-  respondedAt    DateTime        @default(now()) @map("responded_at")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  version        Int             @default(1)
+  id                          String          @id @default(uuid()) @db.Uuid
+  workspaceId                 String          @map("workspace_id") @db.Uuid
+  submissionId                String          @map("submission_id") @db.Uuid
+  guestId                     String          @map("guest_id") @db.Uuid
+  weddingEventId              String          @map("wedding_event_id") @db.Uuid
+  attendance                  GuestAttendance @default(NO_RESPONSE)
+  accommodationRequested      Boolean?        @map("accommodation_requested")
+  accommodationArrivalDate    DateTime?       @map("accommodation_arrival_date") @db.Date
+  accommodationDepartureDate  DateTime?       @map("accommodation_departure_date") @db.Date
+  accommodationRoomPreference String?         @map("accommodation_room_preference") @db.VarChar(500)
+  accommodationBookingMode    String?         @map("accommodation_booking_mode") @db.VarChar(40)
+  accommodationBudgetMaxMinor Int?            @map("accommodation_budget_max_minor")
+  accommodationCurrency       String?         @map("accommodation_currency") @db.Char(3)
+  respondedAt                 DateTime        @default(now()) @map("responded_at")
+  createdAt                   DateTime        @default(now()) @map("created_at")
+  updatedAt                   DateTime        @updatedAt @map("updated_at")
+  version                     Int             @default(1)
 
   @@unique([submissionId, guestId, weddingEventId])
   @@index([workspaceId, weddingEventId, attendance])
@@ -3108,10 +3119,14 @@ model AccommodationRequest {
   workspaceId                        String                     @map("workspace_id") @db.Uuid
   guestId                            String                     @map("guest_id") @db.Uuid
   householdId                        String                     @map("household_id") @db.Uuid
+  weddingEventId                     String                     @map("wedding_event_id") @db.Uuid
   requested                          Boolean                    @default(true)
   arrivalDate                        DateTime?                  @map("arrival_date") @db.Date
   departureDate                      DateTime?                  @map("departure_date") @db.Date
   roomPreference                     String?                    @map("room_preference") @db.VarChar(500)
+  bookingMode                        String                     @default("organizer_managed") @map("booking_mode") @db.VarChar(40)
+  budgetMaxMinor                     Int?                       @map("budget_max_minor")
+  currency                           String?                    @db.Char(3)
   accessibilityRequirementsEncrypted String?                    @map("accessibility_requirements_encrypted") @db.Text
   status                             AccommodationRequestStatus @default(REQUESTED)
   sourceSubmissionId                 String?                    @map("source_submission_id") @db.Uuid
@@ -3121,8 +3136,8 @@ model AccommodationRequest {
   createdAt                          DateTime                   @default(now()) @map("created_at")
   updatedAt                          DateTime                   @updatedAt @map("updated_at")
 
-  @@unique([guestId])
-  @@index([workspaceId, status, arrivalDate])
+  @@unique([guestId, weddingEventId])
+  @@index([workspaceId, weddingEventId, status, arrivalDate])
   @@map("accommodation_requests")
 }
 
@@ -3193,20 +3208,24 @@ model AccommodationRoom {
 }
 
 model AccommodationStay {
-  id           String                  @id @default(uuid()) @db.Uuid
-  workspaceId  String                  @map("workspace_id") @db.Uuid
-  propertyId   String                  @map("property_id") @db.Uuid
-  name         String                  @db.VarChar(180)
-  checkInDate  DateTime                @map("check_in_date") @db.Date
-  checkOutDate DateTime                @map("check_out_date") @db.Date
-  status       AccommodationStayStatus @default(DRAFT)
-  version      Int                     @default(1)
-  publishedAt  DateTime?               @map("published_at")
-  createdById  String                  @map("created_by") @db.Uuid
-  deletedAt    DateTime?               @map("deleted_at")
-  createdAt    DateTime                @default(now()) @map("created_at")
-  updatedAt    DateTime                @updatedAt @map("updated_at")
+  id                     String                  @id @default(uuid()) @db.Uuid
+  workspaceId            String                  @map("workspace_id") @db.Uuid
+  propertyId             String                  @map("property_id") @db.Uuid
+  weddingEventId         String                  @map("wedding_event_id") @db.Uuid
+  sourceRecommendationId String?                 @map("source_recommendation_id") @db.Uuid
+  name                   String                  @db.VarChar(180)
+  checkInDate            DateTime                @map("check_in_date") @db.Date
+  checkOutDate           DateTime                @map("check_out_date") @db.Date
+  status                 AccommodationStayStatus @default(DRAFT)
+  version                Int                     @default(1)
+  publishedAt            DateTime?               @map("published_at")
+  createdById            String                  @map("created_by") @db.Uuid
+  deletedAt              DateTime?               @map("deleted_at")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
 
+  @@unique([workspaceId, sourceRecommendationId])
+  @@index([workspaceId, weddingEventId, status, checkInDate])
   @@index([workspaceId, propertyId, status])
   @@map("accommodation_stays")
 }

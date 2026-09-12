@@ -547,6 +547,7 @@ export class RsvpMenuService {
   async rsvpBootstrap(token: string) {
     const data = await this.bootstrap(token);
     return {
+      currency: data.currency,
       household: data.household,
       events: data.events,
       rsvp: data.rsvp,
@@ -717,8 +718,9 @@ export class RsvpMenuService {
           allergy.label,
         ]);
       const operationsRows = await tx.$queryRaw<
-        Array<{ data: Prisma.JsonValue }>
-      >`SELECT public.weddingos_guest_operations_bootstrap() AS data`;
+        Array<{ data: Prisma.JsonValue; currency: string }>
+      >`SELECT public.weddingos_guest_operations_bootstrap() AS data,
+               public.weddingos_guest_workspace_currency() AS currency`;
       const accommodationRecommendations =
         await tx.accommodationRecommendation.findMany({
           where: {
@@ -742,6 +744,7 @@ export class RsvpMenuService {
         deadlineOpen &&
         (config.allowEdits !== false || !submission?.submittedAt);
       return {
+        currency: operationsRows[0]?.currency ?? "RON",
         event: {
           eventType: eventProfile?.eventType ?? "other",
           organizerName: eventProfile?.organizerName ?? null,
@@ -832,6 +835,27 @@ export class RsvpMenuService {
                 guestId: selection.guestId,
                 menuId: selection.menuId,
               }))
+            : [],
+          accommodationRequests: rsvpConfig.accommodationQuestion
+            ? responses
+                .filter((response) => response.accommodationRequested)
+                .map((response) => ({
+                  guestId: response.guestId,
+                  eventId: response.weddingEventId,
+                  requested: response.accommodationRequested,
+                  arrivalDate:
+                    response.accommodationArrivalDate
+                      ?.toISOString()
+                      .slice(0, 10) ?? null,
+                  departureDate:
+                    response.accommodationDepartureDate
+                      ?.toISOString()
+                      .slice(0, 10) ?? null,
+                  roomPreference: response.accommodationRoomPreference,
+                  bookingMode: response.accommodationBookingMode,
+                  budgetMaxMinor: response.accommodationBudgetMaxMinor,
+                  currency: response.accommodationCurrency,
+                }))
             : [],
         },
         rsvpConfig,
@@ -1108,6 +1132,28 @@ export class RsvpMenuService {
           [...submittedEventIds].some((id) => !validEventIds.has(id))
         )
           validation("RSVP must answer every active event for every member");
+        const accommodationEventIds =
+          memberInput.accommodationRequests?.map(
+            (request) => request.eventId,
+          ) ?? [];
+        if (
+          new Set(accommodationEventIds).size !== accommodationEventIds.length
+        )
+          validation(
+            "Fiecare eveniment poate avea o singură cerere de cazare per invitat.",
+          );
+        for (const accommodationRequest of memberInput.accommodationRequests ??
+          []) {
+          const attendance = memberInput.events.find(
+            (event) => event.eventId === accommodationRequest.eventId,
+          )?.attendance;
+          if (!validEventIds.has(accommodationRequest.eventId))
+            validation("Cererea de cazare indică un eveniment indisponibil.");
+          if (accommodationRequest.requested && attendance !== "CONFIRMED")
+            validation(
+              "Cazarea poate fi solicitată numai pentru un eveniment la care invitatul participă.",
+            );
+        }
       }
       if (submission && submission.version !== input.version)
         conflict(submission.version);
@@ -1174,6 +1220,16 @@ export class RsvpMenuService {
           },
         });
         for (const event of memberInput.events) {
+          const accommodationDetails = memberInput.accommodationRequests?.find(
+            (request) => request.eventId === event.eventId,
+          );
+          const accommodationRequested =
+            config.accommodationQuestion === false
+              ? null
+              : event.attendance === "CONFIRMED" &&
+                (memberInput.accommodationRequests
+                  ? accommodationDetails?.requested === true
+                  : (memberInput.needsAccommodation ?? false));
           await tx.guestEventResponse.upsert({
             where: {
               submissionId_guestId_weddingEventId: {
@@ -1184,6 +1240,31 @@ export class RsvpMenuService {
             },
             update: {
               attendance: event.attendance,
+              ...(config.accommodationQuestion === false
+                ? {}
+                : {
+                    accommodationRequested,
+                    ...(memberInput.accommodationRequests
+                      ? {
+                          accommodationArrivalDate:
+                            accommodationDetails?.arrivalDate
+                              ? new Date(accommodationDetails.arrivalDate)
+                              : null,
+                          accommodationDepartureDate:
+                            accommodationDetails?.departureDate
+                              ? new Date(accommodationDetails.departureDate)
+                              : null,
+                          accommodationRoomPreference:
+                            accommodationDetails?.roomPreference ?? null,
+                          accommodationBookingMode:
+                            accommodationDetails?.bookingMode ?? null,
+                          accommodationBudgetMaxMinor:
+                            accommodationDetails?.budgetMaxMinor ?? null,
+                          accommodationCurrency:
+                            accommodationDetails?.currency ?? null,
+                        }
+                      : {}),
+                  }),
               respondedAt: new Date(),
               version: { increment: 1 },
             },
@@ -1193,6 +1274,20 @@ export class RsvpMenuService {
               guestId: guest.id,
               weddingEventId: event.eventId,
               attendance: event.attendance,
+              accommodationRequested,
+              accommodationArrivalDate: accommodationDetails?.arrivalDate
+                ? new Date(accommodationDetails.arrivalDate)
+                : null,
+              accommodationDepartureDate: accommodationDetails?.departureDate
+                ? new Date(accommodationDetails.departureDate)
+                : null,
+              accommodationRoomPreference:
+                accommodationDetails?.roomPreference ?? null,
+              accommodationBookingMode:
+                accommodationDetails?.bookingMode ?? null,
+              accommodationBudgetMaxMinor:
+                accommodationDetails?.budgetMaxMinor ?? null,
+              accommodationCurrency: accommodationDetails?.currency ?? null,
             },
           });
         }
@@ -1546,7 +1641,38 @@ export class RsvpMenuService {
             validation(
               "The correction must answer every active RSVP event for every member",
             );
+          const accommodationEventIds =
+            memberInput.accommodationRequests?.map(
+              (request) => request.eventId,
+            ) ?? [];
+          if (
+            new Set(accommodationEventIds).size !== accommodationEventIds.length
+          )
+            validation(
+              "Fiecare eveniment poate avea o singură cerere de cazare per invitat.",
+            );
+          for (const accommodationRequest of memberInput.accommodationRequests ??
+            []) {
+            const attendance = memberInput.events.find(
+              (event) => event.eventId === accommodationRequest.eventId,
+            )?.attendance;
+            if (!eventIds.has(accommodationRequest.eventId))
+              validation("Cererea de cazare indică un eveniment indisponibil.");
+            if (accommodationRequest.requested && attendance !== "CONFIRMED")
+              validation(
+                "Cazarea poate fi solicitată numai pentru un eveniment la care invitatul participă.",
+              );
+          }
           for (const event of memberInput.events) {
+            const accommodationDetails =
+              memberInput.accommodationRequests?.find(
+                (request) => request.eventId === event.eventId,
+              );
+            const accommodationRequested =
+              event.attendance === "CONFIRMED" &&
+              (memberInput.accommodationRequests
+                ? accommodationDetails?.requested === true
+                : (memberInput.needsAccommodation ?? false));
             await tx.guestEventResponse.upsert({
               where: {
                 submissionId_guestId_weddingEventId: {
@@ -1557,6 +1683,27 @@ export class RsvpMenuService {
               },
               update: {
                 attendance: event.attendance,
+                accommodationRequested,
+                ...(memberInput.accommodationRequests
+                  ? {
+                      accommodationArrivalDate:
+                        accommodationDetails?.arrivalDate
+                          ? new Date(accommodationDetails.arrivalDate)
+                          : null,
+                      accommodationDepartureDate:
+                        accommodationDetails?.departureDate
+                          ? new Date(accommodationDetails.departureDate)
+                          : null,
+                      accommodationRoomPreference:
+                        accommodationDetails?.roomPreference ?? null,
+                      accommodationBookingMode:
+                        accommodationDetails?.bookingMode ?? null,
+                      accommodationBudgetMaxMinor:
+                        accommodationDetails?.budgetMaxMinor ?? null,
+                      accommodationCurrency:
+                        accommodationDetails?.currency ?? null,
+                    }
+                  : {}),
                 respondedAt: new Date(),
                 version: { increment: 1 },
               },
@@ -1566,9 +1713,31 @@ export class RsvpMenuService {
                 guestId: memberInput.guestId,
                 weddingEventId: event.eventId,
                 attendance: event.attendance,
+                accommodationRequested,
+                accommodationArrivalDate: accommodationDetails?.arrivalDate
+                  ? new Date(accommodationDetails.arrivalDate)
+                  : null,
+                accommodationDepartureDate: accommodationDetails?.departureDate
+                  ? new Date(accommodationDetails.departureDate)
+                  : null,
+                accommodationRoomPreference:
+                  accommodationDetails?.roomPreference ?? null,
+                accommodationBookingMode:
+                  accommodationDetails?.bookingMode ?? null,
+                accommodationBudgetMaxMinor:
+                  accommodationDetails?.budgetMaxMinor ?? null,
+                accommodationCurrency: accommodationDetails?.currency ?? null,
               },
             });
           }
+          if (memberInput.needsAccommodation !== undefined)
+            await tx.guest.update({
+              where: { id: memberInput.guestId },
+              data: {
+                needsAccommodation: memberInput.needsAccommodation,
+                version: { increment: 1 },
+              },
+            });
         }
         const updated = await tx.rsvpSubmission.update({
           where: { id: submissionId },

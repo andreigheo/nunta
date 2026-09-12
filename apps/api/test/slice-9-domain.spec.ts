@@ -203,6 +203,7 @@ describe("Slice 9 intelligence contracts", () => {
         "CREATE_ACCOMMODATION_STAY",
         {
           propertyId: id,
+          weddingEventId: id,
           name: "Sejur invitați",
           checkInDate: "2027-09-11",
           checkOutDate: "2027-09-13",

@@ -64,6 +64,11 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
   const [types, setTypes] = React.useState<AccommodationDiscoveryType[]>([]);
   const [facilities, setFacilities] = React.useState<AccommodationFacility[]>([]);
   const [budget, setBudget] = React.useState("");
+  const [checkInDate, setCheckInDate] = React.useState("");
+  const [checkOutDate, setCheckOutDate] = React.useState("");
+  const [adults, setAdults] = React.useState("2");
+  const [children, setChildren] = React.useState("0");
+  const [rooms, setRooms] = React.useState("1");
   const [sort, setSort] = React.useState<DiscoverySort>("distance");
   const [response, setResponse] = React.useState<AccommodationDiscoveryResponse | null>(null);
   const [existing, setExisting] = React.useState<AccommodationRecommendationResource[]>([]);
@@ -152,6 +157,14 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
       setValidationError("Bugetul trebuie să fie o valoare pozitivă.");
       return;
     }
+    if ((checkInDate && !checkOutDate) || (!checkInDate && checkOutDate)) {
+      setValidationError("Completează atât check-in, cât și check-out.");
+      return;
+    }
+    if (checkInDate && checkOutDate && checkOutDate <= checkInDate) {
+      setValidationError("Data de check-out trebuie să fie după check-in.");
+      return;
+    }
 
     setValidationError(null);
     setSearchError(null);
@@ -167,6 +180,11 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
         budgetMaxMinor:
           budgetNumber === undefined ? undefined : Math.round(budgetNumber * 100),
         currency,
+        checkInDate: checkInDate || undefined,
+        checkOutDate: checkOutDate || undefined,
+        adults: Number(adults),
+        children: Number(children),
+        rooms: Number(rooms),
       });
       setResponse(next);
     } catch (cause) {
@@ -335,6 +353,36 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
               <span className="hidden text-xs font-medium text-muted group-open:inline">Închide</span>
             </summary>
             <div className="space-y-5 border-t border-line px-4 pb-4 pt-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Check-in">
+                  <Input
+                    type="date"
+                    value={checkInDate}
+                    onChange={(event) => setCheckInDate(event.target.value)}
+                  />
+                </Field>
+                <Field label="Check-out">
+                  <Input
+                    type="date"
+                    value={checkOutDate}
+                    onChange={(event) => setCheckOutDate(event.target.value)}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Adulți">
+                  <Input type="number" min="1" max="100" value={adults} onChange={(event) => setAdults(event.target.value)} />
+                </Field>
+                <Field label="Copii">
+                  <Input type="number" min="0" max="100" value={children} onChange={(event) => setChildren(event.target.value)} />
+                </Field>
+                <Field label="Camere">
+                  <Input type="number" min="1" max="50" value={rooms} onChange={(event) => setRooms(event.target.value)} />
+                </Field>
+              </div>
+              <p className="text-xs leading-5 text-muted">
+                Datele și numărul de persoane pregătesc cererea. Sursa actuală arată locații publice, dar nu confirmă disponibilitatea în timp real.
+              </p>
               <fieldset>
                 <legend className="text-sm font-medium text-ink">Tip de cazare</legend>
                 <div className="mt-2 flex flex-wrap gap-2">

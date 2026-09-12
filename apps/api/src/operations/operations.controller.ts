@@ -10,12 +10,14 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
 import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import {
   accommodationAllocationBatchSchema,
+  accommodationOperationsQuerySchema,
   createAccommodationPropertySchema,
   createAccommodationRoomSchema,
   createAccommodationStaySchema,
@@ -1079,6 +1081,7 @@ export class AccommodationController {
   @Get("accommodation-requests") async requests(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
+    @Query() query: unknown,
     @Req() request: WeddingOsRequest,
   ) {
     return apiResponse(
@@ -1086,6 +1089,7 @@ export class AccommodationController {
       await this.operations.accommodationRequests(
         auth.userId,
         uuid(workspaceId),
+        parseWithSchema(accommodationOperationsQuerySchema, query).eventId,
       ),
     );
   }
@@ -1252,11 +1256,16 @@ export class AccommodationController {
   @Get("accommodation-stays") async stays(
     @CurrentAuth() auth: AuthenticatedSession,
     @Param("workspaceId") workspaceId: string,
+    @Query() query: unknown,
     @Req() request: WeddingOsRequest,
   ) {
     return apiResponse(
       request,
-      await this.operations.accommodationStays(auth.userId, uuid(workspaceId)),
+      await this.operations.accommodationStays(
+        auth.userId,
+        uuid(workspaceId),
+        parseWithSchema(accommodationOperationsQuerySchema, query).eventId,
+      ),
     );
   }
   @Post("accommodation-stays")

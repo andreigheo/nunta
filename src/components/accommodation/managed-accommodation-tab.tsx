@@ -46,6 +46,10 @@ export function ManagedAccommodationTab() {
   const [stay, setStay] = React.useState<AccommodationStayResource | null>(null);
   const activeStayId = React.useRef("");
   const [requests, setRequests] = React.useState<OperationResource[]>([]);
+  const [events, setEvents] = React.useState<
+    Array<{ id: string; title: string }>
+  >([]);
+  const [eventId, setEventId] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -79,6 +83,15 @@ export function ManagedAccommodationTab() {
   const [stayName, setStayName] = React.useState("Cazare nuntă");
   const [checkIn, setCheckIn] = React.useState("");
   const [checkOut, setCheckOut] = React.useState("");
+  const [pendingAssignment, setPendingAssignment] = React.useState<{
+    guestId: string;
+    guestName: string;
+    householdId: string;
+    requestId: string | null;
+    roomId: string;
+    checkInDate: string;
+    checkOutDate: string;
+  } | null>(null);
   const capabilities = bootstrap?.membership.capabilities ?? [];
   const canWrite = capabilities.includes("accommodation.write");
   const canAssign = capabilities.includes("accommodation.assign");
@@ -90,7 +103,12 @@ export function ManagedAccommodationTab() {
     async (id: string) => {
       if (!currentWorkspace) return;
       activeStayId.current = id;
-      setStay(await weddingOsApi.accommodationStay(currentWorkspace.id, id));
+      const selectedStay = await weddingOsApi.accommodationStay(
+        currentWorkspace.id,
+        id,
+      );
+      setStay(selectedStay);
+      setEventId(selectedStay.weddingEventId);
     },
     [currentWorkspace],
   );
@@ -99,20 +117,30 @@ export function ManagedAccommodationTab() {
     if (!currentWorkspace) return;
     setLoading(true);
     try {
-      const [propertyList, stayList, requestList] = await Promise.all([
+      const [propertyList, stayList, requestList, calendar] = await Promise.all([
         weddingOsApi.accommodationProperties(currentWorkspace.id),
         weddingOsApi.accommodationStays(currentWorkspace.id),
         weddingOsApi.accommodationRequests(currentWorkspace.id),
+        weddingOsApi.calendar(currentWorkspace.id),
       ]);
+      const eventList = calendar.items
+        .filter((item) => item.sourceType === "wedding_event")
+        .map((item) => ({ id: item.sourceId, title: item.title }));
       setProperties(propertyList.items);
       setStays(stayList.items);
       setRequests(requestList.items);
+      setEvents(eventList);
       setPropertyId((current) => current || propertyList.items[0]?.id || "");
       const selected =
         stayList.items.find((item) => item.id === activeStayId.current) ??
         stayList.items[0];
       if (selected) await loadStay(selected.id);
       else setStay(null);
+      setEventId((current) =>
+        current && eventList.some((event) => event.id === current)
+          ? current
+          : String(selected?.weddingEventId ?? eventList[0]?.id ?? ""),
+      );
       setError(null);
     } catch (cause) {
       setError(apiErrorMessage(cause));
@@ -148,9 +176,12 @@ export function ManagedAccommodationTab() {
     }
   };
 
-  const allocate = async (request: OperationResource, roomId: string) => {
+  const applyAllocation = async (
+    assignment: NonNullable<typeof pendingAssignment>,
+    confirmHouseholdSplit: boolean,
+  ) => {
     if (!currentWorkspace || !stay) return;
-    await run(
+    return run(
       () =>
         weddingOsApi.replaceAccommodationAllocations(
           currentWorkspace.id,
@@ -159,20 +190,93 @@ export function ManagedAccommodationTab() {
           {
             allocations: [
               {
-                roomId,
-                guestId: request.guestId,
-                householdId: request.householdId,
-                requestId: request.id,
-                checkInDate: String(request.arrivalDate ?? stay.checkInDate).slice(0, 10),
-                checkOutDate: String(request.departureDate ?? stay.checkOutDate).slice(0, 10),
+                roomId: assignment.roomId,
+                guestId: assignment.guestId,
+                householdId: assignment.householdId,
+                requestId: assignment.requestId,
+                checkInDate: assignment.checkInDate,
+                checkOutDate: assignment.checkOutDate,
+                overrideReason: assignment.requestId
+                  ? null
+                  : "Alocare manuală fără cerere RSVP",
               },
             ],
             removeAllocationIds: [],
-            confirmHouseholdSplit: true,
-            reason: "Alocare confirmată de organizator",
+            confirmHouseholdSplit,
+            reason: confirmHouseholdSplit
+              ? "Separare confirmată de organizator în editorul de cazare"
+              : null,
           },
         ),
       "Invitatul a fost alocat în cameră",
+    );
+  };
+
+  const requestAllocation = (
+    request: OperationResource,
+    roomId: string,
+  ) => {
+    if (!stay) return;
+    const assignment = {
+      guestId: String(request.guestId),
+      guestName: String(request.guestName ?? "Invitat"),
+      householdId: String(request.householdId),
+      requestId:
+        "accommodationRequestId" in request
+          ? request.accommodationRequestId
+            ? String(request.accommodationRequestId)
+            : null
+          : request.id,
+      roomId,
+      checkInDate: String(request.arrivalDate ?? stay.checkInDate).slice(0, 10),
+      checkOutDate: String(request.departureDate ?? stay.checkOutDate).slice(0, 10),
+    };
+    const householdRooms = new Set(
+      stay.rooms.flatMap((room) =>
+        room.allocations
+          .filter(
+            (allocation) =>
+              allocation.householdId === assignment.householdId &&
+              allocation.guestId !== assignment.guestId,
+          )
+          .map(() => room.id),
+      ),
+    );
+    if (householdRooms.size > 0 && !householdRooms.has(roomId)) {
+      setPendingAssignment(assignment);
+      return;
+    }
+    void applyAllocation(assignment, false);
+  };
+
+  const moveAllocation = (allocation: OperationResource, roomId: string) => {
+    if (!stay) return;
+    requestAllocation(
+      {
+        ...allocation,
+        guestName: allocation.guestName,
+        arrivalDate: allocation.checkInDate,
+        departureDate: allocation.checkOutDate,
+      },
+      roomId,
+    );
+  };
+
+  const removeAllocation = async (allocationId: string) => {
+    if (!currentWorkspace || !stay) return;
+    await run(
+      () =>
+        weddingOsApi.replaceAccommodationAllocations(
+          currentWorkspace.id,
+          stay.id,
+          stay.version,
+          {
+            allocations: [],
+            removeAllocationIds: [allocationId],
+            confirmHouseholdSplit: false,
+          },
+        ),
+      "Alocarea a fost eliminată",
     );
   };
 
@@ -297,10 +401,11 @@ export function ManagedAccommodationTab() {
 
   const openNewStay = () => {
     setEditingStayId(null);
-    setStayName("Cazare nuntă");
+    setStayName("Cazare eveniment");
     setCheckIn("");
     setCheckOut("");
     setPropertyId(properties[0]?.id ?? "");
+    setEventId((current) => current || events[0]?.id || "");
     setStayOpen(true);
   };
 
@@ -311,12 +416,14 @@ export function ManagedAccommodationTab() {
     setCheckIn(stay.checkInDate.slice(0, 10));
     setCheckOut(stay.checkOutDate.slice(0, 10));
     setPropertyId(stay.propertyId);
+    setEventId(stay.weddingEventId);
     setStayOpen(true);
   };
 
   const saveStay = () => {
     const input = {
       propertyId,
+      weddingEventId: eventId,
       name: stayName.trim(),
       checkInDate: checkIn,
       checkOutDate: checkOut,
@@ -365,7 +472,11 @@ export function ManagedAccommodationTab() {
         .filter((requestId): requestId is string => Boolean(requestId)),
     ) ?? [],
   );
-  const unassigned = requests.filter(
+  const relevantRequests = requests.filter(
+    (request) =>
+      !stay || String(request.weddingEventId ?? "") === stay.weddingEventId,
+  );
+  const unassigned = relevantRequests.filter(
     (request) =>
       request.requested === true && !assignedRequestIds.has(request.id),
   );
@@ -410,7 +521,9 @@ export function ManagedAccommodationTab() {
               <Select value={stay?.id ?? ""} onChange={(event) => void loadStay(event.target.value)}>
                 {stays.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {String(item.name)}
+                    {String(item.name)} ·{" "}
+                    {events.find((event) => event.id === item.weddingEventId)
+                      ?.title ?? "Eveniment"}
                   </option>
                 ))}
               </Select>
@@ -489,7 +602,7 @@ export function ManagedAccommodationTab() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <StatCard
           label="Cereri cazare"
-          value={requests.filter((item) => item.requested === true).length}
+          value={relevantRequests.filter((item) => item.requested === true).length}
           icon={Users}
         />
         <StatCard label="Proprietăți" value={properties.length} icon={Building2} />
@@ -610,6 +723,46 @@ export function ManagedAccommodationTab() {
                         ? `${room.allocations.length} invitați alocați`
                         : "Cameră liberă"}
                     </p>
+                    {room.allocations.length > 0 ? (
+                      <ul className="mt-3 space-y-2 border-t border-line pt-3">
+                        {room.allocations.map((allocation) => (
+                          <li
+                            key={allocation.id}
+                            className="flex min-w-0 items-center justify-between gap-2"
+                          >
+                            <span className="min-w-0 truncate text-sm text-ink">
+                              {String(allocation.guestName ?? "Invitat")}
+                            </span>
+                            {canAssign ? (
+                              <div className="flex shrink-0 items-center gap-1">
+                                <Select
+                                  aria-label={`Mută ${String(allocation.guestName ?? "invitatul")}`}
+                                  className="max-w-36"
+                                  value={room.id}
+                                  onChange={(event) =>
+                                    moveAllocation(allocation, event.target.value)
+                                  }
+                                >
+                                  {stay.rooms.map((targetRoom) => (
+                                    <option key={targetRoom.id} value={targetRoom.id}>
+                                      {String(targetRoom.name)}
+                                    </option>
+                                  ))}
+                                </Select>
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  aria-label={`Elimină alocarea pentru ${String(allocation.guestName ?? "invitat")}`}
+                                  onClick={() => void removeAllocation(allocation.id)}
+                                >
+                                  <Trash2 className="size-4 text-danger" />
+                                </Button>
+                              </div>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -668,7 +821,10 @@ export function ManagedAccommodationTab() {
                         aria-label={`Alocă ${String(request.guestName ?? "invitatul")} într-o cameră`}
                         className="max-w-56"
                         defaultValue=""
-                        onChange={(event) => event.target.value && void allocate(request, event.target.value)}
+                        onChange={(event) =>
+                          event.target.value &&
+                          requestAllocation(request, event.target.value)
+                        }
                         disabled={!canAssign || !stay.rooms.length}
                       >
                         <option value="">Alocă în cameră…</option>
@@ -824,6 +980,7 @@ export function ManagedAccommodationTab() {
               disabled={
                 saving ||
                 !propertyId ||
+                !eventId ||
                 !stayName.trim() ||
                 !checkIn ||
                 !checkOut ||
@@ -837,6 +994,20 @@ export function ManagedAccommodationTab() {
         }
       >
         <div className="grid grid-cols-2 gap-4">
+          <Field label="Eveniment" className="col-span-2">
+            <Select
+              value={eventId}
+              onChange={(event) => setEventId(event.target.value)}
+              disabled={Boolean(stay?.rooms.some((room) => room.allocations.length))}
+            >
+              <option value="">Alege evenimentul</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.title}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Proprietate" className="col-span-2">
             <Select value={propertyId} onChange={(event) => setPropertyId(event.target.value)}>
               {properties.map((property) => (
@@ -932,6 +1103,20 @@ export function ManagedAccommodationTab() {
         description="Sejurul poate fi eliminat numai cât timp este draft și nu are alocări active."
         confirmLabel="Șterge sejurul"
         destructive
+        loading={saving}
+      />
+      <ConfirmDialog
+        open={Boolean(pendingAssignment)}
+        onClose={() => setPendingAssignment(null)}
+        onConfirm={async () => {
+          const assignment = pendingAssignment;
+          if (!assignment) return;
+          const applied = await applyAllocation(assignment, true);
+          if (applied !== false) setPendingAssignment(null);
+        }}
+        title="Separi membrii aceleiași familii?"
+        description={`${pendingAssignment?.guestName ?? "Invitatul"} va fi cazat într-o altă cameră decât un membru al aceleiași familii. Confirmă numai dacă această separare este intenționată.`}
+        confirmLabel="Confirmă separarea"
         loading={saving}
       />
     </div>

@@ -12,6 +12,7 @@ import {
   Archive,
   ArrowDown,
   ArrowUp,
+  BedDouble,
   Check,
   Eye,
   FilePenLine,
@@ -89,6 +90,11 @@ export function AccommodationRecommendationsTab({
   const [manualPriceNote, setManualPriceNote] = React.useState("");
   const [manualError, setManualError] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<AccommodationRecommendationResource | null>(null);
+  const [promotionOpen, setPromotionOpen] = React.useState(false);
+  const [promotionCheckIn, setPromotionCheckIn] = React.useState("");
+  const [promotionCheckOut, setPromotionCheckOut] = React.useState("");
+  const [promotionRooms, setPromotionRooms] = React.useState("0");
+  const [promotionError, setPromotionError] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     if (!currentWorkspace) return;
@@ -215,6 +221,44 @@ export function AccommodationRecommendationsTab({
         description: apiErrorMessage(cause),
         variant: "error",
       });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const promote = async () => {
+    if (!currentWorkspace || !selected || !canWrite) return;
+    if (
+      !promotionCheckIn ||
+      !promotionCheckOut ||
+      promotionCheckOut <= promotionCheckIn
+    ) {
+      setPromotionError("Alege un interval valid pentru sejur.");
+      return;
+    }
+    setSaving(true);
+    setPromotionError(null);
+    try {
+      await weddingOsApi.promoteAccommodationRecommendation(
+        currentWorkspace.id,
+        selected.id,
+        {
+          checkInDate: promotionCheckIn,
+          checkOutDate: promotionCheckOut,
+          roomCount: Number(promotionRooms),
+          roomCapacityAdults: 2,
+          roomCapacityChildren: 0,
+        },
+      );
+      setPromotionOpen(false);
+      toast({
+        title: "Sejurul operațional este pregătit",
+        description:
+          "Proprietatea, intervalul și camerele sunt acum disponibile în „Camere și alocări”.",
+        variant: "success",
+      });
+    } catch (cause) {
+      setPromotionError(apiErrorMessage(cause));
     } finally {
       setSaving(false);
     }
@@ -559,6 +603,86 @@ export function AccommodationRecommendationsTab({
                     </dd>
                   </div>
                 </dl>
+
+                {canWrite && selected.status !== "archived" ? (
+                  <div className="mt-5 rounded-xl bg-subtle p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">
+                          Ai confirmat această cazare?
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-muted">
+                          Transform-o într-un sejur operațional pentru camere și alocări. Recomandarea publică rămâne separată.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setPromotionOpen((current) => !current);
+                          setPromotionError(null);
+                        }}
+                      >
+                        <BedDouble className="size-4" aria-hidden />
+                        Pregătește sejurul
+                      </Button>
+                    </div>
+                    {promotionOpen ? (
+                      <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-3">
+                        <Field label="Check-in" required>
+                          <Input
+                            type="date"
+                            value={promotionCheckIn}
+                            onChange={(event) => setPromotionCheckIn(event.target.value)}
+                          />
+                        </Field>
+                        <Field label="Check-out" required>
+                          <Input
+                            type="date"
+                            value={promotionCheckOut}
+                            onChange={(event) => setPromotionCheckOut(event.target.value)}
+                          />
+                        </Field>
+                        <Field
+                          label="Camere inițiale"
+                          hint="Poți adăuga și ulterior."
+                        >
+                          <Input
+                            type="number"
+                            min="0"
+                            max="200"
+                            inputMode="numeric"
+                            value={promotionRooms}
+                            onChange={(event) => setPromotionRooms(event.target.value)}
+                          />
+                        </Field>
+                        {promotionError ? (
+                          <p role="alert" className="text-sm text-danger sm:col-span-3">
+                            {promotionError}
+                          </p>
+                        ) : null}
+                        <div className="flex justify-end gap-2 sm:col-span-3">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setPromotionOpen(false)}
+                            disabled={saving}
+                          >
+                            Renunță
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => void promote()}
+                            loading={saving}
+                            disabled={!promotionCheckIn || !promotionCheckOut}
+                          >
+                            Creează sejurul
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {canWrite ? (
                   <RecommendationEditorForm

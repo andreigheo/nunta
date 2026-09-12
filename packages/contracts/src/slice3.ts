@@ -626,6 +626,48 @@ export const guestRsvpRequestSchema = z.object({
         allergyDetails: z.string().max(2000).optional(),
         needsTransport: z.boolean().optional(),
         needsAccommodation: z.boolean().optional(),
+        accommodationRequests: z
+          .array(
+            z
+              .object({
+                eventId: uuid,
+                requested: z.boolean().default(true),
+                arrivalDate: z.string().date().nullable().optional(),
+                departureDate: z.string().date().nullable().optional(),
+                roomPreference: z
+                  .string()
+                  .trim()
+                  .max(500)
+                  .nullable()
+                  .optional(),
+                bookingMode: z
+                  .enum(["recommendations_only", "organizer_managed"])
+                  .default("organizer_managed"),
+                budgetMaxMinor: z
+                  .number()
+                  .int()
+                  .nonnegative()
+                  .nullable()
+                  .optional(),
+                currency: z
+                  .string()
+                  .regex(/^[A-Z]{3}$/)
+                  .nullable()
+                  .optional(),
+              })
+              .refine(
+                (value) =>
+                  !value.arrivalDate ||
+                  !value.departureDate ||
+                  value.departureDate > value.arrivalDate,
+                {
+                  path: ["departureDate"],
+                  message: "Data plecării trebuie să fie după sosire.",
+                },
+              ),
+          )
+          .max(20)
+          .optional(),
         accessibilityNotes: z.string().max(2000).optional(),
       }),
     )
@@ -1092,6 +1134,7 @@ export const guestInvitationBootstrapSchema = z.object({
 });
 
 export const guestRsvpBootstrapSchema = z.object({
+  currency: z.string().regex(/^[A-Z]{3}$/),
   household: guestCompanionBootstrapSchema.shape.household,
   events: guestCompanionBootstrapSchema.shape.events,
   rsvp: guestCompanionBootstrapSchema.shape.rsvp,

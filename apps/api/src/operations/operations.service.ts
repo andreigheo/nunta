@@ -2708,11 +2708,15 @@ export class OperationsService {
     );
   }
 
-  async accommodationRequests(userId: string, workspaceId: string) {
+  async accommodationRequests(
+    userId: string,
+    workspaceId: string,
+    eventId?: string,
+  ) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => {
       await this.refreshOperationalRequests(tx, workspaceId);
       const rows = await tx.accommodationRequest.findMany({
-        where: { workspaceId },
+        where: { workspaceId, ...(eventId ? { weddingEventId: eventId } : {}) },
         orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
       });
       const [guests, households] = await Promise.all([
@@ -2774,6 +2778,15 @@ export class OperationsService {
             : {}),
           ...(input.roomPreference !== undefined
             ? { roomPreference: nullableString(input.roomPreference) }
+            : {}),
+          ...(input.bookingMode !== undefined
+            ? { bookingMode: string(input.bookingMode) }
+            : {}),
+          ...(input.budgetMaxMinor !== undefined
+            ? { budgetMaxMinor: nullableNumber(input.budgetMaxMinor) }
+            : {}),
+          ...(input.currency !== undefined
+            ? { currency: nullableString(input.currency) }
             : {}),
           ...(input.accessibilityRequirements !== undefined
             ? {
@@ -3109,11 +3122,19 @@ export class OperationsService {
     });
   }
 
-  async accommodationStays(userId: string, workspaceId: string) {
+  async accommodationStays(
+    userId: string,
+    workspaceId: string,
+    eventId?: string,
+  ) {
     return this.database.withContext({ userId, workspaceId }, async (tx) => ({
       items: (
         await tx.accommodationStay.findMany({
-          where: { workspaceId, deletedAt: null },
+          where: {
+            workspaceId,
+            deletedAt: null,
+            ...(eventId ? { weddingEventId: eventId } : {}),
+          },
           orderBy: { checkInDate: "asc" },
         })
       ).map(resource),
@@ -3146,6 +3167,7 @@ export class OperationsService {
         );
         if (replay) return replay;
         await this.requireProperty(tx, workspaceId, string(input.propertyId));
+        await this.requireEvent(tx, workspaceId, string(input.weddingEventId));
         const checkInDate = date(input.checkInDate);
         const checkOutDate = date(input.checkOutDate);
         if (checkOutDate <= checkInDate)
@@ -3154,6 +3176,7 @@ export class OperationsService {
           data: {
             workspaceId,
             propertyId: string(input.propertyId),
+            weddingEventId: string(input.weddingEventId),
             name: string(input.name),
             checkInDate,
             checkOutDate,
@@ -3187,6 +3210,172 @@ export class OperationsService {
     );
   }
 
+  async promoteAccommodationRecommendation(
+    userId: string,
+    workspaceId: string,
+    recommendationId: string,
+    key: string,
+    input: Input,
+    correlationId: string,
+  ) {
+    return this.database.withContext(
+      { userId, workspaceId, correlationId },
+      async (tx) => {
+        const operation = `accommodation.recommendation.promote:${recommendationId}`;
+        const request = { recommendationId, ...input };
+        const replay = await this.replay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          key,
+          request,
+        );
+        if (replay) return replay;
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(
+            hashtextextended(
+              ${`accommodation-recommendation-promote:${workspaceId}:${recommendationId}`},
+              0
+            )
+          )
+        `;
+        const recommendation = await tx.accommodationRecommendation.findFirst({
+          where: { id: recommendationId, workspaceId, deletedAt: null },
+        });
+        if (!recommendation) notFound("Recomandarea nu există.");
+        await this.requireEvent(tx, workspaceId, recommendation.weddingEventId);
+        const checkInDate = date(input.checkInDate);
+        const checkOutDate = date(input.checkOutDate);
+        if (checkOutDate <= checkInDate)
+          validation("Data de check-out trebuie să fie după check-in.");
+
+        const alreadyPromoted = await tx.accommodationStay.findFirst({
+          where: {
+            workspaceId,
+            sourceRecommendationId: recommendationId,
+            deletedAt: null,
+          },
+        });
+        if (alreadyPromoted) {
+          const response = await this.accommodationStayResource(
+            tx,
+            workspaceId,
+            alreadyPromoted.id,
+          );
+          await this.saveReplay(
+            tx,
+            userId,
+            workspaceId,
+            operation,
+            key,
+            request,
+            response,
+          );
+          return response;
+        }
+
+        const propertyName =
+          nullableString(input.propertyName) ?? recommendation.name;
+        const address =
+          recommendation.address ?? recommendation.city ?? recommendation.name;
+        const city = recommendation.city ?? "Nespecificat";
+        const country = recommendation.country ?? "Nespecificat";
+        let property = await tx.accommodationProperty.findFirst({
+          where: {
+            workspaceId,
+            name: propertyName,
+            address,
+            deletedAt: null,
+          },
+        });
+        property ??= await tx.accommodationProperty.create({
+          data: {
+            workspaceId,
+            name: propertyName,
+            type: accommodationPropertyType(recommendation.type),
+            address,
+            city,
+            country,
+            latitude: recommendation.latitude,
+            longitude: recommendation.longitude,
+            contactPhoneEncrypted: recommendation.contactPhone
+              ? encryptSensitive(recommendation.contactPhone, this.sensitiveKey)
+              : null,
+            instructions: recommendation.organizerNote,
+          },
+        });
+        const stayName =
+          nullableString(input.stayName) ?? `Cazare · ${recommendation.name}`;
+        const stay = await tx.accommodationStay.create({
+          data: {
+            workspaceId,
+            propertyId: property.id,
+            weddingEventId: recommendation.weddingEventId,
+            sourceRecommendationId: recommendation.id,
+            name: stayName,
+            checkInDate,
+            checkOutDate,
+            createdById: userId,
+          },
+        });
+        const roomCount = number(input.roomCount);
+        if (roomCount > 0) {
+          const existingNames = new Set(
+            (
+              await tx.accommodationRoom.findMany({
+                where: { workspaceId, propertyId: property.id },
+                select: { name: true },
+              })
+            ).map((room) => room.name),
+          );
+          for (let index = 1; index <= roomCount; index += 1) {
+            let roomName = `Camera ${index}`;
+            if (existingNames.has(roomName))
+              roomName = `${stayName} · ${index}`;
+            existingNames.add(roomName);
+            await tx.accommodationRoom.create({
+              data: {
+                workspaceId,
+                propertyId: property.id,
+                name: roomName,
+                capacityAdults: number(input.roomCapacityAdults),
+                capacityChildren: number(input.roomCapacityChildren),
+              },
+            });
+          }
+        }
+        await this.recordSimple(tx, {
+          eventName: "accommodation.recommendation_promoted.v1",
+          aggregateType: "AccommodationStay",
+          aggregateId: stay.id,
+          aggregateVersion: stay.version,
+          workspaceId,
+          userId,
+          correlationId,
+          summary: `Recomandarea ${recommendation.name} a devenit sejur operațional.`,
+          category: "accommodation",
+          action: "recommendation_promoted",
+        });
+        const response = await this.accommodationStayResource(
+          tx,
+          workspaceId,
+          stay.id,
+        );
+        await this.saveReplay(
+          tx,
+          userId,
+          workspaceId,
+          operation,
+          key,
+          request,
+          response,
+        );
+        return response;
+      },
+    );
+  }
+
   async updateAccommodationStay(
     userId: string,
     workspaceId: string,
@@ -3199,10 +3388,37 @@ export class OperationsService {
       assertVersion(current.version, version);
       if (input.propertyId)
         await this.requireProperty(tx, workspaceId, string(input.propertyId));
+      if (input.weddingEventId) {
+        await this.requireEvent(tx, workspaceId, string(input.weddingEventId));
+        if (string(input.weddingEventId) !== current.weddingEventId) {
+          const allocationCount = await tx.accommodationAllocation.count({
+            where: {
+              workspaceId,
+              stayId,
+              status: { in: ["ASSIGNED", "CONFIRMED", "CHECKED_IN"] },
+            },
+          });
+          if (allocationCount)
+            validation(
+              "Evenimentul sejurului nu poate fi schimbat după alocarea invitaților.",
+            );
+        }
+      }
+      const nextCheckInDate = input.checkInDate
+        ? date(input.checkInDate)
+        : current.checkInDate;
+      const nextCheckOutDate = input.checkOutDate
+        ? date(input.checkOutDate)
+        : current.checkOutDate;
+      if (nextCheckOutDate <= nextCheckInDate)
+        validation("Data de check-out trebuie să fie după check-in.");
       const row = await tx.accommodationStay.update({
         where: { id: stayId },
         data: {
           ...(input.propertyId ? { propertyId: string(input.propertyId) } : {}),
+          ...(input.weddingEventId
+            ? { weddingEventId: string(input.weddingEventId) }
+            : {}),
           ...(input.name ? { name: string(input.name) } : {}),
           ...(input.checkInDate
             ? { checkInDate: date(input.checkInDate) }
@@ -3270,13 +3486,44 @@ export class OperationsService {
         if (replay) return replay;
         const stay = await this.requireStay(tx, workspaceId, stayId);
         assertVersion(stay.version, version);
-        for (const id of array(input.removeAllocationIds).map(string))
+        for (const id of array(input.removeAllocationIds).map(string)) {
+          const allocation = await tx.accommodationAllocation.findFirst({
+            where: { id, workspaceId, stayId },
+          });
           await tx.accommodationAllocation.updateMany({
             where: { id, workspaceId, stayId },
             data: { status: "CANCELLED", version: { increment: 1 } },
           });
+          if (allocation?.accommodationRequestId)
+            await tx.accommodationRequest.updateMany({
+              where: {
+                id: allocation.accommodationRequestId,
+                workspaceId,
+                weddingEventId: stay.weddingEventId,
+                status: "ASSIGNED",
+              },
+              data: { status: "REQUESTED", version: { increment: 1 } },
+            });
+        }
         const values = array(input.allocations).map(record);
+        const incomingGuestIds = new Set(
+          values.map((value) => string(value.guestId)),
+        );
+        const currentAllocations = await tx.accommodationAllocation.findMany({
+          where: {
+            workspaceId,
+            stayId,
+            status: { in: ["ASSIGNED", "CONFIRMED", "CHECKED_IN"] },
+          },
+        });
         const households = new Map<string, Set<string>>();
+        for (const allocation of currentAllocations) {
+          if (incomingGuestIds.has(allocation.guestId)) continue;
+          const set =
+            households.get(allocation.householdId) ?? new Set<string>();
+          set.add(allocation.roomId);
+          households.set(allocation.householdId, set);
+        }
         for (const value of values) {
           const set =
             households.get(string(value.householdId)) ?? new Set<string>();
@@ -3342,6 +3589,7 @@ export class OperationsService {
                   id: string(value.requestId),
                   workspaceId,
                   guestId: guest.id,
+                  weddingEventId: stay.weddingEventId,
                 },
               })
             : null;
@@ -3796,6 +4044,20 @@ export class OperationsService {
         status: { in: ["ASSIGNED", "CONFIRMED", "CHECKED_IN"] },
       },
     });
+    const guests = await tx.guest.findMany({
+      where: {
+        workspaceId,
+        id: { in: allocations.map((allocation) => allocation.guestId) },
+      },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    const guestNames = new Map(
+      guests.map((guest) => [
+        guest.id,
+        [guest.firstName, guest.lastName].filter(Boolean).join(" ") ||
+          "Invitat fără nume",
+      ]),
+    );
     const issues = await tx.accommodationIssue.findMany({
       where: { workspaceId, stayId },
       orderBy: [{ status: "asc" }, { severity: "desc" }],
@@ -3807,7 +4069,11 @@ export class OperationsService {
         ...resource(room),
         allocations: allocations
           .filter((item) => item.roomId === room.id)
-          .map(resource),
+          .map((allocation) => ({
+            ...resource(allocation),
+            guestName:
+              guestNames.get(allocation.guestId) ?? "Invitat fără nume",
+          })),
       })),
       issues: issues.map(resource),
     };
@@ -4448,7 +4714,11 @@ export class OperationsService {
   ) {
     const stay = await this.requireStay(tx, workspaceId, stayId);
     const requests = await tx.accommodationRequest.findMany({
-      where: { workspaceId, status: { in: ["REQUESTED", "CONFIRMED"] } },
+      where: {
+        workspaceId,
+        weddingEventId: stay.weddingEventId,
+        status: { in: ["REQUESTED", "CONFIRMED"] },
+      },
     });
     const allocations = await tx.accommodationAllocation.findMany({
       where: {
@@ -4587,6 +4857,21 @@ export class OperationsService {
         id: { in: responses.map((response) => response.guestId) },
       },
     });
+    const existingAccommodationRequests =
+      await tx.accommodationRequest.findMany({
+        where: {
+          workspaceId,
+          guestId: { in: responses.map((response) => response.guestId) },
+        },
+      });
+    const detailedSubmissions = new Set(
+      existingAccommodationRequests
+        .filter((request) => request.sourceSubmissionId)
+        .map(
+          (request) =>
+            `${request.guestId}:${request.sourceSubmissionId as string}`,
+        ),
+    );
     for (const response of responses) {
       const guest = guests.find(
         (candidate) => candidate.id === response.guestId,
@@ -4628,25 +4913,72 @@ export class OperationsService {
             version: { increment: 1 },
           },
         });
-      if (guest.needsAccommodation && response.attendance === "CONFIRMED")
+      const currentAccommodationRequest = existingAccommodationRequests.find(
+        (request) =>
+          request.guestId === guest.id &&
+          request.weddingEventId === response.weddingEventId,
+      );
+      const hasDetailedSubmission = detailedSubmissions.has(
+        `${guest.id}:${response.submissionId}`,
+      );
+      const wantsAccommodation =
+        response.attendance === "CONFIRMED" &&
+        (response.accommodationRequested !== null
+          ? response.accommodationRequested
+          : currentAccommodationRequest?.sourceSubmissionId ===
+              response.submissionId
+            ? currentAccommodationRequest.requested
+            : hasDetailedSubmission
+              ? false
+              : guest.needsAccommodation);
+      if (wantsAccommodation && !currentAccommodationRequest?.organizerOverride)
         await tx.accommodationRequest.upsert({
-          where: { guestId: guest.id },
+          where: {
+            guestId_weddingEventId: {
+              guestId: guest.id,
+              weddingEventId: response.weddingEventId,
+            },
+          },
           create: {
             workspaceId,
             guestId: guest.id,
             householdId: guest.householdId,
+            weddingEventId: response.weddingEventId,
             sourceSubmissionId: response.submissionId,
+            arrivalDate: response.accommodationArrivalDate,
+            departureDate: response.accommodationDepartureDate,
+            roomPreference: response.accommodationRoomPreference,
+            bookingMode:
+              response.accommodationBookingMode ?? "organizer_managed",
+            budgetMaxMinor: response.accommodationBudgetMaxMinor,
+            currency: response.accommodationCurrency,
           },
           update: {
             requested: true,
             status: "REQUESTED",
             sourceSubmissionId: response.submissionId,
+            ...(response.accommodationRequested !== null
+              ? {
+                  arrivalDate: response.accommodationArrivalDate,
+                  departureDate: response.accommodationDepartureDate,
+                  roomPreference: response.accommodationRoomPreference,
+                  bookingMode:
+                    response.accommodationBookingMode ?? "organizer_managed",
+                  budgetMaxMinor: response.accommodationBudgetMaxMinor,
+                  currency: response.accommodationCurrency,
+                }
+              : {}),
             version: { increment: 1 },
           },
         });
       else
         await tx.accommodationRequest.updateMany({
-          where: { workspaceId, guestId: guest.id, organizerOverride: false },
+          where: {
+            workspaceId,
+            guestId: guest.id,
+            weddingEventId: response.weddingEventId,
+            organizerOverride: false,
+          },
           data: {
             requested: false,
             status: "CANCELLED",
@@ -5083,6 +5415,25 @@ function date(value: unknown) {
   const parsed = new Date(string(value));
   if (Number.isNaN(parsed.valueOf())) validation("Dată invalidă.");
   return parsed;
+}
+
+function accommodationPropertyType(
+  value: string,
+): "HOTEL" | "PENSION" | "APARTMENT" | "HOUSE" | "HOSTEL" | "OTHER" {
+  switch (value) {
+    case "HOTEL":
+      return "HOTEL";
+    case "GUEST_HOUSE":
+      return "PENSION";
+    case "APARTMENT":
+      return "APARTMENT";
+    case "HOSTEL":
+      return "HOSTEL";
+    case "CHALET":
+      return "HOUSE";
+    default:
+      return "OTHER";
+  }
 }
 function nullableDate(value: unknown): Date | null {
   return value === null || value === undefined || value === ""

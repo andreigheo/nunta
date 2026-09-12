@@ -896,6 +896,7 @@ export type TransportPlanResource = OperationResource & {
 
 export type AccommodationStayResource = OperationResource & {
   propertyId: string;
+  weddingEventId: string;
   checkInDate: string;
   checkOutDate: string;
   property: OperationResource;
@@ -2604,6 +2605,11 @@ export const weddingOsApi = {
           facilities: input.facilities.join(","),
           budgetMaxMinor: input.budgetMaxMinor,
           currency: input.currency,
+          checkInDate: input.checkInDate,
+          checkOutDate: input.checkOutDate,
+          adults: input.adults,
+          children: input.children,
+          rooms: input.rooms,
         },
       )}`,
     ),
@@ -2730,6 +2736,19 @@ export const weddingOsApi = {
     request<{ deleted: true; id: string }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-properties/${encodeURIComponent(propertyId)}`,
       { method: "DELETE", ifMatch: version },
+    ),
+  promoteAccommodationRecommendation: (
+    workspaceId: string,
+    recommendationId: string,
+    input: Record<string, unknown>,
+  ) =>
+    request<AccommodationStayResource>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/accommodation-recommendations/${encodeURIComponent(recommendationId)}/promote`,
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: crypto.randomUUID(),
+      },
     ),
   createAccommodationRoom: (
     workspaceId: string,

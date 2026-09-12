@@ -62,6 +62,14 @@ export type EventItem = {
   } | null;
 };
 type MenuItem = { id: string; name?: string; audience?: string };
+type AccommodationDetails = {
+  eventId: string;
+  arrivalDate: string;
+  departureDate: string;
+  roomPreference: string;
+  bookingMode: "recommendations_only" | "organizer_managed";
+  budget: string;
+};
 export type GuestOperations = {
   seating?: Array<Record<string, unknown>>;
   transport?: Array<Record<string, unknown>>;
@@ -83,12 +91,34 @@ export default function GuestRsvpPage() {
   const [accommodation, setAccommodation] = React.useState<
     Record<string, boolean>
   >({});
+  const [accommodationDetails, setAccommodationDetails] = React.useState<
+    Record<string, AccommodationDetails>
+  >({});
   const [allergies, setAllergies] = React.useState<Record<string, string>>({});
   const [message, setMessage] = React.useState("");
   const [plusOneAttending, setPlusOneAttending] = React.useState(false);
   const [plusOneFirstName, setPlusOneFirstName] = React.useState("");
   const [plusOneLastName, setPlusOneLastName] = React.useState("");
   const [plusOneMenuId, setPlusOneMenuId] = React.useState("");
+
+  const updateAccommodationDetails = (
+    guestId: string,
+    patch: Partial<AccommodationDetails>,
+  ) =>
+    setAccommodationDetails((current) => ({
+      ...current,
+      [guestId]: {
+        ...(current[guestId] ?? {
+          eventId: "",
+          arrivalDate: "",
+          departureDate: "",
+          roomPreference: "",
+          bookingMode: "organizer_managed" as const,
+          budget: "",
+        }),
+        ...patch,
+      },
+    }));
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -112,6 +142,9 @@ export default function GuestRsvpPage() {
             : [];
           const selections = Array.isArray(rsvp.selections)
             ? (rsvp.selections as Array<Record<string, unknown>>)
+            : [];
+          const storedAccommodation = Array.isArray(rsvp.accommodationRequests)
+            ? (rsvp.accommodationRequests as Array<Record<string, unknown>>)
             : [];
           const householdMembers = (bootstrap.household.members ??
             []) as Member[];
@@ -148,6 +181,34 @@ export default function GuestRsvpPage() {
               householdMembers.map((member) => [
                 member.id,
                 Boolean(member.needsAccommodation),
+              ]),
+            ),
+          );
+          setAccommodationDetails(
+            Object.fromEntries(
+              householdMembers.map((member) => [
+                member.id,
+                (() => {
+                  const stored = storedAccommodation.find(
+                    (request) => String(request.guestId) === member.id,
+                  );
+                  return {
+                    eventId: String(
+                      stored?.eventId ?? bootstrap.events[0]?.id ?? "",
+                    ),
+                    arrivalDate: String(stored?.arrivalDate ?? ""),
+                    departureDate: String(stored?.departureDate ?? ""),
+                    roomPreference: String(stored?.roomPreference ?? ""),
+                    bookingMode:
+                      stored?.bookingMode === "recommendations_only"
+                        ? ("recommendations_only" as const)
+                        : ("organizer_managed" as const),
+                    budget:
+                      typeof stored?.budgetMaxMinor === "number"
+                        ? String(stored.budgetMaxMinor / 100)
+                        : "",
+                  };
+                })(),
               ]),
             ),
           );
@@ -229,6 +290,36 @@ export default function GuestRsvpPage() {
       });
       return;
     }
+    const invalidAccommodation = members.find((member) => {
+      if (!accommodation[member.id]) return false;
+      const details = accommodationDetails[member.id];
+      const confirmedEventIds = new Set(
+        rsvpEvents
+          .filter(
+            (event) =>
+              attendance[`${member.id}:${event.id}`] === "CONFIRMED",
+          )
+          .map((event) => event.id),
+      );
+      return (
+        !details?.eventId ||
+        !confirmedEventIds.has(details.eventId) ||
+        Boolean(
+          details.arrivalDate &&
+            details.departureDate &&
+            details.departureDate <= details.arrivalDate,
+        )
+      );
+    });
+    if (invalidAccommodation) {
+      toast({
+        title: "Detaliile cazării nu sunt complete",
+        description:
+          "Alege un eveniment la care participi și verifică datele de sosire și plecare.",
+        variant: "warning",
+      });
+      return;
+    }
     setSaving(true);
     try {
       await weddingOsApi.submitGuestRsvp({
@@ -258,7 +349,32 @@ export default function GuestRsvpPage() {
             ? { needsTransport: Boolean(transport[member.id]) }
             : {}),
           ...(accommodationQuestion
-            ? { needsAccommodation: Boolean(accommodation[member.id]) }
+            ? {
+                needsAccommodation: Boolean(accommodation[member.id]),
+                accommodationRequests: accommodation[member.id]
+                  ? [
+                      {
+                        eventId: accommodationDetails[member.id].eventId,
+                        requested: true,
+                        arrivalDate:
+                          accommodationDetails[member.id].arrivalDate || null,
+                        departureDate:
+                          accommodationDetails[member.id].departureDate || null,
+                        roomPreference:
+                          accommodationDetails[member.id].roomPreference.trim() ||
+                          null,
+                        bookingMode:
+                          accommodationDetails[member.id].bookingMode,
+                        budgetMaxMinor: accommodationDetails[member.id].budget
+                          ? Math.round(
+                              Number(accommodationDetails[member.id].budget) * 100,
+                            )
+                          : null,
+                        currency: data.currency,
+                      },
+                    ]
+                  : [],
+              }
             : {}),
         })),
         ...(plusOneAllowed
@@ -456,15 +572,142 @@ export default function GuestRsvpPage() {
                           />}
                           {accommodationQuestion && <Checkbox
                             checked={Boolean(accommodation[member.id])}
-                            onCheckedChange={(value) =>
+                            onCheckedChange={(value) => {
                               setAccommodation((current) => ({
                                 ...current,
                                 [member.id]: value,
-                              }))
-                            }
+                              }));
+                              if (value) {
+                                const firstConfirmed = rsvpEvents.find(
+                                  (event) =>
+                                    attendance[`${member.id}:${event.id}`] ===
+                                    "CONFIRMED",
+                                );
+                                if (firstConfirmed)
+                                  updateAccommodationDetails(member.id, {
+                                    eventId: firstConfirmed.id,
+                                  });
+                              }
+                            }}
                             label="Am nevoie de cazare"
                           />}
                         </div>}
+                        {accommodationQuestion && accommodation[member.id] ? (
+                          <div className="rounded-xl bg-subtle p-4">
+                            <p className="text-sm font-semibold text-ink">
+                              Cum te putem ajuta cu cazarea?
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-muted">
+                              Organizatorii folosesc aceste informații pentru recomandări sau pentru o cameră gestionată de ei.
+                            </p>
+                            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                              <Field label="Eveniment" required className="sm:col-span-2">
+                                <Select
+                                  value={accommodationDetails[member.id]?.eventId ?? ""}
+                                  onChange={(event) =>
+                                    updateAccommodationDetails(member.id, {
+                                      eventId: event.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="">Alege evenimentul la care participi</option>
+                                  {rsvpEvents
+                                    .filter(
+                                      (event) =>
+                                        attendance[`${member.id}:${event.id}`] ===
+                                        "CONFIRMED",
+                                    )
+                                    .map((event) => (
+                                      <option key={event.id} value={event.id}>
+                                        {event.title ?? "Eveniment"}
+                                      </option>
+                                    ))}
+                                </Select>
+                              </Field>
+                              <Field label="Tipul ajutorului" className="sm:col-span-2">
+                                <Select
+                                  value={
+                                    accommodationDetails[member.id]?.bookingMode ??
+                                    "organizer_managed"
+                                  }
+                                  onChange={(event) =>
+                                    updateAccommodationDetails(member.id, {
+                                      bookingMode: event.target.value as
+                                        | "recommendations_only"
+                                        | "organizer_managed",
+                                    })
+                                  }
+                                >
+                                  <option value="organizer_managed">
+                                    Vreau o cameră gestionată de organizator
+                                  </option>
+                                  <option value="recommendations_only">
+                                    Vreau doar recomandări; rezerv singur
+                                  </option>
+                                </Select>
+                              </Field>
+                              <Field label="Sosire">
+                                <Input
+                                  type="date"
+                                  value={
+                                    accommodationDetails[member.id]?.arrivalDate ??
+                                    ""
+                                  }
+                                  onChange={(event) =>
+                                    updateAccommodationDetails(member.id, {
+                                      arrivalDate: event.target.value,
+                                    })
+                                  }
+                                />
+                              </Field>
+                              <Field label="Plecare">
+                                <Input
+                                  type="date"
+                                  value={
+                                    accommodationDetails[member.id]?.departureDate ??
+                                    ""
+                                  }
+                                  onChange={(event) =>
+                                    updateAccommodationDetails(member.id, {
+                                      departureDate: event.target.value,
+                                    })
+                                  }
+                                />
+                              </Field>
+                              <Field
+                                label={`Buget maxim/noapte (${data.currency})`}
+                              >
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  inputMode="decimal"
+                                  value={accommodationDetails[member.id]?.budget ?? ""}
+                                  onChange={(event) =>
+                                    updateAccommodationDetails(member.id, {
+                                      budget: event.target.value,
+                                    })
+                                  }
+                                />
+                              </Field>
+                              <Field label="Preferințe cameră">
+                                <Input
+                                  value={
+                                    accommodationDetails[member.id]
+                                      ?.roomPreference ?? ""
+                                  }
+                                  onChange={(event) =>
+                                    updateAccommodationDetails(member.id, {
+                                      roomPreference: event.target.value,
+                                    })
+                                  }
+                                  maxLength={500}
+                                  placeholder="Ex.: cameră liniștită, pătuț pentru copil"
+                                />
+                              </Field>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ))}

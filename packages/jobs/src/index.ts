@@ -214,6 +214,7 @@ export const asyncEventNames = [
   "accommodation.request_changed.v1",
   "accommodation.property_created.v1",
   "accommodation.stay_created.v1",
+  "accommodation.recommendation_promoted.v1",
   "accommodation.stay_published.v1",
   "accommodation.allocation_changed.v1",
   "accommodation.issue_detected.v1",

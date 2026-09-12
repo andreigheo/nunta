@@ -16,7 +16,7 @@ The visual direction is established in `DESIGN.md`. Reuse the Sarbato tokens in 
 
 ## Next.js version rule
 
-This project runs Next.js 16.2.12. APIs, conventions, and file structure may differ from prior versions. Before writing framework-specific code, read the relevant local guide in `node_modules/next/dist/docs/` and follow its deprecation notices. Routes use the App Router and route groups.
+This project runs Next.js 16.3.4. APIs, conventions, and file structure may differ from prior versions. Before writing framework-specific code, read the relevant local guide in `node_modules/next/dist/docs/` and follow its deprecation notices. Routes use the App Router and route groups.
 
 ## Main surfaces
 

@@ -144,6 +144,7 @@ import {
   accommodationRecommendationTransitionSchema,
   createAccommodationRecommendationSchema,
   orderAccommodationRecommendationsSchema,
+  promoteAccommodationRecommendationSchema,
   updateAccommodationRecommendationSchema,
   accommodationAllocationBatchSchema,
   createAccommodationPropertySchema,
@@ -647,6 +648,7 @@ const schemas: Record<string, ZodTypeAny> = {
   AccommodationRecommendationTransition:
     accommodationRecommendationTransitionSchema,
   OrderAccommodationRecommendations: orderAccommodationRecommendationsSchema,
+  PromoteAccommodationRecommendation: promoteAccommodationRecommendationSchema,
   CreateVendorOrganization: createVendorOrganizationSchema,
   UpdateVendorOrganization: updateVendorOrganizationSchema,
   VendorInvitation: vendorInvitationSchema,
@@ -1750,6 +1752,10 @@ const requestByRoute: Array<[RegExp, string]> = [
   [
     /PATCH \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}$/,
     "UpdateAccommodationRecommendation",
+  ],
+  [
+    /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}\/promote$/,
+    "PromoteAccommodationRecommendation",
   ],
   [
     /POST \/api\/v1\/workspaces\/\{workspaceId\}\/accommodation-recommendations\/\{recommendationId\}\/(publish|archive)$/,

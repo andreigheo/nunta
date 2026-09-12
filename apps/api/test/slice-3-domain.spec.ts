@@ -519,6 +519,7 @@ describe("Slice 3 guest, invitation, RSVP and menu rules", () => {
     ).not.toHaveProperty("rsvp");
     expect(
       guestRsvpBootstrapSchema.parse({
+        currency: "RON",
         household: bootstrap.household,
         events: bootstrap.events,
         rsvp: bootstrap.rsvp,

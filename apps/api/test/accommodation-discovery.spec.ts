@@ -185,6 +185,32 @@ describe("accommodation discovery contracts and provider mapping", () => {
     );
     expect(haversineDistanceKm(44.43, 26.1, 44.44, 26.1)).toBeGreaterThan(1);
   });
+
+  it("requires a valid date interval and exposes occupancy defaults", () => {
+    expect(
+      accommodationDiscoveryQuerySchema.safeParse({
+        lat: 44.43,
+        lng: 26.1,
+        checkInDate: "2027-09-11",
+      }).success,
+    ).toBe(false);
+    expect(
+      accommodationDiscoveryQuerySchema.safeParse({
+        lat: 44.43,
+        lng: 26.1,
+        checkInDate: "2027-09-13",
+        checkOutDate: "2027-09-11",
+      }).success,
+    ).toBe(false);
+    expect(
+      query({
+        lat: 44.43,
+        lng: 26.1,
+        checkInDate: "2027-09-11",
+        checkOutDate: "2027-09-13",
+      }),
+    ).toMatchObject({ adults: 2, children: 0, rooms: 1 });
+  });
 });
 
 describe("accommodation discovery cache and graceful degradation", () => {
@@ -214,7 +240,33 @@ describe("accommodation discovery cache and graceful degradation", () => {
     expect(second.items).toHaveLength(1);
     expect(second.metadata.cache).toBe("hit");
     expect(second.metadata.status).toBe("available");
+    expect(second.metadata.capabilities).toEqual({
+      liveAvailability: false,
+      livePricing: false,
+      bookingRedirect: false,
+      dateAndOccupancySearch: false,
+    });
     expect(second.metadata.warnings.join(" ")).toMatch(/fără preț public/i);
+  });
+
+  it("states clearly that date searches do not prove live availability", async () => {
+    const { service } = harness(vi.fn().mockResolvedValue(overpassElements()));
+    const result = await service.discover(
+      randomUUID(),
+      randomUUID(),
+      query({
+        lat: 44.43,
+        lng: 26.1,
+        checkInDate: "2027-09-11",
+        checkOutDate: "2027-09-13",
+        adults: 4,
+        children: 2,
+        rooms: 2,
+      }),
+    );
+    expect(result.metadata.warnings.join(" ")).toMatch(
+      /nu confirmă disponibilitatea sau tariful/i,
+    );
   });
 
   it("returns an explicit empty degraded result for malformed Overpass data", async () => {

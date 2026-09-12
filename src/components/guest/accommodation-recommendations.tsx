@@ -37,6 +37,10 @@ const facilityLabels: Record<string, string> = {
 
 const sourceLabels: Record<GuestAccommodationRecommendationResource["source"], string> = {
   osm: "Sursă OpenStreetMap",
+  foursquare: "Sursă Foursquare",
+  google_places: "Sursă Google Places",
+  booking_com: "Sursă Booking.com",
+  expedia: "Sursă Expedia",
   organizer: "Adăugat de organizatori",
   other: "Sursă externă",
 };
@@ -101,7 +105,7 @@ export function GuestAccommodationRecommendations({
                   className="relative grid gap-5 py-6 pl-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-8"
                 >
                   <span
-                    className="absolute left-1 top-8 flex size-5 items-center justify-center rounded-full border-2 border-surface bg-action text-[10px] font-bold text-on-action shadow-[0_0_0_1px_var(--color-line)]"
+                    className="absolute left-1 top-8 flex size-5 items-center justify-center rounded-full border-2 border-surface bg-action text-xs font-bold text-on-action shadow-[0_0_0_1px_var(--color-line)]"
                     aria-hidden
                   >
                     {index + 1}

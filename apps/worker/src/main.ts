@@ -4648,6 +4648,18 @@ async function projectGuestOperations(
       },
     });
     const guestById = new Map(guests.map((guest) => [guest.id, guest]));
+    const existingAccommodationRequests =
+      await transaction.accommodationRequest.findMany({
+        where: {
+          workspaceId: snapshot.workspace_id!,
+          guestId: { in: responses.map((response) => response.guestId) },
+        },
+      });
+    const detailedGuestIds = new Set(
+      responses
+        .filter((response) => response.accommodationRequested !== null)
+        .map((response) => response.guestId),
+    );
     let transportRequests = 0;
     let accommodationRequests = 0;
     let staleAssignments = 0;
@@ -4680,24 +4692,58 @@ async function projectGuestOperations(
         },
       });
       if (transportRequested) transportRequests += 1;
-      const accommodationRequested = attending && guest.needsAccommodation;
-      await transaction.accommodationRequest.upsert({
-        where: { guestId: guest.id },
-        create: {
-          workspaceId: snapshot.workspace_id!,
-          guestId: guest.id,
-          householdId: guest.householdId,
-          requested: accommodationRequested,
-          status: accommodationRequested ? "REQUESTED" : "DECLINED",
-          sourceSubmissionId: submission.id,
-        },
-        update: {
-          requested: accommodationRequested,
-          status: accommodationRequested ? "REQUESTED" : "DECLINED",
-          sourceSubmissionId: submission.id,
-          version: { increment: 1 },
-        },
-      });
+      const currentAccommodationRequest = existingAccommodationRequests.find(
+        (request) =>
+          request.guestId === guest.id &&
+          request.weddingEventId === response.weddingEventId,
+      );
+      const accommodationRequested =
+        attending &&
+        (response.accommodationRequested !== null
+          ? response.accommodationRequested
+          : currentAccommodationRequest?.sourceSubmissionId === submission.id
+            ? currentAccommodationRequest.requested
+            : detailedGuestIds.has(guest.id)
+              ? false
+              : guest.needsAccommodation);
+      if (!currentAccommodationRequest?.organizerOverride)
+        await transaction.accommodationRequest.upsert({
+          where: {
+            guestId_weddingEventId: {
+              guestId: guest.id,
+              weddingEventId: response.weddingEventId,
+            },
+          },
+          create: {
+            workspaceId: snapshot.workspace_id!,
+            guestId: guest.id,
+            householdId: guest.householdId,
+            weddingEventId: response.weddingEventId,
+            requested: accommodationRequested,
+            status: accommodationRequested ? "REQUESTED" : "DECLINED",
+            sourceSubmissionId: submission.id,
+            arrivalDate: response.accommodationArrivalDate,
+            departureDate: response.accommodationDepartureDate,
+            roomPreference: response.accommodationRoomPreference,
+            bookingMode:
+              response.accommodationBookingMode ?? "organizer_managed",
+            budgetMaxMinor: response.accommodationBudgetMaxMinor,
+            currency: response.accommodationCurrency,
+          },
+          update: {
+            requested: accommodationRequested,
+            status: accommodationRequested ? "REQUESTED" : "DECLINED",
+            sourceSubmissionId: submission.id,
+            arrivalDate: response.accommodationArrivalDate,
+            departureDate: response.accommodationDepartureDate,
+            roomPreference: response.accommodationRoomPreference,
+            bookingMode:
+              response.accommodationBookingMode ?? "organizer_managed",
+            budgetMaxMinor: response.accommodationBudgetMaxMinor,
+            currency: response.accommodationCurrency,
+            version: { increment: 1 },
+          },
+        });
       if (accommodationRequested) accommodationRequests += 1;
       if (!attending) {
         const updated = await transaction.guestSeatingAssignment.updateMany({

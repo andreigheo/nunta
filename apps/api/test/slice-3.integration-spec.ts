@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import request from "supertest";
+import type { GuestRsvpRequest } from "@weddingos/contracts";
 import type { Prisma } from "@weddingos/database";
 import { PrismaClient } from "@weddingos/database";
 import { assertDestructiveDatabasePurpose } from "./database-identity";
@@ -1524,6 +1525,18 @@ describe.sequential("Slice 3 guest journey integration", () => {
     firstPayload.members[0]!.allergyDetails = "Reacție severă";
     firstPayload.members[0]!.needsTransport = true;
     firstPayload.members[0]!.needsAccommodation = true;
+    firstPayload.members[0]!.accommodationRequests = [
+      {
+        eventId: eventIds[0]!,
+        requested: true,
+        arrivalDate: "2027-09-11",
+        departureDate: "2027-09-13",
+        roomPreference: "Cameră liniștită",
+        bookingMode: "organizer_managed",
+        budgetMaxMinor: 45_000,
+        currency: "RON",
+      },
+    ];
     const competingPayload = {
       ...structuredClone(firstPayload),
       idempotencyKey: `rsvp-competing-${randomUUID()}`,
@@ -1554,6 +1567,21 @@ describe.sequential("Slice 3 guest journey integration", () => {
       )
       .expect(200);
     expect(legacyBootstrapAfterRsvp.body.rsvp.submissionId).toBe(submissionId);
+    expect(legacyBootstrapAfterRsvp.body.currency).toBe("RON");
+    expect(
+      legacyBootstrapAfterRsvp.body.rsvp.accommodationRequests,
+    ).toContainEqual(
+      expect.objectContaining({
+        guestId: members[0]!.id,
+        eventId: eventIds[0],
+        arrivalDate: "2027-09-11",
+        departureDate: "2027-09-13",
+        roomPreference: "Cameră liniștită",
+        bookingMode: "organizer_managed",
+        budgetMaxMinor: 45_000,
+        currency: "RON",
+      }),
+    );
     const hydratedPrimary =
       legacyBootstrapAfterRsvp.body.household.members.find(
         (member: { id: string }) => member.id === members[0]!.id,
@@ -1707,6 +1735,35 @@ describe.sequential("Slice 3 guest journey integration", () => {
         },
       }),
     ).toBe(0);
+
+    await owner.agent
+      .patch(
+        `/api/v1/workspaces/${workspaceId}/rsvp-submissions/${submissionId}`,
+      )
+      .set("Origin", origin)
+      .set("If-Match", `"${submissionVersion}"`)
+      .set("Idempotency-Key", `invalid-accommodation-override-${randomUUID()}`)
+      .send({
+        reason: "Corecție invalidă pentru test",
+        members: members.map((member, memberIndex) => ({
+          guestId: member.id,
+          events: eventIds.map((eventId) => ({
+            eventId,
+            attendance: "CONFIRMED",
+          })),
+          menuId,
+          allergies: [],
+          ...(memberIndex === 0
+            ? {
+                accommodationRequests: [
+                  { eventId: eventIds[0], requested: true },
+                  { eventId: eventIds[0], requested: true },
+                ],
+              }
+            : {}),
+        })),
+      })
+      .expect(422);
 
     const overridden = await owner.agent
       .patch(
@@ -3118,9 +3175,74 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .get(`/api/v1/workspaces/${workspaceId}/accommodation-requests`)
       .expect(200);
     const accommodationRequest = accommodationRequests.body.data.items.find(
-      (item: { guestId: string }) => item.guestId === primaryGuestId,
+      (item: { guestId: string; weddingEventId: string }) =>
+        item.guestId === primaryGuestId && item.weddingEventId === eventId,
     );
     expect(accommodationRequest).toBeTruthy();
+    const eventScopedRequests = await owner.agent
+      .get(
+        `/api/v1/workspaces/${workspaceId}/accommodation-requests?eventId=${eventId}`,
+      )
+      .expect(200);
+    expect(
+      eventScopedRequests.body.data.items.every(
+        (item: { weddingEventId: string }) => item.weddingEventId === eventId,
+      ),
+    ).toBe(true);
+
+    const recommendation = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/accommodation-recommendations`)
+      .set("Origin", origin)
+      .set("Idempotency-Key", `recommendation-${randomUUID()}`)
+      .send({
+        weddingEventId: eventId,
+        source: "organizer",
+        name: "Pensiunea recomandată Slice 4",
+        type: "guest_house",
+        address: "Strada Recomandării 4",
+        city: "Chișinău",
+        country: "Moldova",
+        facilities: ["parking"],
+      })
+      .expect(201);
+    const promotionKey = `promotion-${randomUUID()}`;
+    const promotionPayload = {
+      checkInDate: "2027-09-11",
+      checkOutDate: "2027-09-13",
+      roomCount: 2,
+      roomCapacityAdults: 2,
+      roomCapacityChildren: 1,
+    };
+    const [promoted, concurrentPromotion] = await Promise.all([
+      owner.agent
+        .post(
+          `/api/v1/workspaces/${workspaceId}/accommodation-recommendations/${recommendation.body.data.id}/promote`,
+        )
+        .set("Origin", origin)
+        .set("Idempotency-Key", promotionKey)
+        .send(promotionPayload)
+        .expect(201),
+      owner.agent
+        .post(
+          `/api/v1/workspaces/${workspaceId}/accommodation-recommendations/${recommendation.body.data.id}/promote`,
+        )
+        .set("Origin", origin)
+        .set("Idempotency-Key", `promotion-concurrent-${randomUUID()}`)
+        .send(promotionPayload)
+        .expect(201),
+    ]);
+    expect(promoted.body.data.weddingEventId).toBe(eventId);
+    expect(promoted.body.data.rooms).toHaveLength(2);
+    expect(concurrentPromotion.body.data.id).toBe(promoted.body.data.id);
+    const replayedPromotion = await owner.agent
+      .post(
+        `/api/v1/workspaces/${workspaceId}/accommodation-recommendations/${recommendation.body.data.id}/promote`,
+      )
+      .set("Origin", origin)
+      .set("Idempotency-Key", promotionKey)
+      .send(promotionPayload)
+      .expect(201);
+    expect(replayedPromotion.body.data.id).toBe(promoted.body.data.id);
     const property = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/accommodation-properties`)
       .set("Origin", origin)
@@ -3153,6 +3275,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
       .set("Idempotency-Key", `stay-${randomUUID()}`)
       .send({
         propertyId: property.body.data.id,
+        weddingEventId: eventId,
         name: "Sejur Slice 4",
         checkInDate: "2027-09-11",
         checkOutDate: "2027-09-13",
@@ -3280,6 +3403,8 @@ describe.sequential("Slice 3 guest journey integration", () => {
         allergyDetails: undefined as string | undefined,
         needsTransport: false,
         needsAccommodation: false,
+        accommodationRequests:
+          undefined as GuestRsvpRequest["members"][number]["accommodationRequests"],
       })),
       message: "Răspuns integrare",
     };

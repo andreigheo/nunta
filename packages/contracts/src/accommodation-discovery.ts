@@ -25,6 +25,10 @@ const nullableDateTime = z.string().datetime().nullable();
 
 export const accommodationDiscoverySourceSchema = z.enum([
   "osm",
+  "foursquare",
+  "google_places",
+  "booking_com",
+  "expedia",
   "organizer",
   "other",
 ]);
@@ -121,6 +125,11 @@ export const accommodationDiscoveryQuerySchema = z
       .string()
       .regex(/^[A-Z]{3}$/)
       .default("RON"),
+    checkInDate: z.string().date().optional(),
+    checkOutDate: z.string().date().optional(),
+    adults: z.coerce.number().int().min(1).max(100).default(2),
+    children: z.coerce.number().int().min(0).max(100).default(0),
+    rooms: z.coerce.number().int().min(1).max(50).default(1),
   })
   .superRefine((value, context) => {
     if ((value.lat === undefined) !== (value.lng === undefined)) {
@@ -135,6 +144,28 @@ export const accommodationDiscoveryQuerySchema = z
         code: z.ZodIssueCode.custom,
         path: ["query"],
         message: "Trimite eventId, query sau coordonatele lat/lng.",
+      });
+    }
+    if (
+      (value.checkInDate === undefined) !==
+      (value.checkOutDate === undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path:
+          value.checkInDate === undefined ? ["checkInDate"] : ["checkOutDate"],
+        message: "Datele de check-in și check-out trebuie trimise împreună.",
+      });
+    }
+    if (
+      value.checkInDate &&
+      value.checkOutDate &&
+      value.checkOutDate <= value.checkInDate
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["checkOutDate"],
+        message: "Data de check-out trebuie să fie după check-in.",
       });
     }
   });
@@ -152,10 +183,22 @@ export const accommodationDiscoveryResponseSchema = z.object({
   }),
   radiusKm: z.number().min(2).max(20),
   metadata: z.object({
-    provider: z.literal("openstreetmap"),
+    provider: z.enum([
+      "openstreetmap",
+      "foursquare",
+      "google_places",
+      "booking_com",
+      "expedia",
+    ]),
+    capabilities: z.object({
+      liveAvailability: z.boolean(),
+      livePricing: z.boolean(),
+      bookingRedirect: z.boolean(),
+      dateAndOccupancySearch: z.boolean(),
+    }),
     attribution: z.object({
-      text: z.literal("© OpenStreetMap contributors"),
-      url: z.literal("https://www.openstreetmap.org/copyright"),
+      text: z.string().trim().min(1).max(240),
+      url: httpUrl,
     }),
     fetchedAt: z.string().datetime(),
     cache: z.enum(["hit", "miss", "stale"]),
@@ -298,11 +341,11 @@ export const createAccommodationRecommendationSchema =
         message: "latitude și longitude trebuie trimise împreună.",
       });
     }
-    if (value.source === "osm" && !value.externalId) {
+    if (!["organizer", "other"].includes(value.source) && !value.externalId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["externalId"],
-        message: "externalId este obligatoriu pentru sursa OSM.",
+        message: "externalId este obligatoriu pentru sursele externe.",
       });
     }
   });
@@ -329,6 +372,24 @@ export type UpdateAccommodationRecommendation = z.output<
 export const accommodationRecommendationTransitionSchema = z.object({
   reason: z.string().trim().min(3).max(1000).nullable().optional(),
 });
+
+export const promoteAccommodationRecommendationSchema = z
+  .object({
+    checkInDate: z.string().date(),
+    checkOutDate: z.string().date(),
+    stayName: z.string().trim().min(1).max(180).optional(),
+    propertyName: z.string().trim().min(1).max(180).optional(),
+    roomCount: z.number().int().min(0).max(200).default(0),
+    roomCapacityAdults: z.number().int().min(1).max(20).default(2),
+    roomCapacityChildren: z.number().int().min(0).max(20).default(0),
+  })
+  .refine((value) => value.checkOutDate > value.checkInDate, {
+    path: ["checkOutDate"],
+    message: "Data de check-out trebuie să fie după check-in.",
+  });
+export type PromoteAccommodationRecommendation = z.output<
+  typeof promoteAccommodationRecommendationSchema
+>;
 export type AccommodationRecommendationTransition = z.output<
   typeof accommodationRecommendationTransitionSchema
 >;

@@ -803,6 +803,7 @@ test("E2E 16 — Accommodation allocations", async () => {
         }),
         data: {
           propertyId,
+          weddingEventId: eventId,
           name: "Sejur E2E",
           checkInDate: "2027-09-11",
           checkOutDate: "2027-09-13",
