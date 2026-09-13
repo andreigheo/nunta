@@ -97,6 +97,19 @@ export class OnboardingService {
         const draft = await transaction.onboardingDraft.findUniqueOrThrow({
           where: { workspaceId },
         });
+        // The first onboarding step is enough to establish the event context
+        // used by the operational modules. The remaining steps enrich that
+        // same event; they must not be a prerequisite for opening Transport,
+        // Seating, Accommodation or Event Day.
+        if (asRecord(draft.couple).confirmed === true) {
+          await materializeOnboardingEvents(
+            transaction,
+            workspaceId,
+            draft.couple,
+            draft.dateEvents,
+            draft.location,
+          );
+        }
         await this.asyncEvents.record(transaction, {
           eventName: "onboarding.draft_updated.v1",
           aggregateType: "OnboardingDraft",
@@ -487,7 +500,7 @@ async function materializeOnboardingEvents(
       key: "reception",
       enabled: dateEvents.reception !== false,
       type: "RECEPTION",
-      title: "Recepția",
+      title: onboardingText(couple.title, 200) ?? "Recepția",
       start: at(0, "17:00"),
     },
     {
@@ -512,6 +525,7 @@ async function materializeOnboardingEvents(
       type: "CUSTOM",
       title:
         onboardingText(dateEvents.primaryTitle, 200) ??
+        onboardingText(couple.title, 200) ??
         onboardingEventTypeLabel(eventType),
       start: at(0, "12:00"),
     },
@@ -532,14 +546,26 @@ async function materializeOnboardingEvents(
         }))
     : [];
   const definitions =
-    eventType === "wedding" ? weddingDefinitions : genericDefinitions;
+    eventType === "wedding" && dateEvents.confirmed === true
+      ? weddingDefinitions
+      : genericDefinitions;
   for (const [position, event] of [...definitions, ...custom].entries()) {
     if (!event.enabled) continue;
+    const isPrimary =
+      event.key === "main" ||
+      (eventType === "wedding" && event.key === "reception");
+    const sourceKey = isPrimary
+      ? "workspace:primary"
+      : `onboarding:${event.key}`;
+
+    if (isPrimary) {
+      await claimLegacyPrimaryEvent(transaction, workspaceId);
+    }
     await transaction.weddingEvent.upsert({
       where: {
         workspaceId_sourceKey: {
           workspaceId,
-          sourceKey: `onboarding:${event.key}`,
+          sourceKey,
         },
       },
       create: {
@@ -553,7 +579,7 @@ async function materializeOnboardingEvents(
         position,
         status: date ? "CONFIRMED" : "DRAFT",
         source: "onboarding",
-        sourceKey: `onboarding:${event.key}`,
+        sourceKey,
       },
       update: {
         type: event.type,
@@ -566,6 +592,48 @@ async function materializeOnboardingEvents(
         status: date ? "CONFIRMED" : "DRAFT",
         deletedAt: null,
       },
+    });
+  }
+}
+
+async function claimLegacyPrimaryEvent(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+) {
+  const primary = await transaction.weddingEvent.findUnique({
+    where: {
+      workspaceId_sourceKey: {
+        workspaceId,
+        sourceKey: "workspace:primary",
+      },
+    },
+    select: { id: true },
+  });
+  if (primary) return;
+
+  const legacyKeys = ["onboarding:main", "onboarding:reception"];
+  for (const sourceKey of legacyKeys) {
+    const legacy = await transaction.weddingEvent.findUnique({
+      where: { workspaceId_sourceKey: { workspaceId, sourceKey } },
+      select: { id: true },
+    });
+    if (!legacy) continue;
+    await transaction.weddingEvent.update({
+      where: { id: legacy.id },
+      data: { sourceKey: "workspace:primary" },
+    });
+    return;
+  }
+
+  const seatingBootstrap = await transaction.weddingEvent.findFirst({
+    where: { workspaceId, source: "seating_setup", deletedAt: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (seatingBootstrap) {
+    await transaction.weddingEvent.update({
+      where: { id: seatingBootstrap.id },
+      data: { sourceKey: "workspace:primary" },
     });
   }
 }

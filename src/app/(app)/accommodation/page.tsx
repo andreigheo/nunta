@@ -1,11 +1,14 @@
 "use client";
 
-import { BedDouble, Building2, Compass, Star } from "lucide-react";
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, BedDouble, Building2, Compass, Star } from "lucide-react";
 import { AccommodationDiscoveryTab } from "@/components/accommodation/discovery-tab";
 import { ManagedAccommodationTab } from "@/components/accommodation/managed-accommodation-tab";
 import { AccommodationRecommendationsTab } from "@/components/accommodation/recommendations-tab";
 import {
   EmptyState,
+  Button,
   PageHeader,
   Tabs,
   TabsContent,
@@ -13,9 +16,14 @@ import {
   TabsTrigger,
 } from "@/components/ui";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { safeInternalPath } from "@/lib/account-routing";
 
 export default function AccommodationPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { bootstrap, demoMode } = useWorkspace();
+  const [tab, setTab] = React.useState(() => searchParams.get("guest") ? "operations" : "discover");
+  const returnTo = safeInternalPath(searchParams.get("returnTo"));
   const capabilities = bootstrap?.membership.capabilities ?? [];
   const canWrite = capabilities.includes("accommodation.write");
   const canPublish = capabilities.includes("accommodation.publish");
@@ -35,9 +43,10 @@ export default function AccommodationPage() {
       <PageHeader
         title="Cazare"
         description="Descoperă variante din jurul evenimentului, pregătește recomandările pentru invitați și administrează separat camerele confirmate."
+        actions={returnTo ? <Button variant="ghost" size="sm" onClick={() => router.push(returnTo)}><ArrowLeft className="size-4" aria-hidden /> Înapoi la invitat</Button> : undefined}
       />
 
-      <Tabs defaultValue="discover">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full justify-start" aria-label="Zonele modulului de cazare">
           <TabsTrigger value="discover">
             <Compass className="size-4" aria-hidden />

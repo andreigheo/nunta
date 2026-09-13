@@ -72,7 +72,7 @@ export function copilotResourceLabel(value: string) {
     Task: "Sarcină",
     Risk: "Risc",
     GuestSummary: "Invitați",
-    Household: "Gospodărie",
+    Household: "Grup de invitați",
     Guest: "Invitat",
     InvitationSite: "Invitație",
     CampaignSummary: "Campanie",

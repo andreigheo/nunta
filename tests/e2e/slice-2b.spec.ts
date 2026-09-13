@@ -78,9 +78,9 @@ test("E2E 1 — Generate and apply plan", async ({ page }) => {
   await authorizePage(page, main);
   await page.goto("/plan");
   await expect(
-    page.getByRole("button", { name: "Verifică propunerea" }),
+    page.getByRole("button", { name: "Revizuiește planul propus" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Verifică propunerea" }).click();
+  await page.getByRole("button", { name: "Revizuiește planul propus" }).click();
   await expect(page.getByText("Ce include propunerea")).toBeVisible();
   await expect(
     page.getByText(/Fallback determinist|Determinist/).first(),
@@ -128,7 +128,7 @@ test("E2E 2 — Edit proposal", async ({ page }) => {
   await waitForJob(editor.api, generated.job.id);
   await authorizePage(page, editor);
   await page.goto("/plan");
-  await page.getByRole("button", { name: "Verifică propunerea" }).click();
+  await page.getByRole("button", { name: "Revizuiește planul propus" }).click();
   const manualTitle = `Task manual E2E ${Date.now()}`;
   await page.getByPlaceholder("Titlul sarcinii").fill(manualTitle);
   await page.getByRole("button", { name: "Adaugă", exact: true }).click();

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CalendarClock,
@@ -1141,6 +1142,7 @@ function CreatePlanModal({
   working: boolean;
   onCreate: (eventId: string) => Promise<void>;
 }) {
+  const router = useRouter();
   const [eventId, setEventId] = React.useState("");
   const selectedEventId = eventId || events[0]?.id || "";
   return (
@@ -1179,10 +1181,19 @@ function CreatePlanModal({
         </Select>
       </Field>
       {events.length === 0 && (
-        <p className="mt-3 text-sm text-danger">
-          Nu există un sub-eveniment configurat. Adaugă mai întâi data și
-          evenimentul în Calendar.
-        </p>
+        <div className="mt-3 rounded-xl border border-warning/30 bg-warning-soft p-4">
+          <p className="text-sm text-warning">
+            Completează datele de bază ale evenimentului. După salvare, revii
+            automat aici și poți crea planul zilei.
+          </p>
+          <Button
+            className="mt-3"
+            variant="outline"
+            onClick={() => router.push("/onboarding?returnTo=%2Fevent-day")}
+          >
+            Completează datele evenimentului
+          </Button>
+        </div>
       )}
     </Modal>
   );

@@ -271,7 +271,7 @@ export function GuestMessagingCenter({ workspaceId }: { workspaceId: string }) {
                     >
                       <option value="manual">Aleg persoane</option>
                       <option value="group">Un grup</option>
-                      <option value="household">O gospodărie</option>
+                      <option value="household">Un grup / o familie</option>
                       <option value="all">Toți cu acord activ</option>
                     </Select>
                   </label>
@@ -295,14 +295,14 @@ export function GuestMessagingCenter({ workspaceId }: { workspaceId: string }) {
                   ) : null}
                   {audienceType === "household" ? (
                     <label className="block text-sm">
-                      Gospodărie
+                      Grup / familie
                       <Select
                         value={audienceValue}
                         onChange={(event) =>
                           setAudienceValue(event.target.value)
                         }
                       >
-                        <option value="">Alege gospodăria</option>
+                        <option value="">Alege grupul sau familia</option>
                         {data.households.map((household) => (
                           <option key={household.id} value={household.id}>
                             {household.name} · {household.guestIds.length}
@@ -333,7 +333,7 @@ export function GuestMessagingCenter({ workspaceId }: { workspaceId: string }) {
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Nume, email, telefon, grup sau gospodărie"
+                    placeholder="Nume, email, telefon, etichetă sau grup"
                   />
                 </label>
                 <div className="max-h-72 overflow-y-auto rounded-lg border border-line divide-y divide-line">

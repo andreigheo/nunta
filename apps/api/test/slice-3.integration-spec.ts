@@ -2761,11 +2761,26 @@ describe.sequential("Slice 3 guest journey integration", () => {
         currentPeriodEnd: new Date(Date.now() + 86_400_000),
       },
     });
-    expect(
-      await database.weddingEvent.count({
-        where: { workspaceId: freshWorkspaceId },
-      }),
-    ).toBe(0);
+    const onboarding = await owner.agent
+      .get(`/api/v1/workspaces/${freshWorkspaceId}/onboarding`)
+      .expect(200);
+    await owner.agent
+      .patch(`/api/v1/workspaces/${freshWorkspaceId}/onboarding`)
+      .set("Origin", origin)
+      .set("If-Match", `"${onboarding.body.data.version}"`)
+      .send({
+        currentStep: 1,
+        couple: {
+          confirmed: true,
+          eventType: "birthday",
+          title: "Aniversarea Marei",
+        },
+      })
+      .expect(200);
+    const primaryEvent = await database.weddingEvent.findFirstOrThrow({
+      where: { workspaceId: freshWorkspaceId },
+    });
+    expect(primaryEvent.sourceKey).toBe("workspace:primary");
 
     const key = `seating-bootstrap-${randomUUID()}`;
     const payload = {
@@ -2797,6 +2812,11 @@ describe.sequential("Slice 3 guest journey integration", () => {
         where: { workspaceId: freshWorkspaceId },
       }),
     ).toBe(1);
+    expect(
+      await database.seatingPlan.findFirstOrThrow({
+        where: { workspaceId: freshWorkspaceId },
+      }),
+    ).toMatchObject({ weddingEventId: primaryEvent.id });
     expect(
       await database.venueSpace.count({
         where: { workspaceId: freshWorkspaceId },

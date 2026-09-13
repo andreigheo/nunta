@@ -48,13 +48,14 @@ export class PlanningService {
         );
         if (replay) return replay;
         const draft = await transaction.onboardingDraft.findFirst({
-          where: { workspaceId, status: "READY" },
+          where: { workspaceId, status: { in: ["DRAFT", "READY"] } },
         });
-        if (!draft)
+        if (!draft || record(draft.couple).confirmed !== true)
           problem(
             "ONBOARDING_INCOMPLETE",
             HttpStatus.UNPROCESSABLE_ENTITY,
-            "Onboarding is not ready",
+            "Event basics are missing",
+            "Completează mai întâi tipul și numele evenimentului.",
           );
         if (draft.version !== onboardingVersion)
           versionConflict("Onboarding version conflict", draft.version);
@@ -3704,7 +3705,7 @@ export class PlanningService {
               id: household.id,
               type: "household" as const,
               title: household.name,
-              subtitle: "Gospodărie",
+              subtitle: "Grup / familie",
               href: `/guests?household=${household.id}`,
             })),
             ...campaigns.map((campaign) => ({

@@ -178,14 +178,16 @@ test.afterAll(async () => {
 test("E2E 1 — Add household and guests", async ({ page }) => {
   await authorizePage(page, owner);
   await page.goto("/guests");
-  await page.getByRole("button", { name: "Gospodărie" }).click();
+  await page.getByRole("button", { name: "Grup nou" }).click();
   const householdDialog = page.getByRole("dialog", {
-    name: "Gospodărie nouă",
+    name: "Grup nou de invitați",
   });
   await householdDialog.locator('input[name="name"]').fill("Familia Pop E2E");
   await householdDialog.locator('input[name="city"]').fill("Chișinău");
-  await householdDialog.getByRole("button", { name: "Creează" }).click();
-  await expect(page.getByText("Gospodărie creată")).toBeVisible();
+  await householdDialog
+    .getByRole("button", { name: "Creează și adaugă persoane" })
+    .click();
+  await expect(page.getByText("Grupul a fost creat")).toBeVisible();
 
   const households = await apiData<{
     items: Array<{ id: string; name: string }>;
@@ -198,12 +200,7 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
     (item) => item.name === "Familia Pop E2E",
   )!.id;
 
-  const addGuestButton = page.getByRole("button", {
-    name: "Invitat",
-    exact: true,
-  });
-  await expect(addGuestButton).toBeEnabled();
-  await addGuestButton.click();
+  const addGuestButton = page.getByRole("button", { name: "Adaugă persoane" });
   const guestDialog = page.getByRole("dialog", { name: "Invitat nou" });
   await guestDialog.locator('input[name="firstName"]').fill("Ana");
   await guestDialog.locator('input[name="lastName"]').fill("Pop");
@@ -223,14 +220,16 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   await expect(page.getByText("Invitat actualizat")).toBeVisible();
   primaryGuest = (await guestList("Ana")).items[0]!;
 
-  await page.getByRole("button", { name: "Gospodărie" }).click();
+  await page.getByRole("button", { name: "Grup nou" }).click();
   const secondHouseholdDialog = page.getByRole("dialog", {
-    name: "Gospodărie nouă",
+    name: "Grup nou de invitați",
   });
   await secondHouseholdDialog
     .locator('input[name="name"]')
     .fill("Familia Ionescu E2E");
-  await secondHouseholdDialog.getByRole("button", { name: "Creează" }).click();
+  await secondHouseholdDialog
+    .getByRole("button", { name: "Creează și adaugă persoane" })
+    .click();
   await expect(secondHouseholdDialog).toBeHidden();
   const secondHouseholds = await apiData<{
     items: Array<{ id: string; name: string }>;
@@ -241,8 +240,6 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   );
   const secondHouseholdId = secondHouseholds.items[0]!.id;
 
-  await expect(addGuestButton).toBeEnabled();
-  await addGuestButton.click();
   const secondAdultDialog = page.getByRole("dialog", { name: "Invitat nou" });
   await secondAdultDialog.locator('input[name="firstName"]').fill("Elena");
   await secondAdultDialog.locator('input[name="lastName"]').fill("Pop");
@@ -257,31 +254,31 @@ test("E2E 1 — Add household and guests", async ({ page }) => {
   ).toBeVisible();
   const secondAdult = (await guestList("Elena")).items[0]!;
 
-  await page.getByRole("button", { name: "Gestionează grupuri" }).click();
-  let tagDialog = page.getByRole("dialog", { name: "Grupuri de invitați" });
-  await tagDialog.getByLabel("Grup nou").fill("Familie apropiată E2E");
+  await page.getByRole("button", { name: "Gestionează etichete" }).click();
+  let tagDialog = page.getByRole("dialog", { name: "Etichete pentru invitați" });
+  await tagDialog.getByLabel("Etichetă nouă").fill("Familie apropiată E2E");
   await tagDialog.getByLabel("Culoare").fill("#7c3aed");
-  await tagDialog.getByRole("button", { name: "Creează grupul" }).click();
-  await expect(page.getByText("Grup creat")).toBeVisible();
-  await page.getByRole("button", { name: "Gestionează grupuri" }).click();
-  tagDialog = page.getByRole("dialog", { name: "Grupuri de invitați" });
+  await tagDialog.getByRole("button", { name: "Creează eticheta" }).click();
+  await expect(page.getByText("Etichetă creată")).toBeVisible();
+  await page.getByRole("button", { name: "Gestionează etichete" }).click();
+  tagDialog = page.getByRole("dialog", { name: "Etichete pentru invitați" });
   await tagDialog
-    .getByRole("button", { name: "Editează grupul Familie apropiată E2E" })
+    .getByRole("button", { name: "Editează eticheta Familie apropiată E2E" })
     .click();
-  const editTagDialog = page.getByRole("dialog", { name: "Editează grupul" });
+  const editTagDialog = page.getByRole("dialog", { name: "Editează eticheta" });
   await editTagDialog.getByLabel("Nume").fill("Familie VIP E2E");
   await editTagDialog.getByRole("button", { name: "Salvează" }).click();
-  await expect(page.getByText("Grup actualizat")).toBeVisible();
-  await page.getByRole("button", { name: "Gestionează grupuri" }).click();
-  tagDialog = page.getByRole("dialog", { name: "Grupuri de invitați" });
+  await expect(page.getByText("Etichetă actualizată")).toBeVisible();
+  await page.getByRole("button", { name: "Gestionează etichete" }).click();
+  tagDialog = page.getByRole("dialog", { name: "Etichete pentru invitați" });
   await tagDialog
-    .getByRole("button", { name: "Șterge grupul Familie VIP E2E" })
+    .getByRole("button", { name: "Șterge eticheta Familie VIP E2E" })
     .click();
   const deleteTagDialog = page.getByRole("dialog", {
-    name: "Ștergi grupul?",
+    name: "Ștergi eticheta?",
   });
-  await deleteTagDialog.getByRole("button", { name: "Șterge grupul" }).click();
-  await expect(page.getByText("Grup șters")).toBeVisible();
+  await deleteTagDialog.getByRole("button", { name: "Șterge eticheta" }).click();
+  await expect(page.getByText("Etichetă ștearsă")).toBeVisible();
   await tagDialog.getByText("Închide", { exact: true }).click();
 
   await expect(addGuestButton).toBeEnabled();
@@ -770,8 +767,8 @@ test("E2E 7 — Household RSVP", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Răspunsuri invitați" }),
   ).toBeVisible();
-  await expect(page.getByText("Răspunsuri pe gospodării")).toBeVisible();
-  await page.getByLabel("Caută invitat sau gospodărie").fill("Familia Pop");
+  await expect(page.getByText("Răspunsuri pe grupuri și familii")).toBeVisible();
+  await page.getByLabel("Caută invitat sau grup").fill("Familia Pop");
   await expect(page.getByText("1 rezultate")).toBeVisible();
   await expectNoSeriousA11yViolations(page, "main");
   await captureInvitationV2(page, "rsvp-dashboard");
@@ -1144,7 +1141,7 @@ test("E2E 19 — Demo", async ({ page }) => {
   await page.goto("/guests?demo=1");
   await expect(page.getByRole("button", { name: "Import" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Export" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Gospodărie" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Grup nou" })).toBeDisabled();
   await page.goto("/invitations?demo=1");
   await expect(
     page.getByRole("button", { name: "Pregătește destinatari" }),

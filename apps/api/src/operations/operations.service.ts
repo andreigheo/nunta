@@ -253,19 +253,37 @@ export class OperationsService {
         });
         if (!workspace) notFound("Spațiul de lucru nu există.");
         const eventDate = nullableDateOnly(input.eventDate);
-        const event = await tx.weddingEvent.create({
-          data: {
-            workspaceId,
-            type: "CUSTOM",
-            title: string(input.eventTitle),
-            startAt: eventDate,
-            timezone: workspace.timezone,
-            locationName: nullableString(input.locationName),
-            status: eventDate ? "CONFIRMED" : "DRAFT",
-            source: "seating_setup",
-            sourceKey: `seating-bootstrap:${hash(key).slice(0, 40)}`,
+        const existingPrimary = await tx.weddingEvent.findUnique({
+          where: {
+            workspaceId_sourceKey: {
+              workspaceId,
+              sourceKey: "workspace:primary",
+            },
           },
         });
+        const event = existingPrimary
+          ? await tx.weddingEvent.update({
+              where: { id: existingPrimary.id },
+              data: {
+                title: string(input.eventTitle),
+                startAt: eventDate,
+                locationName: nullableString(input.locationName),
+                status: eventDate ? "CONFIRMED" : "DRAFT",
+              },
+            })
+          : await tx.weddingEvent.create({
+              data: {
+                workspaceId,
+                type: "CUSTOM",
+                title: string(input.eventTitle),
+                startAt: eventDate,
+                timezone: workspace.timezone,
+                locationName: nullableString(input.locationName),
+                status: eventDate ? "CONFIRMED" : "DRAFT",
+                source: "seating_setup",
+                sourceKey: "workspace:primary",
+              },
+            });
         const venue = await tx.venueSpace.create({
           data: {
             workspaceId,

@@ -283,7 +283,7 @@ test("Visual audit — organizer has one clear path from setup to plan and budge
   await page.getByLabel("Titlul evenimentului").fill("Olivia & Paul");
   await page.getByLabel("Cum vă numim în interfață?").fill("Olivia și Paul");
   await captureGuidedSurface(page, "09-guided-onboarding-start-desktop.png");
-  await page.getByRole("button", { name: "Continuă" }).click();
+  await page.getByRole("button", { name: "Configurează în detaliu" }).click();
 
   await expect(
     page.getByRole("heading", { name: "Data & momentele" }),

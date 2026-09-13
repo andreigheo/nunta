@@ -134,7 +134,7 @@ export class GuestMessagingService {
             phone,
             householdId: g.householdId,
             householdName:
-              householdNames.get(g.householdId) ?? "Fără gospodărie",
+              householdNames.get(g.householdId) ?? "Fără grup de invitați",
             groups: guestGroups.get(g.id) ?? [],
             sms: allowed("SMS"),
             whatsapp: allowed("WHATSAPP"),

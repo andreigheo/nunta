@@ -45,6 +45,73 @@ describe.sequential("Slice 2B planning integration", () => {
     await database.$disconnect();
   });
 
+  it("generates a useful first plan from the quick event setup", async () => {
+    const workspace = await owner.agent
+      .post("/api/v1/workspaces")
+      .set("Origin", origin)
+      .set("Idempotency-Key", `quick-plan-workspace-${randomUUID()}`)
+      .send({
+        title: "Aniversarea Ioanei",
+        eventType: "birthday",
+        timezone: "Europe/Bucharest",
+      })
+      .expect(201);
+    const workspaceId = workspace.body.data.id as string;
+    const initial = await owner.agent
+      .get(`/api/v1/workspaces/${workspaceId}/onboarding`)
+      .expect(200);
+    const saved = await owner.agent
+      .patch(`/api/v1/workspaces/${workspaceId}/onboarding`)
+      .set("Origin", origin)
+      .set("If-Match", `"${initial.body.data.version}"`)
+      .send({
+        currentStep: 1,
+        couple: {
+          confirmed: true,
+          eventType: "birthday",
+          title: "Aniversarea Ioanei",
+          organizerName: "Ioana",
+        },
+      })
+      .expect(200);
+
+    expect(saved.body.data.status).toBe("draft");
+    expect(await database.weddingEvent.count({ where: { workspaceId } })).toBe(
+      1,
+    );
+    expect(
+      await database.weddingEvent.findFirstOrThrow({ where: { workspaceId } }),
+    ).toMatchObject({
+      title: "Aniversarea Ioanei",
+      sourceKey: "workspace:primary",
+    });
+
+    const generated = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/plan-generations`)
+      .set("Origin", origin)
+      .set("If-Match", `"${saved.body.data.version}"`)
+      .set("Idempotency-Key", `quick-plan-${randomUUID()}`)
+      .send({ mode: "deterministic" })
+      .expect(201);
+    expect(generated.body.data.generationRunId).toEqual(expect.any(String));
+    await expect
+      .poll(
+        async () =>
+          (
+            await database.planGenerationRun.findUniqueOrThrow({
+              where: { id: generated.body.data.generationRunId },
+            })
+          ).status,
+        { timeout: 60_000 },
+      )
+      .toBe("COMPLETED");
+    expect(
+      await database.planProposal.findUnique({
+        where: { generationRunId: generated.body.data.generationRunId },
+      }),
+    ).toMatchObject({ status: "READY_FOR_REVIEW" });
+  });
+
   it("generates, edits and atomically applies a structured proposal without duplicates", async () => {
     const { workspaceId, onboardingVersion } = await readyWorkspace(
       owner,

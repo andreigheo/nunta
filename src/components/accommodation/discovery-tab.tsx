@@ -83,18 +83,16 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
     if (!currentWorkspace) return;
     let active = true;
     Promise.allSettled([
-      weddingOsApi.calendar(currentWorkspace.id),
+      weddingOsApi.workspaceEvents(currentWorkspace.id),
       weddingOsApi.accommodationRecommendations(currentWorkspace.id),
     ]).then(([calendarResult, recommendationsResult]) => {
       if (!active) return;
       if (calendarResult.status === "fulfilled") {
-        const options = calendarResult.value.items
-          .filter((item) => item.sourceType === "wedding_event")
-          .map((item) => ({
-            sourceId: item.sourceId,
-            title: item.title,
-            location: item.location,
-          }));
+        const options = calendarResult.value.items.map((item) => ({
+          sourceId: item.id,
+          title: item.title,
+          location: item.locationName,
+        }));
         setEvents(options);
         setEventId((current) => current || options[0]?.sourceId || "");
         setEventsError(null);

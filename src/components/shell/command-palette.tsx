@@ -110,7 +110,7 @@ function CommandPaletteContent() {
         },
         {
           id: "create-household",
-          label: "Creează o gospodărie",
+          label: "Creează un grup de invitați",
           hint: "Guest CRM · salvare reală",
           group: "Acțiuni",
           capability: "guest.write",

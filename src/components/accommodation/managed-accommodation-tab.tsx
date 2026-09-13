@@ -146,11 +146,12 @@ export function ManagedAccommodationTab() {
         weddingOsApi.accommodationProperties(currentWorkspace.id),
         weddingOsApi.accommodationStays(currentWorkspace.id),
         weddingOsApi.accommodationRequests(currentWorkspace.id),
-        weddingOsApi.calendar(currentWorkspace.id),
+        weddingOsApi.workspaceEvents(currentWorkspace.id),
       ]);
-      const eventList = calendar.items
-        .filter((item) => item.sourceType === "wedding_event")
-        .map((item) => ({ id: item.sourceId, title: item.title }));
+      const eventList = calendar.items.map((item) => ({
+        id: item.id,
+        title: item.title,
+      }));
       setProperties(propertyList.items);
       setStays(stayList.items);
       setRequests(requestList.items);
@@ -651,7 +652,10 @@ export function ManagedAccommodationTab() {
     setSelectedRequestIds((current) => {
       const next = new Set(current);
       const select = ids.some((id) => !next.has(id));
-      for (const id of ids) select ? next.add(id) : next.delete(id);
+      for (const id of ids) {
+        if (select) next.add(id);
+        else next.delete(id);
+      }
       return next;
     });
   };
@@ -1168,9 +1172,8 @@ export function ManagedAccommodationTab() {
                           onCheckedChange={(checked) =>
                             setSelectedRequestIds((current) => {
                               const next = new Set(current);
-                              checked
-                                ? next.add(request.id)
-                                : next.delete(request.id);
+                              if (checked) next.add(request.id);
+                              else next.delete(request.id);
                               return next;
                             })
                           }

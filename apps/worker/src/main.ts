@@ -3151,7 +3151,7 @@ async function processPlanGeneration(
           id: run.onboardingDraftId,
           workspaceId: snapshot.workspace_id!,
           version: run.onboardingVersion,
-          status: "READY",
+          status: { in: ["DRAFT", "READY"] },
         },
       }),
       transaction.workspace.findUnique({
@@ -6482,7 +6482,7 @@ async function processCopilotRun(
       ...households.map((household, index) => ({
         type: "Household",
         id: household.id,
-        title: `Gospodărie ${index + 1}`,
+        title: `Grup de invitați ${index + 1}`,
         summary: `versiune ${household.version}; ${guests.filter((guest) => guest.householdId === household.id).length} membri în contextul curent; limbă ${household.preferredLanguage}; parte ${copilotEnumLabel(household.side)}; numele și contactele sunt excluse`,
         updatedAt: household.updatedAt.toISOString(),
         sensitivity: "normal" as const,
@@ -6491,7 +6491,7 @@ async function processCopilotRun(
         type: "Guest",
         id: guest.id,
         title: `Invitat ${index + 1}`,
-        summary: `versiune ${guest.version}; gospodărie ${guest.householdId}; limbă ${guest.preferredLanguage}; parte ${copilotEnumLabel(guest.side)}; copil ${guest.isChild ? "da" : "nu"}; însoțitor ${guest.isPlusOne ? "da" : "nu"}; permite însoțitor ${guest.plusOneAllowed ? "da" : "nu"}; numele și contactele sunt excluse`,
+        summary: `versiune ${guest.version}; grup de invitați ${guest.householdId}; limbă ${guest.preferredLanguage}; parte ${copilotEnumLabel(guest.side)}; copil ${guest.isChild ? "da" : "nu"}; însoțitor ${guest.isPlusOne ? "da" : "nu"}; permite însoțitor ${guest.plusOneAllowed ? "da" : "nu"}; numele și contactele sunt excluse`,
         updatedAt: guest.updatedAt.toISOString(),
         sensitivity: "normal" as const,
       })),
@@ -7383,7 +7383,7 @@ async function resolveSelectedCopilotResource(
       type: "Guest",
       id: row.id,
       title: row.displayName || `${row.firstName} ${row.lastName}`.trim(),
-      summary: `resursa deschisă explicit; versiune ${row.version}; gospodărie ${row.householdId}`,
+      summary: `resursa deschisă explicit; versiune ${row.version}; grup de invitați ${row.householdId}`,
       updatedAt: row.updatedAt.toISOString(),
       sensitivity: "normal",
     };

@@ -35,7 +35,7 @@ import { cn, formatRON } from "@/lib/utils";
 import { Button, CurrencyInput, Field, Input, Progress, Select, Switch, useToast } from "@/components/ui";
 import { ThemeSegmentedControl } from "@/lib/theme";
 import { apiErrorMessage, hasDemoCookie, weddingOsApi } from "@/lib/api/client";
-import { selectedWorkspacePlan } from "@/lib/account-routing";
+import { safeInternalPath, selectedWorkspacePlan } from "@/lib/account-routing";
 
 const steps = [
   { id: 1, title: "Evenimentul", hint: "Ce organizezi și cine îl coordonează?" },
@@ -114,6 +114,7 @@ function OnboardingContent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
+  const requestedReturnTo = safeInternalPath(searchParams.get("returnTo"));
   const createNewEvent = searchParams.get("new") === "1";
   const [step, setStep] = React.useState(1);
   const [values, setValues] = React.useState<Record<string, string>>({
@@ -353,13 +354,13 @@ function OnboardingContent() {
 
   const saveAndExit = async () => {
     if (hasDemoCookie()) {
-      router.push("/overview?demo=1");
+      router.push(withDemoMode(requestedReturnTo ?? "/overview"));
       return;
     }
     setSaving(true);
     try {
       await persistStep(step);
-      router.push("/overview");
+      router.push(requestedReturnTo ?? "/overview");
     } catch (error) {
       toast({ title: "Configurarea nu a putut fi salvată", description: apiErrorMessage(error), variant: "error" });
     } finally {
@@ -369,7 +370,7 @@ function OnboardingContent() {
 
   const finishQuickSetup = async () => {
     if (hasDemoCookie()) {
-      router.push(requestedPlan ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start&demo=1` : "/overview?demo=1");
+      router.push(requestedPlan ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start&demo=1` : requestedReturnTo ?? "/overview?demo=1");
       return;
     }
     setSaving(true);
@@ -383,7 +384,7 @@ function OnboardingContent() {
       router.push(
         requestedPlan
           ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start`
-          : "/overview",
+          : requestedReturnTo ?? "/overview",
       );
       router.refresh();
     } catch (error) {
@@ -395,7 +396,7 @@ function OnboardingContent() {
 
   const complete = async () => {
     if (hasDemoCookie()) {
-      router.push("/plan?demo=1");
+      router.push(withDemoMode(requestedReturnTo ?? "/plan"));
       return;
     }
     setSaving(true);
@@ -407,7 +408,7 @@ function OnboardingContent() {
       router.push(
         requestedPlan
           ? `/settings?tab=billing&plan=${requestedPlan}&checkout=start`
-          : "/plan?generate=1",
+          : requestedReturnTo ?? "/plan?generate=1",
       );
       router.refresh();
     } catch (error) {
@@ -452,7 +453,7 @@ function OnboardingContent() {
             <ThemeSegmentedControl className="hidden sm:inline-flex" />
             <Button variant="ghost" size="sm" onClick={() => void saveAndExit()} disabled={saving}>
               <Save className="size-3.5" aria-hidden />
-              Salvează și ieși
+              {requestedReturnTo ? "Salvează și revino" : "Salvează și ieși"}
             </Button>
           </div>
         </div>
@@ -905,7 +906,11 @@ function OnboardingContent() {
                     <ArrowRight className="size-4" aria-hidden />
                   </Button>
                   <Button className="col-span-2 w-full sm:w-auto" onClick={() => void finishQuickSetup()} disabled={!canContinue || saving}>
-                    {requestedPlan ? `Continuă la planul ${requestedPlan === "PLUS" ? "Plus" : "Pro"}` : "Creează și deschide dashboardul"}
+                    {requestedPlan
+                      ? `Continuă la planul ${requestedPlan === "PLUS" ? "Plus" : "Pro"}`
+                      : requestedReturnTo
+                        ? "Salvează și continuă"
+                        : "Creează și deschide dashboardul"}
                     <ArrowRight className="size-4" aria-hidden />
                   </Button>
                 </>
@@ -932,6 +937,10 @@ function OnboardingContent() {
       </footer>
     </div>
   );
+}
+
+function withDemoMode(path: string) {
+  return `${path}${path.includes("?") ? "&" : "?"}demo=1`;
 }
 
 function booleanRecord(value: Record<string, unknown>): Record<string, boolean> {

@@ -69,7 +69,8 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   await page.getByPlaceholder("Ana Dumitrescu").fill("Ana Pop");
   await page.getByPlaceholder("Mihai Ionescu").fill("Mihai Pop");
   await page.getByPlaceholder("Ana & Mihai").fill("Ana & Mihai E2E");
-  for (let step = 1; step < 8; step += 1) {
+  await page.getByRole("button", { name: "Configurează în detaliu" }).click();
+  for (let step = 2; step < 8; step += 1) {
     await page.getByRole("button", { name: "Continuă" }).click();
   }
   await page
@@ -90,6 +91,71 @@ test("E2E 1 — owner account, verification, sign-in, workspace and protected sh
   expect(browserApiOrigins.length).toBeGreaterThan(0);
   expect([...new Set(browserApiOrigins)]).toEqual([origin]);
   expect(browserApiOrigins).not.toContain(apiUrl);
+});
+
+test("E2E 1A — quick setup preserves the user's task across Plan and Transport", async ({
+  page,
+}) => {
+  const account = await createVerifiedAccount("quick-human-journey");
+  await signInThroughUi(page, account.email);
+  await expect(page).toHaveURL(/\/onboarding/);
+
+  await page.getByLabel("Tipul evenimentului").selectOption("birthday");
+  await page.getByLabel("Numele evenimentului").fill("Aniversarea Ioanei");
+  await page
+    .getByLabel("Organizator / persoană de contact")
+    .fill("Ioana Popescu");
+  await page
+    .getByRole("button", { name: "Creează și deschide dashboardul" })
+    .click();
+  await expect(page).toHaveURL(/\/overview(?:\?|$)/);
+
+  const workspaces = await apiData<Array<{ id: string }>>(
+    await account.api.get("/api/v1/workspaces"),
+  );
+  const workspaceId = workspaces[0]!.id;
+  const workspaceEvents = await apiData<{
+    items: Array<{ title: string }>;
+  }>(await account.api.get(`/api/v1/workspaces/${workspaceId}/seating-events`));
+  expect(workspaceEvents.items).toEqual([
+    expect.objectContaining({ title: "Aniversarea Ioanei" }),
+  ]);
+
+  await page.goto("/plan");
+  await page.getByRole("button", { name: "Generează planul meu" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 90_000 });
+
+  await page.goto("/onboarding?returnTo=%2Ftransport");
+  await page
+    .getByRole("button", { name: "Salvează și continuă" })
+    .click();
+  await expect(page).toHaveURL(/\/transport(?:\?|$)/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/guests");
+  await page.getByRole("button", { name: "Adaugă persoane" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Grup nou de invitați" }),
+  ).toBeVisible();
+  await page.getByLabel("Numele grupului").fill("Familia Ionescu");
+  await page
+    .getByRole("button", { name: "Creează și adaugă persoane" })
+    .click();
+  await expect(page.getByRole("heading", { name: "Invitat nou" })).toBeVisible();
+  await page.getByLabel("Prenume").fill("Ana");
+  await page.locator('input[name="lastName"]').fill("Ionescu");
+  await page.getByLabel("Are nevoie de transport").check();
+  await page.getByRole("button", { name: "Adaugă", exact: true }).click();
+  await page.getByRole("button", { name: /Ana Ionescu/ }).click();
+  await page.getByRole("tab", { name: "Organizare" }).click();
+  await page.getByRole("button", { name: "Organizează transportul" }).click();
+  await expect(page).toHaveURL(/\/transport\?guest=.*returnTo=/);
+  await expect(
+    page.getByRole("button", { name: "Înapoi la invitat" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Înapoi la invitat" }).click();
+  await expect(page).toHaveURL(/\/guests\?focus=/);
+  await expect(page.getByRole("heading", { name: "Ana Ionescu" })).toBeVisible();
 });
 
 test("E2E 1B — provider registration preserves intent through verification and opens professional setup", async ({

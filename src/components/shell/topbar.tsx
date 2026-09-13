@@ -105,7 +105,7 @@ const quickCreateItems: Array<{
   { kind: "guest", label: "Adaugă invitat", icon: <UserPlus />, active: true, capability: "guest.write" },
   {
     kind: "household",
-    label: "Adaugă gospodărie",
+    label: "Adaugă grup de invitați",
     icon: <Users />,
     active: true,
     capability: "guest.write",

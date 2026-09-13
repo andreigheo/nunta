@@ -290,16 +290,6 @@ export default function PlanPage() {
     }
     await run(async () => {
       const onboarding = await weddingOsApi.onboarding(currentWorkspace.id);
-      if (onboarding.status !== "ready") {
-        toast({
-          title: "Onboarding incomplet",
-          description:
-            "Completează onboardingul înainte de generarea planului.",
-          variant: "warning",
-        });
-        router.push("/onboarding");
-        return;
-      }
       const result = await weddingOsApi.createPlanGeneration(
         currentWorkspace.id,
         onboarding.version,
@@ -353,7 +343,7 @@ export default function PlanPage() {
         variant: full.fallbackUsed ? "warning" : "success",
       });
     });
-  }, [currentWorkspace, demoMode, router, run, toast]);
+  }, [currentWorkspace, demoMode, run, toast]);
 
   React.useEffect(() => {
     if (loading || automaticGenerationStarted.current) return;
@@ -677,8 +667,8 @@ export default function PlanPage() {
               >
                 <Sparkles className="size-3.5 text-accent" />
                 {proposal?.status === "ready_for_review"
-                  ? "Verifică propunerea"
-                  : "Generează plan"}
+                  ? "Revizuiește planul propus"
+                  : "Generează planul meu"}
               </Button>
               <Button size="sm" onClick={() => setModalOpen(true)}>
                 <Plus className="size-4" />
@@ -1050,15 +1040,15 @@ export default function PlanPage() {
           title={
             proposal
               ? "Propunerea este pregătită pentru verificare"
-              : "Creează prima propunere de plan"
+              : "Generează primul plan al evenimentului"
           }
           description={
             proposal
-              ? "Deschide propunerea, ajustează ce ai nevoie și aplică doar sarcinile pe care le aprobi."
-              : "Procesul durează de obicei sub un minut și nu modifică planul fără confirmarea ta."
+              ? "Revizuiește recomandările, ajustează ce ai nevoie și adaugă numai sarcinile pe care le aprobi."
+              : "Folosim tipul evenimentului deja salvat. Vezi și aprobi recomandările înainte să intre în plan."
           }
           action={{
-            label: proposal ? "Verifică propunerea" : "Creează propunerea",
+            label: proposal ? "Revizuiește planul propus" : "Generează planul meu",
             onClick: () =>
               proposal ? setProposalOpen(true) : void generatePlan("auto"),
           }}

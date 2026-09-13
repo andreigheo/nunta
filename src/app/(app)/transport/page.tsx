@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, Bus, Download, LockKeyhole, MapPin, Pencil, Plus, Send, Trash2, TriangleAlert, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowRight, Bus, Download, LockKeyhole, MapPin, Pencil, Plus, Send, Trash2, TriangleAlert, Users } from "lucide-react";
 import {
   apiErrorMessage,
   type OperationResource,
@@ -9,6 +10,7 @@ import {
   weddingOsApi,
 } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { safeInternalPath } from "@/lib/account-routing";
 import {
   Badge,
   Button,
@@ -28,6 +30,7 @@ import {
 } from "@/components/ui";
 
 export default function TransportPage() {
+  const router = useRouter();
   const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
   const { toast } = useToast();
   const [plans, setPlans] = React.useState<OperationResource[]>([]);
@@ -50,6 +53,8 @@ export default function TransportPage() {
   const [saving, setSaving] = React.useState(false);
   const [eventId, setEventId] = React.useState("");
   const [name, setName] = React.useState("Transport principal");
+  const [focusedGuestId, setFocusedGuestId] = React.useState<string | null>(null);
+  const [returnTo, setReturnTo] = React.useState<string | null>(null);
   const [vehicleName, setVehicleName] = React.useState("");
   const [vehicleCapacity, setVehicleCapacity] = React.useState("20");
   const [vehicleAccessibleCapacity, setVehicleAccessibleCapacity] = React.useState("0");
@@ -82,14 +87,20 @@ export default function TransportPage() {
     if (!currentWorkspace || demoMode) return;
     setLoading(true);
     try {
-      const [planList, requestList, calendar] = await Promise.all([
+      const [planList, requestList, workspaceEvents] = await Promise.all([
         weddingOsApi.transportPlans(currentWorkspace.id),
         weddingOsApi.transportRequests(currentWorkspace.id),
-        weddingOsApi.calendar(currentWorkspace.id),
+        weddingOsApi.workspaceEvents(currentWorkspace.id),
       ]);
       setPlans(planList.items);
       setRequests(requestList.items);
-      const options = calendar.items.filter((item) => item.sourceType === "wedding_event").map((item) => ({ id: item.sourceId, title: item.title }));
+      const params = new URLSearchParams(window.location.search);
+      setFocusedGuestId(params.get("guest"));
+      setReturnTo(safeInternalPath(params.get("returnTo")));
+      const options = workspaceEvents.items.map((item) => ({
+        id: item.id,
+        title: item.title,
+      }));
       setEvents(options);
       setEventId((current) => current || options[0]?.id || "");
       const selected =
@@ -250,7 +261,7 @@ export default function TransportPage() {
   if (demoMode) return <EmptyState icon={Bus} title="Transportul este izolat în demo" description="Ieși din demo pentru operații persistente." />;
   if (loading) return <div className="py-24 text-center text-sm text-muted">Se încarcă transportul…</div>;
   if (error) return <EmptyState icon={TriangleAlert} title="Transportul nu este disponibil" description={error} action={{ label: "Reîncearcă", onClick: () => void load() }} />;
-  if (!plan) return <><EmptyState icon={Bus} title={!canWrite ? "Transportul invitaților este disponibil în Plus" : events.length === 0 ? "Adaugă mai întâi evenimentul nunții" : "Nu există un plan de transport"} description={!canWrite ? "Planurile existente rămân vizibile după revenirea la Free, iar crearea, alocarea și publicarea transportului necesită funcțiile logistice din Plus." : events.length === 0 ? "Planul de transport trebuie legat de un eveniment confirmat. Completează programul nunții, apoi revino aici." : "Cererile RSVP sunt păstrate separat. Creează un draft înainte de a aloca pasageri."} action={!canWrite ? { label: "Vezi opțiunile Plus", onClick: () => window.location.assign("/settings?tab=billing"), icon: <LockKeyhole className="size-4" /> } : events.length ? { label: "Creează plan", onClick: () => setPlanOpen(true), icon: <Plus className="size-4" /> } : { label: "Completează programul", onClick: () => window.location.assign("/onboarding"), icon: <ArrowRight className="size-4" /> }} /><PlanModal open={planOpen} onClose={() => setPlanOpen(false)} events={events} eventId={eventId} setEventId={setEventId} name={name} setName={setName} saving={saving} save={() => run(() => weddingOsApi.createTransportPlan(currentWorkspace!.id, { weddingEventId: eventId, name }), "Planul de transport a fost creat")} /></>;
+  if (!plan) return <><div className="mb-4 flex justify-end">{returnTo && <Button variant="ghost" size="sm" onClick={() => router.push(returnTo)}><ArrowLeft className="size-4" /> Înapoi la invitat</Button>}</div><EmptyState icon={Bus} title={!canWrite ? "Transportul invitaților este disponibil în Plus" : events.length === 0 ? "Completează datele de bază ale evenimentului" : "Nu există un plan de transport"} description={!canWrite ? "Planurile existente rămân vizibile după revenirea la Free, iar crearea, alocarea și publicarea transportului necesită funcțiile logistice din Plus." : events.length === 0 ? "Spune-ne ce eveniment organizezi. După salvare, revii automat aici și continui cu transportul." : "Cererile RSVP sunt păstrate separat. Creează un draft înainte de a aloca pasageri."} action={!canWrite ? { label: "Vezi opțiunile Plus", onClick: () => router.push("/settings?tab=billing"), icon: <LockKeyhole className="size-4" /> } : events.length ? { label: "Creează plan", onClick: () => setPlanOpen(true), icon: <Plus className="size-4" /> } : { label: "Completează datele evenimentului", onClick: () => router.push("/onboarding?returnTo=%2Ftransport"), icon: <ArrowRight className="size-4" /> }} /><PlanModal open={planOpen} onClose={() => setPlanOpen(false)} events={events} eventId={eventId} setEventId={setEventId} name={name} setName={setName} saving={saving} save={() => run(() => weddingOsApi.createTransportPlan(currentWorkspace!.id, { weddingEventId: eventId, name }), "Planul de transport a fost creat")} /></>;
 
   const totalCapacity = plan.vehicles.reduce((total, vehicle) => total + Number(vehicle.capacity ?? 0), 0);
   const relevantRequests = requests.filter(
@@ -266,11 +277,14 @@ export default function TransportPage() {
   const unassigned = relevantRequests.filter(
     (request) =>
       request.requested === true && !assignedRequestIds.has(request.id),
+  ).sort((left, right) =>
+    left.guestId === focusedGuestId ? -1 : right.guestId === focusedGuestId ? 1 : 0,
   );
   const activeIssues = plan.issues.filter((issue) => issue.status !== "resolved");
 
   return <div className="mx-auto max-w-7xl space-y-5" data-testid="transport-page">
     <PageHeader title="Transport invitați" description={`Plan activ: ${String(plan.name ?? "Fără nume")} · cererile RSVP, vehiculele, rutele și manifestele sunt alimentate din API.`} actions={<>
+      {returnTo && <Button variant="ghost" size="sm" onClick={() => router.push(returnTo)}><ArrowLeft className="size-4" /> Înapoi la invitat</Button>}
       {plans.length > 1 && <Select aria-label="Plan de transport activ" value={plan.id} onChange={(event) => void loadPlan(event.target.value)}>{plans.map((item) => <option key={item.id} value={item.id}>{String(item.name)}</option>)}</Select>}
       <Badge variant={plan.status === "published" ? "success" : "warning"}>{plan.status === "published" ? "Publicat" : "Draft"}</Badge>
       <Button variant="outline" size="icon-sm" aria-label="Redenumește planul de transport" disabled={!canWrite} onClick={() => { setPlanName(String(plan.name ?? "")); setPlanEditOpen(true); }}><Pencil className="size-4" /></Button>
@@ -294,7 +308,7 @@ export default function TransportPage() {
       return <Card key={route.id}><CardContent className="p-4"><div className="flex items-start justify-between gap-2"><div><p className="text-[15px] font-semibold text-ink">{route.name}</p><Badge className="mt-1" variant={route.status === "confirmed" ? "success" : "brand"}>{String(route.status ?? "draft")}</Badge></div>{canWrite ? <div className="flex gap-1"><Button size="icon-sm" variant="ghost" aria-label={`Editează ruta ${route.name}`} onClick={() => openEditRoute(route)}><Pencil className="size-4" /></Button><Button size="icon-sm" variant="ghost" aria-label={`Șterge ruta ${route.name}`} onClick={() => setDeleteRoute(route)}><Trash2 className="size-4 text-danger" /></Button></div> : null}</div><dl className="mt-3 space-y-2 text-[13px] text-muted"><div className="flex gap-2"><MapPin className="size-3.5 text-faint" />{route.originName} → {route.destinationName}</div><div>{new Date(route.departureAt).toLocaleString("ro-RO")}</div><div className="flex gap-2"><Bus className="size-3.5 text-faint" />{String(vehicle?.name ?? "Fără vehicul")}</div></dl><div className="mt-3"><div className="mb-1 flex justify-between text-xs text-faint"><span>Pasageri</span><span>{capacity ? `${passengers}/${capacity}` : `${passengers}, capacitate nespecificată`}</span></div><Progress value={passengers} max={Math.max(capacity, 1)} tone={capacity && passengers / capacity > .9 ? "warning" : "brand"}/></div></CardContent></Card>;
     }) : <EmptyState className="lg:col-span-3" icon={MapPin} title="Nu există rute" description="Adaugă mai întâi un vehicul, apoi ruta și orele reale." action={canWrite ? { label: plan.vehicles.length ? "Adaugă rută" : "Adaugă vehicul", onClick: () => plan.vehicles.length ? openNewRoute() : openNewVehicle() } : undefined}/>}</div>
 
-    <Card><CardContent className="p-4"><div className="mb-3 flex items-center justify-between"><div><h2 className="font-semibold text-ink">Cereri nealocate</h2><p className="text-xs text-muted">Proiecție din RSVP; fiecare cerere este legată de invitat și de eveniment.</p></div><Badge variant={unassigned.length ? "warning" : "success"}>{unassigned.length}</Badge></div>{unassigned.length === 0 ? <p className="py-5 text-center text-sm text-muted">Nu există cereri nealocate.</p> : <div className="space-y-2">{unassigned.map((request) => <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"><div className="min-w-0"><p className="text-sm font-medium text-ink">{String(request.guestName ?? "Invitat")}</p><p className="mt-0.5 text-xs text-muted">{String(request.eventTitle ?? "Eveniment")}{request.householdName ? ` · ${String(request.householdName)}` : ""}</p><p className="mt-1 text-xs text-faint">{String(request.pickupArea ?? "Punct de preluare nespecificat")}</p></div><Select aria-label={`Alocă ${String(request.guestName ?? "invitatul")} la ${String(request.eventTitle ?? "eveniment")}`} className="max-w-56" defaultValue="" onChange={(event) => event.target.value && void assignRequest(request, event.target.value)} disabled={!canAssign}><option value="">Alocă pe rută…</option>{plan.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</Select></div>)}</div>}</CardContent></Card>
+    <Card><CardContent className="p-4"><div className="mb-3 flex items-center justify-between"><div><h2 className="font-semibold text-ink">Cereri nealocate</h2><p className="text-xs text-muted">Alege ruta pentru fiecare persoană care a solicitat transport.</p></div><Badge variant={unassigned.length ? "warning" : "success"}>{unassigned.length}</Badge></div>{unassigned.length === 0 ? <p className="py-5 text-center text-sm text-muted">Nu există cereri nealocate.</p> : <div className="space-y-2">{unassigned.map((request) => <div key={request.id} className={request.guestId === focusedGuestId ? "flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand bg-brand-soft/40 p-3" : "flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-3"}><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-ink">{String(request.guestName ?? "Invitat")}</p>{request.guestId === focusedGuestId && <Badge variant="brand">Invitat selectat</Badge>}</div><p className="mt-0.5 text-xs text-muted">{String(request.eventTitle ?? "Eveniment")}{request.householdName ? ` · ${String(request.householdName)}` : ""}</p><p className="mt-1 text-xs text-faint">{String(request.pickupArea ?? "Punct de preluare nespecificat")}</p></div><Select aria-label={`Alocă ${String(request.guestName ?? "invitatul")} la ${String(request.eventTitle ?? "eveniment")}`} className="max-w-56" defaultValue="" onChange={(event) => event.target.value && void assignRequest(request, event.target.value)} disabled={!canAssign}><option value="">Alege ruta…</option>{plan.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</Select></div>)}</div>}</CardContent></Card>
 
     <PlanModal open={planOpen} onClose={() => setPlanOpen(false)} events={events} eventId={eventId} setEventId={setEventId} name={name} setName={setName} saving={saving} save={() => run(() => weddingOsApi.createTransportPlan(currentWorkspace!.id, { weddingEventId: eventId, name }), "Planul de transport a fost creat")} />
     <Modal open={planEditOpen} onClose={() => setPlanEditOpen(false)} title="Redenumește planul de transport" footer={<><Button variant="ghost" onClick={() => setPlanEditOpen(false)}>Renunță</Button><Button disabled={saving || !planName.trim()} onClick={async () => { const updated = await run(() => weddingOsApi.updateTransportPlan(currentWorkspace!.id, plan.id, plan.version, { name: planName.trim() }), "Planul de transport a fost redenumit"); if (updated) setPlanEditOpen(false); }}>Salvează</Button></>}><Field label="Nume"><Input value={planName} onChange={(event) => setPlanName(event.target.value)} /></Field></Modal>

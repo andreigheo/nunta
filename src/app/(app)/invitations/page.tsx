@@ -186,7 +186,7 @@ export default function InvitationsPage() {
         weddingOsApi.guestTags(currentWorkspace.id),
       ]);
       if (householdData.truncated)
-        throw new Error("Lista de gospodării depășește limita sigură de 1.000. Folosește etichete și loturi controlate.");
+        throw new Error("Lista de grupuri de invitați depășește limita sigură de 1.000. Folosește etichete și loturi controlate.");
       setAudienceHouseholds(householdData.items);
       setAudienceTags(tagData.items);
     } catch (caught) {
@@ -245,11 +245,11 @@ export default function InvitationsPage() {
       const households = await loadInvitationHouseholds(currentWorkspace.id);
       if (households.truncated)
         throw new Error(
-          `Pregătirea s-a oprit înainte de a crea accesuri: există mai mult de ${MAX_HOUSEHOLD_PAGES * HOUSEHOLD_PAGE_SIZE} gospodării. Împarte distribuția în audiențe controlate înainte de a continua.`,
+          `Pregătirea s-a oprit înainte de a crea accesuri: există mai mult de ${MAX_HOUSEHOLD_PAGES * HOUSEHOLD_PAGE_SIZE} grupuri de invitați. Împarte distribuția în audiențe controlate înainte de a continua.`,
         );
       if (!households.items.length)
         throw new Error(
-          "Adaugă cel puțin o gospodărie înainte de a pregăti destinatarii.",
+          "Adaugă cel puțin un grup sau o familie înainte de a pregăti destinatarii.",
         );
       const householdIds = households.items.map((household) => household.id);
       const recipientIds = new Set<string>();
@@ -852,7 +852,7 @@ export default function InvitationsPage() {
                 <EmptyState
                   icon={UsersRound}
                   title="Niciun destinatar pregătit"
-                  description="După publicare, creează accesuri personale pentru gospodăriile tale."
+                  description="După publicare, creează accesuri personale pentru grupurile și familiile tale."
                   action={
                     site?.published && canManageRecipients
                       ? {
@@ -924,7 +924,7 @@ export default function InvitationsPage() {
         open={prepareOpen}
         onClose={() => setPrepareOpen(false)}
         title="Pregătește destinatarii"
-        description="Se creează acces personal stabil pentru fiecare gospodărie existentă."
+        description="Se creează acces personal stabil pentru fiecare grup sau familie existentă."
         size="sm"
       >
         <form className="space-y-4" onSubmit={prepareRecipients}>
@@ -1007,8 +1007,8 @@ export default function InvitationsPage() {
           ) : null}
           {campaignAudienceType !== "all" ? <AudienceValueField type={campaignAudienceType} value={campaignAudienceValue} onChange={setCampaignAudienceValue} tags={audienceTags} households={audienceHouseholds} loading={audienceOptionsLoading} /> : null}
           <div className="grid gap-2 rounded-lg bg-subtle p-3 text-sm sm:grid-cols-2">
-            <label className="flex min-h-11 items-center gap-2"><input name="includeChildren" type="checkbox" defaultChecked={editingCampaign?.audienceFilter.includeChildren !== false} className="size-4 accent-brand" />Include gospodăriile cu copii</label>
-            <label className="flex min-h-11 items-center gap-2"><input name="includePlusOnes" type="checkbox" defaultChecked={editingCampaign?.audienceFilter.includePlusOnes !== false} className="size-4 accent-brand" />Include gospodăriile cu plus-unu</label>
+            <label className="flex min-h-11 items-center gap-2"><input name="includeChildren" type="checkbox" defaultChecked={editingCampaign?.audienceFilter.includeChildren !== false} className="size-4 accent-brand" />Include grupurile cu copii</label>
+            <label className="flex min-h-11 items-center gap-2"><input name="includePlusOnes" type="checkbox" defaultChecked={editingCampaign?.audienceFilter.includePlusOnes !== false} className="size-4 accent-brand" />Include grupurile cu plus-unu</label>
           </div>
           <Field
             label="Nume intern"
@@ -1476,7 +1476,7 @@ function campaignTemplateValue(campaign: CampaignResource | null, key: "subject"
 }
 
 function campaignAudienceReason(reason: string) {
-  if (reason === "missing_email") return "Lipsește o adresă de e-mail validă în gospodărie.";
+  if (reason === "missing_email") return "Lipsește o adresă de e-mail validă în grupul de invitați.";
   if (reason === "variant_unpublished") return "Varianta alocată nu este publicată.";
   return "Accesul nu mai este eligibil pentru această campanie.";
 }
@@ -1491,9 +1491,9 @@ function AudienceValueField({ type, value, onChange, tags, households, loading }
   if (type === "side")
     return <Field label="Parte" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege partea</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="COMMON">Comună</option><option value="VENDOR">Furnizori</option><option value="OTHER">Altele</option></Select></Field>;
   if (type === "country")
-    return <Field label="Țară" hint={countries.length ? "Sunt afișate țările salvate pe gospodării." : "Completează țara în gospodării pentru a folosi acest segment."} required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required disabled={!countries.length}><option value="">Alege țara</option>{countries.map((country) => <option key={country} value={country}>{country}</option>)}</Select></Field>;
+    return <Field label="Țară" hint={countries.length ? "Sunt afișate țările salvate pentru grupuri și familii." : "Completează țara grupurilor pentru a folosi acest segment."} required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required disabled={!countries.length}><option value="">Alege țara</option>{countries.map((country) => <option key={country} value={country}>{country}</option>)}</Select></Field>;
   if (type === "language")
-    return <Field label="Limba comunicării" hint={languages.length ? "Folosește preferința salvată pe destinatar." : "Completează limba pe gospodării sau invitați."} required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required disabled={!languages.length}><option value="">Alege limba</option>{languages.map((language) => <option key={language} value={language}>{languageName(language)}</option>)}</Select></Field>;
+    return <Field label="Limba comunicării" hint={languages.length ? "Folosește preferința salvată pe destinatar." : "Completează limba grupurilor sau a invitaților."} required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required disabled={!languages.length}><option value="">Alege limba</option>{languages.map((language) => <option key={language} value={language}>{languageName(language)}</option>)}</Select></Field>;
   return <Field label="Status RSVP" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege statusul</option><option value="NO_RESPONSE">Fără răspuns</option><option value="UNSURE">Nehotărât</option><option value="CONFIRMED">Confirmat</option><option value="DECLINED">Refuzat</option></Select></Field>;
 }
 

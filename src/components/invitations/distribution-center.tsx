@@ -135,7 +135,7 @@ export function DistributionCenter({
                           {name}
                         </p>
                         <p className="mt-0.5 text-xs text-faint">
-                          {recipient.householdId ? "Gospodărie" : "Invitat individual"} · {languageName(recipient.preferredLanguage)}
+                          {recipient.householdId ? "Grup / familie" : "Invitat individual"} · {languageName(recipient.preferredLanguage)}
                         </p>
                       </div>
                     </div>
@@ -295,7 +295,7 @@ export function recipientName(recipient: InvitationRecipientResource) {
   if (typeof value.guestName === "string" && value.guestName.trim())
     return value.guestName.trim();
   return recipient.householdId
-    ? `Gospodărie ${recipient.householdId.slice(0, 6)}`
+    ? `Grup ${recipient.householdId.slice(0, 6)}`
     : `Invitat ${recipient.guestId?.slice(0, 6) ?? recipient.id.slice(0, 6)}`;
 }
 

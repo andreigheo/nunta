@@ -626,7 +626,7 @@ export default function RsvpPage() {
             <WorkflowStep
               number="3"
               title="Urmărește și revino"
-              description={`${summary?.respondedHouseholds ?? 0} din ${summary?.totalHouseholds ?? 0} gospodării au trimis un răspuns.`}
+              description={`${summary?.respondedHouseholds ?? 0} din ${summary?.totalHouseholds ?? 0} grupuri au trimis un răspuns.`}
               done={
                 Boolean(summary?.totalHouseholds) &&
                 summary?.respondedHouseholds === summary?.totalHouseholds
@@ -764,10 +764,10 @@ export default function RsvpPage() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <h2 className="font-brand text-lg font-semibold text-ink">
-                    Răspunsuri pe gospodării
+                    Răspunsuri pe grupuri și familii
                   </h2>
                   <p className="mt-1 text-sm text-muted">
-                    Deschide o gospodărie pentru răspunsurile fiecărei persoane
+                    Deschide un grup pentru răspunsurile fiecărei persoane
                     și fiecărui moment al evenimentului.
                   </p>
                 </div>
@@ -787,7 +787,7 @@ export default function RsvpPage() {
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Caută după nume…"
                       className="pl-9"
-                      aria-label="Caută invitat sau gospodărie"
+                      aria-label="Caută invitat sau grup"
                     />
                   </div>
                 </Field>
@@ -853,7 +853,7 @@ export default function RsvpPage() {
                 <Table minWidth="860px">
                   <THead>
                     <TR>
-                      <TH>Gospodărie</TH>
+                      <TH>Grup / familie</TH>
                       <TH>Persoane</TH>
                       <TH>Răspuns</TH>
                       <TH>Meniu</TH>
@@ -919,7 +919,7 @@ export default function RsvpPage() {
                     disabled={loadingMore}
                     onClick={() => void loadMore()}
                   >
-                    Încarcă alte gospodării
+                    Încarcă alte grupuri
                   </Button>
                 </div>
               )}

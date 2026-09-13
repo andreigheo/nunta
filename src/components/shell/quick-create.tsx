@@ -28,10 +28,10 @@ const titles: Record<QuickCreateKind, { title: string; description: string }> =
     },
     guest: {
       title: "Invitat nou",
-      description: "Adaugă un invitat real într-o gospodărie existentă.",
+      description: "Adaugă o persoană într-un grup sau într-o familie existentă.",
     },
     household: {
-      title: "Gospodărie nouă",
+      title: "Grup nou de invitați",
       description: "Creează grupul care va primi invitația personalizată.",
     },
     campaign: {
@@ -341,7 +341,7 @@ export function QuickCreateModal() {
         !values.lastName?.trim() ||
         !values.householdId)
     ) {
-      setError("Prenumele, numele și gospodăria sunt obligatorii.");
+      setError("Prenumele, numele și grupul de invitați sunt obligatorii.");
       return;
     }
     setSaving(true);
@@ -660,7 +660,7 @@ export function QuickCreateModal() {
             : quickCreate === "guest"
               ? "Invitat adăugat"
               : quickCreate === "household"
-                ? "Gospodărie creată"
+                ? "Grup de invitați creat"
                 : quickCreate === "task"
                   ? "Sarcină creată"
                   : quickCreate === "risk"
@@ -812,7 +812,7 @@ export function QuickCreateModal() {
             <Field label="Nume" required>
               <Input value={values.lastName ?? ""} onChange={set("lastName")} />
             </Field>
-            <Field label="Gospodărie" required className="sm:col-span-2">
+            <Field label="Grup / familie" required className="sm:col-span-2">
               <Select
                 value={values.householdId ?? ""}
                 onChange={set("householdId")}
@@ -827,7 +827,7 @@ export function QuickCreateModal() {
             </Field>
             {!households.length && (
               <p className="sm:col-span-2 text-xs text-warning">
-                Creează mai întâi o gospodărie.
+                Creează mai întâi grupul sau familia care primește invitația împreună.
               </p>
             )}
             <Field label="E-mail">
@@ -846,7 +846,7 @@ export function QuickCreateModal() {
             <Field
               label={
                 quickCreate === "household"
-                  ? "Numele gospodăriei"
+                  ? "Numele grupului sau familiei"
                   : quickCreate === "campaign"
                     ? "Numele campaniei"
                     : quickCreate === "task"

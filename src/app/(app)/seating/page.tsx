@@ -8,6 +8,7 @@ import {
   Accessibility,
   AlertCircle,
   Armchair,
+  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   Camera,
@@ -49,6 +50,7 @@ import {
   weddingOsApi,
 } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { safeInternalPath } from "@/lib/account-routing";
 import { cn } from "@/lib/utils";
 import {
   Avatar,
@@ -249,6 +251,7 @@ export default function SeatingPage() {
   const [selectedGuestId, setSelectedGuestId] = React.useState<string | null>(
     null,
   );
+  const [returnTo, setReturnTo] = React.useState<string | null>(null);
   const [draggedGuestId, setDraggedGuestId] = React.useState<string | null>(
     null,
   );
@@ -280,7 +283,11 @@ export default function SeatingPage() {
   const canManageMenus = capabilities.includes("menu.write");
 
   const loadPlan = React.useCallback(
-    async (planId: string, preferredTableId?: string | null) => {
+    async (
+      planId: string,
+      preferredTableId?: string | null,
+      preferredGuestId?: string | null,
+    ) => {
       if (!currentWorkspace) return;
       const detail = await weddingOsApi.seatingPlan(
         currentWorkspace.id,
@@ -299,9 +306,12 @@ export default function SeatingPage() {
           ? current
           : null,
       );
-      setSelectedGuestId((current) =>
-        detail.guests.some((guest) => guest.id === current) ? current : null,
-      );
+      setSelectedGuestId((current) => {
+        const requested = preferredGuestId ?? current;
+        return detail.guests.some((guest) => guest.id === requested)
+          ? requested
+          : null;
+      });
     },
     [currentWorkspace],
   );
@@ -336,10 +346,13 @@ export default function SeatingPage() {
       const params = new URLSearchParams(window.location.search);
       const requestedPlan = params.get("plan");
       const requestedTable = params.get("table");
+      const requestedGuest = params.get("guest");
+      setReturnTo(safeInternalPath(params.get("returnTo")));
       const firstPlan =
         planList.items.find((item) => item.id === requestedPlan) ??
         planList.items[0];
-      if (firstPlan) await loadPlan(firstPlan.id, requestedTable);
+      if (firstPlan)
+        await loadPlan(firstPlan.id, requestedTable, requestedGuest);
       else {
         planRef.current = null;
         setPlan(null);
@@ -1254,6 +1267,13 @@ export default function SeatingPage() {
   if (!plan)
     return (
       <>
+        {returnTo && (
+          <div className="mb-4 flex justify-end">
+            <Button variant="ghost" size="sm" onClick={() => router.push(returnTo)}>
+              <ArrowLeft className="size-4" aria-hidden /> Înapoi la invitat
+            </Button>
+          </div>
+        )}
         <EmptyState
           icon={Armchair}
           title={
@@ -1372,6 +1392,11 @@ export default function SeatingPage() {
         description="Așază invitații confirmați, verifică meniurile și publică doar când planul este gata."
         actions={
           <>
+            {returnTo && (
+              <Button variant="ghost" size="sm" onClick={() => router.push(returnTo)}>
+                <ArrowLeft className="size-4" aria-hidden /> Înapoi la invitat
+              </Button>
+            )}
             {plans.length > 1 && (
               <Select
                 aria-label="Alege planul de mese"

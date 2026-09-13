@@ -103,11 +103,12 @@ export function AccommodationRecommendationsTab({
     try {
       const [list, calendar] = await Promise.all([
         weddingOsApi.accommodationRecommendations(currentWorkspace.id),
-        weddingOsApi.calendar(currentWorkspace.id),
+        weddingOsApi.workspaceEvents(currentWorkspace.id),
       ]);
-      const nextEvents = calendar.items
-        .filter((item) => item.sourceType === "wedding_event")
-        .map((item) => ({ sourceId: item.sourceId, title: item.title }));
+      const nextEvents = calendar.items.map((item) => ({
+        sourceId: item.id,
+        title: item.title,
+      }));
       setItems(list.items);
       setEvents(nextEvents);
       setEventId((current) => current || nextEvents[0]?.sourceId || "");
