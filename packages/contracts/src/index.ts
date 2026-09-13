@@ -1220,7 +1220,7 @@ export const workspaceBootstrapSchema = z.object({
       "PAUSED",
       "CANCELED",
     ]),
-    entitlements: z.record(z.union([z.boolean(), z.number()])),
+    entitlements: z.record(z.union([z.boolean(), z.number(), z.null()])),
     currentPeriodEnd: z.string().datetime().nullable(),
     gracePeriodEndAt: z.string().datetime().nullable(),
     cancelAtPeriodEnd: z.boolean(),
@@ -1240,7 +1240,7 @@ export type WorkspaceSubscriptionPlanKey = z.infer<
 export const workspaceSubscriptionUsageSchema = z.record(
   z.object({
     used: z.number().nonnegative(),
-    limit: z.number().nonnegative(),
+    limit: z.number().nonnegative().nullable(),
   }),
 );
 export type WorkspaceSubscriptionUsage = z.infer<
@@ -1267,7 +1267,7 @@ export const workspaceSubscriptionPlanSchema = z.object({
   interval: z.literal("month"),
   recommended: z.boolean(),
   features: z.array(z.string()),
-  entitlements: z.record(z.union([z.boolean(), z.number()])),
+  entitlements: z.record(z.union([z.boolean(), z.number(), z.null()])),
 });
 export type WorkspaceSubscriptionPlan = z.infer<
   typeof workspaceSubscriptionPlanSchema

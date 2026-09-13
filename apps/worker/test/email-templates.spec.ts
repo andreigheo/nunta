@@ -93,7 +93,7 @@ describe("Sarbato system email templates", () => {
 
     expect(rendered.subject).toBe("Bun venit în Sarbato Pro — totul se leagă");
     expect(rendered.text).toContain("Salut, Ana!");
-    expect(rendered.text).toContain("500 de invitați");
+    expect(rendered.text).toContain("invitați fără limită");
     expect(rendered.text).toContain("100 de credite de mesagerie");
     expect(rendered.html).toContain(
       "https://sarbato.space/email-assets/welcome-pro-v1-hero.jpg",

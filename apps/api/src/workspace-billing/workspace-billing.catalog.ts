@@ -5,7 +5,7 @@ import type {
   WorkspaceSubscriptionPlanKey,
 } from "@weddingos/contracts";
 
-export type WorkspaceEntitlements = Record<string, boolean | number>;
+export type WorkspaceEntitlements = Record<string, boolean | number | null>;
 
 export const MESSAGE_CREDIT_PACKS = [
   {
@@ -42,7 +42,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       recommended: false,
       features: [
         "Plan, calendar, buget, invitație, RSVP și livrare e-mail",
-        "Până la 50 de invitați",
+        "Până la 100 de invitați",
         "2 colaboratori în afara proprietarului",
         "5 acțiuni AI pe lună",
         "200 de livrări e-mail pe lună",
@@ -51,7 +51,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       ],
       entitlements: {
         MAX_COLLABORATORS: 2,
-        MAX_GUESTS: 50,
+        MAX_GUESTS: 100,
         AI_ACTIONS_MONTHLY: 5,
         EMAIL_DELIVERIES_MONTHLY: 200,
         MAX_ACTIVE_AUTOMATIONS: 0,
@@ -81,7 +81,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       recommended: true,
       features: [
         "Tot ce include planul Gratuit",
-        "Până la 200 de invitați",
+        "Până la 300 de invitați",
         "5 colaboratori și 2 GB stocare",
         "Mese, transport, cazare și coordonare furnizori",
         "Documente, exporturi și 5 automatizări active",
@@ -91,7 +91,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       ],
       entitlements: {
         MAX_COLLABORATORS: 5,
-        MAX_GUESTS: 200,
+        MAX_GUESTS: 300,
         AI_ACTIONS_MONTHLY: 30,
         EMAIL_DELIVERIES_MONTHLY: 2_000,
         MAX_ACTIVE_AUTOMATIONS: 5,
@@ -121,7 +121,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       recommended: false,
       features: [
         "Tot ce include planul Plus",
-        "Până la 500 de invitați",
+        "Invitați fără limită",
         "15 colaboratori și 10 GB stocare",
         "Riscuri, Plan B, check-in și comandament în ziua evenimentului",
         "Coordonare avansată și 25 de automatizări active",
@@ -131,7 +131,7 @@ export const WORKSPACE_SUBSCRIPTION_PLANS: readonly WorkspaceSubscriptionPlan[] 
       ],
       entitlements: {
         MAX_COLLABORATORS: 15,
-        MAX_GUESTS: 500,
+        MAX_GUESTS: null,
         AI_ACTIONS_MONTHLY: 150,
         EMAIL_DELIVERIES_MONTHLY: 10_000,
         MAX_ACTIVE_AUTOMATIONS: 25,

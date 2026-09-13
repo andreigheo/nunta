@@ -532,7 +532,11 @@ function formatBytes(value: number) {
   return `${Math.round((value / 1024 / 1024 / 1024) * 10) / 10} GB`;
 }
 
-function formatEntitlement(key: string, value: boolean | number | undefined) {
+function formatEntitlement(
+  key: string,
+  value: boolean | number | null | undefined,
+) {
+  if (value === null) return "Nelimitat";
   if (typeof value === "boolean") return value ? "Inclus" : "Neinclus";
   if (typeof value !== "number") return "Nespecificat";
   if (key === "STORAGE_BYTES") return formatBytes(value);
@@ -1130,9 +1134,13 @@ function BillingSettings() {
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {Object.entries(billing.usage).map(([key, metric]) => {
+              const isUnlimited = metric.limit === null;
+              const finiteLimit = metric.limit ?? 0;
               const percent =
-                metric.limit > 0
-                  ? Math.min(100, Math.round((metric.used / metric.limit) * 100))
+                isUnlimited
+                  ? 0
+                  : finiteLimit > 0
+                  ? Math.min(100, Math.round((metric.used / finiteLimit) * 100))
                   : metric.used > 0
                     ? 100
                     : 0;
@@ -1141,9 +1149,11 @@ function BillingSettings() {
                   ? formatBytes(metric.used)
                   : metric.used.toLocaleString("ro-RO");
               const formattedLimit =
-                key === "STORAGE_BYTES"
-                  ? formatBytes(metric.limit)
-                  : metric.limit.toLocaleString("ro-RO");
+                isUnlimited
+                  ? "Nelimitat"
+                  : key === "STORAGE_BYTES"
+                  ? formatBytes(finiteLimit)
+                  : finiteLimit.toLocaleString("ro-RO");
               return (
                 <div key={key} className="rounded-xl border border-line p-3">
                   <p className="text-xs font-medium text-muted">
@@ -1156,19 +1166,25 @@ function BillingSettings() {
                       / {formattedLimit}
                     </span>
                   </p>
-                  <div
-                    className="mt-3 h-1.5 overflow-hidden rounded-full bg-subtle"
-                    role="progressbar"
-                    aria-label={usageLabels[key] ?? key}
-                    aria-valuemin={0}
-                    aria-valuemax={metric.limit}
-                    aria-valuenow={Math.min(metric.used, metric.limit)}
-                  >
+                  {isUnlimited ? (
+                    <p className="mt-3 text-xs font-medium text-brand">
+                      Fără limită de plan
+                    </p>
+                  ) : (
                     <div
-                      className="h-full rounded-full bg-brand"
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
+                      className="mt-3 h-1.5 overflow-hidden rounded-full bg-subtle"
+                      role="progressbar"
+                      aria-label={usageLabels[key] ?? key}
+                      aria-valuemin={0}
+                      aria-valuemax={finiteLimit}
+                      aria-valuenow={Math.min(metric.used, finiteLimit)}
+                    >
+                      <div
+                        className="h-full rounded-full bg-brand"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  )}
                   {key === "EMAIL_DELIVERIES_MONTHLY" && percent >= 70 ? (
                     <p className="mt-2 text-xs text-amber-700">
                       {percent >= 90

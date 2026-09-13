@@ -217,7 +217,10 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
         key,
         {
           used,
-          limit: Number(plan.entitlements[key] ?? 0),
+          limit:
+            plan.entitlements[key] === null
+              ? null
+              : Number(plan.entitlements[key] ?? 0),
         },
       ]),
     );

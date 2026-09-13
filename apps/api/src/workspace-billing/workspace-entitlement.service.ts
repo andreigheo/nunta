@@ -48,6 +48,26 @@ export class WorkspaceEntitlementService {
     return value;
   }
 
+  async capacityLimit(
+    transaction: Transaction,
+    workspaceId: string,
+    key: NumericWorkspaceEntitlement,
+  ): Promise<number | null> {
+    const subscription = await transaction.workspaceSubscription.findUnique({
+      where: { workspaceId },
+      select: { planKey: true, status: true, gracePeriodEndAt: true },
+    });
+    const planKey = effectiveWorkspacePlanKey(
+      subscription?.planKey,
+      subscription?.status,
+      subscription?.gracePeriodEndAt,
+    );
+    const value = workspacePlan(planKey).entitlements[key];
+    if (value !== null && typeof value !== "number")
+      throw new Error(`Numeric workspace entitlement missing: ${key}`);
+    return value;
+  }
+
   async assertCapacity(
     transaction: Transaction,
     workspaceId: string,
@@ -55,7 +75,8 @@ export class WorkspaceEntitlementService {
     current: number,
     increment = 1,
   ) {
-    const limit = await this.numeric(transaction, workspaceId, key);
+    const limit = await this.capacityLimit(transaction, workspaceId, key);
+    if (limit === null) return;
     if (current + increment > limit)
       problem(
         "USAGE_LIMIT_REACHED",

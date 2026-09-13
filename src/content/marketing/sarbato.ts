@@ -581,7 +581,7 @@ export const pricing = {
       cadence: "fără card",
       description: "Pentru primul pas și organizarea de bază a evenimentului.",
       highlights: [
-        { value: "50", label: "invitați" },
+        { value: "100", label: "invitați" },
         { value: "2", label: "colaboratori" },
         { value: "5", label: "acțiuni AI / lună" },
         { value: "250 MB", label: "stocare" },
@@ -604,7 +604,7 @@ export const pricing = {
       description:
         "Pentru organizarea completă, logistica invitaților și coordonarea furnizorilor.",
       highlights: [
-        { value: "200", label: "invitați" },
+        { value: "300", label: "invitați" },
         { value: "5", label: "colaboratori" },
         { value: "30", label: "acțiuni AI / lună" },
         { value: "2 GB", label: "stocare" },
@@ -627,7 +627,7 @@ export const pricing = {
       cadence: "pe lună",
       description: "Pentru coordonare operațională avansată.",
       highlights: [
-        { value: "500", label: "invitați" },
+        { value: "Nelimitat", label: "invitați" },
         { value: "15", label: "colaboratori" },
         { value: "150", label: "acțiuni AI / lună" },
         { value: "10 GB", label: "stocare" },

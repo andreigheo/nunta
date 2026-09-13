@@ -20,7 +20,7 @@ read-only on Pro, and a planner does not gain billing administration.
 | Entitlement                                                  |                      Free |                      Plus |                Pro |
 | ------------------------------------------------------------ | ------------------------: | ------------------------: | -----------------: |
 | Price                                                        |                        €0 |                 €27/month |          €59/month |
-| Active guests                                                |                        50 |                       200 |                500 |
+| Active guests                                                |                       100 |                       300 |          Unlimited |
 | Collaborators outside the owner                              |                         2 |                         5 |                 15 |
 | AI actions per calendar month                                |                         5 |                        30 |                150 |
 | Commercial e-mail recipient deliveries per calendar month    |                       200 |                     2,000 |             10,000 |
@@ -57,7 +57,8 @@ change the subscription.
 - The API enforces both role and plan. Hiding a control in the frontend is not
   considered authorization.
 - Numeric limits are checked before creating guests, collaborators, AI runs,
-  automations and file uploads.
+  automations and file uploads. A `null` guest limit represents the unlimited
+  Pro allowance and bypasses only the guest-capacity check.
 - Paid modules remain visible so existing data is not lost after a downgrade.
   Mutations return `PLAN_UPGRADE_REQUIRED` with HTTP status 402.
 - A `FREE` subscription always has Free access.

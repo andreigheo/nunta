@@ -5,6 +5,8 @@ import {
   createMessageCreditCheckoutSchema,
   createWorkspaceSubscriptionCheckoutSchema,
   overrideInputSchema,
+  workspaceSubscriptionPlanSchema,
+  workspaceSubscriptionUsageSchema,
 } from "@weddingos/contracts";
 import type { Prisma } from "@weddingos/database";
 import { ProblemException } from "../src/common/problem";
@@ -776,6 +778,20 @@ describe("Sarbato workspace subscriptions", () => {
     expect(workspacePlan("PRO").entitlements.PRIORITY_SUPPORT).toBe(true);
   });
 
+  it("publishes the agreed guest capacities, including genuinely unlimited Pro guests", () => {
+    expect(workspacePlan("FREE").entitlements.MAX_GUESTS).toBe(100);
+    expect(workspacePlan("PLUS").entitlements.MAX_GUESTS).toBe(300);
+    expect(workspacePlan("PRO").entitlements.MAX_GUESTS).toBeNull();
+    expect(
+      workspaceSubscriptionPlanSchema.safeParse(workspacePlan("PRO")).success,
+    ).toBe(true);
+    expect(
+      workspaceSubscriptionUsageSchema.safeParse({
+        MAX_GUESTS: { used: 1_000_000, limit: null },
+      }).success,
+    ).toBe(true);
+  });
+
   it("enforces persisted plan limits and falls back to Free after cancellation", async () => {
     const findUnique = vi
       .fn()
@@ -791,14 +807,14 @@ describe("Sarbato workspace subscriptions", () => {
         "00000000-0000-4000-8000-000000000001",
         "MAX_GUESTS",
       ),
-    ).resolves.toBe(200);
+    ).resolves.toBe(300);
     await expect(
       entitlements.numeric(
         transaction,
         "00000000-0000-4000-8000-000000000001",
         "MAX_GUESTS",
       ),
-    ).resolves.toBe(50);
+    ).resolves.toBe(100);
   });
 
   it("serializes capacity checks for one workspace and metric", async () => {
@@ -820,9 +836,38 @@ describe("Sarbato workspace subscriptions", () => {
       transaction,
       "00000000-0000-4000-8000-000000000001",
       "MAX_GUESTS",
-      199,
+      299,
     );
+    await expect(
+      entitlements.assertCapacity(
+        transaction,
+        "00000000-0000-4000-8000-000000000001",
+        "MAX_GUESTS",
+        300,
+      ),
+    ).rejects.toBeInstanceOf(ProblemException);
     expect(transaction.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not impose a hidden guest ceiling on an active Pro workspace", async () => {
+    const transaction = {
+      workspaceSubscription: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ planKey: "PRO", status: "ACTIVE" }),
+      },
+    } as unknown as Prisma.TransactionClient;
+    const entitlements = new WorkspaceEntitlementService();
+
+    await expect(
+      entitlements.assertCapacity(
+        transaction,
+        "00000000-0000-4000-8000-000000000001",
+        "MAX_GUESTS",
+        1_000_000,
+        10_000,
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it("creates a fresh checkout after a terminal canceled subscription", async () => {
