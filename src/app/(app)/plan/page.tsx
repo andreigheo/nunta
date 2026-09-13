@@ -104,6 +104,12 @@ const viewDescriptions: Record<View, string> = {
   timeline: "Urmărește ordinea sarcinilor după termen.",
   calendar: "Vezi când este programată fiecare sarcină.",
 };
+const generationStatusLabels: Record<string, string> = {
+  queued: "În așteptare",
+  running: "Se pregătește planul",
+  completed: "Plan pregătit",
+  failed: "Generarea nu a reușit",
+};
 
 function isUnassigned(task: Task) {
   return task.owner.trim().toLocaleLowerCase("ro-RO") === "nealocat";
@@ -338,7 +344,7 @@ export default function PlanPage() {
       toast({
         title: "Propunerea este gata",
         description: full.fallbackUsed
-          ? "A fost folosit generatorul determinist de rezervă."
+          ? "Serviciul AI nu a fost disponibil, iar Sarbato a pregătit planul complet folosind regulile platformei."
           : "Poți verifica și edita structura înainte de aplicare.",
         variant: full.fallbackUsed ? "warning" : "success",
       });
@@ -575,6 +581,41 @@ export default function PlanPage() {
   );
   const activeFilterCount =
     Number(!!categoryFilter) + Number(!!statusFilter) + Number(!!focusFilter);
+  const canAssignTasks =
+    bootstrap?.membership.capabilities.includes("task.write") ?? false;
+
+  const assignUnassignedToMe = async () => {
+    const membershipId = bootstrap?.membership.id;
+    const workspaceId = currentWorkspace?.id;
+    const unassignedTasks = tasks.filter(isUnassigned);
+    if (!workspaceId || !membershipId || !unassignedTasks.length) return;
+    if (
+      !window.confirm(
+        `Îți atribui toate cele ${unassignedTasks.length} sarcini fără responsabil?`,
+      )
+    )
+      return;
+    try {
+      await run(async () => {
+        for (const task of unassignedTasks) {
+          await weddingOsApi.updateTask(
+            workspaceId,
+            task.id,
+            task.version ?? 1,
+            { assigneeMembershipId: membershipId },
+          );
+        }
+        await refreshTasks();
+        toast({
+          title: "Responsabilitățile au fost actualizate",
+          description: `${unassignedTasks.length} sarcini îți sunt atribuite acum.`,
+          variant: "success",
+        });
+      });
+    } catch {
+      await refreshTasks();
+    }
+  };
 
   const resetFilters = () => {
     setQuery("");
@@ -616,8 +657,8 @@ export default function PlanPage() {
                       currentWorkspace.id,
                     );
                     toast({
-                      title: "Export în coadă",
-                      description: `Job ${job.id.slice(0, 8)} procesează lista de sarcini.`,
+                      title: "Pregătim exportul",
+                      description: "Lista de sarcini este procesată în fundal.",
                       variant: "info",
                     });
                     for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -697,6 +738,24 @@ export default function PlanPage() {
                 Sarbato pregătește o propunere pe baza răspunsurilor tale. Nimic
                 nu intră în plan până nu verifici și aprobi fiecare etapă.
               </p>
+              <Button
+                className="mt-5"
+                disabled={
+                  busy ||
+                  Boolean(
+                    generation &&
+                      ["queued", "running"].includes(generation.status),
+                  )
+                }
+                onClick={() =>
+                  proposal ? setProposalOpen(true) : void generatePlan("auto")
+                }
+              >
+                <Sparkles className="size-4" />
+                {proposal?.status === "ready_for_review"
+                  ? "Revizuiește planul pregătit"
+                  : "Pregătește planul meu"}
+              </Button>
             </div>
             <ol
               className="grid gap-2 text-sm"
@@ -726,7 +785,7 @@ export default function PlanPage() {
         <div className="rounded-xl border border-brand/20 bg-brand-soft/40 p-4">
           <div className="flex justify-between text-sm">
             <span className="font-medium text-ink">
-              Generarea propunerii: {generation.status}
+              {generationStatusLabels[generation.status] ?? "Pregătim planul"}
             </span>
             <span className="text-muted">{generation.progress}%</span>
           </div>
@@ -839,6 +898,17 @@ export default function PlanPage() {
                   <UserRoundX className="size-4" aria-hidden />
                   {unassignedCount} fără responsabil
                 </button>
+                {unassignedCount > 0 && canAssignTasks ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void assignUnassignedToMe()}
+                  >
+                    Atribuie-mi toate
+                  </Button>
+                ) : null}
               </div>
             </div>
 

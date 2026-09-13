@@ -390,7 +390,7 @@ export default function TimelinePage() {
     <div className="mx-auto max-w-7xl space-y-5">
       <PageHeader
         title="Cronologia planificării"
-        description="Urmărește cum avansează nunta de la primele decizii până la ziua evenimentului. Sarcinile se gestionează în Plan; aici vezi fazele și reperele importante."
+        description="Urmărește cum avansează evenimentul de la primele decizii până în ziua desfășurării. Sarcinile se gestionează în Plan; aici vezi fazele și reperele importante."
         meta={
           <>
             <Badge variant="neutral">{timeline.phases.length} faze</Badge>
@@ -505,7 +505,7 @@ export default function TimelinePage() {
               <CardTitle>
                 {preview.preview ? "Verifică termenele propuse" : "Cronologia a fost actualizată"}
               </CardTitle>
-              <p className="text-[13px] text-muted">
+              <p className="text-sm text-muted">
                 {preview.preview
                   ? "Verifică numărul de termene înainte să aplici recalcularea. Nicio dată nu este modificată în tăcere."
                   : "Termenele relative au fost recalculate pornind de la data nunții."}

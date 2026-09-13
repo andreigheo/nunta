@@ -29,6 +29,33 @@ const initialForm = {
   actionType: "CREATE_NOTIFICATION",
 };
 
+const ruleStatusLabels: Record<string, string> = {
+  active: "Activă",
+  paused: "În pauză",
+  draft: "Ciornă",
+  archived: "Arhivată",
+};
+
+const triggerLabels: Record<string, string> = {
+  TASK_OVERDUE: "O sarcină depășește termenul",
+  RISK_LEVEL_CHANGED: "Se schimbă nivelul unui risc",
+  MILESTONE_APPROACHING: "Se apropie un reper",
+  MANUAL: "Pornire manuală",
+};
+
+const executionModeLabels: Record<string, string> = {
+  DRY_RUN: "Test fără efecte",
+  EXECUTE: "Execuție reală",
+};
+
+const executionStatusLabels: Record<string, string> = {
+  completed: "Finalizată",
+  failed: "Eșuată",
+  running: "În desfășurare",
+  queued: "În așteptare",
+  cancelled: "Anulată",
+};
+
 export default function AutomationsPage() {
   const { currentWorkspace, demoMode, bootstrap } = useWorkspace();
   const { toast } = useToast();
@@ -160,12 +187,12 @@ export default function AutomationsPage() {
       toast({
         title:
           mode === "DRY_RUN"
-            ? "Dry-run finalizat"
+            ? "Testul fără efecte este gata"
             : "Automatizarea a fost executată",
         description:
           mode === "DRY_RUN"
-            ? "Zero efecte reale; poți verifica preview-ul în istoricul jobului."
-            : `${completed ? "Efectele au fost confirmate de worker." : "Verifică statusul jobului."}`,
+            ? "Nu s-a modificat nimic. Verifică rezultatul în istoricul execuției."
+            : `${completed ? "Acțiunile au fost aplicate și înregistrate." : "Verifică starea execuției."}`,
         variant: "success",
       });
     } catch (error) {
@@ -183,7 +210,7 @@ export default function AutomationsPage() {
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         title="Automatizări"
-        description="Reguli controlate, cu trigger și acțiuni dintr-un catalog închis."
+        description="Stabilește ce trebuie să facă Sarbato când apare o situație importantă."
         actions={
           <Button size="sm" disabled={demoMode || !canWrite} onClick={() => setOpen(true)}>
             <Plus className="size-4" /> Regulă
@@ -191,8 +218,8 @@ export default function AutomationsPage() {
         }
       />
       <div className="rounded-xl border border-info/30 bg-info-soft p-4 text-sm text-info">
-        Dry-run-ul nu produce efecte. Execuția reală este disponibilă numai
-        pentru reguli active și fiecare pas este deduplicat și auditat.
+        Testează fiecare regulă fără efecte înainte de activare. La execuția
+        reală, Sarbato înregistrează fiecare pas și nu îl repetă.
       </div>
       {!rules.length ? (
         <EmptyState
@@ -225,16 +252,16 @@ export default function AutomationsPage() {
                       }
                       dot
                     >
-                      {rule.status}
+                      {ruleStatusLabels[String(rule.status)] ?? "Necunoscută"}
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted">
                     {rule.description || "Fără descriere."}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-faint">
-                    <span>Trigger: {rule.triggerType}</span>
-                    <span>•</span>
-                    <span>DSL: {rule.dslVersion}</span>
+                    <span>
+                      Când: {triggerLabels[String(rule.triggerType)] ?? "Condiție configurată"}
+                    </span>
                     <span>•</span>
                     <span>
                       {rule.requiresApproval
@@ -242,7 +269,7 @@ export default function AutomationsPage() {
                         : "risc redus"}
                     </span>
                   </div>
-                  {executions[rule.id]?.[0] ? <div className="mt-3 rounded-lg bg-subtle px-3 py-2 text-xs text-muted"><span className="font-medium text-ink">Ultima execuție:</span> {String(executions[rule.id]![0]!.mode).replaceAll("_", " ")} · {String(executions[rule.id]![0]!.status).replaceAll("_", " ")} · {executions[rule.id]![0]!.createdAt ? new Date(String(executions[rule.id]![0]!.createdAt)).toLocaleString("ro-RO") : "dată indisponibilă"}</div> : <p className="mt-3 text-xs text-muted">Regula nu a fost executată încă.</p>}
+                  {executions[rule.id]?.[0] ? <div className="mt-3 rounded-lg bg-subtle px-3 py-2 text-xs text-muted"><span className="font-medium text-ink">Ultima execuție:</span> {executionModeLabels[String(executions[rule.id]![0]!.mode)] ?? "Execuție"} · {executionStatusLabels[String(executions[rule.id]![0]!.status).toLowerCase()] ?? "Stare necunoscută"} · {executions[rule.id]![0]!.createdAt ? new Date(String(executions[rule.id]![0]!.createdAt)).toLocaleString("ro-RO") : "dată indisponibilă"}</div> : <p className="mt-3 text-xs text-muted">Regula nu a fost executată încă.</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -251,7 +278,7 @@ export default function AutomationsPage() {
                     disabled={busyId === rule.id || !canExecute}
                     onClick={() => void execute(rule, "DRY_RUN")}
                   >
-                    <TestTube2 className="size-4" /> Dry-run
+                    <TestTube2 className="size-4" /> Testează fără efecte
                   </Button>
                   {rule.status === "active" ? (
                     <Button
@@ -326,7 +353,7 @@ export default function AutomationsPage() {
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Trigger">
+            <Field label="Când se pornește">
               <Select
                 value={form.triggerType}
                 onChange={(event) =>
@@ -362,8 +389,8 @@ export default function AutomationsPage() {
             </Field>
           </div>
           <p className="text-xs text-faint">
-            Regula se salvează ca draft. Activeaz-o explicit numai după un
-            dry-run.
+            Regula se salvează ca ciornă. Testeaz-o, apoi activeaz-o când ești
+            pregătit.
           </p>
         </div>
       </Modal>

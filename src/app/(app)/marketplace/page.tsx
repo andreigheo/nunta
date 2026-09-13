@@ -174,6 +174,10 @@ export default function MarketplacePage() {
   const [quoteGuestCount, setQuoteGuestCount] = React.useState("");
   const [quoteBudget, setQuoteBudget] = React.useState("");
   const [quoteMessage, setQuoteMessage] = React.useState("");
+  const hasActiveMarketplaceFilters =
+    Boolean(query.trim()) ||
+    category !== "Toate categoriile" ||
+    filters.length > 0;
 
   React.useEffect(() => {
     const timer = window.setTimeout(
@@ -463,15 +467,27 @@ export default function MarketplacePage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={Search}
-          title="Niciun furnizor nu corespunde"
-          description="Încearcă să lărgești filtrele sau bugetul."
+          title={
+            hasActiveMarketplaceFilters
+              ? "Niciun furnizor nu corespunde"
+              : "Catalogul de furnizori este în curs de extindere"
+          }
+          description={
+            hasActiveMarketplaceFilters
+              ? "Încearcă să lărgești filtrele sau bugetul."
+              : "Poți pregăti acum o cerere de ofertă și alege furnizorul când apare în catalog."
+          }
           action={{
-            label: "Resetează filtrele",
-            onClick: () => {
-              setFilters([]);
-              setQuery("");
-              setCategory("Toate categoriile");
-            },
+            label: hasActiveMarketplaceFilters
+              ? "Resetează filtrele"
+              : "Pregătește o cerere",
+            onClick: hasActiveMarketplaceFilters
+              ? () => {
+                  setFilters([]);
+                  setQuery("");
+                  setCategory("Toate categoriile");
+                }
+              : () => router.push("/requests"),
           }}
         />
       ) : (
@@ -490,14 +506,7 @@ export default function MarketplacePage() {
                 setQuoteVendor(v);
               }}
               onCompare={() => toggleCompare(v.id)}
-              onMessage={() =>
-                toast({
-                  title: "Mesaj direct planificat",
-                  description:
-                    "Folosește o cerere de ofertă pentru comunicarea comercială din acest slice.",
-                  variant: "info",
-                })
-              }
+              onMessage={() => router.push(`/requests?vendor=${v.id}`)}
             />
           ))}
         </div>
@@ -647,7 +656,7 @@ function VendorCard({
               onClick={onOpen}
               className="flex min-h-11 cursor-pointer items-center text-left"
             >
-              <span className="flex items-center gap-1.5 text-[15px] font-semibold text-ink hover:underline">
+              <span className="flex items-center gap-1.5 text-base font-semibold text-ink hover:underline">
                 {v.name}
                 {v.verified && (
                   <BadgeCheck
@@ -699,7 +708,7 @@ function VendorCard({
           />
         </div>
 
-        <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-muted">
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
           {v.description}
         </p>
 
@@ -712,9 +721,9 @@ function VendorCard({
         </div>
 
         <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
-          <p className="text-[13px] text-faint">
+          <p className="text-sm text-faint">
             de la{" "}
-            <span className="text-[15px] font-semibold text-ink tabular-nums">
+            <span className="text-base font-semibold text-ink tabular-nums">
               {formatRON(v.startingPrice)}
             </span>
           </p>

@@ -110,6 +110,9 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
   }, [currentWorkspace]);
 
   const selectedEvent = events.find((item) => item.sourceId === eventId);
+  const normalizedQuery = query.trim();
+  const hasSearchCenter =
+    normalizedQuery.length >= 2 || Boolean(selectedEvent?.location?.trim());
   const knownPrices = response?.items.filter((item) => item.priceSnapshot) ?? [];
   const knownUnits = new Set(knownPrices.map((item) => item.priceSnapshot?.unit));
   const knownCurrencies = new Set(
@@ -146,8 +149,12 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
     event.preventDefault();
     if (!currentWorkspace) return;
     const normalizedQuery = query.trim();
-    if (!eventId && normalizedQuery.length < 2) {
-      setValidationError("Alege un eveniment sau scrie o zonă ori o adresă de cel puțin două caractere.");
+    if (!hasSearchCenter) {
+      setValidationError(
+        eventId
+          ? "Evenimentul nu are încă o locație salvată. Scrie orașul, zona sau adresa în jurul căreia vrei să cauți."
+          : "Alege un eveniment cu locație sau scrie o zonă ori o adresă de cel puțin două caractere.",
+      );
       return;
     }
     const budgetNumber = budget ? Number(budget) : undefined;
@@ -296,6 +303,15 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
                   icon={<MapPin className="size-4" />}
                 />
               </Field>
+              {eventId && !selectedEvent?.location && normalizedQuery.length < 2 ? (
+                <div className="flex gap-3 rounded-xl border border-info/30 bg-info-soft p-3 text-sm text-info">
+                  <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <p>
+                    Acest eveniment nu are o locație salvată. Scrie mai sus
+                    orașul, zona sau adresa pentru a stabili centrul căutării.
+                  </p>
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -433,7 +449,12 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
               {validationError}
             </p>
           )}
-          <Button type="submit" loading={searching} className="w-full sm:w-auto">
+          <Button
+            type="submit"
+            loading={searching}
+            disabled={loadingInitial || !hasSearchCenter}
+            className="w-full sm:w-auto"
+          >
             <Search className="size-4" aria-hidden />
             Caută variante
           </Button>
@@ -512,9 +533,9 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
               <span className="grid size-12 place-items-center rounded-xl bg-sage-soft text-success">
                 <MapPin className="size-6" aria-hidden />
               </span>
-              <h3 className="mt-4 font-brand text-xl font-semibold text-ink">Pornește de la locul evenimentului</h3>
+              <h3 className="mt-4 font-brand text-xl font-semibold text-ink">Alege centrul căutării</h3>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-                Nu afișăm rezultate demonstrative. După căutare vei vedea numai variante provenite din sursa indicată.
+                Folosește locația evenimentului sau scrie o zonă diferită. După căutare vei vedea numai variante reale din sursa indicată.
               </p>
             </div>
           )}

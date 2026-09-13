@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
@@ -42,6 +43,7 @@ import {
   formatCopilotMachineValue,
   isCopilotAutoExecutable,
   copilotResourceLabel,
+  copilotResourceHref,
 } from "@/lib/copilot/presentation";
 import { cn } from "@/lib/utils";
 import { useShell } from "./shell-context";
@@ -760,8 +762,8 @@ export function AICopilot() {
         ) : null}
         {run?.status === "completed" && run.fallbackUsed ? (
           <div className="rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-xs text-warning">
-            Providerul configurat nu a fost disponibil. Răspunsul a fost generat
-            prin fallback determinist; nu este prezentat ca răspuns AI extern.
+            Serviciul AI nu a fost disponibil. Sarbato a pregătit un răspuns
+            sigur folosind regulile platformei.
           </div>
         ) : null}
 
@@ -789,6 +791,14 @@ export function AICopilot() {
                     {source.excerpt
                       ? `: ${formatCopilotAnswerForDisplay(source.excerpt)}`
                       : ""}
+                    {copilotResourceHref(source.resourceType, source.resourceId) ? (
+                      <Link
+                        href={copilotResourceHref(source.resourceType, source.resourceId)!}
+                        className="ml-2 font-semibold text-brand hover:underline"
+                      >
+                        Deschide
+                      </Link>
+                    ) : null}
                   </li>
                 ))}
               </ul>

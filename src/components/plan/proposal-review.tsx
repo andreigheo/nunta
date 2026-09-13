@@ -49,6 +49,51 @@ const priorityLabels = {
   urgent: "Urgentă",
 } as const;
 
+const ownerLabels: Record<string, string> = {
+  couple: "Organizatorii evenimentului",
+  couple_owner: "Organizatorul principal",
+  organizer: "Organizator",
+  planner: "Coordonator",
+  family: "Familie",
+  vendor: "Furnizor",
+};
+
+const coverageLabels: Record<string, string> = {
+  accommodation: "Cazare",
+  budget: "Buget",
+  catering: "Catering",
+  contracts: "Contracte",
+  decor_flowers: "Decor și flori",
+  documents: "Documente",
+  entertainment: "Divertisment",
+  food_drinks: "Meniu și băuturi",
+  guest_list: "Lista de invitați",
+  invitations: "Invitații",
+  logistics: "Logistică",
+  payments: "Plăți",
+  photo_video: "Foto și video",
+  planning: "Planificare",
+  post_wedding: "După eveniment",
+  reception: "Recepție",
+  rings: "Verighete",
+  rsvp: "Confirmări RSVP",
+  seating: "Plan de mese",
+  transport: "Transport",
+  vendors: "Furnizori",
+  venue: "Locație",
+  wedding_day: "Ziua evenimentului",
+};
+
+function readableCode(value: string, labels: Record<string, string>) {
+  const normalized = value.trim().toLowerCase();
+  const known = labels[normalized];
+  if (known) return known;
+  const readable = normalized.replace(/[_-]+/g, " ");
+  return readable
+    ? readable.charAt(0).toLocaleUpperCase("ro-RO") + readable.slice(1)
+    : "Nespecificat";
+}
+
 function countItems(items: PlanProposalItemResource[]) {
   const counts = { phases: 0, milestones: 0, tasks: 0 };
   const visit = (item: PlanProposalItemResource) => {
@@ -202,7 +247,7 @@ function ProposalItem({
                     ? `${Math.abs(item.relativeDueOffsetDays)} zile înainte de eveniment`
                     : "Fără termen"}
                 {item.suggestedOwnerType
-                  ? ` · Responsabil sugerat: ${item.suggestedOwnerType}`
+                  ? ` · Responsabil sugerat: ${readableCode(item.suggestedOwnerType, ownerLabels)}`
                   : ""}
               </p>
             </>
@@ -306,15 +351,15 @@ export function ProposalReview({
               <Badge variant="brand">
                 <Sparkles className="size-3" />
                 {proposal.generatorType === "fallback"
-                  ? "Fallback determinist"
+                  ? "Plan pregătit cu regulile Sarbato"
                   : proposal.generatorType === "ai_enriched"
-                    ? "AI îmbogățit"
-                    : "Determinist"}
+                    ? "Plan personalizat cu AI"
+                    : "Plan pregătit automat"}
               </Badge>
-              <Badge variant="outline">Reguli {proposal.rulesVersion}</Badge>
+              <Badge variant="outline">Versiunea {proposal.rulesVersion}</Badge>
               {proposal.fallbackUsed && (
                 <Badge variant="warning">
-                  Provider indisponibil · fallback folosit
+                  AI indisponibil · plan complet pregătit automat
                 </Badge>
               )}
             </div>
@@ -377,12 +422,12 @@ export function ProposalReview({
           <div className="mt-2 flex flex-wrap gap-1.5">
             {proposal.coverage.covered.map((item) => (
               <Badge key={item} variant="success">
-                {item}
+                {readableCode(item, coverageLabels)}
               </Badge>
             ))}
             {proposal.coverage.missing.map((item) => (
               <Badge key={item} variant="danger">
-                Lipsește: {item}
+                Lipsește: {readableCode(item, coverageLabels)}
               </Badge>
             ))}
           </div>

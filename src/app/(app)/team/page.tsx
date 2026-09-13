@@ -264,7 +264,7 @@ export default function TeamPage() {
     <div className="mx-auto max-w-7xl space-y-5">
       <PageHeader
         title="Echipă"
-        description="Oamenii care vă ajută să organizați nunta, cu acces potrivit pentru fiecare rol."
+        description="Oamenii care vă ajută să organizați evenimentul, cu acces potrivit pentru fiecare rol."
         actions={
           canInvite || demoMode ? (
             <Button
@@ -356,7 +356,7 @@ export default function TeamPage() {
                       <p className="max-w-xs text-xs text-faint">
                         {roleDescriptions[member.role]}
                       </p>
-                      <p className="mt-1 max-w-xs text-[11px] text-faint">
+                      <p className="mt-1 max-w-xs text-xs text-faint">
                         Acces configurat: {member.capabilities.length}{" "}
                         permisiuni
                       </p>
@@ -392,7 +392,7 @@ export default function TeamPage() {
                           </option>
                         ))}
                       </Select>
-                      <p className="mt-1 max-w-xs text-[11px] text-faint">
+                      <p className="mt-1 max-w-xs text-xs text-faint">
                         Acces configurat: {member.capabilities.length}{" "}
                         permisiuni
                       </p>
@@ -454,7 +454,7 @@ export default function TeamPage() {
                       {roleLabels[member.role]}
                     </span>
                   </div>
-                  <p className="mt-2 text-[11px] text-faint">
+                  <p className="mt-2 text-xs text-faint">
                     Acces configurat: {member.capabilities.length} permisiuni
                   </p>
                 </div>
@@ -509,7 +509,11 @@ export default function TeamPage() {
             <Button variant="ghost" onClick={() => setInviteOpen(false)}>
               Renunță
             </Button>
-            <Button type="submit" form="invite-member-form">
+            <Button
+              type="submit"
+              form="invite-member-form"
+              disabled={!email.trim() || !email.includes("@")}
+            >
               <Mail className="size-4" aria-hidden />
               Trimite invitația
             </Button>
@@ -565,7 +569,7 @@ export default function TeamPage() {
               className="mt-0.5 size-5 shrink-0 text-brand"
               aria-hidden
             />
-            <p className="text-[13px] leading-relaxed text-muted">
+            <p className="text-sm leading-relaxed text-muted">
               Membrii văd doar acest spațiu de lucru. Datele de facturare rămân
               disponibile exclusiv proprietarului.
             </p>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatCopilotAnswerForDisplay,
   formatCopilotMachineValue,
+  copilotResourceHref,
   isCopilotAutoExecutable,
 } from "./presentation";
 
@@ -14,6 +15,12 @@ describe("Copilot presentation", () => {
     ).toBe(
       'Toate fazele sunt "neînceput", iar campania este finalizat.',
     );
+  });
+
+  it("links canonical resources back to the module where they can be changed", () => {
+    expect(copilotResourceHref("Task", "task-1")).toBe("/plan?task=task-1");
+    expect(copilotResourceHref("BudgetSummary", "budget-1")).toBe("/budget");
+    expect(copilotResourceHref("UnknownResource", "x")).toBeNull();
   });
 
   it("auto-applies only one safe atomic proposal", () => {

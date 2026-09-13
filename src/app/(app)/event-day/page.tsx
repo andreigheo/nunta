@@ -12,6 +12,7 @@ import {
   Download,
   ImageIcon,
   ListChecks,
+  LockKeyhole,
   MapPin,
   Pause,
   Play,
@@ -145,9 +146,11 @@ const eventNames = [
 ];
 
 export default function EventDayPage() {
+  const router = useRouter();
   const {
     currentWorkspace,
     demoMode,
+    bootstrap,
     loading: workspaceLoading,
   } = useWorkspace();
   const { toast } = useToast();
@@ -176,7 +179,11 @@ export default function EventDayPage() {
 
   const load = React.useCallback(
     async (quiet = false) => {
-      if (!currentWorkspace || demoMode) {
+      if (
+        !currentWorkspace ||
+        demoMode ||
+        (bootstrap && bootstrap.subscription.plan !== "PRO")
+      ) {
         setLoading(false);
         return;
       }
@@ -216,7 +223,7 @@ export default function EventDayPage() {
         setLoading(false);
       }
     },
-    [currentWorkspace, demoMode],
+    [bootstrap, currentWorkspace, demoMode],
   );
 
   React.useEffect(() => {
@@ -430,6 +437,31 @@ export default function EventDayPage() {
           icon={Radio}
           title="Centrul operațional este disponibil în spațiul real"
           description="Intră în cont pentru planul zilei, check-in, incidente și actualizări în timp real."
+        />
+      </div>
+    );
+  }
+
+  if (
+    currentWorkspace &&
+    bootstrap &&
+    bootstrap.subscription.plan !== "PRO"
+  ) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-4 pb-24">
+        <PageHeader
+          title="Ziua evenimentului"
+          description="Programul operațional, check-in-ul și incidentele sunt coordonate aici în timp real."
+          meta={<Badge variant="brand">Pro</Badge>}
+        />
+        <EmptyState
+          icon={LockKeyhole}
+          title="Centrul operațional este inclus în Pro"
+          description="Poți pregăti restul evenimentului în planul actual. Pentru programul live, check-in, incidente și exporturi operaționale, activează Pro înainte să începi configurarea."
+          action={{
+            label: "Vezi planul Pro",
+            onClick: () => router.push("/settings?tab=billing"),
+          }}
         />
       </div>
     );
@@ -1293,7 +1325,7 @@ function HeaderMetric({
 }) {
   return (
     <div className="rounded-lg bg-on-brand/10 px-3 py-2">
-      <p className="text-[11px] text-on-brand-panel/65">{label}</p>
+      <p className="text-xs text-on-brand-panel/65">{label}</p>
       <p
         className={cn(
           "mt-0.5 text-lg font-semibold tabular-nums",

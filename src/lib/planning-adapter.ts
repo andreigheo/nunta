@@ -26,7 +26,7 @@ const taskCategoryLabels: Record<string, string> = {
   rsvp: "Confirmări RSVP",
   vendors: "Furnizori",
   venue: "Locație",
-  wedding_day: "Ziua nunții",
+  wedding_day: "Ziua evenimentului",
 };
 
 export function taskCategoryLabel(category: string): string {

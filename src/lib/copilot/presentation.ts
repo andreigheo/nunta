@@ -79,3 +79,23 @@ export function copilotResourceLabel(value: string) {
   };
   return labels[value] ?? value.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
 }
+
+export function copilotResourceHref(resourceType: string, resourceId: string) {
+  const routes: Record<string, string> = {
+    BudgetSummary: "/budget",
+    BudgetCategory: "/budget",
+    BudgetItem: "/budget",
+    ExpenseRecord: "/expenses",
+    PlanningPhase: "/timeline",
+    TimelineMilestone: "/timeline",
+    CalendarEvent: "/calendar",
+    Task: `/plan?task=${encodeURIComponent(resourceId)}`,
+    Risk: "/risks",
+    GuestSummary: "/guests",
+    Household: "/guests",
+    Guest: `/guests?guest=${encodeURIComponent(resourceId)}`,
+    InvitationSite: "/invitations",
+    CampaignSummary: "/invitations",
+  };
+  return routes[resourceType] ?? null;
+}

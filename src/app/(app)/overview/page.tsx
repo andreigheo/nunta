@@ -361,8 +361,8 @@ export default function OverviewPage() {
   ].some((capability) => capabilities.has(capability));
   const setupSteps = [
     {
-      label: "Detaliile nunții",
-      description: "Cuplu, dată, locație și preferințe",
+      label: "Detaliile evenimentului",
+      description: "Tip, dată, locație și preferințe",
       complete: demoMode || onboarding?.status === "ready",
       href: "/onboarding",
       action: "Completează detaliile",
@@ -643,7 +643,7 @@ export default function OverviewPage() {
           <CardHeader>
             <div>
               <CardTitle>Centrul operațional al evenimentului</CardTitle>
-              <p className="mt-0.5 text-[13px] text-muted">
+              <p className="mt-0.5 text-sm text-muted">
                 Stare operațională reală · plan{" "}
                 {weddingDay.status?.toLowerCase().replaceAll("_", " ") ??
                   "neconfigurat"}
@@ -749,7 +749,7 @@ export default function OverviewPage() {
           <CardHeader>
             <div>
               <CardTitle>Riscuri și Plan B</CardTitle>
-              <p className="mt-0.5 text-[13px] text-muted">
+              <p className="mt-0.5 text-sm text-muted">
                 {dashboard.risks.active} riscuri active ·{" "}
                 {dashboard.risks.critical} critice · {dashboard.risks.high}{" "}
                 ridicate
@@ -806,7 +806,7 @@ export default function OverviewPage() {
         <CardHeader>
           <div>
             <CardTitle>Achiziții și buget</CardTitle>
-            <p className="mt-0.5 text-[13px] text-muted">
+            <p className="mt-0.5 text-sm text-muted">
               Situația reală a angajamentelor, plăților externe și furnizorilor
             </p>
           </div>
@@ -857,7 +857,7 @@ export default function OverviewPage() {
         <CardHeader>
           <div>
             <CardTitle>Documente și plăți online</CardTitle>
-            <p className="mt-0.5 text-[13px] text-muted">
+            <p className="mt-0.5 text-sm text-muted">
               Statusuri verificate din vault, semnături și providerul de plăți
             </p>
           </div>
@@ -912,7 +912,7 @@ export default function OverviewPage() {
         <CardHeader>
           <div>
             <CardTitle>Invitați și RSVP</CardTitle>
-            <p className="mt-0.5 text-[13px] text-muted">
+            <p className="mt-0.5 text-sm text-muted">
               Date reale din CRM-ul invitaților, invitații și meniuri
             </p>
           </div>
@@ -974,7 +974,7 @@ export default function OverviewPage() {
         <CardHeader>
           <div>
             <CardTitle>Operațiuni invitați</CardTitle>
-            <p className="mt-0.5 text-[13px] text-muted">
+            <p className="mt-0.5 text-sm text-muted">
               Seating, capacitate transport și inventar cazare din date
               persistente
             </p>
@@ -1025,7 +1025,7 @@ export default function OverviewPage() {
           <CardHeader>
             <div>
               <CardTitle>Sarcini urgente</CardTitle>
-              <p className="mt-0.5 text-[13px] text-muted">
+              <p className="mt-0.5 text-sm text-muted">
                 Prioritizate din planul real
               </p>
             </div>
@@ -1084,7 +1084,7 @@ export default function OverviewPage() {
           <CardHeader>
             <div>
               <CardTitle>Următoarele date</CardTitle>
-              <p className="mt-0.5 text-[13px] text-muted">Calendar unificat</p>
+              <p className="mt-0.5 text-sm text-muted">Calendar unificat</p>
             </div>
             <Button
               variant="ghost"
@@ -1178,7 +1178,7 @@ export default function OverviewPage() {
           <CardHeader>
             <div>
               <CardTitle>Module încă indisponibile</CardTitle>
-              <p className="mt-0.5 text-[13px] text-muted">
+              <p className="mt-0.5 text-sm text-muted">
                 Nu afișăm date simulate pentru modulele indisponibile.
               </p>
             </div>

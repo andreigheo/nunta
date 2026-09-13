@@ -754,9 +754,9 @@ export function QuickCreateModal() {
           </div>
         ) : quickCreate === "risk_detection" ? (
           <p className="sm:col-span-2 text-sm text-muted">
-            Motorul determinist verifică taskurile întârziate, milestone-urile,
-            furnizorii și semnalele operaționale. Execuția este asincronă și
-            deduplicată.
+            Sarbato verifică automat sarcinile întârziate, reperele,
+            furnizorii și semnalele operaționale. Analiza rulează în fundal și
+            nu dublează rezultatele deja înregistrate.
           </p>
         ) : quickCreate === "rsvp" ? (
           <p className="sm:col-span-2 text-sm text-muted">

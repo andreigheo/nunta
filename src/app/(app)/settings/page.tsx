@@ -1320,7 +1320,7 @@ function BillingSettings() {
                   <p className="mt-2 text-xs leading-5 text-muted">
                     {policy.description}
                   </p>
-                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-faint">
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-faint">
                     Facturare:{" "}
                     {policy.billing === "manage"
                       ? "gestionare"
@@ -1581,13 +1581,13 @@ function PersonalPrivacySettings() {
   };
 
   if (loading) return <CardSkeleton lines={6} />;
-  if (demoMode) return <Card><CardHeader><div><CardTitle>Privacy Center</CardTitle><CardDescription>Demo-ul nu citește și nu modifică date privacy reale.</CardDescription></div></CardHeader></Card>;
-  if (!privacy) return <Card><CardContent className="p-5"><Button variant="outline" onClick={() => void load()}>Reîncarcă Privacy Center</Button></CardContent></Card>;
+  if (demoMode) return <Card><CardHeader><div><CardTitle>Centrul de confidențialitate</CardTitle><CardDescription>Modul demo nu citește și nu modifică date reale de confidențialitate.</CardDescription></div></CardHeader></Card>;
+  if (!privacy) return <Card><CardContent className="p-5"><Button variant="outline" onClick={() => void load()}>Reîncarcă centrul de confidențialitate</Button></CardContent></Card>;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <Card>
-        <CardHeader><div><CardTitle>Privacy Center</CardTitle><CardDescription>Istoricul consimțămintelor, preferințele cookie și cererile privind datele tale.</CardDescription></div></CardHeader>
+        <CardHeader><div><CardTitle>Centrul de confidențialitate</CardTitle><CardDescription>Istoricul acordurilor, preferințele cookie și cererile privind datele tale.</CardDescription></div></CardHeader>
         <CardContent className="space-y-5">
           <div className="rounded-lg bg-subtle p-3 text-sm leading-relaxed text-muted">{privacy.retentionNotice}</div>
           <div className="space-y-4">
@@ -1599,8 +1599,8 @@ function PersonalPrivacySettings() {
         </CardContent>
       </Card>
       <div className="space-y-5">
-        <Card><CardHeader><div><CardTitle>Cererile tale</CardTitle><CardDescription>{privacy.requests.length} cereri privacy · {privacy.deletions.length} cereri de ștergere</CardDescription></div></CardHeader><CardContent className="space-y-2"><Button className="w-full" variant="outline" loading={busy === "export"} onClick={() => void requestExport()}><Download className="size-4" />Solicită exportul datelor</Button><Button className="w-full" variant="destructive-outline" loading={busy === "delete"} onClick={() => void requestDeletion()}><Trash2 className="size-4" />Solicită ștergerea contului</Button></CardContent></Card>
-        <Card><CardHeader><div><CardTitle>Documente publice</CardTitle><CardDescription>Conținut provizoriu, versionat, care necesită review juridic înainte de lansarea publică.</CardDescription></div></CardHeader><CardContent className="space-y-2 text-sm"><a className="block text-brand hover:underline" href="/privacy">Politica de confidențialitate</a><a className="block text-brand hover:underline" href="/terms">Termeni de utilizare</a><a className="block text-brand hover:underline" href="/cookies">Politica cookie</a></CardContent></Card>
+        <Card><CardHeader><div><CardTitle>Cererile tale</CardTitle><CardDescription>{privacy.requests.length} cereri privind datele · {privacy.deletions.length} cereri de ștergere</CardDescription></div></CardHeader><CardContent className="space-y-2"><Button className="w-full" variant="outline" loading={busy === "export"} onClick={() => void requestExport()}><Download className="size-4" />Solicită exportul datelor</Button><Button className="w-full" variant="destructive-outline" loading={busy === "delete"} onClick={() => void requestDeletion()}><Trash2 className="size-4" />Solicită ștergerea contului</Button></CardContent></Card>
+        <Card><CardHeader><div><CardTitle>Documente publice</CardTitle><CardDescription>Documentele disponibile pentru utilizarea Sarbato și opțiunile tale de confidențialitate.</CardDescription></div></CardHeader><CardContent className="space-y-2 text-sm"><a className="block text-brand hover:underline" href="/privacy">Politica de confidențialitate</a><a className="block text-brand hover:underline" href="/terms">Termeni de utilizare</a><a className="block text-brand hover:underline" href="/cookies">Politica cookie</a></CardContent></Card>
       </div>
     </div>
   );
@@ -1767,9 +1767,7 @@ function AggregatePrivacySettings() {
               <Badge variant={consent.enabled ? "success" : "neutral"} dot>
                 {consent.enabled ? "Acord activ" : "Participare oprită"}
               </Badge>
-              <span className="text-xs text-faint">
-                Politica {consent.policyVersion}
-              </span>
+              <span className="text-xs text-faint">Preferință versionată</span>
             </div>
             <CardTitle>Date agregate pentru dovada publică</CardTitle>
             <CardDescription>
@@ -1906,7 +1904,7 @@ function SecuritySettings() {
         <Card>
           <CardHeader><div><CardTitle className="flex items-center gap-2"><LockKeyhole className="size-4.5 text-brand" aria-hidden />Autentificare</CardTitle><CardDescription>Protejează accesul la datele evenimentului.</CardDescription></div></CardHeader>
           <CardContent className="divide-y divide-line">
-            <div className="pb-4"><Switch checked={false} disabled label="Verificare în doi pași" description="Activarea pentru acest tip de cont nu este disponibilă încă." /></div>
+            <div className="flex items-start justify-between gap-4 pb-4"><Switch checked={false} disabled label="Verificare în doi pași" description="Funcția este în pregătire și nu poate fi activată încă pentru acest cont." /><Badge variant="neutral">În pregătire</Badge></div>
             <div className="py-4"><Switch checked={securityEmail} onCheckedChange={(checked) => void changeSecurityEmail(checked)} label="Alerte de securitate prin e-mail" description="Primește alerte pentru autentificări și modificări sensibile." /></div>
             <div className="flex items-center justify-between gap-4 pt-4"><div><p className="text-sm font-medium text-ink">Parolă</p><p className="text-xs text-muted">Schimbarea parolei revocă toate sesiunile active</p></div><Button variant="outline" size="sm" onClick={() => void requestPasswordChange()}><KeyRound className="size-3.5" aria-hidden />Schimbă</Button></div>
           </CardContent>
@@ -1930,9 +1928,10 @@ function SecuritySettings() {
           <Link href="/settings?tab=privacy" className="flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-muted transition-colors hover:bg-subtle hover:text-ink">
             <Download className="size-4 text-faint" aria-hidden /><span className="flex-1">Exportă datele contului</span><ChevronRight className="size-4 text-faint" aria-hidden />
           </Link>
-          <button type="button" disabled title="Disponibil într-o etapă viitoare" className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-muted opacity-60">
-            <ShieldCheck className="size-4 text-faint" aria-hidden /><span className="flex-1">Vezi jurnalul de acces</span><ChevronRight className="size-4 text-faint" aria-hidden />
-          </button>
+          <div className="flex w-full items-start gap-3 rounded-lg bg-subtle px-3 py-3 text-sm text-muted">
+            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-faint" aria-hidden />
+            <div><p className="font-medium text-ink">Activitatea contului</p><p className="mt-0.5 text-xs leading-5">Sesiunile și dispozitivele conectate sunt afișate în lista din stânga.</p></div>
+          </div>
         </CardContent>
       </Card>
     </div>

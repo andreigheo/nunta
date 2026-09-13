@@ -430,6 +430,16 @@ export class PlanningService {
         const phaseIds = new Map<string, string>();
         const milestoneIds = new Map<string, string>();
         const taskIds = new Map<string, string>();
+        const actingMembership = await transaction.workspaceMembership.findFirst({
+          where: { workspaceId, userId, status: "ACTIVE" },
+          select: { id: true },
+        });
+        const organizerOwnerTypes = new Set([
+          "couple",
+          "couple_owner",
+          "organizer",
+          "owner",
+        ]);
         for (const item of items.filter((entry) => entry.type === "PHASE")) {
           const phase = await transaction.planningPhase.create({
             data: {
@@ -490,6 +500,14 @@ export class PlanningService {
               dueAt: item.absoluteDueAt,
               relativeStartOffsetDays: item.relativeStartOffsetDays,
               relativeDueOffsetDays: item.relativeDueOffsetDays,
+              assigneeMembershipId:
+                actingMembership &&
+                item.suggestedOwnerType &&
+                organizerOwnerTypes.has(
+                  item.suggestedOwnerType.trim().toLowerCase(),
+                )
+                  ? actingMembership.id
+                  : null,
               createdById: userId,
               estimatedEffortMinutes: item.estimatedEffortMinutes,
               position: item.position,

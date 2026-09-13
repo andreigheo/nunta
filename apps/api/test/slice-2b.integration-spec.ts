@@ -198,6 +198,18 @@ describe.sequential("Slice 2B planning integration", () => {
       .expect(201);
     expect(applied.body.data.phaseCount).toBeGreaterThan(0);
     expect(applied.body.data.taskCount).toBeGreaterThan(20);
+    const ownerMembership = await database.workspaceMembership.findFirstOrThrow({
+      where: { workspaceId, userId: owner.userId, status: "ACTIVE" },
+    });
+    expect(
+      await database.task.count({
+        where: {
+          workspaceId,
+          sourceProposalItemId: { not: null },
+          assigneeMembershipId: ownerMembership.id,
+        },
+      }),
+    ).toBeGreaterThan(0);
     const countsBeforeReplay = await planningCounts(workspaceId);
     const replayApply = await owner.agent
       .post(

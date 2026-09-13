@@ -187,8 +187,8 @@ export default function RisksPage() {
       }
       await load();
       toast({
-        title: "Analiza deterministă este gata",
-        description: "Registrul a fost actualizat fără a inventa date externe.",
+        title: "Verificarea automată este gata",
+        description: "Registrul a fost actualizat folosind datele reale ale evenimentului.",
         variant: "success",
       });
     } catch (detectError) {
@@ -278,7 +278,7 @@ export default function RisksPage() {
         <EmptyState
           icon={ShieldAlert}
           title="Nu există riscuri înregistrate"
-          description="Adaugă primul risc sau rulează detectorul determinist peste taskurile și milestone-urile reale."
+          description="Adaugă primul risc sau lasă Sarbato să verifice automat sarcinile și reperele evenimentului."
           action={{ label: "Adaugă risc", onClick: () => setAddOpen(true) }}
         />
       ) : (
@@ -362,7 +362,7 @@ export default function RisksPage() {
               />
             </div>
             <div className="rounded-xl border border-line p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">
+              <p className="text-xs font-semibold uppercase tracking-wider text-faint">
                 Descriere
               </p>
               <p className="mt-1.5 text-sm leading-relaxed text-muted">
@@ -371,13 +371,13 @@ export default function RisksPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
-                className="inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink hover:bg-subtle"
+                className="inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink hover:bg-subtle"
                 href={`/risks/${detail.id}`}
               >
                 Deschide fișa completă
               </Link>
               <Link
-                className="inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink hover:bg-subtle"
+                className="inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink hover:bg-subtle"
                 href={`/contingency-plans?riskId=${detail.id}`}
               >
                 Plan B
@@ -532,7 +532,7 @@ export default function RisksPage() {
                           : "bg-success-soft",
                   )}
                 >
-                  <p className="text-[10px] text-faint">
+                  <p className="text-xs text-faint">
                     {probability}×{impact}
                   </p>
                   <div className="mt-2 flex flex-wrap justify-center gap-1">
@@ -563,7 +563,7 @@ export default function RisksPage() {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-subtle/70 p-3 text-center">
-      <p className="text-[11px] text-faint">{label}</p>
+      <p className="text-xs text-faint">{label}</p>
       <p className="mt-1.5 text-sm font-semibold text-ink">{value}</p>
     </div>
   );

@@ -94,6 +94,9 @@ export default function MenusPage() {
   const [menus, setMenus] = React.useState<ExtendedMenu[]>([]);
   const [selections, setSelections] = React.useState<MenuSelection[]>([]);
   const [issues, setIssues] = React.useState<AllergyIssue[]>([]);
+  const [missingMenuCount, setMissingMenuCount] = React.useState<number | null>(
+    null,
+  );
   const [editing, setEditing] = React.useState<ExtendedMenu | "new" | null>(
     null,
   );
@@ -109,6 +112,7 @@ export default function MenusPage() {
   const canReadAllergies = capabilities.includes("menu.read_allergies");
   const canResolveAllergies = capabilities.includes("menu.resolve_allergies");
   const canExport = capabilities.includes("menu.export");
+  const canReadGuests = capabilities.includes("guest.read");
 
   const load = React.useCallback(async () => {
     if (!currentWorkspace || demoMode) {
@@ -118,22 +122,26 @@ export default function MenusPage() {
     setLoading(true);
     setError(null);
     try {
-      const [menuData, selectionData, issueData] = await Promise.all([
+      const [menuData, selectionData, issueData, guestData] = await Promise.all([
         weddingOsApi.menus(currentWorkspace.id),
         weddingOsApi.guestMenuSelections(currentWorkspace.id),
         canReadAllergies
           ? weddingOsApi.allergyIssues(currentWorkspace.id)
           : Promise.resolve({ items: [], nextCursor: null }),
+        canReadGuests
+          ? weddingOsApi.guests(currentWorkspace.id)
+          : Promise.resolve(null),
       ]);
       setMenus(menuData.items as ExtendedMenu[]);
       setSelections(selectionData.items as MenuSelection[]);
       setIssues(issueData.items as AllergyIssue[]);
+      setMissingMenuCount(guestData?.summary.menu.incomplete ?? null);
     } catch (cause) {
       setError(apiErrorMessage(cause));
     } finally {
       setLoading(false);
     }
-  }, [canReadAllergies, currentWorkspace, demoMode]);
+  }, [canReadAllergies, canReadGuests, currentWorkspace, demoMode]);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -326,8 +334,12 @@ export default function MenusPage() {
         />
         <StatCard
           label="Fără meniu"
-          value="Nedisponibil"
-          hint="Vizibile direct în Plan de mese"
+          value={missingMenuCount ?? "—"}
+          hint={
+            missingMenuCount === null
+              ? "Necesită acces la lista de invitați"
+              : "Invitați activi fără selecție"
+          }
         />
       </div>
 

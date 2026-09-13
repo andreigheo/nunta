@@ -87,7 +87,7 @@ function CommandPaletteContent() {
         {
           id: "detect-risks",
           label: "Rulează detectarea riscurilor",
-          hint: "Job determinist și deduplicat",
+          hint: "Verificare automată, fără rezultate duplicate",
           group: "Acțiuni",
           capability: "risk.detect",
           run: () => setQuickCreate("risk_detection"),
@@ -247,9 +247,9 @@ function CommandPaletteContent() {
               setActiveIndex(0);
             }}
             placeholder="Caută taskuri, riscuri, Planuri B, automatizări sau pagini…"
-            className="h-13 w-full bg-transparent text-[15px] text-ink placeholder:text-faint focus:outline-none"
+            className="h-13 w-full bg-transparent text-base text-ink placeholder:text-faint focus:outline-none"
           />
-          <kbd className="rounded border border-line bg-subtle px-1.5 py-0.5 text-[10px] font-semibold text-faint">
+          <kbd className="rounded border border-line bg-subtle px-1.5 py-0.5 text-xs font-semibold text-faint">
             ESC
           </kbd>
         </div>
@@ -266,7 +266,7 @@ function CommandPaletteContent() {
           )}
           {grouped.map((group) => (
             <div key={group.label}>
-              <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-faint">
+              <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-faint">
                 {group.label}
               </p>
               {group.items.map((action) => {
@@ -318,7 +318,7 @@ function CommandPaletteContent() {
             </div>
           ))}
         </div>
-        <div className="flex gap-4 border-t border-line bg-surface px-4 py-2.5 text-[11px] text-faint">
+        <div className="flex gap-4 border-t border-line bg-surface px-4 py-2.5 text-xs text-faint">
           <span>↑↓ navigare</span>
           <span>↵ deschide</span>
           <span>esc închide</span>
