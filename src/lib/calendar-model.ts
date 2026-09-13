@@ -2,6 +2,13 @@ import type { CalendarItem } from "@weddingos/contracts";
 
 export type CalendarView = "month" | "week" | "agenda";
 
+export type CalendarMonthCell = {
+  date: Date;
+  dayKey: string;
+  dayNumber: number;
+  inMonth: boolean;
+};
+
 function partsInTimeZone(value: string | Date, timeZone: string) {
   const date = typeof value === "string" ? new Date(value) : value;
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -73,6 +80,25 @@ function localDay(date: Date) {
 
 function localDayKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+export function calendarMonthCells(cursor: Date): CalendarMonthCell[] {
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const first = new Date(year, month, 1, 12);
+  const gridStart = new Date(first);
+  gridStart.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return {
+      date,
+      dayKey: localDayKey(date),
+      dayNumber: date.getDate(),
+      inMonth: date.getMonth() === month,
+    };
+  });
 }
 
 export function weekBounds(anchor: Date) {

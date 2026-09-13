@@ -614,12 +614,6 @@ function BillingSettings() {
     if (!transactionId) {
       checkoutConfirmed.current = true;
       clearCheckoutReturn();
-      toast({
-        title: "Abonamentul a fost reîmprospătat",
-        description:
-          "Confirmarea plății este afișată numai pentru o tranzacție Paddle verificată.",
-        variant: "info",
-      });
       return;
     }
     let cancelled = false;

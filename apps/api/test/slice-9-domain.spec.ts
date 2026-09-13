@@ -803,6 +803,15 @@ describe("Slice 9 intelligence contracts", () => {
     expect(result.answer).toContain("nimic nu a fost modificat");
   });
 
+  it("does not turn a read-only task question into a mutation proposal", async () => {
+    const result = await new DeterministicCopilotProvider().run({
+      message:
+        "Care este următoarea sarcină urgentă din plan? Arată-mi sursa din aplicație, fără să modifici nimic.",
+      context,
+    });
+    expect(result.proposal).toBeUndefined();
+  });
+
   it("creates a reviewable budget target when the external provider falls back", async () => {
     const result = await new DeterministicCopilotProvider().run({
       message: "Setează bugetul nunții la 190.000 RON",

@@ -397,7 +397,19 @@ export default function OffersPage() {
 }
 
 function label(value: string) {
-  return value.toLowerCase().replaceAll("_", " ");
+  const labels: Record<string, string> = {
+    ALL: "Toate",
+    SUBMITTED: "Trimise",
+    UNDER_REVIEW: "În analiză",
+    REVISION_REQUESTED: "Necesită revizuire",
+    REVISED: "Revizuite",
+    ACCEPTED: "Acceptate",
+    REJECTED: "Refuzate",
+    DRAFT: "Ciornă",
+    CANCELLED: "Anulate",
+    EXPIRED: "Expirate",
+  };
+  return labels[value.toUpperCase()] ?? value.toLowerCase().replaceAll("_", " ");
 }
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

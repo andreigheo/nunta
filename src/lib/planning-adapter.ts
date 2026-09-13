@@ -27,7 +27,29 @@ const taskCategoryLabels: Record<string, string> = {
   vendors: "Furnizori",
   venue: "Locație",
   wedding_day: "Ziua evenimentului",
+  contingency: "Plan B și situații neprevăzute",
+  post_wedding: "După eveniment",
 };
+
+export function planStatusHeadline(input: {
+  total: number;
+  completed: number;
+  overdue: number;
+  blocked: number;
+  unassigned: number;
+}) {
+  if (input.overdue > 0)
+    return `${input.overdue} ${input.overdue === 1 ? "sarcină are" : "sarcini au"} termenul depășit.`;
+  if (input.blocked > 0)
+    return `${input.blocked} ${input.blocked === 1 ? "sarcină este blocată" : "sarcini sunt blocate"}.`;
+  if (input.total > 0 && input.completed === input.total)
+    return "Planul este finalizat.";
+  if (input.completed === 0)
+    return `${input.total} ${input.total === 1 ? "sarcină este pregătită" : "sarcini sunt pregătite"} pentru lucru.`;
+  if (input.unassigned > 0)
+    return `${input.unassigned} ${input.unassigned === 1 ? "sarcină nu are" : "sarcini nu au"} încă responsabil.`;
+  return "Planul avansează conform activității înregistrate.";
+}
 
 export function taskCategoryLabel(category: string): string {
   const normalized = category

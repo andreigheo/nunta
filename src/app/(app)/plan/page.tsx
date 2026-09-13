@@ -29,6 +29,7 @@ import { tasks as demoTasks } from "@/lib/data/tasks";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import {
+  planStatusHeadline,
   taskCategoryLabel,
   taskFromApi,
   transitionForStatus,
@@ -814,11 +815,13 @@ export default function PlanPage() {
                 id="plan-status-title"
                 className="mt-2 font-brand text-2xl font-semibold tracking-[-0.02em] text-ink"
               >
-                {overdueCount > 0
-                  ? `${overdueCount} ${overdueCount === 1 ? "sarcină are" : "sarcini au"} termenul depășit.`
-                  : doneCount === tasks.length
-                    ? "Planul este finalizat."
-                    : "Planul este la zi."}
+                {planStatusHeadline({
+                  total: tasks.length,
+                  completed: doneCount,
+                  overdue: overdueCount,
+                  blocked: blockedCount,
+                  unassigned: unassignedCount,
+                })}
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
                 Ai finalizat {doneCount} din {tasks.length} sarcini. Elementele

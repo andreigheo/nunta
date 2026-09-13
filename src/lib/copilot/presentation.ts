@@ -31,11 +31,11 @@ export function isCopilotAutoExecutable(
   proposals: Array<{ riskLevel: string }>,
   hasPlan: boolean,
 ) {
-  return (
-    !hasPlan &&
-    proposals.length === 1 &&
-    ["low", "medium"].includes(proposals[0]!.riskLevel)
-  );
+  // A generated proposal is never proof that the user intended to mutate data.
+  // Keep the fast review action in the UI, but require explicit approval.
+  void proposals;
+  void hasPlan;
+  return false;
 }
 
 export function formatCopilotMachineValue(value: string) {

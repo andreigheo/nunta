@@ -229,6 +229,19 @@ export interface CopilotProvider {
   }): Promise<CopilotProviderOutput>;
 }
 
+function explicitlyRequestsMutation(message: string, object: RegExp) {
+  if (
+    /f[aă]r[aă]\s+s[aă]\s+(?:modific|schimb|cree)|nu\s+(?:modifica|schimba|crea)|doar\s+(?:arat|spune|verific)|care\s+este|ce\s+(?:urmeaz|sarcin)/iu.test(
+      message,
+    )
+  )
+    return false;
+  return new RegExp(
+    `(?:creeaz[aă]?|adaug[aă]?|introdu|programeaz[aă]?|f[aă])[^.!?]{0,80}(?:${object.source})`,
+    "iu",
+  ).test(message);
+}
+
 export class DeterministicCopilotProvider implements CopilotProvider {
   readonly name = "deterministic";
 
@@ -364,7 +377,9 @@ export class DeterministicCopilotProvider implements CopilotProvider {
         },
       };
       answer += " Am pregătit un Plan B; activarea rămâne un pas separat.";
-    } else if (/calendar|eveniment|întâlnire/i.test(message)) {
+    } else if (
+      explicitlyRequestsMutation(message, /calendar|eveniment|întâlnire/iu)
+    ) {
       proposal = {
         actionType: "CREATE_CALENDAR_EVENT",
         riskLevel: "LOW",
@@ -378,7 +393,7 @@ export class DeterministicCopilotProvider implements CopilotProvider {
       };
       answer +=
         " Am pregătit un eveniment în calendar; data trebuie verificată înainte de aprobare.";
-    } else if (/creeaz|adaug.*task|sarcin/i.test(message)) {
+    } else if (explicitlyRequestsMutation(message, /task|sarcin[ăa]/iu)) {
       proposal = {
         actionType: "CREATE_TASK",
         riskLevel: "LOW",

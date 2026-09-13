@@ -23,9 +23,9 @@ describe("Copilot presentation", () => {
     expect(copilotResourceHref("UnknownResource", "x")).toBeNull();
   });
 
-  it("auto-applies only one safe atomic proposal", () => {
+  it("never auto-applies generated proposals without explicit approval", () => {
     expect(isCopilotAutoExecutable([{ riskLevel: "medium" }], false)).toBe(
-      true,
+      false,
     );
     expect(isCopilotAutoExecutable([{ riskLevel: "high" }], false)).toBe(
       false,
@@ -36,6 +36,7 @@ describe("Copilot presentation", () => {
         true,
       ),
     ).toBe(false);
+    expect(isCopilotAutoExecutable([{ riskLevel: "low" }], false)).toBe(false);
   });
 
   it("humanizes structured values without changing normal copy", () => {

@@ -36,6 +36,10 @@ import { Button, CurrencyInput, Field, Input, Progress, Select, Switch, useToast
 import { ThemeSegmentedControl } from "@/lib/theme";
 import { apiErrorMessage, hasDemoCookie, weddingOsApi } from "@/lib/api/client";
 import { safeInternalPath, selectedWorkspacePlan } from "@/lib/account-routing";
+import {
+  firstIncompleteOnboardingStep,
+  onboardingStepFromSearchParam,
+} from "@/lib/onboarding-flow";
 
 const steps = [
   { id: 1, title: "Evenimentul", hint: "Ce organizezi și cine îl coordonează?" },
@@ -115,6 +119,7 @@ function OnboardingContent() {
   const { toast } = useToast();
   const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
   const requestedReturnTo = safeInternalPath(searchParams.get("returnTo"));
+  const requestedStep = onboardingStepFromSearchParam(searchParams.get("step"));
   const createNewEvent = searchParams.get("new") === "1";
   const [step, setStep] = React.useState(1);
   const [values, setValues] = React.useState<Record<string, string>>({
@@ -250,9 +255,14 @@ function OnboardingContent() {
     if (Array.isArray(draft.budget.priorities)) setSelectedPriorities(draft.budget.priorities.filter((item): item is string => typeof item === "string"));
     if (Array.isArray(draft.style.styles)) setStyles(draft.style.styles.filter((item): item is string => typeof item === "string"));
     setProgress(booleanRecord(draft.existingProgress));
-    setStep(draft.status === "ready" ? 8 : draft.currentStep);
+    setStep(
+      requestedStep ??
+        (draft.status === "ready"
+          ? 8
+          : (firstIncompleteOnboardingStep(draft) ?? draft.currentStep)),
+    );
     setDraftVersion(draft.version);
-  }, []);
+  }, [requestedStep]);
 
   React.useEffect(() => {
     let cancelled = false;

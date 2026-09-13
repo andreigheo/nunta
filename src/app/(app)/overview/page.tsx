@@ -34,6 +34,7 @@ import { useWorkspace } from "@/lib/api/workspace-context";
 import { tasks as demoTasks } from "@/lib/data/tasks";
 import { upcomingEvents } from "@/lib/data/wedding";
 import { daysUntil, formatDateLong, formatDateShort } from "@/lib/utils";
+import { onboardingEditHref } from "@/lib/onboarding-flow";
 import { useShell } from "@/components/shell/shell-context";
 import { EventThread } from "@/components/shell/event-thread";
 import {
@@ -364,7 +365,7 @@ export default function OverviewPage() {
       label: "Detaliile evenimentului",
       description: "Tip, dată, locație și preferințe",
       complete: demoMode || onboarding?.status === "ready",
-      href: "/onboarding",
+      href: onboardingEditHref(onboarding, "/overview"),
       action: "Completează detaliile",
       capability: "workspace.update",
     },

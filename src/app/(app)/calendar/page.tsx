@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import {
   calendarDayKey,
   calendarInputValues,
+  calendarMonthCells,
   calendarPeriodLabel,
   formatCalendarDateLong,
   itemsInCalendarPeriod,
@@ -103,6 +104,7 @@ function EventModal({
   onClose,
   onSave,
   onDelete,
+  defaultDate,
 }: {
   open: boolean;
   event: CalendarItem | null;
@@ -111,6 +113,7 @@ function EventModal({
   onClose: () => void;
   onSave: (input: CreateCalendarEvent) => Promise<void>;
   onDelete: (() => Promise<void>) | null;
+  defaultDate?: string | null;
 }) {
   const initial = calendarInputValues(
     event?.startAt ?? new Date().toISOString(),
@@ -123,7 +126,7 @@ function EventModal({
   const [description, setDescription] = React.useState(
     event?.description ?? "",
   );
-  const [date, setDate] = React.useState(initial.date);
+  const [date, setDate] = React.useState(event ? initial.date : defaultDate ?? initial.date);
   const [time, setTime] = React.useState(initial.time);
   const [allDay, setAllDay] = React.useState(event?.allDay ?? false);
   const [hasEnd, setHasEnd] = React.useState(Boolean(event?.endAt));
@@ -298,6 +301,7 @@ export default function CalendarPage() {
   const [selected, setSelected] = React.useState<CalendarItem | null>(null);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [newEventDate, setNewEventDate] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -396,6 +400,12 @@ export default function CalendarPage() {
     setSelected(item);
     setModalOpen(true);
   };
+  const openNewEvent = (date?: string) => {
+    if (!canWrite) return;
+    setSelected(null);
+    setNewEventDate(date ?? null);
+    setModalOpen(true);
+  };
   const changePeriod = (direction: number) => {
     const next = new Date(cursorDate);
     if (view === "month") next.setMonth(next.getMonth() + direction);
@@ -452,8 +462,7 @@ export default function CalendarPage() {
               disabled={!canWrite}
               title={canWrite ? undefined : "Nu ai permisiunea de a adăuga evenimente"}
               onClick={() => {
-                setSelected(null);
-                setModalOpen(true);
+                openNewEvent();
               }}
             >
               <Plus className="size-4" />
@@ -580,15 +589,22 @@ export default function CalendarPage() {
         </Select>
       </div>
       </Card>
-      {periodItems.length === 0 ? (
+      {view === "month" ? (
+        <MonthGrid
+          items={periodItems}
+          cursorDate={cursorDate}
+          timezone={timezone}
+          canWrite={canWrite}
+          onOpen={openItem}
+          onCreate={openNewEvent}
+        />
+      ) : periodItems.length === 0 ? (
         <EmptyState
           icon={CalendarDays}
           title="Nu există nimic în perioada aceasta"
           description="Schimbă perioada sau adaugă un eveniment. Termenele din Plan, Buget și Furnizori apar automat când le setezi acolo."
-          action={canWrite ? { label: "Adaugă eveniment", onClick: () => setModalOpen(true) } : undefined}
+          action={canWrite ? { label: "Adaugă eveniment", onClick: () => openNewEvent() } : undefined}
         />
-      ) : view === "month" ? (
-        <MonthGrid items={periodItems} cursorDate={cursorDate} timezone={timezone} onOpen={openItem} />
       ) : (
         <Agenda
           items={periodItems}
@@ -600,6 +616,7 @@ export default function CalendarPage() {
         key={`${selected?.id ?? "new"}-${modalOpen}`}
         open={modalOpen}
         event={selected}
+        defaultDate={newEventDate}
         timezone={timezone}
         busy={busy}
         onClose={() => setModalOpen(false)}
@@ -681,89 +698,104 @@ function MonthGrid({
   cursorDate,
   timezone,
   onOpen,
+  onCreate,
+  canWrite,
 }: {
   items: CalendarItem[];
   cursorDate: Date;
   timezone: string;
   onOpen: (item: CalendarItem) => void;
+  onCreate: (dayKey: string) => void;
+  canWrite: boolean;
 }) {
-  const year = cursorDate.getFullYear();
-  const month = cursorDate.getMonth();
-  const first = new Date(year, month, 1);
-  const offset = (first.getDay() + 6) % 7;
-  const days = new Date(year, month + 1, 0).getDate();
-  const cells = Array.from({ length: 42 }, (_, index) => index - offset + 1);
-  const monthItems = items.filter((item) => {
-    return calendarDayKey(item.startAt, timezone).startsWith(
-      `${year}-${String(month + 1).padStart(2, "0")}`,
-    );
-  });
+  const cells = React.useMemo(() => calendarMonthCells(cursorDate), [cursorDate]);
+  const todayKey = calendarDayKey(new Date(), timezone);
+  const firstMonthDay = cells.find((cell) => cell.inMonth)?.dayKey ?? cells[0]!.dayKey;
+  const [selectedDay, setSelectedDay] = React.useState(() =>
+    cells.some((cell) => cell.dayKey === todayKey && cell.inMonth)
+      ? todayKey
+      : firstMonthDay,
+  );
+  const activeSelectedDay = cells.some(
+    (cell) => cell.dayKey === selectedDay && cell.inMonth,
+  )
+    ? selectedDay
+    : cells.some((cell) => cell.dayKey === todayKey && cell.inMonth)
+      ? todayKey
+      : firstMonthDay;
+  const itemsByDay = React.useMemo(() => {
+    const grouped = new Map<string, CalendarItem[]>();
+    for (const item of items) {
+      const key = calendarDayKey(item.startAt, timezone);
+      grouped.set(key, [...(grouped.get(key) ?? []), item]);
+    }
+    return grouped;
+  }, [items, timezone]);
+  const selectedItems = itemsByDay.get(activeSelectedDay) ?? [];
+  const selectedDateLabel = new Intl.DateTimeFormat("ro-RO", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date(`${activeSelectedDay}T12:00:00`));
   return (
-    <>
-      <div className="sm:hidden">
-        <p className="mb-3 text-sm leading-6 text-muted">
-          Pe ecrane mici, luna este afișată ca agendă pentru a păstra datele
-          lizibile și ușor de atins.
-        </p>
-        {monthItems.length ? (
-          <Agenda
-            items={monthItems}
-            timezone={timezone}
-            onOpen={onOpen}
-          />
-        ) : (
-          <EmptyState
-            icon={CalendarDays}
-            title="Luna aceasta nu are evenimente"
-            description="Adaugă un eveniment sau schimbă luna pentru a continua planificarea."
-          />
-        )}
-      </div>
-      <Card className="hidden overflow-hidden sm:block">
+    <div className="space-y-3">
+      <Card className="overflow-hidden">
         <div className="grid grid-cols-7 border-b border-line bg-subtle/60">
           {["Lun", "Mar", "Mie", "Joi", "Vin", "Sâm", "Dum"].map((day) => (
             <div
               key={day}
-              className="px-2 py-2 text-center text-xs font-semibold text-faint"
+              className="px-0.5 py-2 text-center text-[10px] font-semibold text-faint sm:px-2 sm:text-xs"
             >
               {day}
             </div>
           ))}
         </div>
         <div className="grid grid-cols-7">
-          {cells.map((day, index) => {
-            const inMonth = day >= 1 && day <= days;
-            const dayItems = inMonth
-              ? items.filter((item) => {
-                  return calendarDayKey(item.startAt, timezone) ===
-                    `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                })
-              : [];
+          {cells.map((cell) => {
+            const dayItems = itemsByDay.get(cell.dayKey) ?? [];
+            const isSelected = activeSelectedDay === cell.dayKey;
             return (
               <div
-                key={index}
+                key={cell.dayKey}
                 className={cn(
-                  "min-h-28 border-b border-r border-line p-1.5",
-                  !inMonth && "bg-subtle/30",
+                  "min-h-16 border-b border-r border-line p-0.5 sm:min-h-28 sm:p-1.5",
+                  !cell.inMonth && "bg-subtle/40",
+                  isSelected && "bg-brand-softer/50",
                 )}
               >
-                <span className={cn(
-                  "inline-flex size-7 items-center justify-center rounded-full text-xs font-medium text-muted",
-                  inMonth && calendarDayKey(new Date(), timezone) === `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` && "bg-action text-on-action",
-                )}>{inMonth ? day : ""}</span>
-                <div className="mt-1 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDay(cell.dayKey)}
+                  aria-label={`${cell.dayNumber} ${cell.date.toLocaleDateString("ro-RO", { month: "long" })}, ${dayItems.length} elemente`}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    "inline-flex size-9 items-center justify-center rounded-full text-xs font-medium text-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:size-7",
+                    !cell.inMonth && "text-faint",
+                    cell.dayKey === todayKey && "bg-action text-on-action",
+                    isSelected && cell.dayKey !== todayKey && "bg-brand-soft text-brand-strong",
+                  )}
+                >
+                  {cell.dayNumber}
+                </button>
+                <div className="mt-0.5 flex min-h-3 items-center justify-center gap-0.5 sm:hidden" aria-hidden>
                   {dayItems.slice(0, 3).map((item) => (
+                    <span key={item.id} className="size-1.5 rounded-full bg-brand" />
+                  ))}
+                  {dayItems.length > 3 && <span className="text-[9px] font-semibold text-brand-strong">+{dayItems.length - 3}</span>}
+                </div>
+                <div className="mt-1 hidden space-y-1 sm:block">
+                  {dayItems.slice(0, 2).map((item) => (
                     <button
                       key={item.id}
                       onClick={() => onOpen(item)}
-                      className="block min-h-11 w-full truncate rounded-lg bg-brand-soft px-2 py-1 text-left text-[11px] font-medium text-brand-strong"
+                      className="block min-h-8 w-full truncate rounded-lg bg-brand-soft px-2 py-1 text-left text-[11px] font-medium text-brand-strong transition-colors hover:bg-brand-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     >
                       {item.title}
                     </button>
                   ))}
-                  {dayItems.length > 3 && (
+                  {dayItems.length > 2 && (
                     <span className="block px-2 text-xs font-semibold text-brand-strong">
-                      +{dayItems.length - 3} mai multe
+                      +{dayItems.length - 2} mai multe
                     </span>
                   )}
                 </div>
@@ -772,7 +804,32 @@ function MonthGrid({
           })}
         </div>
       </Card>
-    </>
+      <Card>
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">Ziua selectată</p>
+              <h2 className="mt-1 font-brand text-lg font-semibold capitalize text-ink">{selectedDateLabel}</h2>
+            </div>
+            {canWrite && (
+              <Button size="sm" variant="outline" onClick={() => onCreate(activeSelectedDay)}>
+                <Plus className="size-4" />
+                Adaugă în această zi
+              </Button>
+            )}
+          </div>
+          {selectedItems.length ? (
+            <div className="mt-4">
+              <Agenda items={selectedItems} timezone={timezone} onOpen={onOpen} />
+            </div>
+          ) : (
+            <p className="mt-4 rounded-xl bg-subtle px-4 py-3 text-sm text-muted">
+              Nu ai nimic programat în această zi. Selectează altă zi sau adaugă primul eveniment.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

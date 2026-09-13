@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CalendarItem } from "@weddingos/contracts";
 import {
   calendarInputValues,
+  calendarMonthCells,
   itemsInCalendarPeriod,
   weekBounds,
   zonedDateTimeToIso,
@@ -24,6 +25,14 @@ const item = (id: string, startAt: string): CalendarItem => ({
 });
 
 describe("calendar model", () => {
+  it("builds a complete six-week month grid starting on Monday", () => {
+    const cells = calendarMonthCells(new Date(2026, 8, 13, 12));
+    expect(cells).toHaveLength(42);
+    expect(cells[0]).toMatchObject({ dayKey: "2026-08-31", inMonth: false });
+    expect(cells[41]).toMatchObject({ dayKey: "2026-10-11", inMonth: false });
+    expect(cells.filter((cell) => cell.inMonth)).toHaveLength(30);
+  });
+
   it("uses a Monday through Sunday week instead of a fourteen-day window", () => {
     const cursor = new Date(2026, 7, 12, 12);
     const bounds = weekBounds(cursor);
