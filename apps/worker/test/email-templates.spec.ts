@@ -94,6 +94,7 @@ describe("Sarbato system email templates", () => {
     expect(rendered.subject).toBe("Bun venit în Sarbato Pro — totul se leagă");
     expect(rendered.text).toContain("Salut, Ana!");
     expect(rendered.text).toContain("invitați fără limită");
+    expect(rendered.text).toContain("acțiuni AI fără limită");
     expect(rendered.text).toContain("100 de credite de mesagerie");
     expect(rendered.html).toContain(
       "https://sarbato.space/email-assets/welcome-pro-v1-hero.jpg",
@@ -102,7 +103,7 @@ describe("Sarbato system email templates", () => {
       "https://sarbato.space/email-assets/welcome-pro-v1-cta.png",
     );
     expect(rendered.html).toContain(
-      "https://sarbato.space/email-assets/welcome-pro-v1-journey.jpg",
+      "https://sarbato.space/email-assets/welcome-pro-v2-journey.jpg",
     );
     expect(rendered.html).toContain(
       "https://sarbato.space/email-assets/welcome-pro-v1-footer.jpg",

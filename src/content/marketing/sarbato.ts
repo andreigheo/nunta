@@ -583,7 +583,7 @@ export const pricing = {
       highlights: [
         { value: "100", label: "invitați" },
         { value: "2", label: "colaboratori" },
-        { value: "5", label: "acțiuni AI / lună" },
+        { value: "30", label: "acțiuni AI / lună" },
         { value: "250 MB", label: "stocare" },
       ],
       features: [
@@ -606,7 +606,7 @@ export const pricing = {
       highlights: [
         { value: "300", label: "invitați" },
         { value: "5", label: "colaboratori" },
-        { value: "30", label: "acțiuni AI / lună" },
+        { value: "60", label: "acțiuni AI / lună" },
         { value: "2 GB", label: "stocare" },
       ],
       features: [
@@ -629,7 +629,7 @@ export const pricing = {
       highlights: [
         { value: "Nelimitat", label: "invitați" },
         { value: "15", label: "colaboratori" },
-        { value: "150", label: "acțiuni AI / lună" },
+        { value: "Nelimitat", label: "acțiuni AI" },
         { value: "10 GB", label: "stocare" },
       ],
       features: [

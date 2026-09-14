@@ -457,14 +457,15 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   await expect(plans).toHaveCount(3);
   await expect(plans.nth(0)).toContainText("Gratuit");
   await expect(plans.nth(0)).toContainText("0 €");
-  await expect(plans.nth(0)).toContainText("50");
+  await expect(plans.nth(0)).toContainText("100");
   await expect(plans.nth(0)).toContainText("2");
-  await expect(plans.nth(0)).toContainText("5");
+  await expect(plans.nth(0)).toContainText("30");
   await expect(plans.nth(0)).toContainText("acțiuni AI / lună");
   await expect(plans.nth(0)).toContainText("200 de livrări e-mail pe lună");
   await expect(plans.nth(1)).toContainText("Plus");
   await expect(plans.nth(1)).toContainText("27 €");
-  await expect(plans.nth(1)).toContainText("30");
+  await expect(plans.nth(1)).toContainText("300");
+  await expect(plans.nth(1)).toContainText("60");
   await expect(plans.nth(1)).toContainText("acțiuni AI / lună");
   await expect(plans.nth(1)).toContainText("5 automatizări active");
   await expect(plans.nth(1)).toContainText("2.000 de livrări e-mail pe lună");
@@ -474,8 +475,8 @@ test("abonamente — păstrează prețurile și limitele comerciale actuale", as
   await expect(plans.nth(1)).toHaveAttribute("data-featured", "true");
   await expect(plans.nth(2)).toContainText("Pro");
   await expect(plans.nth(2)).toContainText("59 €");
-  await expect(plans.nth(2)).toContainText("150");
-  await expect(plans.nth(2)).toContainText("acțiuni AI / lună");
+  await expect(plans.nth(2)).toContainText("Nelimitat");
+  await expect(plans.nth(2)).toContainText("acțiuni AI");
   await expect(plans.nth(2)).toContainText("25 de automatizări active");
   await expect(plans.nth(2)).toContainText("10.000 de livrări e-mail pe lună");
   await expect(plans.nth(2)).toContainText(

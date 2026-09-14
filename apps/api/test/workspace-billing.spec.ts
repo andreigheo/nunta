@@ -792,6 +792,12 @@ describe("Sarbato workspace subscriptions", () => {
     ).toBe(true);
   });
 
+  it("publishes the agreed AI action capacities, including genuinely unlimited Pro actions", () => {
+    expect(workspacePlan("FREE").entitlements.AI_ACTIONS_MONTHLY).toBe(30);
+    expect(workspacePlan("PLUS").entitlements.AI_ACTIONS_MONTHLY).toBe(60);
+    expect(workspacePlan("PRO").entitlements.AI_ACTIONS_MONTHLY).toBeNull();
+  });
+
   it("enforces persisted plan limits and falls back to Free after cancellation", async () => {
     const findUnique = vi
       .fn()
@@ -864,6 +870,15 @@ describe("Sarbato workspace subscriptions", () => {
         transaction,
         "00000000-0000-4000-8000-000000000001",
         "MAX_GUESTS",
+        1_000_000,
+        10_000,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      entitlements.assertCapacity(
+        transaction,
+        "00000000-0000-4000-8000-000000000001",
+        "AI_ACTIONS_MONTHLY",
         1_000_000,
         10_000,
       ),

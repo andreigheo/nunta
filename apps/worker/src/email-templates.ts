@@ -127,10 +127,10 @@ function renderProWelcome(
     absoluteUrl(baseUrl, `/email-assets/${name}`);
   const heroUrl = assetUrl("welcome-pro-v1-hero.jpg");
   const ctaUrl = assetUrl("welcome-pro-v1-cta.png");
-  const journeyUrl = assetUrl("welcome-pro-v1-journey.jpg");
+  const journeyUrl = assetUrl("welcome-pro-v2-journey.jpg");
   const footerUrl = assetUrl("welcome-pro-v1-footer.jpg");
   const subject = "Bun venit în Sarbato Pro — totul se leagă";
-  const text = `${greeting}\n\nPlanul Pro este activ. De la prima decizie până la ultimul invitat, fiecare detaliu rămâne în același fir.\n\nPlanul tău include invitați fără limită, 15 colaboratori, 150 de acțiuni AI, 10 GB de stocare și 100 de credite de mesagerie în fiecare lună. Ai acces la riscuri și planuri de rezervă, check-in, operațiuni în ziua evenimentului și suport prioritar.\n\nPornește organizarea Pro: ${dashboardUrl}\n\nSarbato — Plan · Oameni · Furnizori · Ziua evenimentului`;
+  const text = `${greeting}\n\nPlanul Pro este activ. De la prima decizie până la ultimul invitat, fiecare detaliu rămâne în același fir.\n\nPlanul tău include invitați fără limită și acțiuni AI fără limită, 15 colaboratori, 10 GB de stocare și 100 de credite de mesagerie în fiecare lună. Ai acces la riscuri și planuri de rezervă, check-in, operațiuni în ziua evenimentului și suport prioritar.\n\nPornește organizarea Pro: ${dashboardUrl}\n\nSarbato — Plan · Oameni · Furnizori · Ziua evenimentului`;
   const safeDashboardUrl = escapeHtml(dashboardUrl);
 
   return {
@@ -179,7 +179,7 @@ function renderProWelcome(
             </tr>
             <tr>
               <td class="slice-cell" style="font-size:0;line-height:0;mso-line-height-rule:exactly;padding:0;vertical-align:top;">
-                <img src="${escapeHtml(journeyUrl)}" width="760" border="0" alt="Invitați fără limită, 15 colaboratori, 150 de acțiuni AI, riscuri și planuri de rezervă, check-in și operațiuni live, 100 de credite de mesagerie și suport prioritar." style="display:block;width:100%;max-width:760px;height:auto;margin:0;padding:0;border:0;outline:none;vertical-align:top;">
+                <img src="${escapeHtml(journeyUrl)}" width="760" border="0" alt="Invitați și acțiuni AI fără limită, 15 colaboratori, riscuri și planuri de rezervă, check-in și operațiuni live, 100 de credite de mesagerie și suport prioritar." style="display:block;width:100%;max-width:760px;height:auto;margin:0;padding:0;border:0;outline:none;vertical-align:top;">
               </td>
             </tr>
             <tr>
