@@ -6,6 +6,7 @@ const baseUrl = (
 
 const routes = [
   "/",
+  "/produs",
   "/sign-in",
   "/create-account",
   "/verify-email",
