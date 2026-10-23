@@ -1,5 +1,7 @@
 # Cazare: deduplicare prudentă — 23 octombrie 2026
 
+Raport al primei publicări. Verificarea oficială ulterioară, corecția Vila Krista și release-ul activ sunt documentate în [raportul surselor oficiale](ACCOMMODATION_OFFICIAL_REVIEW_2026-10-23.md).
+
 Cod aplicație: `6285261`; compatibilitate fișiere de test și pin imagine: `d8e92e2`. Branch local `codex/live-review-20261023`, fără push GitHub.
 
 Schimbarea privește rezultatele Geoapify din Descoperă. Nu rescrie recomandări, proprietăți, camere sau alocări existente. Identificatorul cache Geoapify are `identityVersion: 2`; copiile vechi cu duplicate nu pot reveni nici ca fallback expirat. Geocodarea și limitele furnizorului nu sunt schimbate.
