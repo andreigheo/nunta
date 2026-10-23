@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { AccommodationDiscoveryItem } from "@weddingos/contracts";
 import { describe, expect, it } from "vitest";
 import {
@@ -14,10 +15,7 @@ const center = {
 };
 const fetchedAt = "2026-10-23T12:00:00.000Z";
 const fixtures = JSON.parse(
-  readFileSync(
-    new URL("./fixtures/geoapify-mil-pasos.json", import.meta.url),
-    "utf8",
-  ),
+  readFileSync(join(__dirname, "fixtures/geoapify-mil-pasos.json"), "utf8"),
 ) as unknown[];
 const realItems = fixtures.map((feature) =>
   mapGeoapifyFeature(feature, center, fetchedAt)!,

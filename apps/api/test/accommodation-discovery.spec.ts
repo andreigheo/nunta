@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   accommodationDiscoveryQuerySchema,
   createAccommodationProviderInquirySchema,
@@ -599,10 +600,7 @@ describe("Geoapify source selection and persistence", () => {
   it("deduplicates before cache, filters and result limits; cached refresh keeps distinct properties", async () => {
     vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
     const rows = JSON.parse(
-      readFileSync(
-        new URL("./fixtures/geoapify-mil-pasos.json", import.meta.url),
-        "utf8",
-      ),
+      readFileSync(join(__dirname, "fixtures/geoapify-mil-pasos.json"), "utf8"),
     );
     const places = vi.fn().mockResolvedValue(rows);
     const { service, tx } = harness(vi.fn(), {
