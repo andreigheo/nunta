@@ -147,7 +147,7 @@ export class AccommodationDiscoveryService {
       ...normalizedDiscoveryRequest(center, query),
       provider: this.usesGeoapify ? "geoapify" : "openstreetmap",
       // Old snapshots contain uncollapsed source rows, including stale fallback.
-      ...(this.usesGeoapify ? { identityVersion: 2 } : {}),
+      ...(this.usesGeoapify ? { identityVersion: 3 } : {}),
     };
     const cacheKey = hash(cacheRequest);
     const cached = await this.readCache(
@@ -1520,8 +1520,11 @@ export class AccommodationDiscoveryService {
         .slice(0, PROVIDER_CACHE_LIMIT);
       const warnings: string[] = [];
       if (distinct.length < mapped.length) {
+        const duplicates = mapped.length - distinct.length;
         warnings.push(
-          `${mapped.length - distinct.length} listări duplicate ale acelorași cazări au fost omise.`,
+          duplicates === 1
+            ? "O listare duplicată a aceleiași cazări a fost omisă."
+            : `${duplicates} listări duplicate ale acelorași cazări au fost omise.`,
         );
       }
       if (this.usesGeoapify && providerCapped) {
@@ -1785,9 +1788,13 @@ export function mapGeoapifyFeature(
 export function deduplicateAccommodationListings(
   items: AccommodationDiscoveryItem[],
 ): AccommodationDiscoveryItem[] {
-  // Deterministic winner: current name, then documented contact/facilities, then ID.
+  // Prefer a reviewed canonical identity, then current name, documented facts and stable ID.
   const ordered = [...items].sort((a, b) => {
     const score = (item: AccommodationDiscoveryItem) =>
+      (item.source === "geoapify" &&
+      item.sourceUrl === "https://www.openstreetmap.org/way/273526667"
+        ? 1000
+        : 0) +
       (formerName(item.name) === item.name ? 100 : 0) +
       (item.contactUrl ? 10 : 0) +
       (item.contactPhone ? 10 : 0) +
@@ -1869,6 +1876,7 @@ function sameAccommodationListing(
     )
   )
     return true;
+  if (sameVerifiedKristaProperty(a, b)) return true;
   const address = identityAddress(a.address);
   const city = identityText(a.city);
   const country = identityText(a.country);
@@ -1892,6 +1900,70 @@ function sameAccommodationListing(
     return false;
   return (
     preciseDistanceKm(a.latitude, a.longitude, b.latitude, b.longitude) <= 0.025
+  );
+}
+
+/** Reviewed 2026-10-23: SITUR certificate 20618/17.10.2019, Bran nr. 55;
+ * verified owner profile and OSM node inside way 273526667. Evidence/limitations:
+ * docs/ACCOMMODATION_OFFICIAL_REVIEW_2026-10-23.md. This is an exact pair,
+ * never a general name/proximity or building-containment rule.
+ */
+function sameVerifiedKristaProperty(
+  a: AccommodationDiscoveryItem,
+  b: AccommodationDiscoveryItem,
+) {
+  if (a.source !== "geoapify" || b.source !== "geoapify") return false;
+  const nodeUrl = "https://www.openstreetmap.org/node/6054061686";
+  const buildingUrl = "https://www.openstreetmap.org/way/273526667";
+  const node = a.sourceUrl === nodeUrl ? a : b.sourceUrl === nodeUrl ? b : null;
+  const building =
+    a.sourceUrl === buildingUrl ? a : b.sourceUrl === buildingUrl ? b : null;
+  if (
+    !node ||
+    !building ||
+    node.type !== "hostel" ||
+    building.type !== "guest_house"
+  )
+    return false;
+  const verifiedPhone = "40751211355";
+  if (identityPhone(building) !== verifiedPhone) return false;
+  if (node.contactPhone && identityPhone(node) !== verifiedPhone) return false;
+  if (
+    node.contactUrl &&
+    building.contactUrl &&
+    node.contactUrl !== building.contactUrl
+  )
+    return false;
+  for (const item of [node, building]) {
+    if (
+      identityName(item.name) !== "vila krista" ||
+      identityText(item.city) !== "bran" ||
+      identityText(item.country) !== "romania"
+    )
+      return false;
+    const address = identityText(item.address);
+    // Missing number is known in this exact source pair. An explicit different
+    // number, floor or apartment is contradictory evidence and stays separate.
+    if (
+      ![
+        "strada general traian mosoiu",
+        "strada general traian mosoiu 55",
+      ].includes(address)
+    )
+      return false;
+    if (
+      preciseDistanceKm(item.latitude, item.longitude, 45.5155765, 25.3660344) >
+      0.025
+    )
+      return false;
+  }
+  return (
+    preciseDistanceKm(
+      node.latitude,
+      node.longitude,
+      building.latitude,
+      building.longitude,
+    ) <= 0.025
   );
 }
 

@@ -1,0 +1,4 @@
+# Apply after the existing dedup overlay. Provider plan and credentials unchanged.
+services:
+  api:
+    image: sarbato-api:accommodation-reviewed-20261023-r1

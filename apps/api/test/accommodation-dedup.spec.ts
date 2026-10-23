@@ -174,3 +174,118 @@ describe("conservative accommodation source deduplication", () => {
     ).toHaveLength(2);
   });
 });
+
+const reviewedFeatures = JSON.parse(
+  readFileSync(
+    join(__dirname, "fixtures/geoapify-reviewed-properties.json"),
+    "utf8",
+  ),
+) as unknown[];
+const reviewed = reviewedFeatures.map((feature) =>
+  mapGeoapifyFeature(feature, center, fetchedAt)!,
+);
+const kristaBuilding = reviewed.find(
+  (item) => item.sourceUrl === "https://www.openstreetmap.org/way/273526667",
+)!;
+const kristaNode = reviewed.find(
+  (item) => item.sourceUrl === "https://www.openstreetmap.org/node/6054061686",
+)!;
+
+describe("officially reviewed identity pair, without widening generic deduplication", () => {
+  it("keeps the reviewed building identity even if the point later has richer compatible facts", () => {
+    const richerNode: AccommodationDiscoveryItem = {
+      ...kristaNode,
+      contactPhone: kristaBuilding.contactPhone,
+      contactUrl: "https://krista.example/",
+      facilities: ["wifi", "parking"],
+    };
+    expect(
+      deduplicateAccommodationListings([richerNode, kristaBuilding]),
+    ).toEqual([kristaBuilding]);
+  });
+
+  it("keeps the intact Krista building/contact record and leaves both ambiguous Urban Bliss records", () => {
+    const distinct = deduplicateAccommodationListings(reviewed);
+    expect(distinct).toHaveLength(3);
+    expect(distinct.filter((item) => item.name === "Vila Krista")).toEqual([
+      kristaBuilding,
+    ]);
+    expect(distinct.filter((item) => item.name === "Urban Bliss")).toHaveLength(
+      2,
+    );
+    expect(deduplicateAccommodationListings([...reviewed].reverse())).toEqual(
+      distinct,
+    );
+  });
+
+  it("never hides a lone Krista point when the confirmed building is absent", () => {
+    expect(deduplicateAccommodationListings([kristaNode])).toEqual([
+      kristaNode,
+    ]);
+  });
+
+  it.each([
+    [
+      "unknown source entity",
+      { sourceUrl: "https://www.openstreetmap.org/node/123" },
+    ],
+    ["another property name", { name: "Vila Krista Nouă" }],
+    ["another unit", { name: "Vila Krista (Apartament 2)" }],
+    ["another city", { city: "Brașov" }],
+    ["another country", { country: "Germania" }],
+    ["another street", { address: "Strada Valea Porții 55" }],
+    [
+      "contradictory house number",
+      { address: "Strada General Traian Moșoiu 53" },
+    ],
+    [
+      "specific apartment",
+      { address: "Strada General Traian Moșoiu 55 ap. 2" },
+    ],
+    ["missing street", { address: null }],
+    ["conflicting phone", { contactPhone: "+40740081418" }],
+    ["malformed contact", { contactPhone: "recepție" }],
+    ["shifted coordinates", { latitude: kristaNode.latitude + 0.001 }],
+    ["different source", { source: "osm" }],
+    ["changed type", { type: "apartment" }],
+  ] satisfies [string, Partial<AccommodationDiscoveryItem>][])(
+    "preserves %s in the reviewed pair",
+    (_reason, patch) => {
+      expect(
+        deduplicateAccommodationListings([
+          kristaBuilding,
+          { ...kristaNode, ...patch },
+        ]),
+      ).toHaveLength(2);
+    },
+  );
+
+  it("requires the verified building's phone and rejects conflicting websites", () => {
+    for (const contactPhone of [null, "+40740081418"]) {
+      expect(
+        deduplicateAccommodationListings([
+          { ...kristaBuilding, contactPhone },
+          kristaNode,
+        ]),
+      ).toHaveLength(2);
+    }
+    expect(
+      deduplicateAccommodationListings([
+        { ...kristaBuilding, contactUrl: "https://one.example/" },
+        { ...kristaNode, contactUrl: "https://two.example/" },
+      ]),
+    ).toHaveLength(2);
+  });
+
+  it("does not apply the exception to another same-name property in the same place", () => {
+    const another = {
+      ...kristaNode,
+      id: "geoapify:unreviewed",
+      externalId: "unreviewed",
+      sourceUrl: "https://www.openstreetmap.org/node/999",
+    };
+    expect(
+      deduplicateAccommodationListings([kristaNode, kristaBuilding, another]),
+    ).toHaveLength(2);
+  });
+});

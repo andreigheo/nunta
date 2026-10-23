@@ -597,6 +597,42 @@ function geoFeature(name = "Hotel Geo", latitude = 44.43) {
 }
 
 describe("Geoapify source selection and persistence", () => {
+  it("caches only the reviewed Krista building and retains it after refresh and filtering", async () => {
+    vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
+    const rows = JSON.parse(
+      readFileSync(
+        join(__dirname, "fixtures/geoapify-reviewed-properties.json"),
+        "utf8",
+      ),
+    );
+    const places = vi.fn().mockResolvedValue(rows);
+    const { service } = harness(vi.fn(), {
+      places,
+    } as unknown as GeoapifyProvider);
+    const user = randomUUID(),
+      workspace = randomUUID();
+    const input = query({ lat: 45.518, lng: 25.367, radiusKm: 2 });
+    const first = await service.discover(user, workspace, input);
+    expect(first.items).toHaveLength(1);
+    expect(first.items[0]).toMatchObject({
+      name: "Vila Krista",
+      sourceUrl: "https://www.openstreetmap.org/way/273526667",
+      contactPhone: "0751211355",
+      type: "guest_house",
+    });
+    expect(first.metadata.warnings).toContain(
+      "O listare duplicată a aceleiași cazări a fost omisă.",
+    );
+    const refreshed = await service.discover(
+      user,
+      workspace,
+      query({ ...input, types: "guest_house" }),
+    );
+    expect(refreshed.items).toEqual(first.items);
+    expect(refreshed.metadata.cache).toBe("hit");
+    expect(places).toHaveBeenCalledTimes(1);
+  });
+
   it("deduplicates before cache, filters and result limits; cached refresh keeps distinct properties", async () => {
     vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
     const rows = JSON.parse(
@@ -617,7 +653,7 @@ describe("Geoapify source selection and persistence", () => {
     expect(first.metadata.warnings.join(" ")).toContain("2 listări duplicate");
     expect(
       tx.accommodationDiscoveryCache.upsert.mock.calls[0][0].create.request,
-    ).toMatchObject({ identityVersion: 2 });
+    ).toMatchObject({ identityVersion: 3 });
     const refreshed = await service.discover(user, workspace, input);
     expect(refreshed.items).toEqual(first.items);
     expect(refreshed.metadata.cache).toBe("hit");
@@ -646,7 +682,7 @@ describe("Geoapify source selection and persistence", () => {
       ...(tx.accommodationDiscoveryCache.upsert.mock.calls[0][0].create
         .request as Record<string, unknown>),
     };
-    delete request.identityVersion;
+    request.identityVersion = 2;
     const sorted = Object.fromEntries(
       Object.entries(request).sort(([a], [b]) => a.localeCompare(b)),
     );

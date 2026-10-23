@@ -1,0 +1,95 @@
+[
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Urban Bliss",
+      "country": "România",
+      "city": "București",
+      "street": "Strada Dimitri Ivanovici Mendeleev",
+      "housenumber": "30",
+      "lat": 44.4448925,
+      "lon": 26.0966,
+      "categories": [
+        "accommodation",
+        "accommodation.apartment",
+        "internet_access"
+      ],
+      "place_id": "5129cb10c7ba183a40592bdec83cf2384640f00103f90132063e0603000000",
+      "datasource": {
+        "raw": {
+          "osm_type": "n",
+          "osm_id": 12989630002,
+          "tourism": "apartment",
+          "internet_access": "wlan"
+        }
+      }
+    }
+  },
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Urban Bliss",
+      "country": "România",
+      "city": "București",
+      "street": "Strada Dimitri Ivanovici Mendeleev",
+      "lat": 44.4449002,
+      "lon": 26.096613,
+      "categories": ["accommodation", "accommodation.hostel"],
+      "place_id": "51535e2ba1bb183a4059ef7d607df2384640f00103f901b85a10060300000092030b557262616e20426c697373",
+      "datasource": {
+        "raw": {
+          "osm_type": "n",
+          "osm_id": 12986636984,
+          "tourism": "hostel"
+        }
+      }
+    }
+  },
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Vila Krista",
+      "country": "România",
+      "city": "Bran",
+      "street": "Strada General Traian Moșoiu",
+      "lat": 45.5155822,
+      "lon": 25.3661368,
+      "categories": ["accommodation", "accommodation.hostel"],
+      "place_id": "51b2dc2d24bb5d3940592ab3f798fec14640f00103f90176a6d9680100000092030b56696c61204b7269737461",
+      "datasource": {
+        "raw": {
+          "osm_type": "n",
+          "osm_id": 6054061686,
+          "tourism": "hostel"
+        }
+      }
+    }
+  },
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Vila Krista",
+      "country": "România",
+      "city": "Bran",
+      "street": "Strada General Traian Moșoiu",
+      "lat": 45.5155765,
+      "lon": 25.3660344,
+      "categories": [
+        "accommodation",
+        "accommodation.guest_house",
+        "building",
+        "building.accommodation"
+      ],
+      "place_id": "511ca3bd98b25d3940591f07d3e4fec14640f00102f9018baf4d100000000092030b56696c61204b7269737461",
+      "datasource": {
+        "raw": {
+          "osm_type": "w",
+          "osm_id": 273526667,
+          "phone": "0751211355",
+          "tourism": "guest_house",
+          "building": "yes"
+        }
+      }
+    }
+  }
+]
