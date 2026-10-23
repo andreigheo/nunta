@@ -82,6 +82,10 @@ export const productFirstControlRoom = {
     detail: "Următoarea acțiune rămâne legată de plan și de starea invitaților.",
     action: "Deschide invitațiile",
   },
+  aggregateActions: {
+    planning: { label: "Vezi planul", href: productSections.planning },
+    eventDay: { label: "Vezi coordonarea", href: productSections.operations },
+  },
   metricCards: [
     {
       key: "rsvp",

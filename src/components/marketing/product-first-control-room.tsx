@@ -436,6 +436,11 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
               const metric = card.proofKey
                 ? metricByKey.get(card.proofKey)
                 : undefined;
+              const aggregateAction = metric?.key === "planning"
+                ? copy.aggregateActions.planning
+                : metric?.key === "wedding-day"
+                  ? copy.aggregateActions.eventDay
+                  : undefined;
               const MetricIcon = metricIcons[card.key];
               const visibleValue = metric?.state === "published"
                 ? metric.value
@@ -460,8 +465,8 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
                   <span className={styles.metricBar} aria-hidden>
                     <i className={toneClass[card.barTone]} style={{ width: metric?.state === "published" && metric.value ? metric.value : "0%" }} />
                   </span>
-                  <Link className={styles.metricLink} href={card.href}>
-                    {card.action}
+                  <Link className={styles.metricLink} href={aggregateAction?.href ?? card.href}>
+                    {aggregateAction?.label ?? card.action}
                     <ArrowRight aria-hidden />
                   </Link>
                 </article>
