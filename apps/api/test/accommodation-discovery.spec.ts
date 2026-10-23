@@ -8,7 +8,7 @@ import {
   orderAccommodationRecommendationsSchema,
   recordAccommodationProviderResponseSchema,
 } from "@weddingos/contracts";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseService } from "../src/common/database.service";
 import { ProblemException } from "../src/common/problem";
 import type { SafeOutboundHttpClient } from "../src/common/safe-outbound-http.client";
@@ -18,8 +18,16 @@ import {
   buildOverpassQuery,
   haversineDistanceKm,
   mapOsmElement,
+  mapGeoapifyFeature,
   validateRecommendationOrderSet,
 } from "../src/accommodation-discovery/accommodation-discovery.service";
+
+import type { GeoapifyProvider } from "../src/accommodation-discovery/providers/geoapify-provider";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 
 type CacheRow = {
   workspaceId: string;
@@ -30,7 +38,7 @@ type CacheRow = {
   expiresAt: Date;
 };
 
-function harness(httpJson = vi.fn()) {
+function harness(httpJson = vi.fn(), geoapify?: GeoapifyProvider) {
   const cache = new Map<string, CacheRow>();
   const key = (workspaceId: string, kind: string, cacheKey: string) =>
     `${workspaceId}:${kind}:${cacheKey}`;
@@ -75,7 +83,7 @@ function harness(httpJson = vi.fn()) {
     cache,
     tx,
     httpJson,
-    service: new AccommodationDiscoveryService(database, http),
+    service: new AccommodationDiscoveryService(database, http, geoapify),
   };
 }
 
@@ -556,5 +564,130 @@ describe("accommodation recommendation integrity", () => {
         randomUUID(),
       ),
     ).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+  });
+});
+
+function geoFeature(name = "Hotel Geo", latitude = 44.43) {
+  return {
+    type: "Feature",
+    properties: {
+      name,
+      lat: latitude,
+      lon: 26.1,
+      place_id: "place-123",
+      categories: ["accommodation.hotel"],
+      formatted: "București, România",
+      datasource: {
+        raw: {
+          osm_type: "n",
+          osm_id: 42,
+          website: "https://hotel.example",
+          phone: "+40 123 456",
+          parking: "yes",
+        },
+      },
+    },
+  };
+}
+
+describe("Geoapify source selection and persistence", () => {
+  it("maps validated facts with explicit Geoapify provenance and no invented booking/prices", () => {
+    const item = mapGeoapifyFeature(
+      geoFeature(),
+      { latitude: 44.43, longitude: 26.1, label: null, source: "coordinates" },
+      new Date().toISOString(),
+    );
+    expect(item).toMatchObject({
+      source: "geoapify",
+      id: "geoapify:place-123",
+      type: "hotel",
+      sourceUrl: "https://www.openstreetmap.org/node/42",
+      priceSnapshot: null,
+      bookingUrl: null,
+      contactPhone: "+40 123 456",
+      facilities: ["parking"],
+    });
+    expect(
+      mapGeoapifyFeature(
+        geoFeature(""),
+        {
+          latitude: 44.43,
+          longitude: 26.1,
+          label: null,
+          source: "coordinates",
+        },
+        new Date().toISOString(),
+      ),
+    ).toBeNull();
+  });
+
+  it("uses Geoapify geocoding, isolates old OSM cache, and reuses the new snapshot for filters", async () => {
+    const places = vi
+      .fn()
+      .mockResolvedValue([
+        geoFeature(),
+        { invalid: true },
+        geoFeature("Too far", 45.9),
+      ]);
+    const geocode = vi.fn().mockResolvedValue([geoFeature()]);
+    const geo = { places, geocode } as unknown as GeoapifyProvider;
+    const { service, httpJson } = harness(
+      vi.fn().mockResolvedValue(overpassElements()),
+      geo,
+    );
+    const user = randomUUID(),
+      workspace = randomUUID();
+    await service.discover(user, workspace, query({ lat: 44.43, lng: 26.1 }));
+    vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
+    const first = await service.discover(
+      user,
+      workspace,
+      query({ query: "București" }),
+    );
+    expect(first.items).toHaveLength(1);
+    expect(first.metadata).toMatchObject({
+      provider: "geoapify",
+      status: "available",
+      cache: "miss",
+      attribution: {
+        text: "Powered by Geoapify · © OpenStreetMap contributors",
+      },
+    });
+    expect(first.metadata.capabilities.livePricing).toBe(false);
+    const second = await service.discover(
+      user,
+      workspace,
+      query({ lat: 44.43, lng: 26.1, types: "hotel", facilities: "parking" }),
+    );
+    expect(second.metadata.cache).toBe("hit");
+    expect(places).toHaveBeenCalledTimes(1);
+    expect(httpJson).toHaveBeenCalledTimes(1);
+    expect(geocode).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns saved Geoapify data on quota exhaustion, never changes provider silently", async () => {
+    vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
+    const places = vi.fn().mockResolvedValue([geoFeature()]);
+    const { service, cache, httpJson } = harness(vi.fn(), {
+      places,
+    } as unknown as GeoapifyProvider);
+    const user = randomUUID(),
+      workspace = randomUUID(),
+      input = query({ lat: 44.43, lng: 26.1 });
+    await service.discover(user, workspace, input);
+    for (const row of cache.values()) row.expiresAt = new Date(0);
+    places.mockRejectedValue(new Error("GEOAPIFY_DAILY_LIMIT"));
+    const stale = await service.discover(user, workspace, input);
+    expect(stale.metadata).toMatchObject({
+      provider: "geoapify",
+      status: "degraded",
+      cache: "stale",
+    });
+    expect(stale.items).toHaveLength(1);
+    expect(httpJson).not.toHaveBeenCalled();
+    for (const row of cache.values()) row.fetchedAt = new Date(0);
+    expect(
+      (await service.discover(user, workspace, input)).metadata.status,
+    ).toBe("unavailable");
   });
 });

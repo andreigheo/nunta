@@ -625,6 +625,7 @@ enum AccommodationPropertyType {
 
 enum AccommodationDiscoverySource {
   OSM
+  GEOAPIFY
   FOURSQUARE
   GOOGLE_PLACES
   BOOKING_COM

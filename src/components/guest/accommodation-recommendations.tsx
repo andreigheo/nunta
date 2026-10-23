@@ -37,6 +37,7 @@ const facilityLabels: Record<string, string> = {
 
 const sourceLabels: Record<GuestAccommodationRecommendationResource["source"], string> = {
   osm: "Sursă OpenStreetMap",
+  geoapify: "Sursă Geoapify / OpenStreetMap",
   foursquare: "Sursă Foursquare",
   google_places: "Sursă Google Places",
   booking_com: "Sursă Booking.com",
@@ -238,7 +239,8 @@ export function GuestAccommodationRecommendations({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-subtle/55 px-5 py-3 text-xs text-faint sm:px-7">
         <p>Informațiile pot fi modificate de proprietăți după publicare.</p>
-        {items.some((item) => item.source === "osm") ? (
+        {items.some((item) => item.source === "geoapify") && <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">Powered by Geoapify<span className="sr-only"> (se deschide într-o filă nouă)</span></a>}
+        {items.some((item) => item.source === "osm" || item.source === "geoapify") ? (
           <a
             href="https://www.openstreetmap.org/copyright"
             target="_blank"

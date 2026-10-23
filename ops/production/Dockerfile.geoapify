@@ -1,0 +1,25 @@
+# Overlay only the verified app build onto the current patched runtimes.
+# Context contains no environment files or provider credentials.
+ARG SARBATO_WEB_BASE
+ARG SARBATO_API_BASE
+FROM ${SARBATO_WEB_BASE} AS web
+USER root
+RUN rm -rf /app/.next
+COPY --chown=node:node web/.next /app/.next
+COPY --chown=node:node contracts/dist /app/packages/contracts/dist
+ARG WEDDINGOS_BUILD_ID
+RUN printf '%s\n' "$WEDDINGOS_BUILD_ID" > /app/.weddingos-build-id
+LABEL org.opencontainers.image.revision=$WEDDINGOS_BUILD_ID
+USER node
+
+FROM ${SARBATO_API_BASE} AS api
+USER root
+RUN rm -rf /app/apps/api/dist
+COPY --chown=node:node api/dist /app/apps/api/dist
+COPY --chown=node:node contracts/dist /app/packages/contracts/dist
+COPY --chown=node:node database/prisma /app/packages/database/prisma
+COPY --chown=node:node prisma-client /app/node_modules/.pnpm/@prisma+client@6.19.2_prisma@6.19.2_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client
+ARG WEDDINGOS_BUILD_ID
+RUN printf '%s\n' "$WEDDINGOS_BUILD_ID" > /app/.weddingos-build-id
+LABEL org.opencontainers.image.revision=$WEDDINGOS_BUILD_ID
+USER node

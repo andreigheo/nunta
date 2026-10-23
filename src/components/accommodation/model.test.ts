@@ -130,6 +130,10 @@ describe("accommodation discovery model", () => {
     expect(recommendation).not.toHaveProperty("distanceKm");
   });
 
+  it("preserves Geoapify attribution when saving a provider result", () => {
+    expect(discoveryItemToRecommendation({...baseItem,source:"geoapify"},"11111111-1111-4111-8111-111111111111",0)).toMatchObject({source:"geoapify",attribution:"Powered by Geoapify · © OpenStreetMap contributors"});
+  });
+
   it("formats short distances without rounding them to zero", () => {
     expect(formatDistance(0.12)).toBe("120 m");
   });

@@ -5,11 +5,16 @@ import { WorkspacesModule } from "../workspaces/workspaces.module";
 import { OperationsModule } from "../operations/operations.module";
 import { AccommodationDiscoveryController } from "./accommodation-discovery.controller";
 import { AccommodationDiscoveryService } from "./accommodation-discovery.service";
+import { GeoapifyProvider } from "./providers/geoapify-provider";
 
 @Module({
   imports: [AuthModule, WorkspacesModule, OperationsModule],
   controllers: [AccommodationDiscoveryController],
-  providers: [AccommodationDiscoveryService, SafeOutboundHttpClient],
+  providers: [
+    AccommodationDiscoveryService,
+    SafeOutboundHttpClient,
+    GeoapifyProvider,
+  ],
   exports: [AccommodationDiscoveryService],
 })
 export class AccommodationDiscoveryModule {}

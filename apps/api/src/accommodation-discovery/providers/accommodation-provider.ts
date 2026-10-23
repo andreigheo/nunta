@@ -1,5 +1,10 @@
 export type AccommodationProviderId =
-  "openstreetmap" | "foursquare" | "google_places" | "booking_com" | "expedia";
+  | "openstreetmap"
+  | "geoapify"
+  | "foursquare"
+  | "google_places"
+  | "booking_com"
+  | "expedia";
 
 export type AccommodationProviderCapabilities = {
   liveAvailability: boolean;
@@ -24,6 +29,16 @@ export const ACCOMMODATION_PROVIDERS: Record<
   AccommodationProviderId,
   AccommodationProviderDescriptor
 > = {
+  geoapify: {
+    id: "geoapify",
+    enabled: true,
+    capabilities: {
+      liveAvailability: false,
+      livePricing: false,
+      bookingRedirect: false,
+      dateAndOccupancySearch: false,
+    },
+  },
   openstreetmap: {
     id: "openstreetmap",
     enabled: true,

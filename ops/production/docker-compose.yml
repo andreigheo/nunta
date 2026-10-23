@@ -1,4 +1,3 @@
-
 x-api-environment: &api-environment
   NODE_ENV: production
   WEB_URL: https://sarbato.space
@@ -259,6 +258,8 @@ services:
     restart: unless-stopped
     environment:
       <<: *api-environment
+      ACCOMMODATION_DISCOVERY_PROVIDER: ${ACCOMMODATION_DISCOVERY_PROVIDER:-openstreetmap}
+      GEOAPIFY_API_KEY: ${GEOAPIFY_API_KEY:-}
       DATABASE_URL: postgresql://weddingos_app:${POSTGRES_APP_PASSWORD:?POSTGRES_APP_PASSWORD is required}@postgres:5432/weddingos?schema=public
       COPILOT_EMBEDDING_ENABLED: ${COPILOT_EMBEDDING_ENABLED:-false}
       COPILOT_EMBEDDING_ENDPOINT: ${COPILOT_EMBEDDING_ENDPOINT:-https://api.openai.com/v1/embeddings}

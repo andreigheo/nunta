@@ -37,6 +37,7 @@ import { useWorkspace } from "@/lib/api/workspace-context";
 import { cn } from "@/lib/utils";
 import {
   accommodationFacilities,
+  accommodationSourceLabel,
   accommodationTypes,
   addressLabel,
   discoveryItemToRecommendation,
@@ -291,7 +292,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
               </Field>
               <Field
                 label="Zonă sau adresă diferită (opțional)"
-                hint="Textul înlocuiește locația evenimentului și este trimis serviciului OpenStreetMap pentru localizare. Nu include date personale sau confidențiale. Nu folosim autocomplete."
+                hint="Textul înlocuiește locația evenimentului și este trimis furnizorului de localizare. Nu include date personale sau confidențiale."
                 error={eventsError ?? undefined}
               >
                 <Input
@@ -429,7 +430,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
 
               <Field
                 label={`Buget maxim / noapte (${currency})`}
-                hint="Sursa publică OpenStreetMap nu oferă, de regulă, prețuri. Evaluăm doar prețurile introduse și datate explicit; variantele fără preț rămân vizibile."
+                hint="Catalogul de cazare nu oferă tarife sau disponibilitate în timp real. Evaluăm doar prețurile introduse și datate explicit; variantele fără preț rămân vizibile."
               >
                 <Input
                   type="number"
@@ -572,7 +573,7 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
                 <div>
                   <h3 className="font-semibold text-ink">Sursa de cazare nu este disponibilă acum</h3>
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    Nu putem spune că zona nu are cazări. OpenStreetMap nu a răspuns și nu există o copie sigură suficient de recentă pentru această căutare.
+                    Nu putem spune că zona nu are cazări. Sursa nu este disponibilă sau limita de utilizare a fost atinsă și nu există o copie suficient de recentă pentru această căutare.
                   </p>
                   <AttributionLink
                     href={response.metadata.attribution.url}
@@ -714,7 +715,7 @@ function DiscoveryResult({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="neutral">{typeLabel(item.type)}</Badge>
           <Badge variant="info"><Route className="size-3" aria-hidden />{formatDistance(item.distanceKm)}</Badge>
-          <span className="text-xs text-faint">Sursă: {item.source === "osm" ? "OpenStreetMap" : "organizator"}</span>
+          <span className="text-xs text-faint">Sursă: {accommodationSourceLabel(item.source)}</span>
         </div>
         <h3 className="mt-3 break-words font-brand text-xl font-semibold leading-tight tracking-[-0.015em] text-ink">
           {item.name}
@@ -811,6 +812,7 @@ function AttributionLink({
   className?: string;
 }) {
   return (
+    <span className="inline-flex flex-wrap items-center gap-x-3">
     <a
       href={href}
       target="_blank"
@@ -823,5 +825,7 @@ function AttributionLink({
       {label}
       <span className="sr-only"> (se deschide într-un tab nou)</span>
     </a>
+    {href === "https://www.geoapify.com/" && <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="min-h-11 py-3 font-medium text-brand hover:underline">Licență OpenStreetMap<span className="sr-only"> (se deschide într-o filă nouă)</span></a>}
+    </span>
   );
 }

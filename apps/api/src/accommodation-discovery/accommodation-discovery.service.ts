@@ -30,7 +30,13 @@ import { z } from "zod";
 import { DatabaseService } from "../common/database.service";
 import { problem } from "../common/problem";
 import { SafeOutboundHttpClient } from "../common/safe-outbound-http.client";
-import { ACTIVE_ACCOMMODATION_PROVIDER } from "./providers/accommodation-provider";
+import { ACCOMMODATION_PROVIDERS } from "./providers/accommodation-provider";
+import {
+  GEOAPIFY_ATTRIBUTION,
+  GEOAPIFY_RESULT_LIMIT,
+  GeoapifyProvider,
+  geoapifyFeatureSchema,
+} from "./providers/geoapify-provider";
 
 type Transaction = Prisma.TransactionClient;
 type RecommendationStatus = "PUBLISHED" | "ARCHIVED";
@@ -123,7 +129,13 @@ export class AccommodationDiscoveryService {
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(SafeOutboundHttpClient)
     private readonly http: SafeOutboundHttpClient,
+    @Inject(GeoapifyProvider)
+    private readonly geoapify: GeoapifyProvider = new GeoapifyProvider(http),
   ) {}
+
+  private get usesGeoapify() {
+    return process.env.ACCOMMODATION_DISCOVERY_PROVIDER === "geoapify";
+  }
 
   async discover(
     userId: string,
@@ -131,7 +143,10 @@ export class AccommodationDiscoveryService {
     query: AccommodationDiscoveryQuery,
   ): Promise<AccommodationDiscoveryResponse> {
     const center = await this.resolveCenter(userId, workspaceId, query);
-    const cacheRequest = normalizedDiscoveryRequest(center, query);
+    const cacheRequest = {
+      ...normalizedDiscoveryRequest(center, query),
+      provider: this.usesGeoapify ? "geoapify" : "openstreetmap",
+    };
     const cacheKey = hash(cacheRequest);
     const cached = await this.readCache(
       userId,
@@ -146,6 +161,7 @@ export class AccommodationDiscoveryService {
         query,
         "hit",
         "available",
+        this.usesGeoapify,
       );
     }
 
@@ -158,6 +174,7 @@ export class AccommodationDiscoveryService {
         query,
         result.cache,
         result.status,
+        this.usesGeoapify,
       );
     }
     const flight = this.fetchProviderSnapshot(
@@ -170,7 +187,13 @@ export class AccommodationDiscoveryService {
     ).finally(() => inFlightDiscovery.delete(flightKey));
     inFlightDiscovery.set(flightKey, flight);
     const result = await flight;
-    return filterDiscovery(result.snapshot, query, result.cache, result.status);
+    return filterDiscovery(
+      result.snapshot,
+      query,
+      result.cache,
+      result.status,
+      this.usesGeoapify,
+    );
   }
 
   async recommendations(
@@ -836,7 +859,11 @@ export class AccommodationDiscoveryService {
                 : new Date(),
               attribution:
                 input.attribution ??
-                (input.source === "osm" ? ATTRIBUTION.text : null),
+                (input.source === "geoapify"
+                  ? GEOAPIFY_ATTRIBUTION.text
+                  : input.source === "osm"
+                    ? ATTRIBUTION.text
+                    : null),
               name: input.name,
               type: input.type.toUpperCase() as never,
               address: input.address ?? null,
@@ -1252,7 +1279,10 @@ export class AccommodationDiscoveryService {
     rawQuery: string,
   ): Promise<Center> {
     const normalizedQuery = normalizeText(rawQuery);
-    const cacheKey = hash({ query: normalizedQuery });
+    const cacheKey = hash({
+      query: normalizedQuery,
+      provider: this.usesGeoapify ? "geoapify" : "openstreetmap",
+    });
     const cached = await this.readCache(
       userId,
       workspaceId,
@@ -1280,7 +1310,8 @@ export class AccommodationDiscoveryService {
     cacheKey: string,
     normalizedQuery: string,
   ): Promise<Center> {
-    await this.reserveNominatimSlot(userId, workspaceId);
+    if (!this.usesGeoapify)
+      await this.reserveNominatimSlot(userId, workspaceId);
     const cached = await this.readCache(
       userId,
       workspaceId,
@@ -1290,6 +1321,36 @@ export class AccommodationDiscoveryService {
     );
     if (cached) return geocodingCenter(cached.response);
     try {
+      if (this.usesGeoapify) {
+        const features = await this.geoapify.geocode(normalizedQuery);
+        if (!features.length)
+          problem(
+            "NOT_FOUND",
+            HttpStatus.NOT_FOUND,
+            "Zona nu a fost găsită",
+            "Încearcă o localitate sau o adresă mai precisă.",
+          );
+        const match = geoapifyFeatureSchema.parse(features[0]).properties;
+        const center: Center = {
+          latitude: match.lat,
+          longitude: match.lon,
+          label: (match.formatted ?? match.name ?? normalizedQuery).slice(
+            0,
+            500,
+          ),
+          source: "geocoded",
+        };
+        await this.writeCache(
+          userId,
+          workspaceId,
+          "GEOCODING",
+          cacheKey,
+          { query: normalizedQuery },
+          center,
+          this.geocodingTtlMs,
+        );
+        return center;
+      }
       const url = new URL(this.nominatimEndpoint);
       url.searchParams.set("q", normalizedQuery);
       url.searchParams.set("format", "jsonv2");
@@ -1341,7 +1402,7 @@ export class AccommodationDiscoveryService {
         "EXTERNAL_DATA_UNAVAILABLE",
         HttpStatus.SERVICE_UNAVAILABLE,
         "Locația nu poate fi identificată momentan",
-        "Serviciul OpenStreetMap pentru identificarea zonei nu a răspuns. Încearcă din nou sau folosește coordonate explicite.",
+        "Serviciul de localizare nu este disponibil momentan. Încearcă din nou sau folosește coordonate explicite.",
       );
     }
   }
@@ -1388,44 +1449,60 @@ export class AccommodationDiscoveryService {
   ): Promise<ProviderSnapshotResult> {
     const fetchedAt = new Date().toISOString();
     try {
-      const overpassQuery = buildOverpassQuery(center, radiusKm);
-      let parsed: z.infer<typeof overpassResponseSchema> | undefined;
-      for (const address of new Set([
-        this.overpassEndpoint,
-        this.overpassFallbackEndpoint,
-      ])) {
-        const url = new URL(address);
-        try {
-          const raw = await this.http.json(
-            url,
-            {
-              method: "POST",
-              headers: {
-                accept: "application/json",
-                "content-type":
-                  "application/x-www-form-urlencoded;charset=UTF-8",
-                "user-agent": userAgent(),
-              },
-              body: new URLSearchParams({ data: overpassQuery }).toString(),
-            },
-            outboundOptions(url, 10_000, 2_000_000),
-          );
-          parsed = overpassResponseSchema.parse(raw);
-          break;
-        } catch {
-          // A second independent OSM instance gets one bounded attempt.
-        }
-      }
-      if (!parsed) throw new Error("ACCOMMODATION_PROVIDERS_UNAVAILABLE");
       let omitted = 0;
       const mapped: AccommodationDiscoveryItem[] = [];
-      for (const element of parsed.elements) {
-        const item = mapOsmElement(element, center, fetchedAt);
-        if (!item) {
-          omitted += 1;
-          continue;
+      if (this.usesGeoapify) {
+        const features = await this.geoapify.places(
+          center.latitude,
+          center.longitude,
+          radiusKm,
+        );
+        for (const feature of features) {
+          const item = mapGeoapifyFeature(feature, center, fetchedAt);
+          if (!item || item.distanceKm > radiusKm) {
+            omitted += 1;
+            continue;
+          }
+          mapped.push(item);
         }
-        mapped.push(item);
+      } else {
+        const overpassQuery = buildOverpassQuery(center, radiusKm);
+        let parsed: z.infer<typeof overpassResponseSchema> | undefined;
+        for (const address of new Set([
+          this.overpassEndpoint,
+          this.overpassFallbackEndpoint,
+        ])) {
+          const url = new URL(address);
+          try {
+            const raw = await this.http.json(
+              url,
+              {
+                method: "POST",
+                headers: {
+                  accept: "application/json",
+                  "content-type":
+                    "application/x-www-form-urlencoded;charset=UTF-8",
+                  "user-agent": userAgent(),
+                },
+                body: new URLSearchParams({ data: overpassQuery }).toString(),
+              },
+              outboundOptions(url, 10_000, 2_000_000),
+            );
+            parsed = overpassResponseSchema.parse(raw);
+            break;
+          } catch {
+            // A second independent OSM instance gets one bounded attempt.
+          }
+        }
+        if (!parsed) throw new Error("ACCOMMODATION_PROVIDERS_UNAVAILABLE");
+        for (const element of parsed.elements) {
+          const item = mapOsmElement(element, center, fetchedAt);
+          if (!item) {
+            omitted += 1;
+            continue;
+          }
+          mapped.push(item);
+        }
       }
       const items = mapped
         .sort(
@@ -1435,6 +1512,11 @@ export class AccommodationDiscoveryService {
         )
         .slice(0, PROVIDER_CACHE_LIMIT);
       const warnings: string[] = [];
+      if (this.usesGeoapify && mapped.length >= GEOAPIFY_RESULT_LIMIT) {
+        warnings.push(
+          `Catalogul sursei este limitat la primele ${GEOAPIFY_RESULT_LIMIT} de listări din apropiere; restrânge raza pentru alte rezultate.`,
+        );
+      }
       if (mapped.length > PROVIDER_CACHE_LIMIT) {
         warnings.push(
           `Catalogul local a fost limitat la primele ${PROVIDER_CACHE_LIMIT} de listări, ordonate după distanță.`,
@@ -1476,7 +1558,7 @@ export class AccommodationDiscoveryService {
       ) {
         const snapshot = providerDiscoverySnapshotSchema.parse(stale.response);
         snapshot.warnings.push(
-          "Sursa OpenStreetMap nu răspunde momentan; sunt afișate ultimele rezultate salvate.",
+          "Sursa de cazare nu răspunde momentan; sunt afișate ultimele rezultate salvate.",
         );
         return { snapshot, cache: "stale", status: "degraded" };
       }
@@ -1489,7 +1571,7 @@ export class AccommodationDiscoveryService {
           radiusKm,
           fetchedAt,
           warnings: [
-            "Sursa OpenStreetMap nu răspunde momentan. Nu au fost inventate sau completate rezultate.",
+            "Sursa de cazare nu răspunde momentan sau limita gratuită de utilizare a fost atinsă. Încearcă mai târziu; poți adăuga manual o cazare.",
           ],
         },
       };
@@ -1544,14 +1626,18 @@ export class AccommodationDiscoveryService {
           cacheKey,
           request: request as Prisma.InputJsonValue,
           response: response as Prisma.InputJsonValue,
-          attribution: ATTRIBUTION.text,
+          attribution: this.usesGeoapify
+            ? GEOAPIFY_ATTRIBUTION.text
+            : ATTRIBUTION.text,
           fetchedAt: now,
           expiresAt: new Date(now.valueOf() + ttlMs),
         },
         update: {
           request: request as Prisma.InputJsonValue,
           response: response as Prisma.InputJsonValue,
-          attribution: ATTRIBUTION.text,
+          attribution: this.usesGeoapify
+            ? GEOAPIFY_ATTRIBUTION.text
+            : ATTRIBUTION.text,
           fetchedAt: now,
           expiresAt: new Date(now.valueOf() + ttlMs),
           version: { increment: 1 },
@@ -1605,6 +1691,69 @@ export function mapOsmElement(
     facilities: osmFacilities(tags),
     priceSnapshot: null,
     sourceUpdatedAt: element.timestamp ?? null,
+    fetchedAt,
+  };
+}
+
+export function mapGeoapifyFeature(
+  value: unknown,
+  center: Center,
+  fetchedAt: string,
+): AccommodationDiscoveryItem | null {
+  const parsed = geoapifyFeatureSchema.safeParse(value);
+  if (!parsed.success) return null;
+  const properties = parsed.data.properties;
+  const raw = properties.datasource?.raw ?? {};
+  const tags: Record<string, string> = {};
+  for (const [name, value] of Object.entries(raw))
+    if (typeof value === "string") tags[name] = value;
+  const name = properties.name ?? tags.name;
+  if (!name?.trim() || !properties.place_id) return null;
+  const categories = properties.categories ?? [];
+  const type =
+    ["hotel", "guest_house", "hostel", "motel", "apartment", "chalet"].find(
+      (type) => categories.includes(`accommodation.${type}`),
+    ) ?? tags.tourism;
+  const osmType =
+    raw.osm_type === "n"
+      ? "node"
+      : raw.osm_type === "w"
+        ? "way"
+        : raw.osm_type === "r"
+          ? "relation"
+          : null;
+  const osmId = String(raw.osm_id ?? "");
+  const externalId =
+    properties.place_id.length <= 180
+      ? properties.place_id
+      : hash(properties.place_id);
+  return {
+    id: `geoapify:${externalId}`,
+    source: "geoapify",
+    externalId,
+    sourceUrl:
+      osmType && /^\d+$/.test(osmId)
+        ? `https://www.openstreetmap.org/${osmType}/${osmId}`
+        : "https://www.geoapify.com/",
+    name: name.trim().slice(0, 180),
+    type: normalizeOsmType(type),
+    address: properties.formatted?.slice(0, 500) ?? osmAddress(tags),
+    city: properties.city?.slice(0, 120) ?? nullableTag(tags["addr:city"]),
+    country: properties.country?.slice(0, 120) ?? null,
+    latitude: properties.lat,
+    longitude: properties.lon,
+    distanceKm: haversineDistanceKm(
+      center.latitude,
+      center.longitude,
+      properties.lat,
+      properties.lon,
+    ),
+    contactUrl: publicUrl(tags["contact:website"] ?? tags.website),
+    contactPhone: publicPhone(tags["contact:phone"] ?? tags.phone),
+    bookingUrl: null,
+    facilities: osmFacilities(tags),
+    priceSnapshot: null,
+    sourceUpdatedAt: null,
     fetchedAt,
   };
 }
@@ -1783,6 +1932,7 @@ function filterDiscovery(
   query: AccommodationDiscoveryQuery,
   cache: "hit" | "miss" | "stale",
   status: "available" | "degraded" | "unavailable",
+  usesGeoapify = false,
 ): AccommodationDiscoveryResponse {
   let unknownPriceCount = 0;
   const filtered = snapshot.items.filter((item) => {
@@ -1813,7 +1963,7 @@ function filterDiscovery(
   }
   if (query.checkInDate && query.checkOutDate) {
     warnings.push(
-      "OpenStreetMap nu confirmă disponibilitatea sau tariful pentru datele alese. Verifică direct cu proprietatea înainte de rezervare.",
+      "Sursa de cazare nu confirmă disponibilitatea sau tariful pentru datele alese. Verifică direct cu proprietatea înainte de rezervare.",
     );
   }
   return {
@@ -1821,9 +1971,11 @@ function filterDiscovery(
     center: snapshot.center,
     radiusKm: snapshot.radiusKm,
     metadata: {
-      provider: ACTIVE_ACCOMMODATION_PROVIDER.id,
-      capabilities: ACTIVE_ACCOMMODATION_PROVIDER.capabilities,
-      attribution: ATTRIBUTION,
+      provider: usesGeoapify ? "geoapify" : "openstreetmap",
+      capabilities:
+        ACCOMMODATION_PROVIDERS[usesGeoapify ? "geoapify" : "openstreetmap"]
+          .capabilities,
+      attribution: usesGeoapify ? GEOAPIFY_ATTRIBUTION : ATTRIBUTION,
       fetchedAt: snapshot.fetchedAt,
       cache,
       status,

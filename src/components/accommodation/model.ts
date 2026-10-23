@@ -93,7 +93,7 @@ export function discoveryItemToRecommendation(
     sourceUpdatedAt: item.sourceUpdatedAt,
     fetchedAt: item.fetchedAt,
     attribution:
-      item.source === "osm" ? "© OpenStreetMap contributors" : null,
+      item.source === "geoapify" ? "Powered by Geoapify · © OpenStreetMap contributors" : item.source === "osm" ? "© OpenStreetMap contributors" : null,
     position,
   };
 }
@@ -146,4 +146,8 @@ export function safeExternalUrl(value: string | null | undefined) {
   } catch {
     return null;
   }
+}
+
+export function accommodationSourceLabel(source: AccommodationDiscoveryItem["source"]) {
+  return ({ osm: "OpenStreetMap", geoapify: "Geoapify / OpenStreetMap", foursquare: "Foursquare", google_places: "Google Places", booking_com: "Booking.com", expedia: "Expedia", organizer: "Organizator", other: "Sursă externă" })[source];
 }

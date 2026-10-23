@@ -25,6 +25,7 @@ const nullableDateTime = z.string().datetime().nullable();
 
 export const accommodationDiscoverySourceSchema = z.enum([
   "osm",
+  "geoapify",
   "foursquare",
   "google_places",
   "booking_com",
@@ -185,6 +186,7 @@ export const accommodationDiscoveryResponseSchema = z.object({
   metadata: z.object({
     provider: z.enum([
       "openstreetmap",
+      "geoapify",
       "foursquare",
       "google_places",
       "booking_com",

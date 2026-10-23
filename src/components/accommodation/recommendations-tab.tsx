@@ -40,6 +40,7 @@ import { useWorkspace } from "@/lib/api/workspace-context";
 import { cn } from "@/lib/utils";
 import {
   accommodationTypes,
+  accommodationSourceLabel,
   addressLabel,
   formatDistance,
   formatFreshness,
@@ -601,7 +602,8 @@ export function AccommodationRecommendationsTab({
                   <div>
                     <dt className="text-xs text-faint">Proveniență</dt>
                     <dd className="mt-1 font-medium text-ink">
-                      {selected.source === "osm" ? "OpenStreetMap" : "Organizator"}
+                      {accommodationSourceLabel(selected.source)}
+                      {selected.source === "geoapify" && <span className="mt-1 block text-xs"><a href="https://www.geoapify.com/" target="_blank" rel="noreferrer" className="text-brand hover:underline">Powered by Geoapify</a>{" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="text-brand hover:underline">© OpenStreetMap contributors</a></span>}
                     </dd>
                   </div>
                 </dl>
