@@ -35,6 +35,9 @@ async function checksum(path) {
     .digest("hex");
 }
 
+// The private maintained fork is not covered by registry advisories. Verify
+// its concrete security boundary before accepting the dependency audit.
+await capture(["test:security-globs"]);
 const auditBody = await capture(["audit", "--json"], true);
 const audit = JSON.parse(auditBody);
 await writeFile(

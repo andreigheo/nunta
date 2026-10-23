@@ -35,6 +35,7 @@
     "release:evidence": "node scripts/create-release-evidence.mjs",
     "release:validate": "node scripts/release-validate.mjs",
     "security:gate": "node scripts/security-gate.mjs",
+    "test:security-globs": "node --test scripts/test-eslint-root-glob.mjs",
     "db:studio": "pnpm --filter @weddingos/database studio",
     "smoke": "node scripts/smoke.mjs",
     "verify:marketing-capabilities": "pnpm --filter @weddingos/contracts build && pnpm run verify:marketing-capabilities:built",
@@ -49,10 +50,10 @@
     "staging-like:rollback": "bash ops/staging-like/rollback.sh"
   },
   "dependencies": {
-    "@weddingos/contracts": "workspace:*",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@weddingos/contracts": "workspace:*",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.25.0",
@@ -62,8 +63,8 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.1",
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.55.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -108,7 +109,8 @@
       "@opentelemetry/instrumentation-oracledb@<0.46.0": "0.46.0",
       "@opentelemetry/instrumentation-tedious@<0.40.0": "0.40.0",
       "@opentelemetry/instrumentation-cassandra-driver@<0.66.0": "0.66.0",
-      "shell-quote@<1.11.0": "1.11.0"
+      "shell-quote@<1.11.0": "1.11.0",
+      "braces": "workspace:@weddingos/braces@*"
     },
     "patchedDependencies": {
       "minimatch@3.1.5": "patches/minimatch@3.1.5.patch",

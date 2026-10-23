@@ -1,0 +1,20 @@
+{
+  "name": "@weddingos/braces",
+  "version": "3.0.3-patched.1",
+  "private": true,
+  "description": "Repository-maintained braces 3.0.3 with bounded parsing and AST traversal for CVE-2026-93687",
+  "main": "index.js",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "fill-range": "^7.1.1"
+  },
+  "sarbatoUpstream": {
+    "name": "braces",
+    "version": "3.0.3",
+    "repository": "https://github.com/micromatch/braces",
+    "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"
+  }
+}

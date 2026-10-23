@@ -72,6 +72,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Dependency vulnerability gate
         run: pnpm audit --audit-level high
+      - name: Next lint root discovery compatibility and security
+        run: pnpm test:security-globs
       - name: License inventory
         run: pnpm licenses list --json > license-inventory.json
       - name: Secret scan
