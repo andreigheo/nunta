@@ -35,9 +35,9 @@ function WorkspaceSwitcher() {
     .map((part) => part[0])
     .join("·");
   return (
-    <Dropdown>
+    <Dropdown className="block w-full min-w-0">
       <DropdownTrigger>
-        <button className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-left shadow-card transition-colors hover:border-line-strong">
+        <button className="flex w-full min-w-0 max-w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-left shadow-card transition-colors hover:border-line-strong" title={currentWorkspace?.title ?? "Spațiul tău"}>
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-[15px] font-semibold text-accent-strong">
             {initials}
           </span>
@@ -45,7 +45,7 @@ function WorkspaceSwitcher() {
             <span className="block truncate font-brand text-[15px] font-semibold leading-tight text-ink">
               {currentWorkspace?.title ?? "Spațiul tău"}
             </span>
-            <span className="block text-xs text-faint">
+            <span className="block truncate text-xs text-faint">
               {currentWorkspace?.eventDate
                 ? `${formatDateShort(currentWorkspace.eventDate)} · ${days} zile rămase`
                 : "Data evenimentului nu este setată"}
@@ -67,7 +67,7 @@ function WorkspaceSwitcher() {
             }
             onSelect={() => void selectWorkspace(w.id)}
           >
-            <span className="flex flex-col">
+            <span className="flex min-w-0 flex-col whitespace-normal [overflow-wrap:anywhere]">
               <span>{w.title}</span>
               <span className="text-xs text-faint">
                 {w.eventDate

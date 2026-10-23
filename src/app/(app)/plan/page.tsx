@@ -937,8 +937,8 @@ export default function PlanPage() {
                           : "text-muted",
                       )}
                     >
-                      {taskDueLabel(nextTask)} ·{" "}
-                      {taskDeadlineLabel(nextTask.deadline)}
+                      {taskDueLabel(nextTask)}
+                      {nextTask.deadline ? ` · ${taskDeadlineLabel(nextTask.deadline)}` : null}
                     </p>
                     <p className="mt-1 text-xs text-faint">
                       {taskCategoryLabel(nextTask.category)} · {nextTask.owner}

@@ -3,7 +3,7 @@ services:
     image: sarbato-worker:ux-20261023-r1
     container_name: sarbato-production_worker_1
   web:
-    image: sarbato-web:ux-20261023-r1
+    image: sarbato-web:ux-20261023-r2
     container_name: sarbato-production_web_1
   api:
     image: sarbato-api:ux-20261023-r1
