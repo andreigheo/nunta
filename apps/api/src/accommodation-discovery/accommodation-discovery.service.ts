@@ -1450,6 +1450,7 @@ export class AccommodationDiscoveryService {
     const fetchedAt = new Date().toISOString();
     try {
       let omitted = 0;
+      let providerCapped = false;
       const mapped: AccommodationDiscoveryItem[] = [];
       if (this.usesGeoapify) {
         const features = await this.geoapify.places(
@@ -1457,6 +1458,7 @@ export class AccommodationDiscoveryService {
           center.longitude,
           radiusKm,
         );
+        providerCapped = features.length >= GEOAPIFY_RESULT_LIMIT;
         for (const feature of features) {
           const item = mapGeoapifyFeature(feature, center, fetchedAt);
           if (!item || item.distanceKm > radiusKm) {
@@ -1512,7 +1514,7 @@ export class AccommodationDiscoveryService {
         )
         .slice(0, PROVIDER_CACHE_LIMIT);
       const warnings: string[] = [];
-      if (this.usesGeoapify && mapped.length >= GEOAPIFY_RESULT_LIMIT) {
+      if (this.usesGeoapify && providerCapped) {
         warnings.push(
           `Catalogul sursei este limitat la primele ${GEOAPIFY_RESULT_LIMIT} de listări din apropiere; restrânge raza pentru alte rezultate.`,
         );
@@ -1524,7 +1526,7 @@ export class AccommodationDiscoveryService {
       }
       if (omitted) {
         warnings.push(
-          `${omitted} listări fără nume sau coordonate publice au fost omise.`,
+          `${omitted} listări incomplete sau în afara razei au fost omise.`,
         );
       }
       const snapshot: ProviderDiscoverySnapshot = {
@@ -1707,6 +1709,17 @@ export function mapGeoapifyFeature(
   const tags: Record<string, string> = {};
   for (const [name, value] of Object.entries(raw))
     if (typeof value === "string") tags[name] = value;
+  const street =
+    typeof properties.street === "string"
+      ? properties.street
+      : (tags["addr:street"] ?? tags.street);
+  const house =
+    properties.housenumber ?? raw.housenumber ?? tags["addr:housenumber"];
+  const houseNumber =
+    typeof house === "string" || typeof house === "number" ? String(house) : "";
+  const address = street
+    ? [street, houseNumber].filter(Boolean).join(" ").slice(0, 500)
+    : osmAddress(tags);
   const name = properties.name ?? tags.name;
   if (!name?.trim() || !properties.place_id) return null;
   const categories = properties.categories ?? [];
@@ -1737,7 +1750,7 @@ export function mapGeoapifyFeature(
         : "https://www.geoapify.com/",
     name: name.trim().slice(0, 180),
     type: normalizeOsmType(type),
-    address: properties.formatted?.slice(0, 500) ?? osmAddress(tags),
+    address,
     city: properties.city?.slice(0, 120) ?? nullableTag(tags["addr:city"]),
     country: properties.country?.slice(0, 120) ?? null,
     latitude: properties.lat,

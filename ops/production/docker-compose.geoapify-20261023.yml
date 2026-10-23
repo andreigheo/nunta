@@ -1,6 +1,6 @@
 # Apply after the existing security and UX overlays. No paid plan is enabled.
 services:
   web:
-    image: sarbato-web:geoapify-free-20261023-r1
+    image: sarbato-web:geoapify-free-20261023-r2
   api:
-    image: sarbato-api:geoapify-free-20261023-r1
+    image: sarbato-api:geoapify-free-20261023-r2

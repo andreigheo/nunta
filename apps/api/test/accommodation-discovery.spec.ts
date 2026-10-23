@@ -576,7 +576,11 @@ function geoFeature(name = "Hotel Geo", latitude = 44.43) {
       lon: 26.1,
       place_id: "place-123",
       categories: ["accommodation.hotel"],
-      formatted: "București, România",
+      formatted: "Hotel Geo, Strada Test 4, București, România",
+      street: "Strada Test",
+      housenumber: "4",
+      city: "București",
+      country: "România",
       datasource: {
         raw: {
           osm_type: "n",
@@ -599,6 +603,7 @@ describe("Geoapify source selection and persistence", () => {
     );
     expect(item).toMatchObject({
       source: "geoapify",
+      address: "Strada Test 4",
       id: "geoapify:place-123",
       type: "hotel",
       sourceUrl: "https://www.openstreetmap.org/node/42",
@@ -663,6 +668,26 @@ describe("Geoapify source selection and persistence", () => {
     expect(places).toHaveBeenCalledTimes(1);
     expect(httpJson).toHaveBeenCalledTimes(1);
     expect(geocode).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a capped catalogue even if malformed source rows are omitted", async () => {
+    vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
+    const rows = [
+      ...Array.from({ length: 99 }, (_, i) => geoFeature(`Hotel ${i}`)),
+      { invalid: true },
+    ];
+    const { service } = harness(vi.fn(), {
+      places: vi.fn().mockResolvedValue(rows),
+    } as unknown as GeoapifyProvider);
+    const result = await service.discover(
+      randomUUID(),
+      randomUUID(),
+      query({ lat: 44.43, lng: 26.1 }),
+    );
+    expect(result.metadata.warnings.join(" ")).toContain("primele 100");
+    expect(result.metadata.warnings.join(" ")).toContain(
+      "1 listări incomplete",
+    );
   });
 
   it("returns saved Geoapify data on quota exhaustion, never changes provider silently", async () => {
