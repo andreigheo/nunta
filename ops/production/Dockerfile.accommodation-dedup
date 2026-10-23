@@ -1,0 +1,11 @@
+# Copy the verified API build onto the current security-patched runtime.
+# The context contains only this Dockerfile and API dist, never credentials.
+ARG SARBATO_API_BASE
+FROM ${SARBATO_API_BASE}
+USER root
+RUN rm -rf /app/apps/api/dist
+COPY --chown=node:node api/dist /app/apps/api/dist
+ARG WEDDINGOS_BUILD_ID
+RUN printf '%s\n' "$WEDDINGOS_BUILD_ID" > /app/.weddingos-build-id
+LABEL org.opencontainers.image.revision=$WEDDINGOS_BUILD_ID
+USER node

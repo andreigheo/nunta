@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   accommodationDiscoveryQuerySchema,
   createAccommodationProviderInquirySchema,
@@ -595,6 +596,75 @@ function geoFeature(name = "Hotel Geo", latitude = 44.43) {
 }
 
 describe("Geoapify source selection and persistence", () => {
+  it("deduplicates before cache, filters and result limits; cached refresh keeps distinct properties", async () => {
+    vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
+    const rows = JSON.parse(
+      readFileSync(
+        new URL("./fixtures/geoapify-mil-pasos.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const places = vi.fn().mockResolvedValue(rows);
+    const { service, tx } = harness(vi.fn(), {
+      places,
+    } as unknown as GeoapifyProvider);
+    const user = randomUUID(),
+      workspace = randomUUID();
+    const input = query({ lat: 44.4355, lng: 26.1025, radiusKm: 2 });
+    const first = await service.discover(user, workspace, input);
+    expect(first.items.map((item) => item.name).sort()).toEqual([
+      "Mil Pasos Hostel",
+      "Mil Pasos Penthouse",
+    ]);
+    expect(first.metadata.warnings.join(" ")).toContain("2 listări duplicate");
+    expect(
+      tx.accommodationDiscoveryCache.upsert.mock.calls[0][0].create.request,
+    ).toMatchObject({ identityVersion: 2 });
+    const refreshed = await service.discover(user, workspace, input);
+    expect(refreshed.items).toEqual(first.items);
+    expect(refreshed.metadata.cache).toBe("hit");
+    const apartments = await service.discover(
+      user,
+      workspace,
+      query({ ...input, types: "apartment" }),
+    );
+    expect(apartments.items.map((item) => item.name)).toEqual([
+      "Mil Pasos Penthouse",
+    ]);
+    expect(places).toHaveBeenCalledTimes(1);
+  });
+
+  it("never serves an old duplicate snapshot, including as stale fallback", async () => {
+    vi.stubEnv("ACCOMMODATION_DISCOVERY_PROVIDER", "geoapify");
+    const places = vi.fn().mockResolvedValue([geoFeature()]);
+    const { service, cache, tx } = harness(vi.fn(), {
+      places,
+    } as unknown as GeoapifyProvider);
+    const user = randomUUID(),
+      workspace = randomUUID(),
+      input = query({ lat: 44.43, lng: 26.1 });
+    await service.discover(user, workspace, input);
+    const request = {
+      ...(tx.accommodationDiscoveryCache.upsert.mock.calls[0][0].create
+        .request as Record<string, unknown>),
+    };
+    delete request.identityVersion;
+    const sorted = Object.fromEntries(
+      Object.entries(request).sort(([a], [b]) => a.localeCompare(b)),
+    );
+    const oldKey = createHash("sha256")
+      .update(JSON.stringify(sorted))
+      .digest("hex");
+    const row = [...cache.values()][0];
+    cache.clear();
+    cache.set(`${workspace}:DISCOVERY:${oldKey}`, { ...row, cacheKey: oldKey });
+    places.mockRejectedValue(new Error("GEOAPIFY_DAILY_LIMIT"));
+    const unavailable = await service.discover(user, workspace, input);
+    expect(places).toHaveBeenCalledTimes(2);
+    expect(unavailable.items).toEqual([]);
+    expect(unavailable.metadata.status).toBe("unavailable");
+  });
+
   it("maps validated facts with explicit Geoapify provenance and no invented booking/prices", () => {
     const item = mapGeoapifyFeature(
       geoFeature(),

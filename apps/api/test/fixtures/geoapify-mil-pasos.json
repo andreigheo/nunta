@@ -1,0 +1,103 @@
+[
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Mil Pasos Penthouse",
+      "country": "România",
+      "city": "București",
+      "street": "Bulevardul Corneliu Coposu",
+      "housenumber": "7",
+      "lat": 44.4309178,
+      "lon": 26.1081937,
+      "categories": [
+        "accommodation",
+        "accommodation.apartment",
+        "internet_access",
+        "internet_access.free"
+      ],
+      "place_id": "511c221395b21b3a4059d421815028374640f00103f901eb3c518e000000009203134d696c205061736f732050656e74686f757365",
+      "datasource": {
+        "raw": {
+          "osm_type": "n",
+          "osm_id": 2387688683,
+          "tourism": "apartment",
+          "internet_access": "wlan"
+        }
+      }
+    }
+  },
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Mil Pasos Hostel",
+      "country": "România",
+      "city": "București",
+      "street": "Strada Preot Vasile Lucaciu",
+      "housenumber": "2",
+      "lat": 44.4306922,
+      "lon": 26.1138684,
+      "categories": [
+        "accommodation",
+        "accommodation.hostel",
+        "internet_access",
+        "internet_access.for_customers"
+      ],
+      "place_id": "51400cbe7a261d3a405937d208ec20374640f00103f901f68f3948020000009203104d696c205061736f7320486f7374656c",
+      "datasource": {
+        "raw": {
+          "osm_type": "n",
+          "osm_id": 9801666550,
+          "phone": "+40 762-567-221",
+          "tourism": "hostel",
+          "internet_access": "wlan",
+          "air_conditioning": "yes"
+        }
+      }
+    }
+  },
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Mil Pasos Hostel",
+      "country": "România",
+      "city": "București",
+      "street": "Strada Preot Vasile Lucaciu",
+      "housenumber": "2",
+      "lat": 44.4306781,
+      "lon": 26.1138895,
+      "categories": ["accommodation", "accommodation.hotel"],
+      "place_id": "5198dbbddc271d3a40593d4dc17520374640f00103f90107d9b64c02000000",
+      "datasource": {
+        "raw": {
+          "osm_type": "n",
+          "osm_id": 9876986119,
+          "phone": "0762567221",
+          "tourism": "hotel"
+        }
+      }
+    }
+  },
+  {
+    "type": "Feature",
+    "properties": {
+      "name": "Mil Pasos Hostel (formerly Penthouse)",
+      "country": "România",
+      "city": "București",
+      "street": "Strada Preot Vasile Lucaciu",
+      "housenumber": "2",
+      "lat": 44.4306707,
+      "lon": 26.1139598,
+      "categories": ["accommodation", "accommodation.hotel", "internet_access"],
+      "place_id": "51070f2e782c1d3a405937ecad3720374640f00103f901a4d8b64c02000000",
+      "datasource": {
+        "raw": {
+          "osm_type": "n",
+          "osm_id": 9876986020,
+          "phone": "+40762567221",
+          "tourism": "hotel",
+          "internet_access": "wlan"
+        }
+      }
+    }
+  }
+]

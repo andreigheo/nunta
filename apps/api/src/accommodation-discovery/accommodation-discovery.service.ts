@@ -146,6 +146,8 @@ export class AccommodationDiscoveryService {
     const cacheRequest = {
       ...normalizedDiscoveryRequest(center, query),
       provider: this.usesGeoapify ? "geoapify" : "openstreetmap",
+      // Old snapshots contain uncollapsed source rows, including stale fallback.
+      ...(this.usesGeoapify ? { identityVersion: 2 } : {}),
     };
     const cacheKey = hash(cacheRequest);
     const cached = await this.readCache(
@@ -1506,7 +1508,10 @@ export class AccommodationDiscoveryService {
           mapped.push(item);
         }
       }
-      const items = mapped
+      const distinct = this.usesGeoapify
+        ? deduplicateAccommodationListings(mapped)
+        : mapped;
+      const items = distinct
         .sort(
           (left, right) =>
             left.distanceKm - right.distanceKm ||
@@ -1514,6 +1519,11 @@ export class AccommodationDiscoveryService {
         )
         .slice(0, PROVIDER_CACHE_LIMIT);
       const warnings: string[] = [];
+      if (distinct.length < mapped.length) {
+        warnings.push(
+          `${mapped.length - distinct.length} listări duplicate ale acelorași cazări au fost omise.`,
+        );
+      }
       if (this.usesGeoapify && providerCapped) {
         warnings.push(
           `Catalogul sursei este limitat la primele ${GEOAPIFY_RESULT_LIMIT} de listări din apropiere; restrânge raza pentru alte rezultate.`,
@@ -1771,7 +1781,132 @@ export function mapGeoapifyFeature(
   };
 }
 
+/** Keep one intact source record; never combine amenities, contacts or saved data. */
+export function deduplicateAccommodationListings(
+  items: AccommodationDiscoveryItem[],
+): AccommodationDiscoveryItem[] {
+  // Deterministic winner: current name, then documented contact/facilities, then ID.
+  const ordered = [...items].sort((a, b) => {
+    const score = (item: AccommodationDiscoveryItem) =>
+      (formerName(item.name) === item.name ? 100 : 0) +
+      (item.contactUrl ? 10 : 0) +
+      (item.contactPhone ? 10 : 0) +
+      Math.min(item.facilities.length, 9);
+    return (
+      score(b) - score(a) ||
+      (a.externalId ?? a.id).localeCompare(b.externalId ?? b.id)
+    );
+  });
+  const groups: AccommodationDiscoveryItem[][] = [];
+  for (const item of ordered) {
+    // Require pairwise evidence: a bridge cannot collapse two distinct buildings.
+    const group = groups.find((members) =>
+      members.every((member) => sameAccommodationListing(member, item)),
+    );
+    if (group) group.push(item);
+    else groups.push([item]);
+  }
+  return groups.map((members) => members[0]);
+}
+
+function formerName(value: string) {
+  // Only an explicit former-name annotation; unit/wing/branch suffixes survive.
+  return value.replace(/\s+\(formerly\s+[^()]+\)\s*$/i, "");
+}
+
+function identityText(value: string | null) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase("ro")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function identityPhone(item: AccommodationDiscoveryItem) {
+  // No partial numbers, extensions or multiple-phone lists. RO prefix equivalence
+  // applies only when the provider explicitly identifies Romania.
+  const value = item.contactPhone?.trim() ?? "";
+  if (!/^[+\d\s().-]+$/.test(value)) return "";
+  let digits = value.replace(/\D/g, "");
+  const country = identityText(item.country);
+  if (["romania", "ro"].includes(country)) {
+    if (/^0040\d{9}$/.test(digits)) digits = digits.slice(2);
+    if (/^0\d{9}$/.test(digits)) digits = `40${digits.slice(1)}`;
+  }
+  return digits.length >= 10 && digits.length <= 15 ? digits : "";
+}
+
+function identityAddress(value: string | null) {
+  // Keep slash, hyphen and unit punctuation: 1/2 and 1-2 can be different units.
+  return (value ?? "")
+    .normalize("NFC")
+    .toLocaleLowerCase("ro")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function identityName(value: string) {
+  // Preserve unit punctuation in names too (e.g. Apartment 1/2 versus 1-2).
+  return formerName(value)
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase("ro")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sameAccommodationListing(
+  a: AccommodationDiscoveryItem,
+  b: AccommodationDiscoveryItem,
+) {
+  if (a.source !== b.source) return false;
+  if (a.externalId && a.externalId === b.externalId) return true;
+  if (
+    a.sourceUrl === b.sourceUrl &&
+    /^https:\/\/www\.openstreetmap\.org\/(node|way|relation)\/\d+$/.test(
+      a.sourceUrl ?? "",
+    )
+  )
+    return true;
+  const address = identityAddress(a.address);
+  const city = identityText(a.city);
+  const country = identityText(a.country);
+  const phone = identityPhone(a);
+  if (
+    !address ||
+    !/\d/.test(address) ||
+    !city ||
+    !country ||
+    !phone ||
+    !identityName(a.name) ||
+    identityName(a.name) !== identityName(b.name) ||
+    address !== identityAddress(b.address) ||
+    city !== identityText(b.city) ||
+    country !== identityText(b.country) ||
+    phone !== identityPhone(b)
+  )
+    return false;
+  // Conflicting published websites are evidence against automatic collapse.
+  if (a.contactUrl && b.contactUrl && a.contactUrl !== b.contactUrl)
+    return false;
+  return (
+    preciseDistanceKm(a.latitude, a.longitude, b.latitude, b.longitude) <= 0.025
+  );
+}
+
 export function haversineDistanceKm(
+  latitudeA: number,
+  longitudeA: number,
+  latitudeB: number,
+  longitudeB: number,
+) {
+  return Number(
+    preciseDistanceKm(latitudeA, longitudeA, latitudeB, longitudeB).toFixed(3),
+  );
+}
+
+function preciseDistanceKm(
   latitudeA: number,
   longitudeA: number,
   latitudeB: number,
@@ -1786,9 +1921,7 @@ export function haversineDistanceKm(
     Math.cos(radians(latitudeA)) *
       Math.cos(radians(latitudeB)) *
       Math.sin(longitudeDelta / 2) ** 2;
-  return Number(
-    (2 * earthRadiusKm * Math.asin(Math.min(1, Math.sqrt(a)))).toFixed(3),
-  );
+  return 2 * earthRadiusKm * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
 export function validateRecommendationOrderSet(

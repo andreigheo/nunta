@@ -29,3 +29,11 @@ The Free plan has no paid-plan availability SLA. Cached recommendations and manu
 - https://www.geoapify.com/pricing/
 - https://www.geoapify.com/terms-and-conditions/
 - https://www.geoapify.com/products-and-services/
+
+## Conservative discovery deduplication (2026-10-23)
+
+Before caching/filtering/limiting Geoapify discovery, keep one intact source row per confirmed duplicate group. Exact provider IDs or explicit OSM entity URLs identify the same source entity. Otherwise require all of: equal current name (case/diacritic/whitespace normalization with meaningful punctuation preserved, stripping only an explicit trailing `(formerly …)` annotation), equal full address including a number and meaningful unit punctuation, city, country, a complete matching phone, no conflicting websites, and no more than 25 metres between every pair of group members. Romanian national/international phone prefixes are equivalent only when the country explicitly identifies Romania. Shared reception phones, street addresses, brands or proximity alone never qualify.
+
+Prefer the current name, then the row with documented contacts/facilities, with a stable provider-ID tie break. Do not union facilities or contacts. Preserve the chosen row's identity and provenance; do not rewrite saved recommendations, properties, rooms or stays. Ambiguous rows remain separate. Version the Geoapify discovery identity (`identityVersion: 2`) to exclude old duplicate snapshots, including stale fallback, without deleting other workspaces' cache data. Geocoding identity and provider quota settings stay unchanged.
+
+The regression fixture is a minimal excerpt of public Geoapify/OpenStreetMap results retrieved on 2026-10-23, attributed to Geoapify and © OpenStreetMap contributors (ODbL). It contains three source rows for Mil Pasos Hostel on Strada Preot Vasile Lucaciu 2 and the separate Mil Pasos Penthouse on Bulevardul Corneliu Coposu 7. It is source evidence, not a claim about current commercial availability.

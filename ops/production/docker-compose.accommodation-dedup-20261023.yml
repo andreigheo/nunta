@@ -1,0 +1,4 @@
+# Apply after the security, UX and Geoapify overlays. Geoapify stays Free.
+services:
+  api:
+    image: sarbato-api:accommodation-dedup-20261023-r1
