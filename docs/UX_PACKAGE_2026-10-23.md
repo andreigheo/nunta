@@ -94,5 +94,5 @@ Capturile și dovezile locale sunt în `artifacts/ux-package/`: `task-without-de
 1. Backup off-host: copia verificată este pe același VPS. E necesară o destinație separată și o restaurare verificată din acea copie.
 2. Alertele de sistem fără patch disponibil și metadatele MinIO incluse de Silo necesită reevaluare când apar remedii sau un plan separat de schimbare a bazei. Nu reprezintă un motiv să reintroducem versiuni vechi de Node/Next/React.
 3. `braces` 3.0.3 rămâne în instrumentele de dezvoltare, fără patch publicat. Este absent din instalarea de producție; auditul complet și gate-ul CI continuă să îl semnaleze.
-4. Două ajustări vizuale minore observate: „Fără termen” apare de două ori în cardul recomandării din plan, iar un titlu foarte lung de eveniment poate depăși lățimea selectorului din sidebar pe desktop. Nu afectează salvarea, starea de restant sau calendarul.
+4. Cele două ajustări vizuale observate au fost remediate și livrate ulterior în web r2, revizia `40944c8`: eticheta „Fără termen” este unică în card, iar selectorul respectă lățimea sidebarului. Vezi [verificarea vizuală desktop și mobil](VISUAL_FIXES_2026-10-23.md).
 5. Validarea livrării reale a invitațiilor, a plăților și un test cu un eveniment real nu fac parte din acest pachet. Nu au fost trimise invitații și nu s-au făcut tranzacții în această verificare.
