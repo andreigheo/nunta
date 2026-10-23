@@ -34,7 +34,7 @@ elif (( $(date +%s) - $(stat -c %Y "${latest_verified}") > ${BACKUP_STALE_AFTER_
 fi
 
 for service in api worker web postgres redis storage; do
-  state="$(docker inspect -f '{{.State.Status}}' "sarbato-production-${service}-1" 2>/dev/null || true)"
+  state="$(docker inspect -f '{{.State.Status}}' "sarbato-production_${service}_1" 2>/dev/null || true)"
   [[ "${state}" = "running" ]] || failures+=("container ${service} is ${state:-missing}")
 done
 

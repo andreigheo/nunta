@@ -1,4 +1,3 @@
-name: sarbato-production
 
 x-api-environment: &api-environment
   NODE_ENV: production
@@ -118,7 +117,7 @@ x-api-environment: &api-environment
 
 services:
   postgres:
-    image: pgvector/pgvector:0.8.6-pg17
+    image: sarbato-postgres:vps-security-20261022
     restart: unless-stopped
     environment:
       POSTGRES_DB: weddingos
@@ -136,7 +135,7 @@ services:
       retries: 30
 
   redis:
-    image: redis:7.4-alpine
+    image: sarbato-redis:vps-security-20261022
     restart: unless-stopped
     command:
       - redis-server
@@ -172,7 +171,7 @@ services:
       REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
 
   storage:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: sarbato-storage:silo-security-20261022
     restart: unless-stopped
     command: ["server", "/data"]
     environment:
@@ -189,7 +188,7 @@ services:
       retries: 30
 
   storage-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: sarbato-storage:silo-security-20261022
     depends_on:
       storage:
         condition: service_healthy
@@ -211,7 +210,7 @@ services:
       - ./storage-app-policy.json:/policies/storage-app-policy.json:ro
 
   clamav:
-    image: clamav/clamav:1.5.3
+    image: sarbato-clamav:vps-security-20261022
     restart: unless-stopped
     volumes:
       - clamav-data:/var/lib/clamav
@@ -236,7 +235,7 @@ services:
       - no-new-privileges:true
 
   migrate:
-    image: sarbato-api:${SARBATO_RELEASE_ID:-current}
+    image: sarbato-api:next-security-20261022-r2
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
@@ -256,7 +255,7 @@ services:
         condition: service_healthy
 
   api:
-    image: sarbato-api:${SARBATO_RELEASE_ID:-current}
+    image: sarbato-api:next-security-20261022-r2
     restart: unless-stopped
     environment:
       <<: *api-environment
@@ -305,7 +304,7 @@ services:
       start_period: 60s
 
   worker:
-    image: sarbato-worker:${SARBATO_RELEASE_ID:-current}
+    image: sarbato-worker:next-security-20261022-r2
     restart: unless-stopped
     build:
       context: ../..
@@ -345,7 +344,7 @@ services:
     cpus: 2.0
 
   web:
-    image: sarbato-web:${SARBATO_RELEASE_ID:-current}
+    image: sarbato-web:next-security-20261022-r2
     restart: unless-stopped
     build:
       context: ../..
@@ -393,7 +392,7 @@ services:
       start_period: 30s
 
   resend-relay:
-    image: sarbato-resend-relay:${SARBATO_RELEASE_ID:-current}
+    image: sarbato-resend-relay:vps-security-20261022
     restart: unless-stopped
     build:
       context: ../resend-relay
@@ -438,6 +437,7 @@ volumes:
   postgres-data:
   redis-data:
   storage-data:
+    name: sarbato-production_storage-data-security-20261022
   clamav-data:
   activity-exports:
   web-cache:

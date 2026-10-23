@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   createDefaultSection,
+  createInitialSnapshot,
   invitationTemplates,
   sectionCatalog,
   type InvitationEditorSnapshot,
@@ -366,5 +367,16 @@ describe("InvitationRenderer", () => {
         "Not/A_Timezone",
       ),
     ).toMatch(/29.*septembrie.*2027.*12:00/i);
+  });
+});
+
+
+describe("missing invitation date", () => {
+  it("does not display the starter countdown for an existing incomplete corporate draft", () => {
+    const snapshot = createInitialSnapshot({ eventType: "corporate", title: "Test" });
+    snapshot.sections.find((s) => s.type === "countdown")!.content.date = "2027-09-12T16:00";
+    const markup = renderToStaticMarkup(React.createElement(InvitationRenderer, { snapshot, resolveMedia: () => "" }));
+    expect(markup).toContain("Data evenimentului nu este configurată.");
+    expect(markup).not.toContain('role="timer"');
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { invitationSaveState } from "@/lib/invitations/editor-save-state";
 import { useRouter } from "next/navigation";
 import {
   AlignCenter,
@@ -315,6 +316,10 @@ export default function InvitationEditorPage() {
   const readiness = invitationReadiness(snapshot);
   const activeVariant =
     variants.find((variant) => variant.id === activeVariantId) ?? null;
+  const saveState = invitationSaveState({
+    saving, dirty, failure: saveFailure,
+    persisted: Boolean(lastSavedAt && (activeVariant?.draft || site?.draft)),
+  });
   const mobileEditor = editorViewport === "mobile";
   const drawerInspector =
     editorViewport === "tablet" || editorViewport === "desktop";
@@ -1468,6 +1473,15 @@ export default function InvitationEditorPage() {
       void saveDraft();
       return;
     }
+    if (action.kind === "content-section") {
+      const section = snapshot.sections.find((item) => item.type === action.sectionType && item.visible);
+      if (section) {
+        setSelectedId(section.id);
+        setInspectorTab("content");
+        scrollRequestRef.current = section.id;
+      }
+      return;
+    }
     if (action.kind === "starter-section") {
       const sectionId = invitationStarterSectionId(snapshot);
       if (!sectionId) return;
@@ -1655,27 +1669,9 @@ export default function InvitationEditorPage() {
               <span className="sm:hidden">Studio</span>
               <span className="hidden sm:inline">Studio invitație</span>
             </h1>
-            {saving ? (
-              <Badge className="hidden md:inline-flex" variant="info" dot>
-                Se salvează
-              </Badge>
-            ) : saveFailure ? (
-              <Badge className="hidden md:inline-flex" variant="danger" dot>
-                {saveFailure.kind === "offline"
-                  ? "Offline"
-                  : saveFailure.kind === "conflict"
-                    ? "Conflict"
-                    : "Eroare salvare"}
-              </Badge>
-            ) : dirty ? (
-              <Badge className="hidden md:inline-flex" variant="warning" dot>
-                Nesalvat
-              </Badge>
-            ) : (
-              <Badge className="hidden md:inline-flex" variant="success" dot>
-                Salvat
-              </Badge>
-            )}
+            <Badge className="hidden md:inline-flex" variant={saveState.tone} dot>
+              {saveState.label}
+            </Badge>
           </div>
           <p className="hidden text-xs text-faint xl:block">
             {activeVariant
@@ -1697,13 +1693,7 @@ export default function InvitationEditorPage() {
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
           <span className="sr-only" role="status" aria-live="polite">
-            {saving
-              ? "Se salvează invitația"
-              : saveFailure
-                ? `Invitația are o problemă de salvare: ${saveFailure.message}`
-              : dirty
-                ? "Invitația are modificări nesalvate"
-                : "Invitația este salvată"}
+            {saveState.message}
           </span>
           <Tooltip content={permanentStructure && structurePanelOpen ? "Ascunde structura" : "Arată structura"}>
             <span className="hidden md:inline-flex">
@@ -1783,7 +1773,7 @@ export default function InvitationEditorPage() {
                   ? `Salvarea are o problemă: ${saveFailure.message}. Încearcă din nou.`
                 : dirty
                   ? "Salvează ciorna invitației, sunt modificări nesalvate"
-                  : "Ciorna invitației este salvată"
+                  : saveState.message
             }
             loading={saving}
             disabled={!canWrite || demoMode}
@@ -3353,7 +3343,7 @@ function Inspector({
               className="w-full"
               disabled={
                 readiness.completed !== readiness.total ||
-                (preflight !== null && !preflight.ready)
+                preflightBusy || !preflight?.ready
               }
               onClick={onPublish}
             >

@@ -1,0 +1,9 @@
+# Apply after docker-compose.yml and docker-compose.security-20261023.yml.
+# Only application services change; infrastructure images and volumes stay pinned.
+services:
+  web:
+    image: sarbato-web:ux-20261023-r1
+  api:
+    image: sarbato-api:ux-20261023-r1
+  worker:
+    image: sarbato-worker:ux-20261023-r1

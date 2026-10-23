@@ -1,0 +1,32 @@
+# Context: a verified build with a fresh, production-only pnpm installation.
+# Pin SARBATO_RUNTIME_BASE to the image ID of the current patched API runtime.
+# Reuse its Node/OS security patches while replacing all application dependencies.
+ARG SARBATO_RUNTIME_BASE
+FROM ${SARBATO_RUNTIME_BASE} AS common
+USER root
+WORKDIR /app
+RUN rm -rf /app/node_modules /app/apps /app/packages /app/.next /app/public \
+  && apt-get update -y \
+  && apt-get upgrade -y --no-install-recommends \
+  && rm -rf /var/lib/apt/lists/*
+COPY --chown=node:node node_modules ./node_modules
+COPY --chown=node:node apps ./apps
+COPY --chown=node:node packages ./packages
+COPY --chown=node:node .next ./.next
+COPY --chown=node:node public ./public
+COPY --chown=node:node package.json pnpm-lock.yaml next.config.ts ./
+ARG WEDDINGOS_BUILD_ID
+RUN test -n "$WEDDINGOS_BUILD_ID" \
+  && printf '%s\n' "$WEDDINGOS_BUILD_ID" > /app/.weddingos-build-id
+LABEL org.opencontainers.image.revision=$WEDDINGOS_BUILD_ID
+ENV NODE_ENV=production
+USER node
+
+FROM common AS web
+CMD ["./node_modules/.bin/next", "start", "-H", "0.0.0.0"]
+
+FROM common AS api
+CMD ["node", "apps/api/dist/main.js"]
+
+FROM common AS worker
+CMD ["node", "apps/worker/dist/main.js"]

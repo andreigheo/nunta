@@ -18,7 +18,7 @@ jobs:
           version: 9.15.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.22.0
+          node-version: 22.23.4
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: docker compose up -d --wait postgres mailpit redis minio clamav jaeger otel-collector
@@ -67,7 +67,7 @@ jobs:
           version: 9.15.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.22.0
+          node-version: 22.23.4
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Dependency vulnerability gate

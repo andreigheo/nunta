@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import {
   invitationContainsStarterContent,
+  invitationContentChecks,
   type ApplyInvitationSync,
   type CreateCampaign,
   type CreateInvitationVariant,
@@ -2747,6 +2748,15 @@ export class InvitationCampaignService {
           "Înlocuiește sau ascunde conținutul demonstrativ înainte de publicare.",
       });
     if (draft)
+      errors.push(
+        ...invitationContentChecks(draft.document)
+          .filter((check) => !check.done)
+          .map((check) => ({
+            code: check.code,
+            message: `${check.label}: completează conținutul înainte de publicare.`,
+          })),
+      );
+    if (draft)
       mediaScopes.push({
         references: invitationMediaReferences(draft.document, draft.settings),
       });
@@ -2793,6 +2803,16 @@ export class InvitationCampaignService {
           message: `Varianta ${variant.name} conține încă exemple demonstrative.`,
           variantId: variant.id,
         });
+      if (resolvedVariant)
+        errors.push(
+          ...invitationContentChecks(resolvedVariant.document)
+            .filter((check) => !check.done)
+            .map((check) => ({
+              code: check.code,
+              message: `Varianta ${variant.name}: ${check.label.toLocaleLowerCase("ro-RO")} necesită completare.`,
+              variantId: variant.id,
+            })),
+        );
       if (draft)
         mediaScopes.push({
           variantId: variant.id,

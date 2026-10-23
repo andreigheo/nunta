@@ -376,7 +376,11 @@ describe.sequential("Slice 3 guest journey integration", () => {
               type: "hero",
               title: "Ana & Mihai",
               visible: true,
-              content: { actionUrl: "https://weddingos.local/rsvp" },
+              content: {
+                names: "Conferința de integrare",
+                date: "10 iunie 2028",
+                actionUrl: "https://weddingos.local/rsvp",
+              },
             },
           ],
         },
@@ -388,6 +392,59 @@ describe.sequential("Slice 3 guest journey integration", () => {
         },
       })
       .expect(200);
+    const completeDocument = draft.body.data.draft.document;
+    const incomplete = await owner.agent
+      .put(`/api/v1/workspaces/${workspaceId}/invitation-site/draft`)
+      .set("Origin", origin)
+      .set("If-Match", `"${draft.body.data.version}"`)
+      .send({
+        slug: draft.body.data.slug,
+        defaultLanguage: "ro",
+        availableLanguages: ["ro", "en"],
+        accessPolicy: "TOKEN_ONLY",
+        settings: draft.body.data.draft.settings,
+        document: {
+          sections: [
+            {
+              id: "hero",
+              type: "hero",
+              visible: true,
+              content: { names: "Corporate", date: "Data evenimentului" },
+            },
+          ],
+        },
+      })
+      .expect(200);
+    const incompletePreflight = await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/invitation-site/preflight`)
+      .set("Origin", origin)
+      .expect(201);
+    expect(incompletePreflight.body.data.ready).toBe(false);
+    expect(
+      incompletePreflight.body.data.errors.map(
+        (issue: { code: string }) => issue.code,
+      ),
+    ).toContain("INVITATION_DATE_MISSING");
+    await owner.agent
+      .post(`/api/v1/workspaces/${workspaceId}/invitation-site/publish`)
+      .set("Origin", origin)
+      .set("If-Match", `"${incomplete.body.data.version}"`)
+      .set("Idempotency-Key", `incomplete-${randomUUID()}`)
+      .expect(422);
+    const restoredDraft = await owner.agent
+      .put(`/api/v1/workspaces/${workspaceId}/invitation-site/draft`)
+      .set("Origin", origin)
+      .set("If-Match", `"${incomplete.body.data.version}"`)
+      .send({
+        slug: draft.body.data.slug,
+        defaultLanguage: "ro",
+        availableLanguages: ["ro", "en"],
+        accessPolicy: "TOKEN_ONLY",
+        settings: draft.body.data.draft.settings,
+        document: completeDocument,
+      })
+      .expect(200);
+    draft.body.data = restoredDraft.body.data;
     const published = await owner.agent
       .post(`/api/v1/workspaces/${workspaceId}/invitation-site/publish`)
       .set("Origin", origin)
@@ -526,7 +583,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
         expiresAt: new Date(Date.now() + 86_400_000),
       },
     });
-  });
+  }, 30_000);
 
   it("keeps active recipient links valid across republish and rotates revoked channel grants", async () => {
     const site = await owner.agent
@@ -893,6 +950,7 @@ describe.sequential("Slice 3 guest journey integration", () => {
               visible: true,
               content: {
                 names: "Ana & Mihai",
+                date: "10 iunie 2028",
                 actionUrl: "https://weddingos.local/rsvp",
                 revisionMarker: "republished",
                 mediaId: invitationMediaId,

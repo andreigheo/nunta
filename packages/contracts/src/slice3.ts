@@ -282,6 +282,12 @@ export const invitationDocumentSchema = z
   });
 
 export const invitationStarterContentValues = [
+  "Data evenimentului",
+  "Locația va fi anunțată",
+  "Termenul de confirmare",
+  "Adaugă aici contextul care îi ajută pe invitați să înțeleagă momentul și atmosfera evenimentului.",
+  "Adaugă aici indicațiile potrivite atmosferei evenimentului.",
+  "Detalii în curând",
   "Ana & Mihai",
   "12 septembrie 2027",
   "Conacul Ambient · Cristian",

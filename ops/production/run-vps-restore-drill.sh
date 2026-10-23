@@ -39,7 +39,7 @@ if (( $(date +%s) - $(stat -c %Y "${latest_verified}/.verified") > maximum_age_s
 fi
 
 cd "${release_root}"
-export POSTGRES_CONTAINER="sarbato-production-postgres-1"
+export POSTGRES_CONTAINER="sarbato-production_postgres_1"
 export POSTGRES_USER="sarbato_admin"
 export POSTGRES_PASSWORD="${POSTGRES_ADMIN_PASSWORD}"
 export RESTORE_OBJECT_DIRECTORY="${object_restore}"

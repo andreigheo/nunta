@@ -1,4 +1,4 @@
-FROM node:22.22.0-bookworm-slim AS build
+FROM node:22.23.4-bookworm-slim AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN apt-get update -y \
@@ -24,7 +24,7 @@ RUN pnpm --filter @weddingos/contracts build \
  && pnpm --filter @weddingos/database generate \
  && pnpm --filter @weddingos/database build \
  && pnpm --filter @weddingos/worker build
-FROM node:22.22.0-bookworm-slim AS runtime
+FROM node:22.23.4-bookworm-slim AS runtime
 ENV NODE_ENV=production
 RUN apt-get update -y \
  && apt-get install -y --no-install-recommends ca-certificates openssl \

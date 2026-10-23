@@ -44,7 +44,7 @@ export interface Task {
   owner: string;
   priority: TaskPriority;
   status: TaskStatus;
-  deadline: string; // ISO
+  deadline: string | null; // ISO; null means no deadline
   startDate?: string;
   dependsOn?: ID;
   comments: number;

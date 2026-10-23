@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { SetupGuide } from "@/components/overview/setup-guide";
 import { useRouter } from "next/navigation";
 import type {
   OnboardingDraftResource,
@@ -102,7 +103,7 @@ function demoDashboard(
     (task) => task.status === "completed",
   ).length;
   const overdue = demoTasks.filter(
-    (task) => task.status !== "completed" && daysUntil(task.deadline) < 0,
+    (task) => task.status !== "completed" && (task.deadline ? daysUntil(task.deadline) : Number.POSITIVE_INFINITY) < 0,
   ).length;
   const urgent = demoTasks
     .filter((task) => task.priority === "urgent" || task.priority === "high")
@@ -125,7 +126,7 @@ function demoDashboard(
         .length,
       dueThisWeek: demoTasks.filter(
         (task) =>
-          daysUntil(task.deadline) >= 0 && daysUntil(task.deadline) <= 7,
+          (task.deadline ? daysUntil(task.deadline) : Number.POSITIVE_INFINITY) >= 0 && (task.deadline ? daysUntil(task.deadline) : Number.POSITIVE_INFINITY) <= 7,
       ).length,
     },
     nextBestAction: urgent[0]
@@ -135,7 +136,7 @@ function demoDashboard(
           reason: "Este cea mai urgentă sarcină disponibilă din planul demo.",
           impact: "Menține faza curentă în grafic.",
           taskId: undefined,
-          dueAt: new Date(urgent[0].deadline).toISOString(),
+          dueAt: urgent[0].deadline ? new Date(urgent[0].deadline).toISOString() : undefined,
           priority: urgent[0].priority,
         }
       : null,
@@ -151,7 +152,7 @@ function demoDashboard(
         "not_started" | "in_progress" | "waiting" | "blocked" | "completed",
       priority: task.priority,
       startAt: task.startDate ? new Date(task.startDate).toISOString() : null,
-      dueAt: new Date(task.deadline).toISOString(),
+      dueAt: task.deadline ? new Date(task.deadline).toISOString() : null,
       relativeStartOffsetDays: null,
       relativeDueOffsetDays: null,
       assigneeMembershipId: null,
@@ -406,6 +407,11 @@ export default function OverviewPage() {
     (step) => !step.complete && capabilities.has(step.capability),
   );
   const completedSetupSteps = setupSteps.filter((step) => step.complete).length;
+  const compactDashboard = canGuideSetup && Boolean(nextSetupStep)
+    && onboarding?.status !== "ready" && planning.totalTasks <= 1
+    && dashboard.guestCrm.activeGuests <= 1 && !weddingDay?.status
+    && !weddingDay?.openIncidents && planning.overdueTasks === 0;
+
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
@@ -455,62 +461,16 @@ export default function OverviewPage() {
         ) : undefined}
       />
 
-      {canGuideSetup && completedSetupSteps < setupSteps.length ? (
-        <section className="overflow-hidden rounded-2xl border border-brand/20 bg-surface shadow-card" aria-labelledby="guided-start-title">
-          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="p-5 sm:p-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="brand">De aici începi</Badge>
-                <span className="text-xs font-medium text-muted">
-                  {completedSetupSteps} din {setupSteps.length} repere pregătite
-                </span>
-              </div>
-              <h2 id="guided-start-title" className="mt-3 font-brand text-2xl font-semibold tracking-[-0.02em] text-ink">
-                Un singur pas important acum, restul rămâne la îndemână.
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-                Urmează reperele în ordinea de mai jos. Sarbato păstrează toate modulele, dar îți arată întâi ce deblochează următoarea etapă.
-              </p>
-              <ol className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5" aria-label="Pașii de pornire ai organizării">
-                {setupSteps.map((step, index) => (
-                  <li key={step.href} className={`rounded-xl border p-3 ${step.complete ? "border-success/25 bg-success-soft/35" : step === nextSetupStep ? "border-brand/35 bg-brand-softer" : "border-line bg-subtle/45"}`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${step.complete ? "bg-success text-on-success" : step === nextSetupStep ? "bg-action text-on-action" : "bg-surface text-muted"}`}>
-                        {step.complete ? <CheckCircle2 className="size-3.5" aria-hidden /> : index + 1}
-                      </span>
-                      <span className="text-sm font-semibold text-ink">{step.label}</span>
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-muted">{step.description}</p>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            {nextSetupStep ? (
-              <div className="flex items-center border-t border-line bg-brand-softer/65 p-5 lg:w-72 lg:border-l lg:border-t-0 lg:p-6">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-brand">Următorul pas</p>
-                  <p className="mt-2 font-brand text-xl font-semibold text-ink">{nextSetupStep.label}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted">{nextSetupStep.description}</p>
-                  <Button className="mt-4 w-full" onClick={() => router.push(nextSetupStep.href)}>
-                    {nextSetupStep.action}
-                    <ArrowRight className="size-4" aria-hidden />
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </section>
+      {canGuideSetup && nextSetupStep ? (
+        <SetupGuide steps={setupSteps} nextStep={nextSetupStep} onNavigate={(href) => router.push(href)} />
       ) : null}
 
-      {completedSetupSteps < setupSteps.length ? (
-        <div className="pt-1">
-          <h2 className="font-brand text-xl font-semibold text-ink">Toate modulele evenimentului</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Le poți deschide oricând. Reperele de mai sus îți arată doar ordinea recomandată pentru pornire.
-          </p>
-        </div>
-      ) : null}
-
+      <details className="group rounded-xl" open={!compactDashboard}>
+        <summary className="cursor-pointer rounded-lg border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-brand">
+          Toate modulele evenimentului
+          <span className="ml-2 text-xs font-normal text-muted">Plan, invitați, buget și operațiuni</span>
+        </summary>
+        <div className="mt-4 space-y-5">
       <EventThread
         items={[
           {
@@ -567,7 +527,7 @@ export default function OverviewPage() {
         ]}
       />
 
-      {nextBestAction ? (
+      {nextBestAction && !nextSetupStep ? (
         <section className="overflow-hidden rounded-2xl bg-brand-panel text-on-brand-panel shadow-pop" aria-labelledby="next-action-title">
           <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:p-7">
             <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent">
@@ -621,7 +581,7 @@ export default function OverviewPage() {
             </Button>
           </div>
         </section>
-      ) : planning.totalTasks > 0 ? (
+      ) : !nextSetupStep && planning.totalTasks > 0 ? (
         <EmptyState
           icon={Sparkles}
           title="Nu există încă o acțiune recomandată"
@@ -1197,6 +1157,8 @@ export default function OverviewPage() {
           </CardContent>
         </Card>
       ) : null}
+        </div>
+      </details>
     </div>
   );
 }

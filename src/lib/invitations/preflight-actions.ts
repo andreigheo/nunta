@@ -4,6 +4,7 @@
  */
 export type InvitationPreflightAction =
   | { kind: "route"; href: string; label: string }
+  | { kind: "content-section"; sectionType: "hero" | "schedule" | "locations" | "rsvp"; label: string }
   | { kind: "starter-section"; label: string }
   | { kind: "media-section"; label: string }
   | { kind: "workflow"; label: string }
@@ -21,6 +22,25 @@ export function invitationPreflightGuide(
   fallbackMessage: string,
 ): InvitationPreflightGuide {
   switch (code) {
+    case "INVITATION_TITLE_MISSING":
+    case "INVITATION_DATE_MISSING":
+    case "INVITATION_SCHEDULE_INCOMPLETE":
+    case "INVITATION_LOCATIONS_INCOMPLETE":
+    case "INVITATION_RSVP_INCOMPLETE":
+      return {
+        title: "Completează conținutul invitației",
+        detail: code === "INVITATION_TITLE_MISSING"
+          ? "Completează titlul real al evenimentului în secțiunea de început."
+          : code === "INVITATION_DATE_MISSING"
+            ? "Completează data reală a evenimentului; textul de pornire nu este o dată confirmată."
+            : code === "INVITATION_SCHEDULE_INCOMPLETE"
+              ? "Completează ora și titlul fiecărui moment afișat sau ascunde programul până îl definitivezi."
+              : code === "INVITATION_LOCATIONS_INCOMPLETE"
+                ? "Completează numele și adresa fiecărei locații afișate sau ascunde secțiunea."
+                : "Completează termenul real de confirmare în secțiunea RSVP.",
+        action: { kind: "content-section", sectionType: code === "INVITATION_SCHEDULE_INCOMPLETE" ? "schedule" : code === "INVITATION_LOCATIONS_INCOMPLETE" ? "locations" : code === "INVITATION_RSVP_INCOMPLETE" ? "rsvp" : "hero", label: "Completează secțiunea" },
+      };
+
     case "RSVP_FORM_NOT_PUBLISHED":
       return {
         title: "Formularul RSVP nu este publicat",

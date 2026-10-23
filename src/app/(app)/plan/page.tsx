@@ -29,12 +29,15 @@ import { tasks as demoTasks } from "@/lib/data/tasks";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import {
+  taskDaysUntil as daysUntil,
+  taskDeadlineLabel,
+  compareTaskDeadlines,
   planStatusHeadline,
   taskCategoryLabel,
   taskFromApi,
   transitionForStatus,
 } from "@/lib/planning-adapter";
-import { cn, daysUntil, formatDateShort, percent } from "@/lib/utils";
+import { cn, percent } from "@/lib/utils";
 import {
   Avatar,
   Badge,
@@ -120,7 +123,7 @@ function recommendedTask(tasks: Task[]) {
   const incomplete = tasks.filter((task) => task.status !== "completed");
   const compare = (left: Task, right: Task) =>
     priorityOrder[left.priority] - priorityOrder[right.priority] ||
-    left.deadline.localeCompare(right.deadline);
+    compareTaskDeadlines(left.deadline, right.deadline);
   return (
     incomplete
       .filter((task) => daysUntil(task.deadline) < 0)
@@ -134,6 +137,7 @@ function recommendedTask(tasks: Task[]) {
 }
 
 function taskDueLabel(task: Task) {
+  if (!task.deadline) return "Fără termen";
   const days = daysUntil(task.deadline);
   if (days < -1) return `Termen depășit cu ${Math.abs(days)} zile`;
   if (days === -1) return "Termen depășit de ieri";
@@ -382,7 +386,7 @@ export default function PlanPage() {
             ?.name ?? "Nealocat",
         priority: input.priority,
         status: "not-started",
-        deadline: input.dueAt ?? new Date().toISOString(),
+        deadline: input.dueAt ?? null,
         comments: 0,
         attachments: 0,
         subtasks: subtasks.map((title, index) => ({
@@ -444,7 +448,7 @@ export default function PlanPage() {
       if (!reason) return;
     }
     if (transitionName === "POSTPONE") {
-      const date = new Date(task.deadline);
+      const date = task.deadline ? new Date(task.deadline) : new Date();
       date.setDate(date.getDate() + 7);
       postponeUntil = date.toISOString();
       reason = "Amânată cu 7 zile din interfața planului";
@@ -508,7 +512,7 @@ export default function PlanPage() {
                 title: patch.title ?? item.title,
                 description: patch.description ?? item.description,
                 priority: patch.priority ?? item.priority,
-                deadline: patch.dueAt ?? item.deadline,
+                deadline: patch.dueAt === undefined ? item.deadline : patch.dueAt,
               }
             : item,
         ),
@@ -547,10 +551,9 @@ export default function PlanPage() {
       );
     if (focusFilter === "unassigned") list = list.filter(isUnassigned);
     list.sort((a, b) => {
+      if (sortKey === "deadline") return compareTaskDeadlines(a.deadline, b.deadline, sortDir);
       const comparison =
-        sortKey === "deadline"
-          ? a.deadline.localeCompare(b.deadline)
-          : sortKey === "priority"
+        sortKey === "priority"
             ? priorityOrder[a.priority] - priorityOrder[b.priority]
             : a.title.localeCompare(b.title, "ro");
       return sortDir === "asc" ? comparison : -comparison;
@@ -935,7 +938,7 @@ export default function PlanPage() {
                       )}
                     >
                       {taskDueLabel(nextTask)} ·{" "}
-                      {formatDateShort(nextTask.deadline)}
+                      {taskDeadlineLabel(nextTask.deadline)}
                     </p>
                     <p className="mt-1 text-xs text-faint">
                       {taskCategoryLabel(nextTask.category)} · {nextTask.owner}
@@ -1164,7 +1167,7 @@ export default function PlanPage() {
                 <Badge
                   variant={daysUntil(task.deadline) < 0 ? "danger" : "neutral"}
                 >
-                  {formatDateShort(task.deadline)}
+                  {taskDeadlineLabel(task.deadline)}
                 </Badge>
               </button>
             ))}
@@ -1178,7 +1181,7 @@ export default function PlanPage() {
               className="grid w-full grid-cols-[120px_1fr_auto] items-center gap-3 rounded-xl border border-line bg-elevated p-3 text-left"
             >
               <span className="text-xs text-muted">
-                {formatDateShort(task.deadline)}
+                {taskDeadlineLabel(task.deadline)}
               </span>
               <span className="text-sm font-medium text-ink">{task.title}</span>
               <Badge variant={statusTones[task.status]}>
@@ -1226,7 +1229,7 @@ export default function PlanPage() {
                         "font-semibold text-danger",
                     )}
                   >
-                    {formatDateShort(task.deadline)}
+                    {taskDeadlineLabel(task.deadline)}
                   </span>
                 </span>
                 <span className="mt-3 flex items-center gap-2 text-xs text-muted">
@@ -1308,7 +1311,7 @@ export default function PlanPage() {
                             : "text-muted"
                         }
                       >
-                        {formatDateShort(task.deadline)}
+                        {taskDeadlineLabel(task.deadline)}
                       </span>
                     </TD>
                   </TR>

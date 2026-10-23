@@ -4,7 +4,7 @@ WeddingOS este un workspace pnpm cu frontend Next.js, backend NestJS modular și
 
 ## Cerințe locale
 
-- Node.js 22.13 sau mai nou (validat cu 22.22.3)
+- Node.js 22.23.4 LTS (sau 24.22.1 LTS și patchuri ulterioare din aceeași ramură)
 - pnpm 9.15.9
 - Docker cu Docker Compose
 

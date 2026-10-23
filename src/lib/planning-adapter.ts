@@ -1,4 +1,5 @@
 import type { TaskResource, TaskSummary } from "@weddingos/contracts";
+import { daysUntil, formatDate, formatDateShort } from "@/lib/utils";
 import type { Task, TaskStatus } from "@/lib/types";
 
 const taskCategoryLabels: Record<string, string> = {
@@ -83,7 +84,7 @@ export function taskFromApi(task: TaskSummary | TaskResource): Task {
     owner: task.assigneeName ?? "Nealocat",
     priority: task.priority,
     status: statusFromApi[task.status],
-    deadline: task.dueAt ?? task.createdAt,
+    deadline: task.dueAt,
     startDate: task.startAt ?? undefined,
     comments: task.commentCount,
     attachments: 0,
@@ -110,3 +111,30 @@ export const transitionForStatus: Record<
   blocked: "BLOCK",
   completed: "COMPLETE",
 };
+
+/** Undated tasks never count as overdue or due this week. */
+export function taskDaysUntil(deadline: string | null): number {
+  return deadline ? daysUntil(deadline) : Number.POSITIVE_INFINITY;
+}
+
+export function taskDeadlineLabel(
+  deadline: string | null,
+  long = false,
+): string {
+  return deadline
+    ? long
+      ? formatDate(deadline)
+      : formatDateShort(deadline)
+    : "Fără termen";
+}
+
+export function compareTaskDeadlines(
+  left: string | null,
+  right: string | null,
+  direction: "asc" | "desc" = "asc",
+): number {
+  if (!left) return right ? 1 : 0;
+  if (!right) return -1;
+  const comparison = left.localeCompare(right);
+  return direction === "asc" ? comparison : -comparison;
+}

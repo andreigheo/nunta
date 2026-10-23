@@ -1,0 +1,28 @@
+services:
+  worker:
+    image: sarbato-worker:ux-20261023-r1
+    container_name: sarbato-production_worker_1
+  web:
+    image: sarbato-web:ux-20261023-r1
+    container_name: sarbato-production_web_1
+  api:
+    image: sarbato-api:ux-20261023-r1
+    container_name: sarbato-production_api_1
+  storage:
+    image: security-20261023/sarbato-storage-silo-security-20261022:patched
+    container_name: sarbato-production_storage_1
+    mem_limit: 1g
+    memswap_limit: 1536m
+    mem_reservation: 256m
+  resend-relay:
+    image: security-20261023/sarbato-resend-relay-vps-security-20261022:patched-node
+    container_name: sarbato-production_resend-relay_1
+  postgres:
+    image: security-20261023/sarbato-postgres-vps-security-20261022:patched-final
+    container_name: sarbato-production_postgres_1
+  clamav:
+    image: security-20261023/sarbato-clamav-vps-security-20261022:patched
+    container_name: sarbato-production_clamav_1
+  redis:
+    image: security-20261023/sarbato-redis-vps-security-20261022:patched
+    container_name: sarbato-production_redis_1

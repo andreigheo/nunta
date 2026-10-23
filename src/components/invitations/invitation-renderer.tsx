@@ -1,4 +1,5 @@
 "use client";
+import { invitationContentText } from "@weddingos/contracts";
 
 import * as React from "react";
 import {
@@ -99,6 +100,7 @@ export function InvitationRenderer({
   const [editorGuide, setEditorGuide] = React.useState<EditorGuide | null>(null);
   const visibleSections = snapshot.sections.filter((section) => section.visible);
   const { design } = snapshot;
+  const hasEventDate = invitationContentText(visibleSections.find((section) => section.type === "hero")?.content.date);
   const defaultTimeZone = invitationTimeZone(snapshot.sections);
 
   return (
@@ -126,7 +128,9 @@ export function InvitationRenderer({
         const content = (
           <InvitationSectionView
             key={section.id}
-            section={section}
+            section={section.type === "countdown" && !hasEventDate && section.content.date === "2027-09-12T16:00"
+              ? { ...section, content: { ...section.content, date: "" } }
+              : section}
             design={design}
             resolveMedia={resolveMedia}
             onAddCalendar={onAddCalendar}
@@ -1182,6 +1186,9 @@ function InvitationCountdown({
       if (interval !== null) window.clearInterval(interval);
     };
   }, [date]);
+
+  if (!date || !Number.isFinite(new Date(date).getTime()))
+    return <p className="mt-7 text-sm opacity-75" role="status">Data evenimentului nu este configurată.</p>;
 
   const values =
     now === null ? countdownPlaceholderValues() : countdownValuesAt(date, now);

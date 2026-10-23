@@ -114,13 +114,13 @@ function TaskDrawerContent({
   const [assigneeMembershipId, setAssigneeMembershipId] = React.useState(
     task.assigneeMembershipId ?? "",
   );
-  const [dueDate, setDueDate] = React.useState(task.deadline.slice(0, 10));
+  const [dueDate, setDueDate] = React.useState(task.deadline?.slice(0, 10) ?? "");
   const [comment, setComment] = React.useState("");
   const [comments, setComments] = React.useState<Comment[]>([]);
   const [dependencyId, setDependencyId] = React.useState("");
   const [error, setError] = React.useState("");
   const completed = task.status === "completed";
-  const days = daysUntil(task.deadline);
+  const days = task.deadline ? daysUntil(task.deadline) : Number.POSITIVE_INFINITY;
 
   React.useEffect(() => {
     void loadComments(task.id)
@@ -239,7 +239,7 @@ function TaskDrawerContent({
                 days < 0 && !completed ? "text-danger" : "text-ink",
               )}
             >
-              {formatDate(task.deadline)}
+              {task.deadline ? formatDate(task.deadline) : "Fără termen"}
             </p>
           </div>
           <div className="rounded-lg bg-subtle/70 p-2.5">

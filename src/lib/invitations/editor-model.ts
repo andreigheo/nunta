@@ -1,4 +1,4 @@
-import { invitationContainsStarterContent } from "@weddingos/contracts";
+import { invitationContainsStarterContent, invitationContentChecks } from "@weddingos/contracts";
 import {
   isInvitationSealStyle,
   type InvitationSealStyle,
@@ -700,7 +700,7 @@ function applyInitialContext(
   const countdown = sections.find((section) => section.type === "countdown");
   if (countdown) {
     countdown.content.title = "Până ne întâlnim";
-    if (context.eventDate) countdown.content.date = `${context.eventDate}T12:00`;
+    countdown.content.date = context.eventDate ? `${context.eventDate}T12:00` : "";
   }
   const schedule = sections.find((section) => section.type === "schedule");
   if (schedule) {
@@ -708,16 +708,14 @@ function applyInitialContext(
       eventType === "corporate" || eventType === "conference"
         ? "Agenda evenimentului"
         : "Programul evenimentului";
-    schedule.content.items = [
-      { time: "10:00", title: "Primirea invitaților", detail: location },
-      { time: "11:00", title: "Momentul principal", detail: title },
-      { time: "13:00", title: "Timp împreună", detail: "Detalii în curând" },
-    ];
+    schedule.content.items = [];
   }
   const locations = sections.find((section) => section.type === "locations");
   if (locations) {
     locations.content.title = "Unde ne întâlnim";
-    locations.content.items = [{ name: "Locația evenimentului", address: location, url: "" }];
+    locations.content.items = context.location?.trim()
+      ? [{ name: "Locația evenimentului", address: context.location.trim(), url: "" }]
+      : [];
   }
   const rsvp = sections.find((section) => section.type === "rsvp");
   if (rsvp) {
@@ -763,7 +761,8 @@ export function createInitialSnapshot(
     createDefaultSection("dress_code", "dress-code"),
     createDefaultSection("faq", "faq"),
   ];
-  if (profile.eventType !== "wedding") applyInitialContext(sections, context);
+  if (context.title || profile.eventType !== "wedding")
+    applyInitialContext(sections, { ...context, eventType: profile.eventType });
   if (profile.purpose === "save_the_date") {
     for (const section of sections)
       section.visible = ["hero", "countdown", "locations"].includes(section.type);
@@ -1071,49 +1070,16 @@ export function invitationStarterSectionId(
 
 export function invitationReadiness(snapshot: InvitationEditorSnapshot) {
   const visible = snapshot.sections.filter((section) => section.visible);
-  const hero = visible.find((section) => section.type === "hero");
   const rsvp = visible.find((section) => section.type === "rsvp");
-  const schedule = visible.find((section) => section.type === "schedule");
-  const locations = visible.find((section) => section.type === "locations");
   const starterSectionId = invitationStarterSectionId(snapshot);
-  const checks: Array<{
-    label: string;
-    done: boolean;
-    sectionId?: string;
-  }> = [
-    {
-      label:
-        snapshot.profile.eventType === "wedding"
-          ? "Numele cuplului"
-          : "Titlul evenimentului",
-      done: Boolean(text(hero?.content.names)),
-      sectionId: hero?.id,
-    },
-    {
-      label: "Data evenimentului",
-      done: Boolean(text(hero?.content.date)),
-      sectionId: hero?.id,
-    },
-  ];
-  if (schedule)
-    checks.push({
-      label: "Programul afișat este completat",
-      done: array(schedule.content.items).length > 0,
-      sectionId: schedule.id,
-    });
-  if (locations)
-    checks.push({
-      label: "Locațiile afișate sunt completate",
-      done: array(locations.content.items).length > 0,
-      sectionId: locations.id,
-    });
-  if (snapshot.profile.purpose === "full" || rsvp)
-    checks.push({
-      label: "Confirmarea RSVP este configurată",
-      done: Boolean(rsvp && text(rsvp.content.deadline)),
-      sectionId: rsvp?.id,
-    });
+  const checks = invitationContentChecks({ sections: visible }).map((check) => ({
+    ...check,
+    label: check.code === "INVITATION_TITLE_MISSING" && snapshot.profile.eventType === "wedding" ? "Numele cuplului" : check.label,
+  }));
+  if (snapshot.profile.purpose === "full" && !rsvp)
+    checks.push({ code: "INVITATION_RSVP_INCOMPLETE", label: "Confirmarea RSVP este configurată", done: false, sectionId: undefined });
   checks.push({
+    code: "INVITATION_STARTER_CONTENT",
     label: "Exemplele demonstrative au fost înlocuite",
     done: !invitationContainsStarterContent({
       sections: visible.map((section) => section.content),

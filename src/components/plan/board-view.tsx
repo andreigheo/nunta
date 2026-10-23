@@ -20,9 +20,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarClock, MessageSquare, Paperclip } from "lucide-react";
-import { cn, daysUntil, formatDateShort } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { Task, TaskStatus } from "@/lib/types";
-import { taskCategoryLabel } from "@/lib/planning-adapter";
+import { taskCategoryLabel, taskDaysUntil as daysUntil, taskDeadlineLabel } from "@/lib/planning-adapter";
 import { Avatar, Badge } from "@/components/ui";
 
 export const boardColumns: Array<{ id: TaskStatus; label: string }> = [
@@ -93,7 +93,7 @@ function TaskCard({
           )}
         >
           <CalendarClock className="size-3" aria-hidden />
-          {formatDateShort(task.deadline)}
+          {taskDeadlineLabel(task.deadline)}
         </span>
         {task.comments > 0 && (
           <span className="inline-flex items-center gap-0.5">
