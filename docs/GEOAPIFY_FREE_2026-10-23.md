@@ -1,5 +1,7 @@
 # Sarbato — Geoapify Free, implementare și verificare live
 
+Acest raport păstrează dovada integrării inițiale. Actualizarea ulterioară pentru duplicate și release-ul activ sunt documentate în [raportul deduplicării](ACCOMMODATION_DEDUP_2026-10-23.md).
+
 Data: 23 octombrie 2026. Stare: publicat pe https://sarbato.space/accommodation și verificat pe desktop și mobil. Proiectul Geoapify „Sarbato” rămâne pe **Free, 0 €/lună**. Nu a fost activat un abonament plătit și nu au fost schimbate abonamentele Sarbato.
 
 ## Ce este activ
@@ -88,7 +90,7 @@ Auditul dependențelor de producție: zero vulnerabilități raportate. Scanări
 ## Limite rămase
 
 - Geoapify Free nu include SLA-ul planurilor plătite. La indisponibilitate sau epuizarea bugetului, aplicația folosește copia eligibilă sau explică indisponibilitatea. Nu activează automat un plan plătit.
-- Catalogul deschis poate avea înregistrări duplicate, date de contact vechi sau proprietăți lipsă. În proba live au fost observate și variante multiple pentru aceeași denumire/adresă de hostel. O deduplicare prudentă este o îmbunătățire ulterioară; nu au fost unite automat proprietăți potențial diferite.
+- Catalogul deschis poate avea înregistrări duplicate, date de contact vechi sau proprietăți lipsă. În proba live au fost observate și variante multiple pentru aceeași denumire/adresă de hostel. Ulterior, deduplicarea prudentă a fost publicată și verificată; vezi raportul dedicat de mai sus. Cazurile ambigue rămân separate.
 - Nu există tarife, disponibilitate pe date, confirmări sau rezervări în timp real prin acest adaptor. Organizatorul verifică proprietatea înainte de recomandare sau rezervare.
 - Traseul de salvare/publicare printr-un cont Plus/Pro real pe live nu a fost exercitat în această verificare. Integrarea și persistența au trecut în mediul izolat cu drepturile potrivite.
 
