@@ -1598,6 +1598,14 @@ export const weddingOsApi = {
         idempotencyKey: crypto.randomUUID(),
       },
     ),
+  workspaceCheckoutStatus: (workspaceId: string, transactionId: string) =>
+    request<{
+      kind: "SUBSCRIPTION" | "MESSAGE_CREDITS";
+      status: "CREATED" | "RECOVERY_PENDING" | "COMPLETED" | "EXPIRED" | "FAILED";
+      plan: WorkspaceSubscriptionPlanKey | null;
+      credits: number;
+      completedAt: string | null;
+    }>(`/workspaces/${encodeURIComponent(workspaceId)}/billing/checkouts/${encodeURIComponent(transactionId)}/status`),
   subscriptionCheckoutStatus: (
     workspaceId: string,
     transactionId: string,

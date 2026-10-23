@@ -19,7 +19,7 @@ export default async function CheckoutPage({
     : transactionQuery;
   const transactionId =
     typeof rawTransactionId === "string" &&
-    /^txn_[A-Za-z0-9]+$/.test(rawTransactionId)
+    /^txn_[a-z0-9]{26}$/.test(rawTransactionId)
       ? rawTransactionId
       : null;
 

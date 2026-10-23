@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, CreditCard, RefreshCw, ShieldCheck } from "lucide-react";
 import { loadPaddle, type PaddleEnvironment } from "@/lib/paddle";
 import { trackMarketingEvent } from "@/lib/marketing/google-measurement";
+import { billingReturnUrl } from "@/lib/billing-success";
 
 type PublicPaddleConfiguration = {
   enabled: boolean;
@@ -46,7 +47,7 @@ export function PaddleCheckout({ transactionId }: { transactionId: string | null
         settings: {
           displayMode: "overlay",
           theme: "light",
-          successUrl: `${window.location.origin}/settings?tab=billing&checkout=success`,
+          successUrl: billingReturnUrl(window.location.origin, "checkout", transactionId),
         },
       });
       setState("opened");

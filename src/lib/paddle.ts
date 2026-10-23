@@ -63,7 +63,17 @@ export async function loadPaddle(
       document.head.appendChild(script);
     });
   }
-  const paddle = await paddlePromise;
+  const pending = paddlePromise;
+  let paddle: PaddleInstance;
+  try {
+    paddle = await pending;
+  } catch (error) {
+    if (paddlePromise === pending) {
+      paddlePromise = null;
+      document.querySelector('script[data-sarbato-paddle="true"]')?.remove();
+    }
+    throw error;
+  }
   if (initializedToken && initializedToken !== token)
     throw new Error("Paddle.js a fost inițializat cu alt token client.");
   if (!initializedToken) {

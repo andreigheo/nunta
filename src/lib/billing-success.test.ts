@@ -60,6 +60,9 @@ describe("billing success confirmation", () => {
   });
 
   it("returns to billing with the exact Paddle transaction identifier", () => {
+    expect(billingReturnUrl("https://sarbato.space", "checkout", "txn_return")).toBe(
+      "https://sarbato.space/settings?tab=billing&checkout=confirm&transaction=txn_return",
+    );
     expect(
       billingReturnUrl(
         "https://sarbato.space",

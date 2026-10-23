@@ -2,6 +2,7 @@ import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { ApiEnvironment } from "@weddingos/config";
 import type { WorkspaceSubscriptionPlanKey } from "@weddingos/contracts";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { phoneChannelReady } from "@weddingos/jobs";
 import { API_ENVIRONMENT } from "../common/environment.module";
 import { problem } from "../common/problem";
 import {
@@ -62,7 +63,9 @@ export class PaddleService {
   get messageCreditsEnabled() {
     return (
       this.enabled &&
-      Boolean(this.environment.PADDLE_MESSAGE_CREDITS_100_PRICE_ID)
+      Boolean(this.environment.PADDLE_MESSAGE_CREDITS_100_PRICE_ID) &&
+      (phoneChannelReady(this.environment, "SMS") ||
+        phoneChannelReady(this.environment, "WHATSAPP"))
     );
   }
 
@@ -94,6 +97,13 @@ export class PaddleService {
   }
 
   messageCreditPriceId(pack: MessageCreditPackKey): string {
+    if (!this.messageCreditsEnabled)
+      problem(
+        "BILLING_NOT_CONFIGURED",
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "Cumpărarea creditelor este momentan indisponibilă",
+        "Creditele suplimentare pot fi cumpărate după activarea trimiterilor SMS sau WhatsApp.",
+      );
     const value =
       pack === "MESSAGES_100"
         ? this.environment.PADDLE_MESSAGE_CREDITS_100_PRICE_ID
@@ -495,6 +505,11 @@ export class PaddleService {
       );
     }
     const payload = (await response.json().catch(() => null)) as T | null;
+    if (
+      (init.method ?? "GET").toUpperCase() !== "GET" &&
+      (response.status >= 500 || (response.ok && !payload))
+    )
+      throw new PaddleRequestOutcomeUnknownError(true);
     if (!response.ok || !payload)
       problem(
         "PADDLE_REQUEST_FAILED",

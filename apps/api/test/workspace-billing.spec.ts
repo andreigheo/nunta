@@ -164,6 +164,146 @@ describe("Sarbato workspace subscriptions", () => {
     }
   });
 
+  it.each([
+    { status: 503, body: "{}" },
+    { status: 200, body: "not-json" },
+  ])(
+    "keeps a provider mutation with HTTP $status in the unknown-outcome recovery path",
+    async ({ status, body }) => {
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response(body, { status }));
+      try {
+        await expect(
+          new PaddleService(environment()).createPortalSession(
+            "ctm_test",
+            "sub_test",
+          ),
+        ).rejects.toMatchObject({
+          name: "PaddleRequestOutcomeUnknownError",
+          mayHaveCommitted: true,
+        });
+      } finally {
+        fetchMock.mockRestore();
+      }
+    },
+  );
+
+  it("keeps an explicit provider rejection distinct from an uncertain outcome", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 400 }));
+    try {
+      await expect(
+        new PaddleService(environment()).createPortalSession(
+          "ctm_test",
+          "sub_test",
+        ),
+      ).rejects.toMatchObject({ code: "PADDLE_REQUEST_FAILED" });
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("blocks message-credit purchases before database or provider writes when messaging is unavailable", async () => {
+    const paddle = new PaddleService(environment());
+    const database = { withContext: vi.fn() };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("unexpected external request"));
+    try {
+      expect(paddle.messageCreditsEnabled).toBe(false);
+      const service = new WorkspaceBillingService(
+        database as never,
+        paddle,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+      await expect(
+        service.startMessageCreditCheckout(
+          "user",
+          "workspace",
+          "MESSAGES_100",
+          "key",
+        ),
+      ).rejects.toMatchObject({ code: "BILLING_NOT_CONFIGURED" });
+      await expect(
+        paddle.createMessageCreditTransaction({
+          pack: "MESSAGES_100",
+          workspaceId: "workspace",
+          userId: "user",
+          checkoutId: "checkout",
+          assignmentToken: "assignment",
+        }),
+      ).rejects.toMatchObject({ code: "BILLING_NOT_CONFIGURED" });
+      expect(database.withContext).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("permits the configured message-credit price only when a real channel is ready", () => {
+    const ready = {
+      ...environment(),
+      TWILIO_ENABLED: true,
+      TWILIO_ACCOUNT_SID: `AC${"1".repeat(32)}`,
+      TWILIO_AUTH_TOKEN: "test-auth-token-with-at-least-16-characters",
+      TWILIO_SMS_FROM: "+15005550006",
+      TWILIO_STATUS_CALLBACK_URL: "https://example.test/status",
+      TWILIO_INBOUND_URL: "https://example.test/inbound",
+    };
+    expect(new PaddleService(ready).messageCreditsEnabled).toBe(true);
+    expect(new PaddleService(ready).messageCreditPriceId("MESSAGES_100")).toBe(
+      "pri_messages100",
+    );
+    expect(
+      new PaddleService({ ...ready, TWILIO_ENABLED: false })
+        .messageCreditsEnabled,
+    ).toBe(false);
+  });
+
+  it.each(["SUBSCRIPTION", "MESSAGE_CREDITS"])(
+    "resolves the authoritative %s checkout kind only inside its workspace",
+    async (kind) => {
+      const findFirst = vi.fn().mockResolvedValue({
+        kind,
+        status: "COMPLETED",
+        planKey: kind === "SUBSCRIPTION" ? "PLUS" : null,
+        creditQuantity: kind === "MESSAGE_CREDITS" ? 100 : null,
+        completedAt: new Date("2026-10-23T13:00:00Z"),
+      });
+      const database = {
+        withContext: vi.fn(async (_context, action) =>
+          action({ workspaceBillingCheckout: { findFirst } }),
+        ),
+      };
+      const service = new WorkspaceBillingService(
+        database as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+      await expect(
+        service.checkoutStatus("owner", "own-workspace", "txn_verified"),
+      ).resolves.toMatchObject({
+        kind,
+        status: "COMPLETED",
+        credits: kind === "MESSAGE_CREDITS" ? 100 : 0,
+      });
+      expect(findFirst.mock.calls[0][0].where).toEqual({
+        workspaceId: "own-workspace",
+        providerTransactionId: "txn_verified",
+      });
+      findFirst.mockResolvedValueOnce(null);
+      await expect(
+        service.checkoutStatus("owner", "other-workspace", "txn_verified"),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    },
+  );
+
   it("maps every workspace role without granting billing management beyond the owner", () => {
     expect(
       WORKSPACE_SUBSCRIPTION_ROLE_POLICY.map((policy) => policy.role),
@@ -1445,14 +1585,12 @@ it("does not reuse a canceled checkout or locally expire an unverified provider 
     },
     workspaceBillingCheckout: {
       updateMany: vi.fn(),
-      findUnique: vi
-        .fn()
-        .mockResolvedValue({
-          kind: "SUBSCRIPTION",
-          planKey: "PLUS",
-          status: "EXPIRED",
-          providerTransactionId: "txn_canceled",
-        }),
+      findUnique: vi.fn().mockResolvedValue({
+        kind: "SUBSCRIPTION",
+        planKey: "PLUS",
+        status: "EXPIRED",
+        providerTransactionId: "txn_canceled",
+      }),
     },
   };
   const database = {

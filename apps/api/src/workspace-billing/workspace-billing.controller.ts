@@ -166,6 +166,31 @@ export class WorkspaceBillingController {
     );
   }
 
+  @Get("checkouts/:transactionId/status")
+  @UseGuards(SessionAuthGuard, CapabilityGuard)
+  @RequireCapability("workspace.billing.read")
+  async checkoutStatus(
+    @CurrentAuth() auth: AuthenticatedSession,
+    @Param("workspaceId") workspaceId: string,
+    @Param("transactionId") transactionId: string,
+    @Req() request: WeddingOsRequest,
+  ) {
+    if (!/^txn_[a-z0-9]{26}$/.test(transactionId))
+      problem(
+        "VALIDATION_FAILED",
+        HttpStatus.BAD_REQUEST,
+        "Identificatorul tranzacției Paddle este invalid",
+      );
+    return apiResponse(
+      request,
+      await this.billing.checkoutStatus(
+        auth.userId,
+        parseUuid(workspaceId, "workspaceId"),
+        transactionId,
+      ),
+    );
+  }
+
   @Post("portal")
   @UseGuards(SessionAuthGuard, CapabilityGuard)
   @RequireCapability("workspace.billing.manage")

@@ -1,0 +1,6 @@
+# Apply after the reviewed-accommodation overlay. Provider configuration unchanged.
+services:
+  api:
+    image: sarbato-api:billing-flow-20261023-r1
+  web:
+    image: sarbato-web:billing-flow-20261023-r1

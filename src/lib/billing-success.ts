@@ -73,17 +73,17 @@ export function creditSuccessNotice(
 
 export function billingReturnUrl(
   origin: string,
-  kind: "subscription" | "credits",
+  kind: "subscription" | "credits" | "checkout",
   transactionId: string,
 ) {
   const url = new URL("/settings", origin);
   url.searchParams.set("tab", "billing");
   url.searchParams.set(
     "checkout",
-    kind === "subscription" ? "success" : "credits-success",
+    kind === "checkout" ? "confirm" : kind === "subscription" ? "success" : "credits-success",
   );
   url.searchParams.set(
-    kind === "subscription" ? "transaction" : "creditTransaction",
+    kind === "credits" ? "creditTransaction" : "transaction",
     transactionId,
   );
   return url.toString();

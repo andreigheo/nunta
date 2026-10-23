@@ -692,6 +692,40 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async checkoutStatus(
+    userId: string,
+    workspaceId: string,
+    providerTransactionId: string,
+  ) {
+    const checkout = await this.database.withContext(
+      { userId, workspaceId },
+      (transaction) =>
+        transaction.workspaceBillingCheckout.findFirst({
+          where: { workspaceId, providerTransactionId },
+          select: {
+            kind: true,
+            status: true,
+            planKey: true,
+            creditQuantity: true,
+            completedAt: true,
+          },
+        }),
+    );
+    if (!checkout)
+      problem(
+        "NOT_FOUND",
+        HttpStatus.NOT_FOUND,
+        "Checkout-ul nu există în acest eveniment",
+      );
+    return {
+      kind: checkout.kind,
+      status: checkout.status,
+      plan: checkout.planKey,
+      credits: checkout.creditQuantity ?? 0,
+      completedAt: checkout.completedAt?.toISOString() ?? null,
+    };
+  }
+
   async subscriptionCheckoutStatus(
     userId: string,
     workspaceId: string,

@@ -53,7 +53,7 @@ import type {
   WorkspaceBillingOverview,
   WorkspaceSubscriptionPlanKey,
 } from "@weddingos/contracts";
-import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
+import { ApiClientError, apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
 import { loadPaddle } from "@/lib/paddle";
 import { selectedWorkspacePlan } from "@/lib/account-routing";
@@ -567,7 +567,6 @@ function BillingSettings() {
   const [successNotice, setSuccessNotice] =
     React.useState<BillingSuccessNotice | null>(null);
   const checkoutConfirmed = React.useRef(false);
-  const creditCheckoutConfirmed = React.useRef(false);
   const checkoutStarted = React.useRef(false);
   const requestedPlan = selectedWorkspacePlan(searchParams.get("plan"));
   const canManage =
@@ -608,14 +607,10 @@ function BillingSettings() {
   }, [load]);
 
   React.useEffect(() => {
-    const transactionId = searchParams.get("transaction");
-    if (
-      searchParams.get("checkout") !== "success" ||
-      !currentWorkspace ||
-      checkoutConfirmed.current
-    )
-      return;
-    if (!transactionId) {
+    const returnState = searchParams.get("checkout");
+    if (!returnState || !["success", "credits-success", "confirm"].includes(returnState) || !currentWorkspace || checkoutConfirmed.current) return;
+    const transactionId = searchParams.get("transaction") ?? searchParams.get("creditTransaction");
+    if (!transactionId || !/^txn_[a-z0-9]{26}$/.test(transactionId)) {
       checkoutConfirmed.current = true;
       clearCheckoutReturn();
       return;
@@ -626,43 +621,38 @@ function BillingSettings() {
     const poll = async () => {
       attempts += 1;
       try {
-        const checkout = await weddingOsApi.subscriptionCheckoutStatus(
-          currentWorkspace.id,
-          transactionId,
-        );
-        if (
-          checkout &&
-          (checkout.status === "FAILED" || checkout.status === "EXPIRED")
-        ) {
-          checkoutConfirmed.current = true;
-          clearCheckoutReturn();
-          toast({
-            title: "Plata nu a fost finalizată",
-            description: "Planul nu a fost schimbat. Poți relua plata în siguranță.",
-            variant: "error",
-          });
-          return;
-        }
-        if (checkout && checkout.status !== "COMPLETED") throw new Error("pending");
-        const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
+        const checkout = await weddingOsApi.workspaceCheckoutStatus(currentWorkspace.id, transactionId);
         if (cancelled) return;
-        setBilling(next);
-        if (
-          next.subscription.status === "ACTIVE" &&
-          (!checkout.plan || next.subscription.plan === checkout.plan)
-        ) {
+        if (checkout.status === "FAILED" || checkout.status === "EXPIRED") {
           checkoutConfirmed.current = true;
-          setSuccessNotice(subscriptionSuccessNotice(next));
           clearCheckoutReturn();
-          toast({
-            title: "Abonamentul este activ",
-            description: "Planul și creditele au fost confirmate de backend.",
-            variant: "success",
-          });
+          toast({ title: "Plata nu a fost finalizată", description: "Planul și soldul creditelor nu au fost schimbate de această sesiune.", variant: "error" });
           return;
         }
-      } catch {
-        // The normal billing card still exposes an explicit retry action.
+        if (checkout.status === "COMPLETED") {
+          const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
+          if (cancelled) return;
+          setBilling(next);
+          const notice = checkout.kind === "MESSAGE_CREDITS"
+            ? creditSuccessNotice(checkout.credits, next)
+            : next.subscription.status === "ACTIVE" && next.subscription.plan === checkout.plan
+              ? subscriptionSuccessNotice(next)
+              : null;
+          if (notice) {
+            checkoutConfirmed.current = true;
+            setSuccessNotice(notice);
+            clearCheckoutReturn();
+            return;
+          }
+        }
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiClientError && [400, 403, 404].includes(error.status)) {
+          checkoutConfirmed.current = true;
+          clearCheckoutReturn();
+          toast({ title: "Confirmarea plății nu este disponibilă", description: "Tranzacția nu poate fi verificată în acest eveniment. Verifică evenimentul selectat și istoricul din portalul Paddle.", variant: "info" });
+          return;
+        }
       }
       if (!cancelled && attempts < 30) {
         timeoutId = window.setTimeout(() => void poll(), 2_000);
@@ -670,81 +660,7 @@ function BillingSettings() {
       }
       if (!cancelled) {
         checkoutConfirmed.current = true;
-        toast({
-          title: "Plata este încă în curs de confirmare",
-          description:
-            "Nu adăugăm creditele până la confirmarea semnată de Paddle. Reîncarcă pagina peste câteva momente; plata nu va fi dublată.",
-          variant: "info",
-        });
-      }
-    };
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timeoutId) window.clearTimeout(timeoutId);
-    };
-  }, [clearCheckoutReturn, currentWorkspace, searchParams, toast]);
-
-  React.useEffect(() => {
-    const transactionId = searchParams.get("creditTransaction");
-    if (
-      searchParams.get("checkout") !== "credits-success" ||
-      !currentWorkspace ||
-      !transactionId ||
-      creditCheckoutConfirmed.current
-    )
-      return;
-    let cancelled = false;
-    let attempts = 0;
-    let timeoutId: number | undefined;
-    const poll = async () => {
-      attempts += 1;
-      try {
-        const checkout = await weddingOsApi.messageCreditCheckoutStatus(
-          currentWorkspace.id,
-          transactionId,
-        );
-        if (cancelled) return;
-        if (checkout.status === "COMPLETED") {
-          creditCheckoutConfirmed.current = true;
-          const next = await weddingOsApi.workspaceBilling(currentWorkspace.id);
-          if (cancelled) return;
-          setBilling(next);
-          setSuccessNotice(creditSuccessNotice(checkout.credits, next));
-          clearCheckoutReturn();
-          toast({
-            title: `${checkout.credits} de credite au fost adăugate`,
-            description: "Soldul cumpărat este disponibil și nu expiră la reînnoirea planului.",
-            variant: "success",
-          });
-          return;
-        }
-        if (checkout.status === "FAILED" || checkout.status === "EXPIRED") {
-          creditCheckoutConfirmed.current = true;
-          clearCheckoutReturn();
-          toast({
-            title: "Creditarea nu a fost finalizată",
-            description: "Nu s-au adăugat credite. Poți porni din nou cumpărarea.",
-            variant: "error",
-          });
-          return;
-        }
-      } catch {
-        // Keep polling briefly: Paddle's redirect may arrive before its signed
-        // webhook is projected into the workspace ledger.
-      }
-      if (!cancelled && attempts < 30) {
-        timeoutId = window.setTimeout(() => void poll(), 2_000);
-        return;
-      }
-      if (!cancelled) {
-        creditCheckoutConfirmed.current = true;
-        toast({
-          title: "Plata este încă în curs de confirmare",
-          description:
-            "Creditele vor apărea numai după confirmarea semnată de Paddle. Reîncarcă pagina peste câteva momente; plata nu va fi dublată.",
-          variant: "info",
-        });
+        toast({ title: "Plata este încă în curs de confirmare", description: "Planul și creditele se actualizează numai după confirmarea Paddle. Reîncarcă pagina peste câteva momente; nu porni o a doua plată.", variant: "info" });
       }
     };
     void poll();
@@ -938,12 +854,17 @@ function BillingSettings() {
       {billing.subscription.status === "PAST_DUE" && (
         <Card className="border-amber-300 bg-amber-50">
           <CardContent className="py-4 text-sm text-amber-950">
-            Plata abonamentului nu a fost confirmată. Funcțiile planului rămân
-            active până la{" "}
-            {billing.subscription.gracePeriodEndAt
-              ? formatDateLong(billing.subscription.gracePeriodEndAt)
-              : "încheierea perioadei de grație"}
-            , apoi workspace-ul trece automat la limitele planului Gratuit.
+            <p>
+              {billing.subscription.plan === "FREE"
+                ? "Plata abonamentului este restantă, iar perioada de grație s-a încheiat. Evenimentul folosește acum limitele planului Gratuit."
+                : `Plata abonamentului este restantă. Funcțiile planului rămân active până la ${billing.subscription.gracePeriodEndAt ? formatDateLong(billing.subscription.gracePeriodEndAt) : "încheierea perioadei de grație"}, apoi evenimentul trece la limitele planului Gratuit.`}
+            </p>
+            <p className="mt-2">Verifică metoda de plată în portalul Paddle. Actualizarea ei poate include achitarea restanței, cu confirmarea ta în Paddle.</p>
+            {canManage && billing.portalAvailable && (
+              <Button className="mt-3" variant="outline" size="sm" loading={busyPlan === "FREE"} onClick={() => void choosePlan("FREE")}>
+                Verifică metoda de plată
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1111,10 +1032,10 @@ function BillingSettings() {
                 title={
                   pack.checkoutAvailable
                     ? undefined
-                    : "Prețul pachetului trebuie configurat în Paddle"
+                    : "Cumpărarea devine disponibilă după activarea mesageriei și configurarea Paddle"
                 }
               >
-                Cumpără 100 credite
+                {pack.checkoutAvailable ? "Cumpără 100 credite" : "Cumpărare indisponibilă"}
               </Button>
             </div>
           ))}
