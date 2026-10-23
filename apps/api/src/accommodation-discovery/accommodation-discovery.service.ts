@@ -98,6 +98,10 @@ export class AccommodationDiscoveryService {
     "ACCOMMODATION_OVERPASS_URL",
     "https://overpass-api.de/api/interpreter",
   );
+  private readonly overpassFallbackEndpoint = endpoint(
+    "ACCOMMODATION_OVERPASS_FALLBACK_URL",
+    "https://overpass.private.coffee/api/interpreter",
+  );
   private readonly nominatimEndpoint = endpoint(
     "ACCOMMODATION_NOMINATIM_URL",
     "https://nominatim.openstreetmap.org/search",
@@ -1385,21 +1389,34 @@ export class AccommodationDiscoveryService {
     const fetchedAt = new Date().toISOString();
     try {
       const overpassQuery = buildOverpassQuery(center, radiusKm);
-      const url = new URL(this.overpassEndpoint);
-      const raw = await this.http.json(
-        url,
-        {
-          method: "POST",
-          headers: {
-            accept: "application/json",
-            "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-            "user-agent": userAgent(),
-          },
-          body: new URLSearchParams({ data: overpassQuery }).toString(),
-        },
-        outboundOptions(url, 7_000, 2_000_000),
-      );
-      const parsed = overpassResponseSchema.parse(raw);
+      let parsed: z.infer<typeof overpassResponseSchema> | undefined;
+      for (const address of new Set([
+        this.overpassEndpoint,
+        this.overpassFallbackEndpoint,
+      ])) {
+        const url = new URL(address);
+        try {
+          const raw = await this.http.json(
+            url,
+            {
+              method: "POST",
+              headers: {
+                accept: "application/json",
+                "content-type":
+                  "application/x-www-form-urlencoded;charset=UTF-8",
+                "user-agent": userAgent(),
+              },
+              body: new URLSearchParams({ data: overpassQuery }).toString(),
+            },
+            outboundOptions(url, 10_000, 2_000_000),
+          );
+          parsed = overpassResponseSchema.parse(raw);
+          break;
+        } catch {
+          // A second independent OSM instance gets one bounded attempt.
+        }
+      }
+      if (!parsed) throw new Error("ACCOMMODATION_PROVIDERS_UNAVAILABLE");
       let omitted = 0;
       const mapped: AccommodationDiscoveryItem[] = [];
       for (const element of parsed.elements) {

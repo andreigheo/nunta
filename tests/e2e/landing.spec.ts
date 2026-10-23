@@ -1087,10 +1087,10 @@ test("invitații — reproduce tabelul, acțiunile și proporțiile conceptului"
     "+ Adaugă invitatExportă lista",
   );
   await expect(panel.locator("tbody tr").first()).toContainText(
-    "Maria Popescumaria.popescu@email.roEchipăA răspuns",
+    "Persoană din echipăContact necompletatEchipăA răspuns",
   );
   await expect(panel.locator("tbody tr").nth(3)).toContainText(
-    "Vlad Marinescuvlad.marinescu@email.roPresăNu a răspuns",
+    "Reprezentant presăContact necompletatPresăNu a răspuns",
   );
   await expect(panel.locator('[class*="statusdanger"]')).toHaveCount(2);
 
@@ -1144,27 +1144,27 @@ test("furnizori și buget — reproduce matricea și raportul unificat din conce
 
   await expect(panel).not.toContainText("Furnizori și buget");
   await expect(vendorMatrix.locator("thead")).toContainText(
-    "Bright VisionFoto-VideoSoundProTehnicLightArtLighting",
+    "Furnizor foto-videoFoto-VideoFurnizor tehnicTehnicFurnizor iluminatLighting",
   );
   await expect(vendorMatrix.locator("tbody tr").first()).toContainText(
-    "Preț total (RON)12.800Recomandat14.20011.900",
+    "Preț total (RON)La ofertareLa ofertareLa ofertare",
   );
   await expect(vendorMatrix.locator("tbody tr").nth(1)).toContainText(
-    "DisponibilitateDisponibilDisponibilParțial",
+    "DisponibilitateDe verificatDe verificatDe verificat",
   );
   await expect(vendorMatrix.locator("tbody tr").last()).toContainText(
-    "Termen de plată30 zile30 zile15 zile",
+    "Termen de platăDe stabilitDe stabilitDe stabilit",
   );
   await expect(vendorMatrix.locator('[class*="rating"] svg')).toHaveCount(15);
   await expect(
     vendorMatrix.locator('[class*="rating"] svg[data-active="true"]'),
-  ).toHaveCount(12);
+  ).toHaveCount(0);
 
   await expect(panel).toContainText(
-    "BugetVezi raportTotal buget120.000 RONCheltuit81.600 RON (68%)",
+    "BugetVezi raportTotal bugetDe stabilitCheltuit—",
   );
   await expect(budgetBreakdown).toContainText(
-    "CategorieCheltuitLocație36.000 RON90%Tehnic10.400 RON61%Catering16.800 RON70%Marketing6.900 RON46%Altele3.500 RON35%",
+    "CategorieCheltuitLocație—Tehnic—Catering—Marketing—Altele—",
   );
 
   const panelBox = await panel.boundingBox();
@@ -1178,11 +1178,12 @@ test("furnizori și buget — reproduce matricea și raportul unificat din conce
   expect(panelBox!.width).toBeGreaterThanOrEqual(551);
   expect(panelBox!.width).toBeLessThanOrEqual(553);
   expect(panelBox!.height).toBeGreaterThanOrEqual(229);
-  expect(panelBox!.height).toBeLessThanOrEqual(233);
+  // Neutral placeholders may wrap; preserve readable copy instead of fixed demo geometry.
+  expect(panelBox!.height).toBeLessThanOrEqual(280);
   expect(matrixBox!.width).toBeGreaterThanOrEqual(265);
   expect(matrixBox!.width).toBeLessThanOrEqual(268);
   expect(matrixBox!.height).toBeGreaterThanOrEqual(155);
-  expect(matrixBox!.height).toBeLessThanOrEqual(159);
+  expect(matrixBox!.height).toBeLessThanOrEqual(panelBox!.height);
   expect(budgetBox!.width).toBeGreaterThanOrEqual(231);
   expect(budgetBox!.width).toBeLessThanOrEqual(234);
   expect(budgetBox!.height).toBeGreaterThanOrEqual(120);
@@ -1200,7 +1201,7 @@ test("furnizori și buget — reproduce matricea și raportul unificat din conce
   const vendorCards = panel.locator('[class*="vendorCards"] [role="listitem"]');
   await expect(vendorCards).toHaveCount(3);
   await expect(vendorCards.first()).toContainText(
-    "Bright VisionFoto-VideoRecomandatPreț total12.800 RONDisponibilitateDisponibilEvaluare internăTermen de plată30 zile",
+    "Furnizor foto-videoFoto-VideoPreț totalLa ofertareDisponibilitateDe verificatEvaluare internăTermen de platăDe stabilit",
   );
   await expectNoHorizontalOverflow(page);
 });
@@ -1285,21 +1286,21 @@ test("comanda evenimentului — reproduce programul, echipa și furnizorii din c
   await expect(
     panel.locator('section[aria-labelledby="team-preview-title"]'),
   ).toContainText(
-    "Ioana PopescuProject ManagerOnlineRadu TomaLogisticăOnlineElena DinuCateringOnlineAndrei M.TehnicPe terenVlad M.HostPe teren",
+    "CoordonareProject ManagerStare de actualizatResponsabil logisticăLogisticăStare de actualizatResponsabil cateringCateringStare de actualizatResponsabil tehnicTehnicStare de actualizatResponsabil primireHostStare de actualizat",
   );
   await expect(
     panel.locator('section[aria-labelledby="field-vendors-title"]'),
   ).toContainText(
-    "Bright VisionFoto-VideoLa fața loculuiSoundProTehnicLa fața loculuiGastroPlusCateringLa fața loculuiCity EventsTransportPe drum",
+    "Furnizor foto-videoFoto-VideoStare de actualizatFurnizor tehnicTehnicStare de actualizatFurnizor cateringCateringStare de actualizatFurnizor transportTransportStare de actualizat",
   );
   await expect(
     panel.locator('[class*="operationPresenceSuccess"]'),
-  ).toHaveCount(6);
+  ).toHaveCount(0);
   await expect(
     panel.locator('[class*="operationPresenceWarning"]'),
-  ).toHaveCount(2);
+  ).toHaveCount(0);
   await expect(panel.locator('[class*="operationPresenceDanger"]')).toHaveCount(
-    1,
+    0,
   );
   await expect(alert).toContainText(
     "Alerte și actualizări11:42Livrarea echipamentelor a fost confirmată.Vezi toate",
@@ -1553,10 +1554,10 @@ test("cardurile de status din hero — urmează ordinea, iconografia și paleta 
     "Furnizori",
   ]);
   await expect(cards.locator("p")).toHaveText([
-    "Răspunsuri primite",
-    "Cheltuit până acum",
-    "De făcut astăzi",
-    "Confirmări în așteptare",
+    "Previzualizare produs",
+    "Previzualizare produs",
+    "Previzualizare produs",
+    "Previzualizare produs",
   ]);
   await expect(cards.locator("a")).toHaveText([
     "Vezi detalii",
@@ -1565,14 +1566,11 @@ test("cardurile de status din hero — urmează ordinea, iconografia și paleta 
     "Vezi furnizorii",
   ]);
   await expect(cards.locator("strong")).toHaveText([
-    "128 / 240",
-    "68%",
-    "7",
-    "3",
+    "—", "—", "—", "—",
   ]);
   await expect(cards.first().locator("xpath=..")).toHaveAttribute(
     "data-metric-source",
-    "demo",
+    "unavailable",
   );
 
   const geometry = await cards.evaluateAll((elements) =>
@@ -1622,7 +1620,7 @@ test("cardurile de status din hero — urmează ordinea, iconografia și paleta 
     "rgb(91, 157, 118)",
   ]);
   expect(geometry.map(({ barRatio }) => Number(barRatio.toFixed(2)))).toEqual([
-    0.62, 0.68, 0.52, 0.52,
+    0, 0, 0, 0,
   ]);
   await expectNoHorizontalOverflow(page);
 });

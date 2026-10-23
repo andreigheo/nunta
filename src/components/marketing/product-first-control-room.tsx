@@ -419,7 +419,7 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
               <span className={styles.mobileNextCopy}>
                 <strong>Trimite invitațiile</strong>
                 <i aria-hidden><b /></i>
-                <small>128 din 240 răspunsuri</small>
+                <small>{copy.previewLabel}</small>
               </span>
               <ArrowRight aria-hidden />
             </Link>
@@ -429,7 +429,7 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
             className={styles.metricGrid}
             role="list"
             aria-label="Indicatori agregați"
-            data-metric-source={publishable ? "aggregate" : "demo"}
+            data-metric-source={proof.metrics.length ? "aggregate" : "unavailable"}
             {...(publishable ? { "data-testid": "public-proof-metrics" } : {})}
           >
             {copy.metricCards.map((card) => {
@@ -437,11 +437,11 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
                 ? metricByKey.get(card.proofKey)
                 : undefined;
               const MetricIcon = metricIcons[card.key];
-              const visibleValue = publishable
-                ? metric?.state === "published"
-                  ? metric.value
-                  : "Nespecificat"
-                : card.demoValue;
+              const visibleValue = metric?.state === "published"
+                ? metric.value
+                : metric?.state === "suppressed"
+                  ? "Cohortă insuficientă"
+                  : "—";
               return (
                 <article
                   key={card.key}
@@ -453,12 +453,12 @@ function HeroControlRoom({ proof }: { proof: MarketingProductProof }) {
                     <span className={toneClass[card.iconTone]} aria-hidden>
                       <MetricIcon />
                     </span>
-                    <h3>{card.label}</h3>
+                    <h3>{metric?.label ?? card.label}</h3>
                   </div>
-                  <p>{card.detail}</p>
-                  <strong>{visibleValue}</strong>
+                  <p>{metric ? "Date agregate din produs" : copy.previewLabel}</p>
+                  <strong data-suppressed={metric?.state === "suppressed"}>{visibleValue}</strong>
                   <span className={styles.metricBar} aria-hidden>
-                    <i className={toneClass[card.barTone]} />
+                    <i className={toneClass[card.barTone]} style={{ width: metric?.state === "published" && metric.value ? metric.value : "0%" }} />
                   </span>
                   <Link className={styles.metricLink} href={card.href}>
                     {card.action}
@@ -723,7 +723,7 @@ function CommerceSurface() {
                       <span
                         className={styles.rating}
                         role="img"
-                        aria-label={`${vendor.rating} din 5 stele`}
+                        aria-label="Evaluare necompletată"
                       >
                         {Array.from({ length: 5 }, (_, index) => (
                           <Star
@@ -768,7 +768,7 @@ function CommerceSurface() {
                 <dl>
                   <div>
                     <dt>Preț total</dt>
-                    <dd>{vendor.price} RON</dd>
+                    <dd>{vendor.price}</dd>
                   </div>
                   <div>
                     <dt>Disponibilitate</dt>
@@ -780,7 +780,7 @@ function CommerceSurface() {
                       <span
                         className={styles.rating}
                         role="img"
-                        aria-label={`${vendor.rating} din 5 stele`}
+                        aria-label="Evaluare necompletată"
                       >
                         {Array.from({ length: 5 }, (_, index) => (
                           <Star
@@ -815,12 +815,12 @@ function CommerceSurface() {
             <div>
               <span>Cheltuit</span>
               <strong>
-                {chapter.budgetSpent} <small>({chapter.budgetSpentPercent})</small>
+                {chapter.budgetSpent}
               </strong>
             </div>
           </div>
           <span className={styles.budgetTotalBar} aria-hidden>
-            <i style={{ width: chapter.budgetSpentPercent }} />
+            <i style={{ width: "0%" }} />
           </span>
           <div className={`${styles.budgetBreakdown} budgetBreakdown__proof`}>
             <div className={styles.budgetBreakdownHeader}>
@@ -831,7 +831,7 @@ function CommerceSurface() {
               <div className={styles.budgetBreakdownRow} key={label}>
                 <span>{label}</span>
                 <span>{amount}</span>
-                <i aria-hidden><b style={{ width: value }} /></i>
+                <i aria-hidden><b style={{ width: value || "0%" }} /></i>
                 <strong>{value}</strong>
               </div>
             ))}
@@ -848,23 +848,14 @@ function OperationsSurface() {
     <ProductPanel title={chapter.surfaceTitle} className={styles.operationsPanel}>
       <div className={styles.mobileOperationsSummary}>
         <div>
-          <Image
-            alt=""
-            aria-hidden
-            className={styles.operationAvatar}
-            height={20}
-            loading="eager"
-            src={chapter.team[0][3]}
-            unoptimized
-            width={20}
-          />
+          <UsersRound className={styles.operationAvatar} aria-hidden />
           <span>Echipă</span>
-          <strong>3 online</strong>
+          <strong>Stare de actualizat</strong>
         </div>
         <div>
           <Store aria-hidden />
           <span>Furnizori</span>
-          <strong data-tone="warning">1 pe teren</strong>
+          <strong data-tone="warning">Stare de actualizat</strong>
         </div>
         <div>
           <CalendarDays aria-hidden />
@@ -896,18 +887,9 @@ function OperationsSurface() {
             <h3 id="team-preview-title">Echipă</h3>
             <span>Vezi tot</span>
           </div>
-          {chapter.team.map(([name, role, state, avatar]) => (
+          {chapter.team.map(([name, role, state]) => (
             <div className={styles.peopleRow} key={name}>
-              <Image
-                alt=""
-                aria-hidden
-                className={styles.operationAvatar}
-                height={22}
-                loading="eager"
-                src={avatar}
-                unoptimized
-                width={22}
-              />
+              <UsersRound className={styles.operationAvatar} aria-hidden />
               <span className={styles.operationIdentity}>
                 <strong>{name}</strong>
                 <small>{role}</small>
@@ -921,18 +903,9 @@ function OperationsSurface() {
             <h3 id="field-vendors-title">Furnizori</h3>
             <span>Vezi tot</span>
           </div>
-          {chapter.vendors.map(([vendor, category, state, avatar]) => (
+          {chapter.vendors.map(([vendor, category, state]) => (
             <div className={styles.peopleRow} key={vendor}>
-              <Image
-                alt=""
-                aria-hidden
-                className={styles.operationAvatar}
-                height={22}
-                loading="eager"
-                src={avatar}
-                unoptimized
-                width={22}
-              />
+              <UsersRound className={styles.operationAvatar} aria-hidden />
               <span className={styles.operationIdentity}>
                 <strong>{vendor}</strong>
                 <small>{category}</small>
@@ -963,7 +936,7 @@ function OperationPresence({ value }: { value: string }) {
           ? styles.operationPresenceDanger
           : warning
             ? styles.operationPresenceWarning
-            : styles.operationPresenceSuccess
+            : value === "Stare de actualizat" ? styles.operationPresenceNeutral : styles.operationPresenceSuccess
       }`}
     >
       {value}

@@ -292,7 +292,8 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
         await transaction.workspaceBillingCheckout.updateMany({
           where: {
             workspaceId,
-            status: { in: ["CREATED", "RECOVERY_PENDING"] },
+            status: "CREATED",
+            providerTransactionId: null,
             expiresAt: { lte: new Date() },
           },
           data: { status: "EXPIRED" },
@@ -314,6 +315,13 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
             "IDEMPOTENCY_KEY_REUSED",
             HttpStatus.CONFLICT,
             "Cheia de checkout a fost folosită pentru alt plan",
+          );
+        if (existing?.status === "EXPIRED")
+          problem(
+            "CHECKOUT_ALREADY_STARTED",
+            HttpStatus.CONFLICT,
+            "Sesiunea de plată a expirat",
+            "Reîncearcă din pagina abonamentelor pentru a porni o sesiune nouă.",
           );
         if (existing?.providerTransactionId)
           return { mode: "reuse" as const, checkout: existing };
@@ -486,7 +494,8 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
           where: {
             workspaceId,
             kind: "MESSAGE_CREDITS",
-            status: { in: ["CREATED", "RECOVERY_PENDING"] },
+            status: "CREATED",
+            providerTransactionId: null,
             expiresAt: { lte: new Date() },
           },
           data: { status: "EXPIRED" },
@@ -510,6 +519,13 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
             "IDEMPOTENCY_KEY_REUSED",
             HttpStatus.CONFLICT,
             "Cheia de checkout a fost folosită pentru alt produs",
+          );
+        if (existing?.status === "EXPIRED")
+          problem(
+            "CHECKOUT_ALREADY_STARTED",
+            HttpStatus.CONFLICT,
+            "Sesiunea de plată a expirat",
+            "Reîncearcă din pagina abonamentelor pentru a porni o sesiune nouă.",
           );
         if (existing?.providerTransactionId)
           return { mode: "reuse" as const, checkout: existing };
@@ -1334,7 +1350,10 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
       for (const item of checkouts) {
         try {
           const data = await this.paddle.getTransaction(item.transaction_id);
-          if (stringValue(data.status) !== "completed") continue;
+          if (stringValue(data.status) !== "completed") {
+            await this.expireAbandonedCheckout(item, data);
+            continue;
+          }
           const eventId = `reconcile_${createHash("sha256")
             .update(
               `${item.transaction_id}:${stringValue(data.updated_at) ?? "completed"}`,
@@ -1357,6 +1376,55 @@ export class WorkspaceBillingService implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.reconciling = false;
     }
+  }
+
+  private async expireAbandonedCheckout(
+    item: {
+      workspace_id: string;
+      checkout_id: string;
+      transaction_id: string;
+      actor_user_id: string;
+    },
+    data: Record<string, unknown>,
+  ) {
+    // Provider confirmation is authoritative. Never expire a paid or pending payment.
+    if (data.id !== item.transaction_id) return;
+    const checkout = await this.database.withContext(
+      { userId: item.actor_user_id, workspaceId: item.workspace_id },
+      (tx) =>
+        tx.workspaceBillingCheckout.findFirst({
+          where: {
+            id: item.checkout_id,
+            workspaceId: item.workspace_id,
+            providerTransactionId: item.transaction_id,
+            status: { in: ["CREATED", "RECOVERY_PENDING"] },
+          },
+        }),
+    );
+    if (!checkout || checkout.expiresAt.getTime() > Date.now()) return;
+    let confirmed = data;
+    if (data.status !== "canceled") {
+      if (!canCancelAbandonedCheckout(data, checkout.expiresAt)) return;
+      confirmed = await this.paddle.cancelUnpaidTransaction(
+        item.transaction_id,
+      );
+    }
+    if (confirmed.id !== item.transaction_id || confirmed.status !== "canceled")
+      return;
+    await this.database.withContext(
+      { userId: item.actor_user_id, workspaceId: item.workspace_id },
+      (tx) =>
+        tx.workspaceBillingCheckout.updateMany({
+          where: {
+            id: item.checkout_id,
+            workspaceId: item.workspace_id,
+            providerTransactionId: item.transaction_id,
+            status: { in: ["CREATED", "RECOVERY_PENDING"] },
+            expiresAt: { lte: new Date() },
+          },
+          data: { status: "EXPIRED" },
+        }),
+    );
   }
 
   private async reconcileSubscription(
@@ -1923,4 +1991,20 @@ function safeMoneyNumber(value: bigint): number {
       "Suma contabilă nu poate fi afișată în siguranță",
     );
   return amount;
+}
+
+/** A full day after checkout expiry, only untouched API/web drafts can be canceled. */
+export function canCancelAbandonedCheckout(
+  data: Record<string, unknown>,
+  expiresAt: Date,
+  now = Date.now(),
+) {
+  return (
+    ["draft", "ready"].includes(String(data.status)) &&
+    ["api", "web"].includes(String(data.origin)) &&
+    !data.subscription_id &&
+    Array.isArray(data.payments) &&
+    data.payments.length === 0 &&
+    expiresAt.getTime() < now - 24 * 60 * 60 * 1000
+  );
 }

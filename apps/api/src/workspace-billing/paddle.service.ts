@@ -300,6 +300,15 @@ export class PaddleService {
     return response.data;
   }
 
+  async cancelUnpaidTransaction(transactionId: string) {
+    this.requireEnabled();
+    const response = await this.call<PaddleEnvelope<Record<string, unknown>>>(
+      `/transactions/${encodeURIComponent(transactionId)}`,
+      { method: "PATCH", body: JSON.stringify({ status: "canceled" }) },
+    );
+    return response.data;
+  }
+
   async createPortalSession(
     customerId: string,
     subscriptionId: string,

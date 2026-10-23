@@ -249,6 +249,25 @@ describe("accommodation discovery contracts and provider mapping", () => {
 });
 
 describe("accommodation discovery cache and graceful degradation", () => {
+  it("falls back to the independent provider after an outage and caches its real response", async () => {
+    const httpJson = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("502 capacity"))
+      .mockResolvedValueOnce(overpassElements());
+    const { service } = harness(httpJson);
+    const userId = randomUUID(),
+      workspaceId = randomUUID();
+    const input = query({ lat: 44.43, lng: 26.1 });
+    const result = await service.discover(userId, workspaceId, input);
+    expect(result.metadata.status).toBe("available");
+    expect(result.items).toHaveLength(2);
+    expect(String(httpJson.mock.calls[1][0])).toBe(
+      "https://overpass.private.coffee/api/interpreter",
+    );
+    await service.discover(userId, workspaceId, input);
+    expect(httpJson).toHaveBeenCalledTimes(2);
+  });
+
   it("reuses one provider snapshot across type/facility/budget filters", async () => {
     const httpJson = vi.fn().mockResolvedValue(overpassElements());
     const { service } = harness(httpJson);

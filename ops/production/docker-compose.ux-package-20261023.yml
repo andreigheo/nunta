@@ -2,8 +2,8 @@
 # Only application services change; infrastructure images and volumes stay pinned.
 services:
   web:
-    image: sarbato-web:ux-20261023-r2
+    image: sarbato-web:ux-20261023-r3
   api:
-    image: sarbato-api:ux-20261023-r1
+    image: sarbato-api:ux-20261023-r2
   worker:
     image: sarbato-worker:ux-20261023-r1

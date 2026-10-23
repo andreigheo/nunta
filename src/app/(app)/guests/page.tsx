@@ -9,6 +9,7 @@ import type {
 } from "@weddingos/contracts";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { guestSideLabels } from "@/lib/event-copy";
 import {
   Avatar, Badge, Button, Card, CardContent, Checkbox, ConfirmDialog, Drawer, EmptyState, Field, Input,
   Modal, PageHeader, Select, StatCard, Table, Tabs, TabsContent, TabsList,
@@ -21,13 +22,7 @@ const invitationLabel: Record<string, string> = {
   RESPONDED: "RSVP complet",
 };
 
-const sideLabels: Record<string, string> = {
-  partner_one: "Partener 1",
-  partner_two: "Partener 2",
-  common: "Comună",
-  vendor: "Furnizor",
-  other: "Altele",
-};
+
 
 const rsvpLabels: Record<string, string> = {
   confirmed: "Confirmat",
@@ -92,6 +87,8 @@ const importFieldLabels: Record<string, string> = {
 export default function GuestsPage() {
   const router = useRouter();
   const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
+  const sides = guestSideLabels(currentWorkspace?.eventType);
+  const sideLabel = (side: string) => sides[side.toUpperCase() as keyof typeof sides] ?? sides.OTHER;
   const { toast } = useToast();
   const [guests, setGuests] = React.useState<GuestResource[]>([]);
   const [households, setHouseholds] = React.useState<HouseholdResource[]>([]);
@@ -192,7 +189,7 @@ export default function GuestsPage() {
       }
     } catch (caught) { setError(apiErrorMessage(caught)); }
     finally { setLoading(false); }
-  }, [canReadCampaigns, currentWorkspace, demoMode, invitationStatus, menuStatus, rsvpStatus, side, sort, tagFilter]);
+  }, [canReadCampaigns, currentWorkspace, demoMode, invitationStatus, menuStatus, rsvpStatus, side, sort, tagFilter, setSelected]);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => void load(query), 250);
@@ -557,7 +554,7 @@ export default function GuestsPage() {
 
     <Card><CardContent className="flex flex-wrap items-end gap-3 p-4">
       <Field label="Căutare" className="min-w-64 flex-1"><Input icon={<Search className="size-4" />} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nume, grup, email sau telefon…" /></Field>
-      <Field label="Parte"><Select value={side} onChange={(event) => setSide(event.target.value)}><option value="">Toate</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="COMMON">Comună</option></Select></Field>
+      <Field label="Parte"><Select value={side} onChange={(event) => setSide(event.target.value)}><option value="">Toate</option><option value="PARTNER_ONE">{sides.PARTNER_ONE}</option><option value="PARTNER_TWO">{sides.PARTNER_TWO}</option><option value="COMMON">{sides.COMMON}</option></Select></Field>
       <Field label="RSVP"><Select value={rsvpStatus} onChange={(event) => setRsvpStatus(event.target.value)}><option value="">Toate</option><option value="CONFIRMED">Confirmat</option><option value="DECLINED">Refuzat</option><option value="UNSURE">Nehotărât</option><option value="NO_RESPONSE">Fără răspuns</option></Select></Field>
       <Field label="Invitație"><Select value={invitationStatus} onChange={(event) => setInvitationStatus(event.target.value)}><option value="">Toate</option><option value="NOT_PREPARED">Nepregătită</option><option value="READY">Pregătită</option><option value="SENT">Trimisă</option><option value="OPENED">Deschisă</option><option value="RESPONDED">RSVP complet</option></Select></Field>
       <Field label="Meniu"><Select value={menuStatus} onChange={(event) => setMenuStatus(event.target.value)}><option value="">Toate</option><option value="complete">Selectat</option><option value="incomplete">Lipsă</option></Select></Field>
@@ -710,16 +707,15 @@ function sideInput(side: HouseholdResource["side"] | GuestResource["side"]) {
   return side.toUpperCase();
 }
 
-function sideLabel(side: HouseholdResource["side"] | GuestResource["side"]) {
-  return sideLabels[side.toLowerCase()] ?? "Altele";
-}
+
 
 function rsvpLabel(status?: string) {
   return status ? (rsvpLabels[status.toLowerCase().replaceAll("-", "_")] ?? status) : "Fără răspuns";
 }
 
 function SideOptions() {
-  return <><option value="COMMON">Comună</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="VENDOR">Furnizor</option><option value="OTHER">Altele</option></>;
+  const { currentWorkspace } = useWorkspace();
+  return <>{Object.entries(guestSideLabels(currentWorkspace?.eventType)).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</>;
 }
 
 function LanguageOptions() {
@@ -731,6 +727,9 @@ function WorkflowStep({ number, title, value, complete }: { number: number; titl
 }
 
 function GuestMobileCard({ guest, household, selectable, selected, onSelect, onOpen, onOpenHousehold }: { guest: GuestResource; household?: HouseholdResource; selectable: boolean; selected: boolean; onSelect: (checked: boolean) => void; onOpen: () => void; onOpenHousehold: () => void }) {
+  const { currentWorkspace } = useWorkspace();
+  const sides = guestSideLabels(currentWorkspace?.eventType);
+  const sideLabel = (side: string) => sides[side.toUpperCase() as keyof typeof sides] ?? sides.OTHER;
   return <li className="rounded-xl border border-line bg-surface p-4"><div className="flex items-start gap-3">{selectable && <Checkbox aria-label={`Selectează ${guest.firstName} ${guest.lastName}`} checked={selected} onCheckedChange={onSelect} />}<button type="button" className="min-w-0 flex-1 text-left" onClick={onOpen}><span className="flex items-center gap-2"><Avatar name={`${guest.firstName} ${guest.lastName}`} size="xs" /><span className="min-w-0"><span className="block truncate font-semibold text-ink">{guest.firstName} {guest.lastName}</span><span className="block truncate text-xs text-muted">{guest.email ?? guest.phone ?? "Contact necompletat"}</span></span></span></button><Badge variant="brand">{invitationLabel[guest.invitationStatus ?? ""] ?? "Nepregătită"}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><button type="button" className="min-w-0 rounded-lg bg-subtle p-2 text-left text-muted hover:text-brand" onClick={onOpenHousehold}><span className="block text-faint">Grup / familie</span><span className="mt-0.5 block truncate font-medium text-ink">{guest.householdName ?? household?.name ?? "Fără grup"}</span></button><div className="rounded-lg bg-subtle p-2 text-muted"><span className="block text-faint">RSVP</span><span className="mt-0.5 block font-medium text-ink">{rsvpLabel(guest.rsvpStatus)}</span></div></div><div className="mt-3 flex flex-wrap gap-1.5"><Badge variant="neutral">{sideLabel(guest.side)}</Badge>{guest.isChild && <Badge variant="info">Copil</Badge>}{guest.isPlusOne && <Badge variant="neutral">Plus-unu</Badge>}{guest.tags.map((tag) => <Badge key={tag.id} variant="neutral">{tag.name}</Badge>)}</div></li>;
 }
 

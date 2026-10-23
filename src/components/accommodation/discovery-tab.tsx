@@ -469,9 +469,11 @@ export function AccommodationDiscoveryTab({ canWrite }: { canWrite: boolean }) {
               <p className="mt-1 text-sm text-muted" aria-live="polite">
                 {searching
                   ? "Căutăm informațiile publice disponibile…"
-                  : response
-                    ? `${response.items.length} variante în raza de ${response.radiusKm} km`
-                    : "Rezultatele apar după ce alegi zona și pornești căutarea."}
+                  : searchError || response?.metadata.status === "unavailable"
+                    ? "Căutare indisponibilă. Reîncearcă folosind aceeași zonă."
+                    : response
+                      ? `${response.items.length} variante în raza de ${response.radiusKm} km${response.metadata.cache === "stale" ? " · copie salvată" : ""}`
+                      : "Rezultatele apar după ce alegi zona și pornești căutarea."}
               </p>
             </div>
             {response && response.items.length > 1 && (

@@ -140,3 +140,11 @@ test("headerul rămâne lizibil la trecerea între dimensiuni", async ({
     page.getByRole("navigation", { name: "Navigație mobilă" }),
   ).toBeHidden();
 });
+
+test("pagina publică nu inventează cifre sau identități când agregatul lipsește", async ({ page }) => {
+  await page.setViewportSize({width:1440,height:1000});
+  const preview=page.locator('#produs [aria-label="Indicatori agregați"]');
+  await expect(preview).toHaveAttribute('data-metric-source','unavailable');
+  await expect(preview.locator('strong')).toHaveText(['—','—','—','—']);
+  await expect(page.locator('#solutii')).not.toContainText(/120\.000|81\.600|Bright Vision|maria\.popescu|Ioana Popescu/);
+});

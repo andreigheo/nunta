@@ -40,6 +40,7 @@ const sections = [
       "Accesul în workspace este acordat pe roluri și verificat pe server. Invitații, colaboratorii și furnizorii văd numai datele necesare fluxului în care participă.",
       "Folosim furnizori pentru infrastructură, stocare, email, securitate și funcționarea produsului. Aceștia prelucrează date numai potrivit instrucțiunilor și contractelor aplicabile.",
       "Paddle este Merchant of Record pentru abonamentele plătite și prelucrează separat datele de checkout, plată, facturare, taxe, anulare și rambursare conform propriei politici de confidențialitate.",
+      "Căutarea de cazare folosește date OpenStreetMap. Pentru listări, trimitem numai coordonatele centrului și raza căutării către Overpass; nu trimitem nume de invitați sau date de cont. Sursa alternativă este operată de Private.coffee: https://overpass.private.coffee/#privacy-policy. Pentru geocodare, zona sau adresa introdusă este trimisă către Nominatim OpenStreetMap.",
       "Nu vindem date personale. Putem divulga informații când legea o impune sau pentru protejarea drepturilor, utilizatorilor și securității serviciului.",
     ],
   },

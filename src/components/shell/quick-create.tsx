@@ -14,6 +14,8 @@ import {
 import { taskCategories } from "@/lib/data/tasks";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { guestSideLabels } from "@/lib/event-copy";
+import { taskCategoryLabel } from "@/lib/planning-adapter";
 import { useShell, type QuickCreateKind } from "./shell-context";
 
 const titles: Record<QuickCreateKind, { title: string; description: string }> =
@@ -152,6 +154,7 @@ export function QuickCreateModal() {
   const router = useRouter();
   const { quickCreate, setQuickCreate } = useShell();
   const { currentWorkspace, bootstrap, demoMode } = useWorkspace();
+  const sides = guestSideLabels(currentWorkspace?.eventType);
   const { toast } = useToast();
   const [values, setValues] = React.useState<Record<string, string>>({
     category: taskCategories[0],
@@ -906,7 +909,7 @@ export function QuickCreateModal() {
                 <Field label="Categorie">
                   <Select value={values.category} onChange={set("category")}>
                     {taskCategories.map((category) => (
-                      <option key={category}>{category}</option>
+                      <option key={category} value={category}>{taskCategoryLabel(category)}</option>
                     ))}
                   </Select>
                 </Field>
@@ -1031,9 +1034,9 @@ export function QuickCreateModal() {
                     value={values.side ?? "COMMON"}
                     onChange={set("side")}
                   >
-                    <option value="COMMON">Comună</option>
-                    <option value="PARTNER_ONE">Partener 1</option>
-                    <option value="PARTNER_TWO">Partener 2</option>
+                    <option value="COMMON">{sides.COMMON}</option>
+                    <option value="PARTNER_ONE">{sides.PARTNER_ONE}</option>
+                    <option value="PARTNER_TWO">{sides.PARTNER_TWO}</option>
                   </Select>
                 </Field>
               </>

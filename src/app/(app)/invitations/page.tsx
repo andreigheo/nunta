@@ -48,6 +48,7 @@ import {
 } from "@/components/ui";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { guestSideLabels } from "@/lib/event-copy";
 import {
   applyInvitationVariant,
   snapshotFromPersisted,
@@ -1482,6 +1483,8 @@ function campaignAudienceReason(reason: string) {
 }
 
 function AudienceValueField({ type, value, onChange, tags, households, loading }: { type: Exclude<AudienceType, "all">; value: string; onChange: (value: string) => void; tags: GuestTagResource[]; households: HouseholdResource[]; loading: boolean }) {
+  const { currentWorkspace } = useWorkspace();
+  const sides = guestSideLabels(currentWorkspace?.eventType);
   const countries = [...new Set(households.map((household) => household.country).filter((value): value is string => Boolean(value)))].sort((left, right) => left.localeCompare(right, "ro-RO"));
   const languages = [...new Set(households.map((household) => household.preferredLanguage).filter(Boolean))].sort();
   if (loading)
@@ -1489,7 +1492,7 @@ function AudienceValueField({ type, value, onChange, tags, households, loading }
   if (type === "tag")
     return <Field label="Grup" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege grupul</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name} · {tag.assignedGuests ?? 0} persoane</option>)}</Select></Field>;
   if (type === "side")
-    return <Field label="Parte" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege partea</option><option value="PARTNER_ONE">Partener 1</option><option value="PARTNER_TWO">Partener 2</option><option value="COMMON">Comună</option><option value="VENDOR">Furnizori</option><option value="OTHER">Altele</option></Select></Field>;
+    return <Field label="Parte" required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required><option value="">Alege partea</option><option value="PARTNER_ONE">{sides.PARTNER_ONE}</option><option value="PARTNER_TWO">{sides.PARTNER_TWO}</option><option value="COMMON">{sides.COMMON}</option><option value="VENDOR">Furnizori</option><option value="OTHER">Altele</option></Select></Field>;
   if (type === "country")
     return <Field label="Țară" hint={countries.length ? "Sunt afișate țările salvate pentru grupuri și familii." : "Completează țara grupurilor pentru a folosi acest segment."} required><Select name="audienceValue" value={value} onChange={(event) => onChange(event.target.value)} required disabled={!countries.length}><option value="">Alege țara</option>{countries.map((country) => <option key={country} value={country}>{country}</option>)}</Select></Field>;
   if (type === "language")

@@ -60,6 +60,7 @@ export function taskCategoryLabel(category: string): string {
   const known = taskCategoryLabels[normalized];
   if (known) return known;
 
+  if (normalized === "ziua_nunții" || normalized === "ziua_nuntii") return "Ziua evenimentului";
   const readable = category.trim().replace(/[_-]+/g, " ");
   if (!readable) return "Altele";
   return readable.charAt(0).toLocaleUpperCase("ro-RO") + readable.slice(1);

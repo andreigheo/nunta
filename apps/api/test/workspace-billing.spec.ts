@@ -16,6 +16,7 @@ import {
 } from "../src/workspace-billing/paddle.service";
 import {
   billingTransactionUpdate,
+  canCancelAbandonedCheckout,
   messageCreditAdjustment,
   resolveEventPlan,
   staleSubscriptionPeriodEnrichment,
@@ -1308,4 +1309,182 @@ describe("Sarbato workspace subscriptions", () => {
       }),
     ).toThrow(/couple-to-vendor payment processing must remain disabled/);
   });
+});
+
+describe("abandoned Paddle checkout recovery", () => {
+  const expired = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const untouched = {
+    id: "txn_test",
+    status: "ready",
+    origin: "api",
+    subscription_id: null,
+    payments: [],
+  };
+  it("cancels only untouched stale drafts and preserves every payment attempt", () => {
+    expect(canCancelAbandonedCheckout(untouched, expired)).toBe(true);
+    for (const status of [
+      "paid",
+      "completed",
+      "past_due",
+      "billed",
+      "canceled",
+    ])
+      expect(
+        canCancelAbandonedCheckout({ ...untouched, status }, expired),
+      ).toBe(false);
+    for (const status of [
+      "authorized",
+      "captured",
+      "action_required",
+      "created",
+      "unknown",
+      "error",
+    ])
+      expect(
+        canCancelAbandonedCheckout(
+          { ...untouched, payments: [{ status }] },
+          expired,
+        ),
+      ).toBe(false);
+    expect(
+      canCancelAbandonedCheckout(
+        { ...untouched, subscription_id: "sub_renewal" },
+        expired,
+      ),
+    ).toBe(false);
+    expect(
+      canCancelAbandonedCheckout(
+        { ...untouched, origin: "subscription_recurring" },
+        expired,
+      ),
+    ).toBe(false);
+    expect(
+      canCancelAbandonedCheckout(
+        { ...untouched, payments: undefined },
+        expired,
+      ),
+    ).toBe(false);
+    expect(canCancelAbandonedCheckout(untouched, new Date())).toBe(false);
+  });
+
+  function harness(cancel: () => Promise<Record<string, unknown>>) {
+    const updateMany = vi.fn();
+    const tx = {
+      workspaceBillingCheckout: {
+        findFirst: vi.fn().mockResolvedValue({ expiresAt: expired }),
+        updateMany,
+      },
+    };
+    const db = {
+      withContext: vi.fn((_ctx: unknown, fn: (tx: unknown) => unknown) =>
+        fn(tx),
+      ),
+    };
+    const paddle = { cancelUnpaidTransaction: vi.fn(cancel) };
+    const service = new WorkspaceBillingService(
+      db as never,
+      paddle as never,
+      {} as never,
+      environment(),
+      {} as never,
+    );
+    return { service, paddle, updateMany };
+  }
+  const item = {
+    workspace_id: "workspace",
+    checkout_id: "checkout",
+    transaction_id: "txn_test",
+    actor_user_id: "actor",
+  };
+  it("expires local state only after Paddle acknowledges cancellation", async () => {
+    const { service, updateMany } = harness(async () => ({
+      id: "txn_test",
+      status: "canceled",
+    }));
+    await (
+      service as unknown as {
+        expireAbandonedCheckout: (
+          item: unknown,
+          data: unknown,
+        ) => Promise<void>;
+      }
+    ).expireAbandonedCheckout(item, untouched);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "EXPIRED" } }),
+    );
+  });
+  it("retains local state on unknown or unconfirmed provider outcomes", async () => {
+    for (const outcome of [
+      async () => {
+        throw new Error("timeout");
+      },
+      async () => ({ id: "txn_test", status: "paid" }),
+      async () => ({ id: "wrong", status: "canceled" }),
+    ]) {
+      const { service, updateMany } = harness(outcome);
+      await (
+        service as unknown as {
+          expireAbandonedCheckout: (
+            item: unknown,
+            data: unknown,
+          ) => Promise<void>;
+        }
+      )
+        .expireAbandonedCheckout(item, untouched)
+        .catch(() => {});
+      expect(updateMany).not.toHaveBeenCalled();
+    }
+  });
+});
+
+it("does not reuse a canceled checkout or locally expire an unverified provider session", async () => {
+  const tx = {
+    $executeRaw: vi.fn(),
+    workspaceSubscription: {
+      upsert: vi.fn().mockResolvedValue({ status: "FREE" }),
+    },
+    workspaceBillingCheckout: {
+      updateMany: vi.fn(),
+      findUnique: vi
+        .fn()
+        .mockResolvedValue({
+          kind: "SUBSCRIPTION",
+          planKey: "PLUS",
+          status: "EXPIRED",
+          providerTransactionId: "txn_canceled",
+        }),
+    },
+  };
+  const database = {
+    withContext: vi.fn(
+      (_context: unknown, action: (transaction: typeof tx) => unknown) =>
+        action(tx),
+    ),
+  };
+  const paddle = {
+    priceId: vi.fn().mockReturnValue("pri_plus123"),
+    createAssignmentToken: vi
+      .fn()
+      .mockReturnValue({ rawToken: "assignment", tokenHash: "a".repeat(64) }),
+    createTransaction: vi.fn(),
+  };
+  const service = new WorkspaceBillingService(
+    database as never,
+    paddle as never,
+    {} as never,
+    environment(),
+    {} as never,
+  );
+  await expect(
+    service.startCheckout("user", "workspace", "PLUS", "old-key"),
+  ).rejects.toMatchObject({ code: "CHECKOUT_ALREADY_STARTED" });
+  expect(paddle.createTransaction).not.toHaveBeenCalled();
+  expect(tx.workspaceBillingCheckout.updateMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({
+        status: "CREATED",
+        providerTransactionId: null,
+      }),
+    }),
+  );
 });

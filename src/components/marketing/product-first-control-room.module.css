@@ -5129,3 +5129,13 @@
     padding-left: 2.9rem;
   }
 }
+
+/* Suppressed aggregates are status text, never a fabricated percentage. */
+.metricCard strong[data-suppressed="true"] {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+.operationPresenceNeutral { color: var(--muted); }
+.operationPresenceNeutral::before { background: currentColor; }

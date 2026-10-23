@@ -30,6 +30,7 @@ import type {
 } from "@weddingos/contracts";
 import { apiErrorMessage, weddingOsApi } from "@/lib/api/client";
 import { useWorkspace } from "@/lib/api/workspace-context";
+import { initialRsvpQuestions } from "@/lib/event-copy";
 import {
   Avatar,
   Badge,
@@ -220,7 +221,7 @@ export default function RsvpPage() {
   };
 
   const openFormEditor = () => {
-    setFormConfig(configFromResource(form));
+    setFormConfig(configFromResource(form, currentWorkspace?.eventType));
     setFormOpen(true);
   };
   const setConfig = <Key extends keyof RsvpConfig>(
@@ -1478,19 +1479,20 @@ function AttendanceLabel({
   );
 }
 
-function configFromResource(form: RsvpFormResource | null): RsvpConfig {
+function configFromResource(form: RsvpFormResource | null, eventType?: Parameters<typeof initialRsvpQuestions>[0]): RsvpConfig {
   const config = form?.draft?.config ?? form?.published?.config;
+  const initial = initialRsvpQuestions(eventType);
   return {
     deadline: isoToLocalInput(config?.deadline ?? null),
     attendanceEnabled: config?.attendanceEnabled ?? true,
     perEventAttendance: config?.perEventAttendance ?? true,
-    plusOneQuestion: config?.plusOneQuestion ?? true,
-    childrenConfirmation: config?.childrenConfirmation ?? true,
-    menuSelection: config?.menuSelection ?? true,
-    allergyCollection: config?.allergyCollection ?? true,
-    accessibilityCollection: config?.accessibilityCollection ?? true,
-    transportQuestion: config?.transportQuestion ?? true,
-    accommodationQuestion: config?.accommodationQuestion ?? true,
+    plusOneQuestion: config?.plusOneQuestion ?? initial.plusOneQuestion,
+    childrenConfirmation: config?.childrenConfirmation ?? initial.childrenConfirmation,
+    menuSelection: config?.menuSelection ?? initial.menuSelection,
+    allergyCollection: config?.allergyCollection ?? initial.allergyCollection,
+    accessibilityCollection: config?.accessibilityCollection ?? initial.accessibilityCollection,
+    transportQuestion: config?.transportQuestion ?? initial.transportQuestion,
+    accommodationQuestion: config?.accommodationQuestion ?? initial.accommodationQuestion,
     guestMessage: config?.guestMessage ?? true,
     allowEdits: config?.allowEdits ?? true,
     closedMessage: config?.closedMessage ?? defaultRsvpConfig.closedMessage,
