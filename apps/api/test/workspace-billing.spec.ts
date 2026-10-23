@@ -189,6 +189,115 @@ describe("Sarbato workspace subscriptions", () => {
     },
   );
 
+  it.each([
+    {},
+    { data: {} },
+    { data: { id: "txn_created", checkout: { url: null } } },
+  ])(
+    "reconciles incomplete transaction responses instead of treating creation as a definite failure: %j",
+    async (body) => {
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                status: "active",
+                unit_price: { amount: "2700", currency_code: "EUR" },
+                billing_cycle: { interval: "month", frequency: 1 },
+              },
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(new Response(JSON.stringify(body)));
+      try {
+        await expect(
+          new PaddleService(environment()).createTransaction({
+            plan: "PLUS",
+            workspaceId: "workspace",
+            userId: "owner",
+            checkoutId: "checkout",
+            assignmentToken: "assignment",
+          }),
+        ).rejects.toMatchObject({
+          name: "PaddleRequestOutcomeUnknownError",
+          mayHaveCommitted: true,
+        });
+      } finally {
+        fetchMock.mockRestore();
+      }
+    },
+  );
+
+  it.each(["subscription", "credits"] as const)(
+    "preserves valid %s transaction creation through the mocked provider",
+    async (kind) => {
+      const configured = {
+        ...environment(),
+        TWILIO_ENABLED: true,
+        TWILIO_ACCOUNT_SID: `AC${"1".repeat(32)}`,
+        TWILIO_AUTH_TOKEN: "test-auth-token-with-at-least-16-characters",
+        TWILIO_SMS_FROM: "+15005550006",
+        TWILIO_STATUS_CALLBACK_URL: "https://example.test/status",
+        TWILIO_INBOUND_URL: "https://example.test/inbound",
+      };
+      const transactionId = `txn_${"a".repeat(26)}`;
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                status: "active",
+                unit_price: {
+                  amount: kind === "subscription" ? "2700" : "1250",
+                  currency_code: "EUR",
+                },
+                billing_cycle:
+                  kind === "subscription"
+                    ? { interval: "month", frequency: 1 }
+                    : null,
+              },
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                id: transactionId,
+                checkout: { url: "https://example.test/checkout" },
+              },
+            }),
+          ),
+        );
+      try {
+        const service = new PaddleService(configured);
+        const input = {
+          workspaceId: "workspace",
+          userId: "owner",
+          checkoutId: "checkout",
+          assignmentToken: "assignment",
+        };
+        const result =
+          kind === "subscription"
+            ? await service.createTransaction({ ...input, plan: "PLUS" })
+            : await service.createMessageCreditTransaction({
+                ...input,
+                pack: "MESSAGES_100",
+              });
+        expect(result).toMatchObject({
+          transactionId,
+          checkoutUrl: "https://example.test/checkout",
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls[1][1]?.method).toBe("POST");
+      } finally {
+        fetchMock.mockRestore();
+      }
+    },
+  );
+
   it("keeps an explicit provider rejection distinct from an uncertain outcome", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

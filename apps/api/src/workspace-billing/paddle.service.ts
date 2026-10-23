@@ -149,12 +149,12 @@ export class PaddleService {
         },
       }),
     });
-    if (!response.data.checkout.url)
-      problem(
-        "PADDLE_CHECKOUT_UNAVAILABLE",
-        HttpStatus.BAD_GATEWAY,
-        "Checkout Paddle indisponibil",
-      );
+    if (
+      !/^txn_[a-z0-9]{26}$/.test(response.data?.id ?? "") ||
+      typeof response.data?.checkout?.url !== "string" ||
+      !response.data.checkout.url
+    )
+      throw new PaddleRequestOutcomeUnknownError(true);
     return {
       transactionId: response.data.id,
       checkoutUrl: response.data.checkout.url,
@@ -196,12 +196,12 @@ export class PaddleService {
         },
       }),
     });
-    if (!response.data.checkout.url)
-      problem(
-        "PADDLE_CHECKOUT_UNAVAILABLE",
-        HttpStatus.BAD_GATEWAY,
-        "Checkout Paddle indisponibil",
-      );
+    if (
+      !/^txn_[a-z0-9]{26}$/.test(response.data?.id ?? "") ||
+      typeof response.data?.checkout?.url !== "string" ||
+      !response.data.checkout.url
+    )
+      throw new PaddleRequestOutcomeUnknownError(true);
     return {
       transactionId: response.data.id,
       checkoutUrl: response.data.checkout.url,
@@ -505,12 +505,18 @@ export class PaddleService {
       );
     }
     const payload = (await response.json().catch(() => null)) as T | null;
+    const validEnvelope =
+      payload &&
+      typeof payload === "object" &&
+      "data" in payload &&
+      payload.data !== null &&
+      payload.data !== undefined;
     if (
       (init.method ?? "GET").toUpperCase() !== "GET" &&
-      (response.status >= 500 || (response.ok && !payload))
+      (response.status >= 500 || (response.ok && !validEnvelope))
     )
       throw new PaddleRequestOutcomeUnknownError(true);
-    if (!response.ok || !payload)
+    if (!response.ok || !validEnvelope)
       problem(
         "PADDLE_REQUEST_FAILED",
         HttpStatus.BAD_GATEWAY,
